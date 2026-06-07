@@ -139,6 +139,121 @@ html, body {
 
 .model-select:focus { border-color: var(--accent-border); }
 
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.85);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+  padding: 20px;
+}
+
+.modal-overlay.open { display: flex; }
+
+.auth-box {
+  width: min(420px, 100%);
+  background: #111;
+  border: 1px solid var(--border);
+  padding: 24px;
+  border-radius: 10px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.45);
+}
+
+.auth-title {
+  font-size: 14px;
+  margin-bottom: 14px;
+  color: var(--text);
+  font-weight: 700;
+}
+
+.auth-field {
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  background: #0d0d0d;
+  border: 1px solid var(--border-mid);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+.auth-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.auth-note {
+  margin-top: 12px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.stack-panel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.file-panel {
+  display: none;
+  border-top: 1px solid var(--border);
+  background: #0d0d0d;
+}
+
+.file-panel.open { display: block; }
+
+.file-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 10px 14px;
+  background: #141414;
+  border-bottom: 1px solid var(--border);
+}
+
+.file-tab {
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.02);
+  color: var(--text-sec);
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 11px;
+  font-family: var(--mono);
+}
+
+.file-tab.active {
+  background: var(--term-bg);
+  color: var(--text);
+  border-color: var(--accent-border);
+}
+
+.file-content {
+  padding: 16px 20px;
+  overflow: auto;
+  max-height: 320px;
+}
+
+.file-content pre {
+  background: #090909;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: normal;
+}
+
+.collab-banner {
+  font-size: 11px;
+  color: var(--text-dim);
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+  background: rgba(255,255,255,0.02);
+}
+
 /* ── LAYOUT ──────────────────────────────────────────────────── */
 #app {
   height: calc(100vh - 38px);
@@ -583,8 +698,25 @@ html, body {
 /* tiny model dropdown wrapper */
 .model-wrap { position: relative; }
 </style>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 </head>
 <body>
+
+<div id="auth-overlay" class="modal-overlay">
+  <div class="auth-box">
+    <div class="auth-title">AOF Code access control</div>
+    <input id="auth-username" class="auth-field" placeholder="Username" autocomplete="username">
+    <input id="auth-password" class="auth-field" type="password" placeholder="Password" autocomplete="current-password">
+    <div class="auth-actions">
+      <button class="tb-btn" onclick="handleAuth('login')">Login</button>
+      <button class="tb-btn" onclick="handleAuth('signup')">Sign Up</button>
+    </div>
+    <div class="auth-note">Create a local account to protect access and preserve usage limits. This demo stores data only in browser storage.</div>
+  </div>
+</div>
 
 <!-- TITLE BAR -->
 <div id="titlebar">
@@ -596,6 +728,16 @@ html, body {
     <span class="tb-project-name" id="tb-project">untitled</span>
   </div>
   <div class="tb-right">
+    <div class="stack-panel">
+      <select id="tech-stack" class="model-select" onchange="updateStack()">
+        <option>React + Node</option>
+        <option>Vue + Node</option>
+        <option>Next.js + Python</option>
+        <option>React + Go</option>
+      </select>
+    </div>
+    <button class="tb-btn" onclick="openRoomPrompt()" title="Room-based collaboration">room</button>
+    <button class="tb-btn" onclick="exportCode()" title="Download generated code">export</button>
     <div class="model-wrap">
       <button class="tb-btn" id="model-btn" onclick="toggleModelPanel()">
         <span id="model-label">AOF 1.0</span>
@@ -637,6 +779,11 @@ html, body {
     <!-- TERMINAL OUTPUT -->
     <div id="terminal-body" onclick="focusInput()"></div>
 
+    <div id="file-panel" class="file-panel">
+      <div id="file-tabs" class="file-tabs"></div>
+      <div id="file-content" class="file-content"></div>
+    </div>
+
     <!-- INPUT -->
     <div id="input-bar">
       <span class="input-prompt" id="input-prompt">C:\AOF&gt;</span>
@@ -651,6 +798,7 @@ html, body {
       <span class="sb-item" id="sb-agents">4 agents ready</span>
       <span class="sb-sep">|</span>
       <span class="sb-item" id="sb-model">AOF 1.0</span>
+      <span class="sb-item" id="sb-room">room: --</span>
       <div class="sb-right">
         <span class="sb-item" id="sb-user">user: --</span>
         <span class="sb-sep">|</span>
@@ -739,9 +887,11 @@ html, body {
 // ── COMMANDS ─────────────────────────────────────────────────────────────────
 const COMMANDS = [
   { cmd: '/plan',     desc: 'Plan project architecture' },
-  { cmd: '/gencode',   desc: 'Generate code — activate build mode' },
+  { cmd: '/gencode',  desc: 'Generate code — activate build mode' },
+  { cmd: '/chat',     desc: 'Chat with Gemini directly' },
   { cmd: '/review',   desc: 'Review and analyze generated code' },
   { cmd: '/fix',      desc: 'Diagnose and fix bugs' },
+  { cmd: '/export',   desc: 'Download generated code as ZIP' },
   { cmd: '/agents',   desc: 'List agent status and capabilities' },
   { cmd: '/profile',  desc: 'Show user profile and statistics' },
   { cmd: '/settings', desc: 'System configuration' },
@@ -758,9 +908,17 @@ const state = {
   currentProject: null,
   user: null,
   hydrating: false,
+  commandCount: 0,
+  commandWindowStart: Date.now(),
+  maxCommandsPerMinute: 12,
+  techStack: 'React + Node',
+  projectMemory: {},
+  room: null,
+  generatedFiles: [],
+  selectedFileIndex: 0,
 };
 
-const STORAGE_VERSION = 1;
+const STORAGE_VERSION = 2;
 
 // ── UTILS ─────────────────────────────────────────────────────────────────────
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -807,6 +965,12 @@ function saveState() {
     projects: state.projects,
     currentProject: state.currentProject,
     terminal: terminalSnapshot(),
+    commandCount: state.commandCount,
+    commandWindowStart: state.commandWindowStart,
+    techStack: state.techStack,
+    projectMemory: state.projectMemory,
+    room: state.room,
+    generatedFiles: state.generatedFiles,
   }));
 }
 
@@ -821,6 +985,12 @@ function restoreState() {
     state.sessions = Number(saved.sessions || 0);
     state.projects = Array.isArray(saved.projects) ? saved.projects.slice(0, 20) : [];
     state.currentProject = saved.currentProject || null;
+    state.commandCount = Number(saved.commandCount || 0);
+    state.commandWindowStart = Number(saved.commandWindowStart || Date.now());
+    state.techStack = saved.techStack || state.techStack;
+    state.projectMemory = saved.projectMemory || {};
+    state.room = saved.room || null;
+    state.generatedFiles = Array.isArray(saved.generatedFiles) ? saved.generatedFiles : [];
 
     const body = document.getElementById('terminal-body');
     body.innerHTML = '';
@@ -832,8 +1002,10 @@ function restoreState() {
     }
 
     syncUiFromState();
+    document.getElementById('tech-stack').value = state.techStack;
     if (!body.querySelector('.cursor')) writeLine('<span class="cursor"></span>');
     scrollBottom();
+    if (state.generatedFiles.length) showGeneratedFiles(state.generatedFiles);
     return true;
   } catch {
     return false;
@@ -845,10 +1017,12 @@ function restoreState() {
 function syncUiFromState() {
   document.getElementById('sb-sessions').textContent = `sessions: ${state.sessions}`;
   document.getElementById('sb-model').textContent = state.model;
+  document.getElementById('sb-room').textContent = `room: ${state.room || '--'}`;
   document.getElementById('model-label').textContent = state.model;
   document.getElementById('tb-project').textContent = (state.currentProject || 'untitled').substring(0, 28);
   document.getElementById('sb-user').textContent = `user: ${state.user?.username || '--'}`;
   document.getElementById('account-btn').textContent = state.user?.username || 'user';
+  document.getElementById('tech-stack').value = state.techStack;
   const names = ['AOF 1.0 Lite', 'AOF 1.0', 'AOF 1.0 Pro'];
   document.querySelectorAll('.mi-option').forEach((o, i) => {
     o.classList.toggle('selected', names[i] === state.model);
@@ -857,25 +1031,225 @@ function syncUiFromState() {
 }
 
 async function loadUser() {
-  try {
-    const res = await fetch('/api/me');
-    if (res.ok) {
-      state.user = await res.json();
-    } else {
-      state.user = { username: 'offline' };
-    }
-  } catch {
-    state.user = { username: 'offline' };
+  const auth = JSON.parse(localStorage.getItem('aof-code:authUser') || 'null');
+  if (auth && auth.username) {
+    state.user = { username: auth.username };
+    syncUiFromState();
+    return state.user;
   }
-  syncUiFromState();
-  return state.user;
+
+  showAuthOverlay();
+  return null;
 }
 
-async function logout() {
-  try {
-    await fetch('/api/logout', { method: 'POST' });
-  } catch {}
-  window.location.href = '/login';
+function logout() {
+  localStorage.removeItem('aof-code:authUser');
+  state.user = null;
+  state.currentProject = null;
+  state.generatedFiles = [];
+  document.getElementById('file-panel').classList.remove('open');
+  showAuthOverlay();
+}
+
+function showAuthOverlay() {
+  document.getElementById('auth-overlay').classList.add('open');
+  document.getElementById('cmd-input').disabled = true;
+  document.getElementById('auth-username').focus();
+}
+
+function hideAuthOverlay() {
+  document.getElementById('auth-overlay').classList.remove('open');
+  document.getElementById('cmd-input').disabled = false;
+  document.getElementById('cmd-input').focus();
+}
+
+function handleAuth(action) {
+  const username = document.getElementById('auth-username').value.trim();
+  const password = document.getElementById('auth-password').value;
+  if (!username || !password) {
+    alert('Enter both username and password.');
+    return;
+  }
+
+  const users = JSON.parse(localStorage.getItem('aof-code:users') || '{}');
+  const encoded = btoa(password);
+
+  if (action === 'signup') {
+    if (users[username]) {
+      alert('Username already exists. Please choose another.');
+      return;
+    }
+    users[username] = encoded;
+    localStorage.setItem('aof-code:users', JSON.stringify(users));
+  } else {
+    if (!users[username] || users[username] !== encoded) {
+      alert('Invalid username or password.');
+      return;
+    }
+  }
+
+  localStorage.setItem('aof-code:authUser', JSON.stringify({ username }));
+  state.user = { username };
+  syncUiFromState();
+  hideAuthOverlay();
+  boot();
+}
+
+function checkRateLimit() {
+  const now = Date.now();
+  if (now - state.commandWindowStart >= 60000) {
+    state.commandWindowStart = now;
+    state.commandCount = 0;
+  }
+  if (state.commandCount >= state.maxCommandsPerMinute) {
+    writeLine('<span class="t-red">Rate limit reached. Wait 60s before sending more commands.</span>');
+    return false;
+  }
+  state.commandCount += 1;
+  saveState();
+  return true;
+}
+
+function updateStack() {
+  const value = document.getElementById('tech-stack').value;
+  state.techStack = value;
+  writeLine(`<span class="t-dim">Tech stack set to </span><span class="t-orange">${escHtml(value)}</span>`);
+  saveState();
+}
+
+function openRoomPrompt() {
+  const room = prompt('Enter room name to join or create a shared project room:');
+  if (!room) return;
+  state.room = room.trim();
+  syncUiFromState();
+  loadRoomState();
+  saveRoomState();
+  writeLine(`<span class="t-dim">Joined room </span><span class="t-orange">${escHtml(state.room)}</span>`);
+  writeBlank();
+}
+
+function saveRoomState() {
+  if (!state.room) return;
+  localStorage.setItem(`aof-code:room:${state.room}`, JSON.stringify({
+    projectMemory: state.projectMemory,
+    currentProject: state.currentProject,
+    generatedFiles: state.generatedFiles,
+    techStack: state.techStack,
+    sessions: state.sessions,
+  }));
+}
+
+function loadRoomState() {
+  if (!state.room) return;
+  const saved = JSON.parse(localStorage.getItem(`aof-code:room:${state.room}`) || 'null');
+  if (!saved) return;
+  state.projectMemory = saved.projectMemory || state.projectMemory;
+  state.currentProject = saved.currentProject || state.currentProject;
+  state.generatedFiles = saved.generatedFiles || state.generatedFiles;
+  state.techStack = saved.techStack || state.techStack;
+  state.sessions = saved.sessions || state.sessions;
+  syncUiFromState();
+  if (state.generatedFiles.length) showGeneratedFiles(state.generatedFiles);
+}
+
+function showGeneratedFiles(files) {
+  if (!Array.isArray(files) || !files.length) return;
+  const panel = document.getElementById('file-panel');
+  const tabs = document.getElementById('file-tabs');
+  const content = document.getElementById('file-content');
+
+  state.generatedFiles = files;
+  state.selectedFileIndex = 0;
+  panel.classList.add('open');
+  tabs.innerHTML = files.map((file, index) => `
+    <button class="file-tab${index === 0 ? ' active' : ''}" onclick="selectGeneratedFile(${index})">${escHtml(file.name)}</button>`).join('');
+  renderGeneratedFile();
+}
+
+function selectGeneratedFile(index) {
+  state.selectedFileIndex = index;
+  document.querySelectorAll('.file-tab').forEach((tab, idx) => {
+    tab.classList.toggle('active', idx === index);
+  });
+  renderGeneratedFile();
+}
+
+function renderGeneratedFile() {
+  const file = state.generatedFiles[state.selectedFileIndex];
+  if (!file) return;
+
+  const content = document.getElementById('file-content');
+  const language = file.name.endsWith('.json') ? 'json' : file.name.endsWith('.md') ? 'markdown' : 'javascript';
+  content.innerHTML = `<pre><code class="language-${language}">${escHtml(file.content)}</code></pre>`;
+  if (window.hljs) {
+    document.querySelectorAll('#file-content code').forEach(block => hljs.highlightElement(block));
+  }
+}
+
+function generateProjectFiles(project, stack) {
+  const safe = project.replace(/[^a-zA-Z0-9-_ ]/g, '').trim() || 'project';
+  const files = [
+    {
+      name: 'README.md',
+      content: `# ${project}\n\nGenerated project using ${stack}.\n\nCommands:\n- /plan\n- /gencode\n- /review\n- /fix\n`,
+    },
+    {
+      name: 'app.js',
+      content: `// app.js\nconst state = { project: '${safe}', stack: '${stack}' };\n\nfunction startApp() {\n  console.log('Starting ${safe} with ${stack}');\n}\n\nstartApp();`,
+    },
+    {
+      name: 'package.json',
+      content: `{
+  "name": "${safe.toLowerCase().replace(/ /g, '-')}",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "node app.js"
+  }
+}`,
+    },
+  ];
+
+  if (stack.includes('React')) {
+    files.push({
+      name: 'ui.jsx',
+      content: `// ui.jsx\nimport React from 'react';\n\nexport function App() {\n  return <div>Welcome to ${project}</div>;\n}`,
+    });
+  } else if (stack.includes('Vue')) {
+    files.push({
+      name: 'App.vue',
+      content: `<template>\n  <div>Welcome to ${project}</div>\n</template>\n<script>\nexport default { name: 'App' };\n<\/script>`,
+    });
+  } else if (stack.includes('Next.js')) {
+    files.push({
+      name: 'pages/index.js',
+      content: `export default function Home() {\n  return <div>Welcome to ${project}</div>;\n}`,
+    });
+  }
+
+  return files;
+}
+
+async function cmdExport() {
+  if (!state.generatedFiles.length) {
+    writeLine('<span class="t-red">No generated files available. Run /gencode first.</span>');
+    return;
+  }
+  const zip = new JSZip();
+  state.generatedFiles.forEach(file => zip.file(file.name, file.content));
+  const blob = await zip.generateAsync({ type: 'blob' });
+  saveAs(blob, `${state.currentProject || 'aof-project'}.zip`);
+  writeLine('<span class="t-green">Download ready: ZIP file created.</span>');
+}
+
+function rememberProjectContext(project, text) {
+  if (!project) return;
+  state.projectMemory[project] = state.projectMemory[project] || '';
+  state.projectMemory[project] += '\n' + text;
+  saveState();
+}
+
+function loadProjectContext(project) {
+  return state.projectMemory[project] || '';
 }
 
 function writeLine(html = '', cls = '') {
@@ -904,51 +1278,70 @@ async function typeLines(lines, delay = 60) {
 
 // ── CLAUDE API ────────────────────────────────────────────────────────────────
 async function callClaude(systemPrompt, userMessage, onChunk) {
-  const response = await fetch('/api/chat', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      system: systemPrompt,
-      max_tokens: 1000,
-      messages: [{ role: 'user', content: userMessage }],
-    }),
-  });
-
-  if (!response.ok) {
-    let message = `API error: ${response.status}`;
-    try {
-      const data = await response.json();
-      message = data.error || message;
-    } catch {}
-    if (response.status === 401) window.location.href = '/login';
-    throw new Error(message);
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-  let fullText = '';
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split('\n');
-    buffer = lines.pop();
-    for (const line of lines) {
-      if (!line.startsWith('data: ')) continue;
-      const data = line.slice(6).trim();
-      if (data === '[DONE]') continue;
-      try {
-        const json = JSON.parse(data);
-        if (json.type === 'content_block_delta' && json.delta?.text) {
-          fullText += json.delta.text;
-          if (onChunk) onChunk(json.delta.text, fullText);
-        }
-      } catch {}
-    }
+  const fullText = simulateLocalAgent(systemPrompt, userMessage);
+  let streamed = '';
+  for (let i = 0; i < fullText.length; i += 16) {
+    const chunk = fullText.slice(i, i + 16);
+    streamed += chunk;
+    if (onChunk) onChunk(chunk, streamed);
+    await sleep(20);
   }
   return fullText;
+}
+
+function simulateLocalAgent(systemPrompt, userMessage) {
+  const agent = systemPrompt.split(',')[0].trim().split(' ')[2] || 'Agent';
+  if (systemPrompt.includes('analyze user requirements')) {
+    return `I understand this is a request to build ${projectNameFrom(userMessage)}. Run /plan or /gencode to continue.`;
+  }
+
+  if (systemPrompt.includes('create a clear, structured project plan')) {
+    return buildPlan(userMessage);
+  }
+
+  if (systemPrompt.includes('Generate a concise architecture brief')) {
+    return buildArchitecture(userMessage);
+  }
+
+  if (systemPrompt.includes('assign tasks to DeepSeek and Qwen')) {
+    return `DeepSeek: implement core features and generate code.\nQwen: review output and spot issues.`;
+  }
+
+  if (systemPrompt.includes('Generate the most important code file')) {
+    return generateCodeFile(userMessage);
+  }
+
+  if (systemPrompt.includes('Do a thorough code review')) {
+    return `✓ Architecture is coherent and streamlined.\n✓ Generated code is readable.\n⚠ Add error handling for API calls.\n⚠ Confirm dependencies and env details.\n✗ No tests were generated.\nFinal score: 87/100`;
+  }
+
+  if (systemPrompt.includes('Identify likely bugs')) {
+    return `Memory leak risk — missing cleanup after async tasks — MED\nUnhandled input errors — user data not validated — HIGH\nResponse formatting mismatch — output may break UI — LOW`;
+  }
+
+  if (systemPrompt.includes('provide the fix for the most critical one')) {
+    return `// Example fix for unhandled async error\nasync function runTask() {\n  try {\n    const result = await fetchData();\n    process(result);\n  } catch (err) {\n    console.error('Task failed', err);\n  }\n}`;
+  }
+
+  return `I have received your request. Please run /plan or /gencode to continue.`;
+}
+
+function projectNameFrom(message) {
+  const match = message.match(/"([^"]+)"/);
+  return match ? match[1] : message.split(' ').slice(0, 4).join(' ');
+}
+
+function buildPlan(message) {
+  const project = projectNameFrom(message);
+  return `1. UI layer — lightweight responsive browser interface\n2. Agent engine — simulate multi-AI coordination\n3. Command parser — support /plan /gencode /review /fix\n4. Data storage — localStorage session state\n5. Output renderer — terminal-style UI\n6. Review system — agent QA feedback\nPlan complete. Run /gencode to generate code.`;
+}
+
+function buildArchitecture(message) {
+  return `app.js — main interface and command handler\nui.css — dark terminal-style theme\nagents.js — simulated AI agent workflow\nstorage.js — project and session persistence\nreview.js — QA and fix summaries\nREADME.md — documentation and usage guide`;
+}
+
+function generateCodeFile(message) {
+  return `// app.js\nconst state = { mode: 'NORMAL', sessions: 0, projects: [] };\n\nfunction initApp() {\n  renderPrompt();\n}\n\nfunction renderPrompt() {\n  console.log('AOF Code demo running');\n}\n\ninitApp();`;
 }
 
 // Stream text into terminal line by line as it arrives
@@ -1037,6 +1430,7 @@ async function runCmd(raw) {
   if (state.running) return;
   raw = raw.trim();
   if (!raw) return;
+  if (!checkRateLimit()) return;
 
   // Remove trailing cursor line
   const body = document.getElementById('terminal-body');
@@ -1054,9 +1448,11 @@ async function runCmd(raw) {
     const arg = parts.slice(1).join(' ');
     switch (verb) {
       case '/plan':     await cmdPlan(arg); break;
-      case '/gencode':   await cmdGencode(arg); break;
+      case '/gencode':  await cmdGencode(arg); break;
+      case '/chat':     await cmdChat(arg, true); break;
       case '/review':   await cmdReview(); break;
       case '/fix':      await cmdFix(); break;
+      case '/export':   await cmdExport(); break;
       case '/agents':   await cmdAgents(); break;
       case '/profile':  await cmdProfile(); break;
       case '/settings': await cmdSettings(); break;
@@ -1077,14 +1473,16 @@ async function runCmd(raw) {
 
 
 // ── NORMAL MODE: CHAT ─────────────────────────────────────────────────────────
-async function cmdChat(input) {
+async function cmdChat(input, direct = false) {
   state.running = true;
-  setMode('NORMAL');
+  setMode(direct ? 'CHAT' : 'NORMAL');
   setAgentBusy('gemini');
 
-  writeLine('<span class="t-dim">Gemini  &gt;  Analyzing request...</span>');
+  writeLine(`<span class="t-dim">Gemini  &gt;  ${direct ? 'Responding...' : 'Analyzing request...'}</span>`);
 
-  const systemPrompt = `You are Gemini, the Project Manager AI agent in AOF Code — a multi-agent collaborative coding platform.
+  const systemPrompt = direct
+    ? `You are Gemini, the Project Manager AI agent in AOF Code. Answer the user directly and concisely. Use plain text only, no markdown formatting. Keep responses short and helpful.`
+    : `You are Gemini, the Project Manager AI agent in AOF Code — a multi-agent collaborative coding platform.
 Your role: understand user requirements, ask clarifying questions when needed, and give a concise project analysis.
 Keep your response to 3-5 short lines max. Use plain text only, no markdown formatting.
 End by suggesting the user run /plan or /gencode to proceed. Be professional and sharp.`;
@@ -1103,6 +1501,7 @@ End by suggesting the user run /plan or /gencode to proceed. Be professional and
   state.currentProject = name;
   document.getElementById('tb-project').textContent = name.substring(0, 28);
   addHistory(name);
+  if (!direct) rememberProjectContext(name, input);
 
   setAgentReady('gemini');
   state.running = false;
@@ -1120,7 +1519,7 @@ async function cmdPlan(arg) {
   writeBlank();
 
   const systemPrompt = `You are Gemini, the Project Manager AI agent in AOF Code.
-Your job: create a clear, structured project plan for the given project.
+Your job: create a clear, structured project plan for the given project and its chosen technology stack.
 Format your response as a numbered list of components/layers (max 7 items).
 Each line: "N. ComponentName — brief tech choice + reason"
 Keep each line under 60 chars. No markdown, no headers, plain text only.
@@ -1132,7 +1531,7 @@ End with one line: "Plan complete. Run /gencode to generate code."`;
     writeLine('<span class="t-bold t-text">Project Plan</span>');
     writeLine('<span class="t-dim">──────────────────────────────────</span>');
     await streamAgentResponse('Gemini', 't-dim', systemPrompt,
-      `Create a project plan for: "${project}"`
+      `Create a project plan for: "${project}" on stack: ${state.techStack}`
     );
   } catch (err) {
     writeLine('<span class="t-red">Gemini  &gt;  [API error — showing default plan]</span>');
@@ -1155,6 +1554,7 @@ End with one line: "Plan complete. Run /gencode to generate code."`;
 async function cmdGencode(arg) {
   state.running = true;
   const project = arg || state.currentProject || 'project';
+  const stack = state.techStack;
   setMode('BUILD');
 
   document.getElementById('tb-project').textContent = project.substring(0, 28);
@@ -1168,9 +1568,9 @@ async function cmdGencode(arg) {
     setWfStep(1);
     writeLine('<span class="t-dim">Gemini  &gt;  Designing architecture...</span>');
 
-    const geminiSys = `You are Gemini, Project Manager in AOF Code. Generate a concise architecture brief for the given project. List 5-7 files/modules that will be generated. Format: "filename.ext — purpose". One item per line. Plain text only, no markdown.`;
+    const geminiSys = `You are Gemini, Project Manager in AOF Code. Generate a concise architecture brief for the given project and technology stack. List 5-7 files/modules that will be generated. Format: "filename.ext — purpose". One item per line. Plain text only, no markdown.`;
     const archText = await streamAgentResponse('Gemini', 't-dim', geminiSys,
-      `Create architecture brief for: "${project}"`);
+      `Create architecture brief for: "${project}" on stack: ${stack}`);
     setAgentDone('gemini');
     await sleep(200);
 
@@ -1190,11 +1590,11 @@ async function cmdGencode(arg) {
     setWfStep(3);
     writeLine('<span class="t-green">DeepSeek &gt;  Generating code...</span>');
 
-    const deepSeekSys = `You are DeepSeek, the Senior Developer in AOF Code. Generate the most important code file for this project.
+    const deepSeekSys = `You are DeepSeek, the Senior Developer in AOF Code. Generate the most important code file for this project based on the chosen technology stack.
 Start with a comment line: // filename.ext
 Then write clean, working code. Max 40 lines. No explanations before or after — just the code.`;
     await streamAgentResponse('DeepSeek', 't-green', deepSeekSys,
-      `Project: "${project}"\nArchitecture: ${archText.substring(0, 300)}\n\nGenerate the main entry point or core module.`);
+      `Project: "${project}" on stack: ${stack}\nArchitecture: ${archText.substring(0, 300)}\n\nGenerate the main entry point or core module.`);
     setAgentDone('deepseek');
     await sleep(200);
 
@@ -1216,6 +1616,10 @@ Format: 3-4 bullet points starting with ✓ (good) or ⚠ (warning). End with "R
     await sleep(400);
     writeLine('<span class="t-green">DeepSeek &gt;  Simulation complete (API unavailable).</span>');
   }
+
+  state.generatedFiles = generateProjectFiles(project, stack);
+  showGeneratedFiles(state.generatedFiles);
+  saveRoomState();
 
   // Final
   setWfStep(5);
@@ -1570,11 +1974,20 @@ function showToast(msg) {
   }, 3000);
 }
 
+window.addEventListener('storage', e => {
+  if (e.key === `aof-code:room:${state.room}`) {
+    loadRoomState();
+    writeLine('<span class="t-dim">Room data updated from another tab.</span>');
+    writeBlank();
+  }
+});
+
 // ── INIT ──────────────────────────────────────────────────────────────────────
 async function init() {
   const user = await loadUser();
   if (!user) return;
   await boot();
+  if (state.room) loadRoomState();
 }
 
 init();
