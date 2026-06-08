@@ -1,0 +1,26 @@
+{
+  "name": "@aof/code",
+  "version": "0.1.0",
+  "description": "AOF Code — TMAP v2 multi-agent coding assistant (MVP core)",
+  "type": "module",
+  "bin": {
+    "aof": "./src/cli.ts"
+  },
+  "scripts": {
+    "aof": "tsx src/cli.ts",
+    "doctor": "tsx src/cli.ts doctor",
+    "agents": "tsx src/cli.ts agents",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
+    "@types/node": "^22.9.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
