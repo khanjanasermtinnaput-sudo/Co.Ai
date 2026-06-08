@@ -337,7 +337,7 @@ html, body {
     <div id="terminal-body" onclick="focusInput()"></div>
     <div id="input-bar">
       <span class="input-prompt" id="input-prompt">C:\AOF&gt;</span>
-      <input type="text" id="cmd-input" placeholder="อธิบายสิ่งที่คุณต้องการสร้าง..." autocomplete="off" spellcheck="false">
+      <input type="text" id="cmd-input" placeholder="อธิบายสิ่งที่คุณต้องการสร้าง..." autocomplete="off" spellcheck="false" disabled>
       <span class="input-hint">Ctrl+K &nbsp;|&nbsp; /help</span>
     </div>
     <div id="statusbar" class="planning">
@@ -482,11 +482,21 @@ function writeBlank(){ const el=document.createElement('div'); el.className='t-b
 
 // ── REST helper ───────────────────────────────────────────────────────────────
 async function api(path, method='GET', body){
-  const r = await fetch(API+path, {
-    method,
-    headers: { 'Content-Type':'application/json', ...(state.token?{Authorization:'Bearer '+state.token}:{}) },
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  const ctrl = new AbortController();
+  const timer = setTimeout(()=>ctrl.abort(), 20000);
+  let r;
+  try{
+    r = await fetch(API+path, {
+      method,
+      headers: { 'Content-Type':'application/json', ...(state.token?{Authorization:'Bearer '+state.token}:{}) },
+      body: body ? JSON.stringify(body) : undefined,
+      signal: ctrl.signal,
+    });
+  }catch(err){
+    throw new Error(ctrl.signal.aborted ? 'หมดเวลาเชื่อมต่อเซิร์ฟเวอร์ (timeout)' : 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้');
+  }finally{
+    clearTimeout(timer);
+  }
   const d = await r.json().catch(()=>({}));
   if(!r.ok) {
     const e = new Error(d.error || ('HTTP '+r.status));
@@ -1013,13 +1023,13 @@ function cmdExportHtml(){
     }
   );
 
-  // Inline <script src="..."></script>
+  // Inline <script src="..."><\/script>
   html = html.replace(
     /<script([^>]*)\bsrc=["']([^"'#?]+)["']([^>]*)><\/script>/gi,
     (match, pre, src, post)=>{
       const base = src.split('/').pop();
       const js   = state.files.find(f=>f.path===src||f.path.endsWith('/'+base)||f.path===base);
-      return js ? `<script${pre}${post}>\n${js.content||''}\n</script>` : match;
+      return js ? `<script${pre}${post}>\n${js.content||''}\n<\/script>` : match;
     }
   );
 
@@ -1141,19 +1151,24 @@ function showToast(msg){ const el=document.getElementById('sb-agents'); el.textC
 // ── INIT ─────────────────────────────────────────────────────────────────────────
 async function init(){
   syncUser();
+  const inp = document.getElementById('cmd-input');
+  inp.disabled = true;                 // dead until we confirm a valid session
   if(!state.token){ showAuth(); return; }
   // verify token still valid
   try{
-    await api('/v1/me');
-    document.getElementById('cmd-input').disabled=false;
+    await api('/v1/me');               // 20s timeout lives inside api()
+    inp.disabled = false;
     await boot();
   }catch(e){
-    const is401 = String(e.message).includes('401');
-    if(is401){ state.token=''; localStorage.removeItem('aof:token'); }
-    // show error in terminal before redirecting to login
+    // expired/invalid token, or server unreachable → drop straight back to login
+    if(e.status === 401){
+      state.token=''; state.user='';
+      localStorage.removeItem('aof:token'); localStorage.removeItem('aof:uname');
+      syncUser();
+    }
     const body=document.getElementById('terminal-body');
-    if(body){ body.innerHTML=''; writeLine('<span class="t-red">Session error: '+escHtml(e.message)+'</span>'); }
-    setTimeout(showAuth, 800);
+    if(body) body.innerHTML='';
+    showAuth();
   }
 }
 init();
