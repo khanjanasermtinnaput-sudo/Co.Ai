@@ -23,7 +23,11 @@ interface DbShape {
   users: Record<string, UserRecord>; // keyed by lowercased email
 }
 
-const DB_PATH = join(process.cwd(), '.aof-server', 'db.json');
+// On Vercel the filesystem is read-only except /tmp.
+// When Supabase is connected (SUPABASE_URL set), this file DB is bypassed entirely.
+const DB_PATH = process.env.VERCEL
+  ? '/tmp/aof-db.json'
+  : join(process.cwd(), '.aof-server', 'db.json');
 
 function load(): DbShape {
   if (!existsSync(DB_PATH)) return { users: {} };

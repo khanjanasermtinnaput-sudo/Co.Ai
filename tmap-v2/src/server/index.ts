@@ -106,9 +106,14 @@ app.post('/v1/run', requireAuth, async (req: AuthedRequest, res) => {
 const __dirname = dirname(fileURLToPath(import.meta.url));
 app.use(express.static(join(__dirname, 'public')));
 
-const PORT = Number(process.env.PORT || 8787);
-app.listen(PORT, () => {
-  console.log(`AOF Code server → http://localhost:${PORT}`);
-  console.log(`  POST /v1/auth/register | /v1/auth/login`);
-  console.log(`  PUT  /v1/me/keys  (provider,key)   ·   POST /v1/run  (task)`);
-});
+export default app;
+
+// standalone server (local dev / Render / Docker) — skip when imported by Vercel
+if (!process.env.VERCEL) {
+  const PORT = Number(process.env.PORT || 8787);
+  app.listen(PORT, () => {
+    console.log(`AOF Code server → http://localhost:${PORT}`);
+    console.log(`  POST /v1/auth/register | /v1/auth/login`);
+    console.log(`  PUT  /v1/me/keys  (provider,key)   ·   POST /v1/run  (task)`);
+  });
+}
