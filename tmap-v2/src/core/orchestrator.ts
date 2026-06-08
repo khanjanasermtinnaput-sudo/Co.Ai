@@ -1,5 +1,5 @@
 import { resolveAll } from '../config.js';
-import type { Blackboard, ReviewIssue } from '../types.js';
+import type { Blackboard, ReviewIssue, ResolvedProvider, Role } from '../types.js';
 import { runPlanner, runCoder, runReviewer } from './agents.js';
 import { validateFiles } from './validator.js';
 import { logEvent, persist } from './blackboard.js';
@@ -12,8 +12,11 @@ const MAX_ITERATIONS: Record<Blackboard['mode'], number> = { lite: 0, normal: 1,
  * TMAP v2 loop (TDD §4): Plan -> Code -> Validate -> Review -> Critique loop.
  * Agents collaborate through the shared Blackboard, not a blind pipe.
  */
-export async function runTMAP(bb: Blackboard, emit: Emit): Promise<Blackboard> {
-  const agents = resolveAll();
+export async function runTMAP(
+  bb: Blackboard,
+  emit: Emit,
+  agents: Record<Role, ResolvedProvider> = resolveAll(),
+): Promise<Blackboard> {
   const maxIter = MAX_ITERATIONS[bb.mode];
 
   // 1) PLAN

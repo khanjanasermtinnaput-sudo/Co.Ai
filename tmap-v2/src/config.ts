@@ -129,3 +129,60 @@ export function anyKeyConfigured(): boolean {
   if (openrouterKey()) return true;
   return Object.values(PROVIDERS).some((d) => directKey(d));
 }
+
+// ── Credential injection (used by the server: keys come from a user's account,
+//    not from process.env) ─────────────────────────────────────────────────────
+export interface CredentialBag {
+  openrouter?: string;
+  gemini?: string;
+  deepseek?: string;
+  qwen?: string;
+  llama?: string;
+  models?: Partial<Record<string, string>>; // providerKey -> model override
+}
+
+function bagKey(providerKey: string, creds: CredentialBag): string | undefined {
+  const v = (creds as Record<string, unknown>)[providerKey];
+  return typeof v === 'string' && v.trim() ? v.trim() : undefined;
+}
+
+export function resolveRoleWith(role: Role, creds: CredentialBag): ResolvedProvider {
+  const providerKey = ROLE_PROVIDER[role];
+  const def = PROVIDERS[providerKey];
+  const model = creds.models?.[providerKey] || def.defaultModel;
+
+  const direct = bagKey(providerKey, creds);
+  if (direct) {
+    return { role, providerName: def.name, baseURL: def.baseURL, apiKey: direct, model, mode: 'direct' };
+  }
+  if (creds.openrouter?.trim()) {
+    return {
+      role, providerName: `${def.name} (via OpenRouter)`, baseURL: OPENROUTER_BASE,
+      apiKey: creds.openrouter.trim(), model: def.openrouterModel, mode: 'openrouter',
+    };
+  }
+  for (const otherKey of Object.keys(PROVIDERS)) {
+    const k = bagKey(otherKey, creds);
+    if (k) {
+      const od = PROVIDERS[otherKey];
+      return {
+        role, providerName: `${def.name} -> ${od.name} (fallback)`, baseURL: od.baseURL,
+        apiKey: k, model: creds.models?.[otherKey] || od.defaultModel, mode: 'fallback',
+      };
+    }
+  }
+  return { role, providerName: `${def.name} (mock)`, baseURL: '', apiKey: '', model: 'mock', mode: 'mock' };
+}
+
+export function resolveAllWith(creds: CredentialBag): Record<Role, ResolvedProvider> {
+  return {
+    planner: resolveRoleWith('planner', creds),
+    coder: resolveRoleWith('coder', creds),
+    reviewer: resolveRoleWith('reviewer', creds),
+    validator: resolveRoleWith('validator', creds),
+  };
+}
+
+export function bagHasAnyKey(creds: CredentialBag): boolean {
+  return Boolean(creds.openrouter || creds.gemini || creds.deepseek || creds.qwen || creds.llama);
+}

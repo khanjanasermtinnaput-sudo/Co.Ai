@@ -1,0 +1,19 @@
+# Render.com blueprint — deploy AOF Code server.
+# JWT_SECRET / AOF_MASTER_KEY are auto-generated (you never type secrets).
+# NOTE: free plan has ephemeral disk → the file DB (.aof-server/db.json) resets
+#       on each redeploy. For real multi-user use, switch db.ts to PostgreSQL
+#       (see AOF_CODE_TDD.md §6) or attach a paid persistent Disk.
+services:
+  - type: web
+    name: aof-code
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm run server
+    envVars:
+      - key: JWT_SECRET
+        generateValue: true
+      - key: AOF_MASTER_KEY
+        generateValue: true
+      - key: AOF_MODE
+        value: normal
