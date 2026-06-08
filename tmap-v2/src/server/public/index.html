@@ -2,8 +2,17 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>AOF Code</title>
+<meta name="theme-color" content="#000000">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="AOF Code">
+<meta name="description" content="Multi-agent AI code generation assistant">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icons/icon.svg">
+<link rel="icon" type="image/svg+xml" href="/icons/icon.svg">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
@@ -238,6 +247,35 @@ html, body {
 ::-webkit-scrollbar-thumb { background: #222; }
 
 @media (max-width: 760px) { #sidebar { display: none; } .tb-center { display: none; } }
+
+/* ── PWA INSTALL BANNER ──────────────────────────────────────── */
+#pwa-banner {
+  position: fixed; bottom: 20px; right: 20px; z-index: 9999;
+  background: #141414; border: 1px solid var(--accent-border);
+  display: flex; align-items: center; gap: 12px; padding: 12px 14px;
+  max-width: 320px; pointer-events: none;
+  opacity: 0; transform: translateY(16px);
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+#pwa-banner.show { opacity: 1; transform: translateY(0); pointer-events: all; }
+#pwa-banner img { width: 36px; height: 36px; flex-shrink: 0; }
+.pwa-info { flex: 1; min-width: 0; }
+.pwa-info-title { font-size: 12px; font-weight: 700; color: var(--text); }
+.pwa-info-sub { font-size: 11px; color: var(--text-sec); margin-top: 1px; }
+#pwa-install-btn {
+  height: 26px; padding: 0 12px; background: var(--accent); border: none;
+  color: #000; font-family: var(--mono); font-size: 11px; font-weight: 700;
+  cursor: pointer; flex-shrink: 0; white-space: nowrap;
+  transition: opacity 0.15s;
+}
+#pwa-install-btn:hover { opacity: 0.85; }
+#pwa-close-btn {
+  width: 22px; height: 22px; background: transparent; border: 1px solid var(--border-mid);
+  color: var(--text-dim); font-family: var(--mono); font-size: 11px;
+  cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+  transition: border-color 0.15s, color 0.15s;
+}
+#pwa-close-btn:hover { border-color: #444; color: var(--text); }
 </style>
 </head>
 <body>
@@ -293,6 +331,17 @@ html, body {
       <button class="btn-s" onclick="closeKeys()">ปิด</button>
     </div>
   </div>
+</div>
+
+<!-- PWA INSTALL BANNER -->
+<div id="pwa-banner">
+  <img src="/icons/icon.svg" alt="AOF Code">
+  <div class="pwa-info">
+    <div class="pwa-info-title">AOF Code</div>
+    <div class="pwa-info-sub">ติดตั้งเป็นแอปบนอุปกรณ์นี้</div>
+  </div>
+  <button id="pwa-install-btn" onclick="doPwaInstall()">ติดตั้ง</button>
+  <button id="pwa-close-btn" onclick="closePwaBanner()" title="ปิด">✕</button>
 </div>
 
 <!-- TITLE BAR -->
@@ -1195,7 +1244,34 @@ async function init(){
     showAuth();
   }
 }
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  window._pwaPrompt = e;
+  setTimeout(showPwaBanner, 5000);
+});
+
+function showPwaBanner(){
+  if(window.matchMedia('(display-mode: standalone)').matches) return;
+  document.getElementById('pwa-banner').classList.add('show');
+}
+function closePwaBanner(){
+  document.getElementById('pwa-banner').classList.remove('show');
+}
+async function doPwaInstall(){
+  closePwaBanner();
+  if(!window._pwaPrompt) return;
+  window._pwaPrompt.prompt();
+  const { outcome } = await window._pwaPrompt.userChoice;
+  window._pwaPrompt = null;
+}
+
 init();
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
 </script>
 </body>
 </html>
