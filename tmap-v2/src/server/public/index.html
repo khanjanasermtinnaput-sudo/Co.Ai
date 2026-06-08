@@ -26,6 +26,9 @@
   --blue: #5B9CF6;
   --red: #F87171;
   --yellow: #FBBF24;
+  --purple: #B57BFF;
+  --purple-dim: rgba(181,123,255,0.12);
+  --purple-border: rgba(181,123,255,0.25);
   --mono: 'JetBrains Mono', 'Consolas', 'Courier New', monospace;
 }
 
@@ -111,7 +114,22 @@ html, body {
 .t-red { color: var(--red); }
 .t-yellow { color: var(--yellow); }
 .t-bold { font-weight: 700; }
+.t-purple { color: var(--purple); }
 .t-blank { height: 8px; display: block; }
+
+/* ── RAA SUMMARY BOX ─────────────────────────────────────────── */
+.req-summary-box {
+  margin: 8px 0; padding: 12px 16px;
+  border: 1px solid var(--purple-border);
+  background: var(--purple-dim);
+  border-left: 3px solid var(--purple);
+  white-space: pre-wrap; word-break: break-word;
+}
+.req-summary-title { font-size: 11px; font-weight: 700; color: var(--purple); margin-bottom: 8px; letter-spacing: 0.08em; }
+
+/* ── PLANNING MODE — status bar override ─────────────────────── */
+#statusbar.planning { background: var(--purple); }
+#statusbar.planning .sb-item, #statusbar.planning .sb-sep { color: #000; }
 
 #input-bar {
   height: 42px; border-top: 1px solid var(--border); display: flex;
@@ -319,11 +337,11 @@ html, body {
     <div id="terminal-body" onclick="focusInput()"></div>
     <div id="input-bar">
       <span class="input-prompt" id="input-prompt">C:\AOF&gt;</span>
-      <input type="text" id="cmd-input" placeholder="Type a task or /command..." autocomplete="off" spellcheck="false">
+      <input type="text" id="cmd-input" placeholder="อธิบายสิ่งที่คุณต้องการสร้าง..." autocomplete="off" spellcheck="false">
       <span class="input-hint">Ctrl+K &nbsp;|&nbsp; /help</span>
     </div>
-    <div id="statusbar">
-      <span class="sb-item" id="sb-mode">NORMAL</span>
+    <div id="statusbar" class="planning">
+      <span class="sb-item" id="sb-mode">PLANNING</span>
       <span class="sb-sep">|</span>
       <span class="sb-item" id="sb-agents">4 agents ready</span>
       <span class="sb-sep">|</span>
@@ -342,6 +360,11 @@ html, body {
     <div class="sidebar-section">
       <div class="sidebar-title">Agents</div>
       <div id="agent-list">
+        <!-- RAA row — visible in planning mode only -->
+        <div class="agent-row" id="raa-row" style="border-left:2px solid var(--purple)">
+          <div class="agent-name" style="color:var(--purple)">RAA</div><div class="agent-role">Requirements Architect</div>
+          <div class="agent-status-line"><div class="agent-dot" id="dot-raa" style="background:var(--purple)"></div><span id="status-raa">Active</span></div>
+        </div>
         <div class="agent-row">
           <div class="agent-name">Gemini</div><div class="agent-role">Planner</div>
           <div class="agent-status-line"><div class="agent-dot" id="dot-planner"></div><span id="status-planner">Ready</span></div>
@@ -362,6 +385,17 @@ html, body {
     </div>
     <div class="sidebar-section">
       <div class="sidebar-title">Workflow</div>
+      <!-- Planning workflow (shown in planning mode) -->
+      <div class="wf-list" id="wf-plan" style="display:none">
+        <div class="wf-step" id="wp-0"><span class="wf-num">1.</span><span>User input</span></div>
+        <div class="wf-step" id="wp-1"><span class="wf-num" style="color:var(--purple)">2.</span><span>RAA analysis</span></div>
+        <div class="wf-step" id="wp-2"><span class="wf-num" style="color:var(--purple)">3.</span><span>Requirements</span></div>
+        <div class="wf-step" id="wp-3"><span class="wf-num" style="color:var(--purple)">4.</span><span>Summary</span></div>
+        <div class="wf-step" id="wp-4"><span class="wf-num">5.</span><span>/gencode ↓</span></div>
+        <div class="wf-step" id="wp-5"><span class="wf-num">6.</span><span>TMAP engine</span></div>
+        <div class="wf-step" id="wp-6"><span class="wf-num">7.</span><span>Final output</span></div>
+      </div>
+      <!-- Generation workflow (shown in generation mode) -->
       <div class="wf-list" id="wf-list">
         <div class="wf-step" id="wf-0"><span class="wf-num">1.</span><span>User input</span></div>
         <div class="wf-step" id="wf-1"><span class="wf-num">2.</span><span>Gemini planning</span></div>
@@ -400,8 +434,8 @@ const ROLE_WF    = { planner:1, coder:3, validator:5, reviewer:4 };
 const MODE_LABEL = { lite:'AOF 1.0 Lite', normal:'AOF 1.0', pro:'AOF 1.0 Pro' };
 
 const COMMANDS = [
-  { cmd: '/gencode',  desc: 'Generate code with all agents (real run)' },
-  { cmd: '/plan',     desc: 'Run TMAP — plan → code → validate → review' },
+  { cmd: '/gencode',  desc: 'เริ่มสร้างโค้ด (ต้องผ่าน Planning ก่อน)' },
+  { cmd: '/new',      desc: 'เริ่ม planning session ใหม่' },
   { cmd: '/keys',     desc: 'Manage your API keys' },
   { cmd: '/export',   desc: 'Download generated code as ZIP' },
   { cmd: '/agents',   desc: 'List agent roles and status' },
@@ -422,6 +456,10 @@ const state = {
   authMode: 'login',
   files: [],
   lastTask: null,
+  // ── Two-mode system (RAA → /gencode → TMAP) ──
+  phase: 'planning',           // 'planning' | 'generation'
+  chatHistory: [],             // RAA conversation history [{role,content}]
+  reqSummary: null,            // RequirementSummary from RAA (or null)
 };
 
 // ── UTILS ─────────────────────────────────────────────────────────────────────
@@ -539,11 +577,16 @@ async function delKey(p){ try{ await api('/v1/me/keys/'+p,'DELETE'); loadKeys();
 // ── BOOT ──────────────────────────────────────────────────────────────────────
 async function boot(){
   const body=document.getElementById('terminal-body'); body.innerHTML='';
+  // reset to planning mode on boot
+  state.chatHistory=[]; state.reqSummary=null; state.phase='planning';
+  setPhase('planning');
   writeBlank();
   writeLine('AOF Code v2.0  -  Multi-Agent Code Generation System');
   writeLine('<span class="t-dim">──────────────────────────────────────────────────────────</span>');
   writeBlank();
   await sleep(120);
+  writeLine('<span class="t-purple">OK</span>  Loading RAA             [requirements architect]');
+  await sleep(70);
   writeLine('<span class="t-green">OK</span>  Loading Gemini          [planner]');
   await sleep(70); writeLine('<span class="t-green">OK</span>  Loading DeepSeek        [coder]');
   await sleep(70); writeLine('<span class="t-green">OK</span>  Loading Qwen            [reviewer]');
@@ -552,10 +595,13 @@ async function boot(){
   writeLine('<span class="t-dim">──────────────────────────────────────────────────────────</span>');
   writeLine('<span class="t-green">Ready.</span>  <span class="t-dim">Signed in as </span><span class="t-orange">'+escHtml(state.user)+'</span>');
   writeBlank();
-  await sleep(120);
-  writeLine('Available commands:');
+  await sleep(80);
+  writeLine('<span class="t-purple t-bold">── PLANNING MODE ──</span>  <span class="t-dim">Discuss First, Generate Later</span>');
   writeBlank();
-  for(const c of COMMANDS){ await sleep(20); writeLine(`  <span class="t-orange">${c.cmd.padEnd(12)}</span>  <span class="t-dim">${c.desc}</span>`); }
+  writeLine('<span class="t-dim">ขั้นตอน:</span>');
+  writeLine('  <span class="t-purple">1.</span>  <span class="t-dim">อธิบายสิ่งที่ต้องการสร้าง → RAA จะช่วยสรุป Requirement</span>');
+  writeLine('  <span class="t-purple">2.</span>  <span class="t-dim">ตรวจสอบ Requirement Summary</span>');
+  writeLine('  <span class="t-purple">3.</span>  <span class="t-orange">/gencode</span>  <span class="t-dim">→ TMAP engine เริ่มสร้างโค้ด</span>');
   writeBlank();
 
   // hint if no key set
@@ -563,14 +609,12 @@ async function boot(){
     const me = await api('/v1/me');
     const hasKey = Object.values(me.keys).some(Boolean);
     if(!hasKey){
-      writeLine('<span class="t-yellow">!</span>  <span class="t-dim">No API key set — runs use mock mode. Add a key with </span><span class="t-orange">/keys</span>');
-    }else{
-      writeLine('<span class="t-dim">Type a task (e.g. </span><span class="t-orange">build a todo REST API in Node.js</span><span class="t-dim">) then Enter — or use </span><span class="t-orange">/gencode</span>');
+      writeLine('<span class="t-yellow">!</span>  <span class="t-dim">ยังไม่มี API key — ใช้ mock mode. เพิ่ม key ด้วย </span><span class="t-orange">/keys</span>');
     }
   }catch(e){
     if(String(e.message).includes('401')){ cmdLogout(); return; }
   }
-  writeLine('<span class="t-dim">Press Ctrl+K to open the command palette.</span>');
+  writeLine('<span class="t-dim">Ctrl+K = command palette</span>');
   writeBlank();
   writeLine('<span class="cursor"></span>');
   focusInput();
@@ -594,8 +638,10 @@ async function runCmd(raw){
     const verb=parts[0].toLowerCase();
     const arg=parts.slice(1).join(' ');
     switch(verb){
-      case '/gencode': case '/plan': case '/run': case '/review': case '/fix':
-        await runTask(arg); break;
+      case '/gencode':
+        await handleGencode(); break;
+      case '/new':
+        await cmdNewSession(); break;
       case '/keys':    openKeys(); break;
       case '/export':  await cmdExport(); break;
       case '/agents':  await cmdAgents(); break;
@@ -608,7 +654,12 @@ async function runCmd(raw){
         writeLine(`<span class="t-red">'${escHtml(verb)}' is not a command. Type /help.</span>`);
     }
   }else{
-    await runTask(raw);
+    // Any free-form text → RAA in planning mode, or TMAP in generation mode
+    if(state.phase === 'planning'){
+      await sendToRAA(raw);
+    } else {
+      await runTask(raw);
+    }
   }
 
   writeBlank();
@@ -616,10 +667,186 @@ async function runCmd(raw){
   scrollBottom(); focusInput();
 }
 
+// ── /gencode — switch planning → generation and run TMAP ───────────────────────
+async function handleGencode(){
+  if(state.phase === 'planning' && !state.reqSummary){
+    writeLine('<span class="t-yellow">!</span>  <span class="t-dim">อธิบายสิ่งที่ต้องการสร้างก่อน จากนั้นค่อยพิมพ์ </span><span class="t-purple">/gencode</span>');
+    writeLine('<span class="t-dim">RAA จะช่วยสรุป Requirement ให้พร้อมก่อนเริ่ม TMAP</span>');
+    return;
+  }
+  if(state.phase === 'planning' && state.reqSummary){
+    setPhase('generation');
+    writeLine('<span class="t-purple">Requirements approved.</span>  <span class="t-dim">กำลังส่งให้ TMAP engine...</span>');
+    writeBlank();
+    const task = state.reqSummary.project || 'project from requirements';
+    const context = buildContextFromSummary(state.reqSummary);
+    await runTask(task, context);
+  } else {
+    // already in generation mode — just re-run last task
+    await runTask(state.lastTask || '');
+  }
+}
+
+function buildContextFromSummary(s){
+  if(!s) return '';
+  return [
+    `Project: ${s.project}`,
+    `Type: ${s.type}`,
+    `Users: ${s.users}`,
+    `Features:\n${(s.features||[]).map(f=>'- '+f).join('\n')}`,
+    `Tech Stack: ${s.techStack}`,
+    `Architecture: ${s.architecture}`,
+    `Files to Create:\n${(s.files||[]).map(f=>'- '+f).join('\n')}`,
+    `Complexity: ${s.complexity}`,
+  ].filter(l=>l&&l.split(':')[1]?.trim()).join('\n');
+}
+
+// ── New planning session ────────────────────────────────────────────────────────
+async function cmdNewSession(){
+  state.chatHistory=[];
+  state.reqSummary=null;
+  setPhase('planning');
+  writeLine('<span class="t-purple">New planning session.</span>  <span class="t-dim">อธิบายสิ่งที่ต้องการสร้าง</span>');
+}
+
+// ── Phase switch helper ─────────────────────────────────────────────────────────
+function setPhase(p){
+  state.phase = p;
+  const sb = document.getElementById('statusbar');
+  const sbMode = document.getElementById('sb-mode');
+  const inp = document.getElementById('cmd-input');
+  const raaRow = document.getElementById('raa-row');
+  const wfPlan = document.getElementById('wf-plan');
+  const wfGen  = document.getElementById('wf-list');
+  if(p === 'planning'){
+    sb.className = 'planning';
+    sbMode.textContent = 'PLANNING';
+    inp.placeholder = 'อธิบายสิ่งที่คุณต้องการสร้าง...';
+    raaRow.style.display = '';
+    wfPlan.style.display = '';
+    wfGen.style.display  = 'none';
+    document.getElementById('sb-agents').textContent = 'RAA active';
+  } else {
+    sb.className = '';
+    sbMode.textContent = 'GENERATION';
+    inp.placeholder = 'Type a task or /command...';
+    raaRow.style.display = 'none';
+    wfPlan.style.display = 'none';
+    wfGen.style.display  = '';
+    document.getElementById('sb-agents').textContent = '4 agents ready';
+  }
+}
+
+// ── RAA chat (Planning mode) ────────────────────────────────────────────────────
+async function sendToRAA(message){
+  if(state.running) return;
+  state.running = true;
+  // update planning workflow
+  setPlanWfStep(1);
+
+  try {
+    const r = await fetch(API+'/v1/chat', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json', Authorization:'Bearer '+state.token },
+      body: JSON.stringify({ message, history: state.chatHistory }),
+    });
+    if(r.status===401){ cmdLogout(); return; }
+    if(!r.ok){ const e=await r.json().catch(()=>({})); throw new Error(e.error||('HTTP '+r.status)); }
+
+    // SSE stream
+    const reader=r.body.getReader(); const dec=new TextDecoder(); let buf='';
+    let accText='';
+    const dotEl = document.getElementById('dot-raa');
+    const stEl  = document.getElementById('status-raa');
+    if(dotEl) dotEl.className='agent-dot busy';
+    if(stEl)  stEl.textContent='Working...';
+
+    while(true){
+      const {value,done}=await reader.read(); if(done) break;
+      buf+=dec.decode(value,{stream:true});
+      let i;
+      while((i=buf.indexOf('\n\n'))>=0){
+        const line=buf.slice(0,i); buf=buf.slice(i+2);
+        if(!line.startsWith('data: ')) continue;
+        let ev; try{ ev=JSON.parse(line.slice(6)); }catch{ continue; }
+        if(ev.kind==='output'){
+          accText = ev.text||'';
+          renderRAA(ev.text);
+          setPlanWfStep(2);
+        }
+        if(ev.kind==='done'){
+          setPlanWfStep(ev.hasSummary ? 3 : 2);
+          if(ev.hasSummary && ev.summary){
+            state.reqSummary = ev.summary;
+            setPlanWfStep(3);
+            // highlight the /gencode call-to-action
+            writeBlank();
+            writeLine('<span class="t-dim">──────────────────────────────────────────────────────────</span>');
+            writeLine('<span class="t-purple">✅ Requirement Summary พร้อมแล้ว</span>  <span class="t-dim">พิมพ์ </span><span class="t-purple t-bold">/gencode</span><span class="t-dim"> เพื่อเริ่มสร้างโค้ด</span>');
+          }
+        }
+      }
+    }
+    if(dotEl) dotEl.className='agent-dot done';
+    if(stEl)  stEl.textContent='Done';
+
+    // Append to conversation history for next turn
+    state.chatHistory.push({ role:'user', content: message });
+    state.chatHistory.push({ role:'assistant', content: accText });
+  } catch(err){
+    writeLine(`<span class="t-red">Error: ${escHtml(String(err.message||err))}</span>`);
+  }
+  state.running = false;
+}
+
+function renderRAA(text){
+  if(!text) return;
+  // Split on summary markers — render raw text before, styled box for summary block
+  const startMarker = '===REQUIREMENT SUMMARY===';
+  const endMarker   = '===END SUMMARY===';
+  const si = text.indexOf(startMarker);
+  const ei = text.indexOf(endMarker);
+  if(si>=0 && ei>si){
+    const before  = text.slice(0, si).trim();
+    const inside  = text.slice(si+startMarker.length, ei).trim();
+    const after   = text.slice(ei+endMarker.length).trim();
+    if(before)  renderRAALines(before);
+    // Summary box
+    const box = document.createElement('div');
+    box.className='req-summary-box t-line';
+    box.innerHTML = '<div class="req-summary-title">📋 REQUIREMENT SUMMARY</div>' + escHtml(inside);
+    document.getElementById('terminal-body').appendChild(box);
+    scrollBottom();
+    if(after) renderRAALines(after);
+  } else {
+    renderRAALines(text);
+  }
+}
+
+function renderRAALines(text){
+  for(const ln of text.split('\n')){
+    if(ln.trim()==='') writeBlank();
+    else writeLine(`<span class="t-purple">RAA        </span><span class="t-muted">›</span> <span class="t-text">${escHtml(ln)}</span>`);
+  }
+}
+
+function setPlanWfStep(n){
+  for(let i=0;i<7;i++){
+    const el=document.getElementById('wp-'+i);
+    if(!el) continue;
+    el.className='wf-step'+(i<n?' done':i===n?' active':'');
+    if(i===n || i < n) {
+      const num = el.querySelector('.wf-num');
+      if(num && i<n) num.style.color='var(--green)';
+      if(num && i===n) num.style.color='var(--purple)';
+    }
+  }
+}
+
 // ── REAL TMAP RUN (SSE) ─────────────────────────────────────────────────────────
-async function runTask(task){
+async function runTask(task, context){
   task=(task||state.lastTask||'').trim();
-  if(!task){ writeLine('<span class="t-red">Please provide a task, e.g. /gencode build a todo API</span>'); return; }
+  if(!task){ writeLine('<span class="t-red">Please provide a task.</span>'); return; }
   state.lastTask=task;
   state.running=true;
   setMode('BUILD');
@@ -639,7 +866,7 @@ async function runTask(task){
     const r = await fetch(API+'/v1/run', {
       method:'POST',
       headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+state.token },
-      body: JSON.stringify({ task, mode: state.mode }),
+      body: JSON.stringify({ task, mode: state.mode, context: context||'' }),
     });
     if(r.status===401){ cmdLogout(); return; }
     if(!r.ok){ const e=await r.json().catch(()=>({})); throw new Error(e.error||('HTTP '+r.status)); }
@@ -756,8 +983,8 @@ async function cmdHelp(){
   writeBlank();
   for(const c of COMMANDS){ await sleep(18); writeLine(`  <span class="t-orange">${c.cmd.padEnd(12)}</span>  <span class="t-dim">${c.desc}</span>`); }
   writeBlank();
-  writeLine('<span class="t-dim">Type a task directly  ->  all agents generate real code.</span>');
-  writeLine('<span class="t-dim">Set provider keys first with </span><span class="t-orange">/keys</span><span class="t-dim"> (openrouter key works for all).</span>');
+  writeLine('<span class="t-purple">Workflow:</span>  <span class="t-dim">อธิบายสิ่งที่ต้องการ → RAA สรุป Requirement → /gencode → TMAP สร้างโค้ด</span>');
+  writeLine('<span class="t-dim">Set provider keys with </span><span class="t-orange">/keys</span><span class="t-dim"> (openrouter key works for all 4 agents).</span>');
 }
 
 // ── AGENT / MODE HELPERS ─────────────────────────────────────────────────────────
@@ -765,7 +992,10 @@ function setMode(m){ document.getElementById('sb-mode').textContent=m; }
 function setAgentBusy(role){ const d=document.getElementById('dot-'+role),l=document.getElementById('status-'+role); if(d)d.className='agent-dot busy'; if(l)l.textContent='Working...'; }
 function setAgentDone(role){ const d=document.getElementById('dot-'+role),l=document.getElementById('status-'+role); if(d)d.className='agent-dot done'; if(l)l.textContent='Done'; }
 function setAgentReady(role){ const d=document.getElementById('dot-'+role),l=document.getElementById('status-'+role); if(d)d.className='agent-dot'; if(l)l.textContent='Ready'; }
-function resetAgents(){ ['planner','coder','reviewer','validator'].forEach(setAgentReady); document.getElementById('sb-agents').textContent='4 agents ready'; }
+function resetAgents(){
+  ['planner','coder','reviewer','validator'].forEach(setAgentReady);
+  if(state.phase==='generation') document.getElementById('sb-agents').textContent='4 agents ready';
+}
 function setWfStep(n){ for(let i=0;i<7;i++){ const el=document.getElementById('wf-'+i); if(!el)continue; el.className='wf-step'+(i<n?' done':i===n?' active':''); } }
 
 // ── HISTORY ──────────────────────────────────────────────────────────────────────
@@ -776,7 +1006,7 @@ function renderHistory(){
       <div class="hist-name">${escHtml(p)}</div><div class="hist-time">${now()}</div>
     </div>`).join('');
 }
-function reRun(p){ document.getElementById('cmd-input').value='/gencode '+p; focusInput(); }
+function reRun(p){ document.getElementById('cmd-input').value=p; focusInput(); }
 
 // ── MODEL SELECTOR ───────────────────────────────────────────────────────────────
 function toggleModelPanel(){ document.getElementById('model-panel').classList.toggle('open'); }

@@ -10,8 +10,11 @@ import { createUser, findUserByUsername, setUserKey, deleteUserKey, type Provide
 import { bagHasAnyKey, type CredentialBag } from '../config.js';
 import { createBlackboard } from '../core/blackboard.js';
 import { runTMAP } from '../core/orchestrator.js';
+import { runRAA } from '../core/raa.js';
 import { currentMode } from '../config.js';
-import type { Mode } from '../types.js';
+import type { Mode, ChatMessage } from '../types.js';
+import { chatWithDARS } from '../dars/run.js';
+import { globalHealth } from '../dars/health.js';
 
 const PROVIDERS: ProviderKeyName[] = ['openrouter', 'gemini', 'deepseek', 'qwen', 'llama'];
 
@@ -80,10 +83,55 @@ app.delete('/v1/me/keys/:provider', requireAuth, async (req: AuthedRequest, res)
   res.json({ ok: true });
 });
 
+// ── PLANNING CHAT — RAA (SSE stream) ─────────────────────────────────────────
+// Stateless: client sends full history each turn so this works on serverless.
+app.post('/v1/chat', requireAuth, async (req: AuthedRequest, res) => {
+  const message = String(req.body?.message ?? '').trim();
+  const history: ChatMessage[] = Array.isArray(req.body?.history) ? req.body.history : [];
+  if (!message) return res.status(400).json({ error: 'message required' });
+
+  const u = req.user!;
+  const creds: CredentialBag = {};
+  for (const p of PROVIDERS) {
+    if (u.encryptedKeys[p]) (creds as Record<string, string>)[p] = decryptSecret(u.encryptedKeys[p]!);
+  }
+
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive',
+  });
+  const send = (event: object) => res.write(`data: ${JSON.stringify(event)}\n\n`);
+
+  const emit = (_role: string, text: string, kind = 'status') =>
+    send({ role: 'raa', kind, text });
+
+  // RAA uses its own LLM call via DARS (planner slot — best at reasoning/conversation)
+  const call = async (messages: ChatMessage[], opts = {}) => {
+    const r = await chatWithDARS('planner', messages, opts, {
+      creds,
+      health: globalHealth,
+      emit,
+      sessionId: 'raa-' + u.id,
+    });
+    return r.text;
+  };
+
+  try {
+    const result = await runRAA(call, history, message);
+    send({ role: 'raa', kind: 'output', text: result.text });
+    send({ role: 'raa', kind: 'done', hasSummary: result.hasSummary, summary: result.summary ?? null });
+  } catch (e) {
+    send({ role: 'raa', kind: 'error', text: (e as Error).message });
+  }
+  res.end();
+});
+
 // ── RUN TMAP (SSE stream) ─────────────────────────────────────────────────────
 app.post('/v1/run', requireAuth, async (req: AuthedRequest, res) => {
   const task = String(req.body?.task ?? '').trim();
   const mode = (['lite', 'normal', 'pro'].includes(req.body?.mode) ? req.body.mode : currentMode()) as Mode;
+  const context = String(req.body?.context ?? '').trim();   // optional: requirement summary from RAA
   if (!task) return res.status(400).json({ error: 'task required' });
 
   const u = req.user!;
@@ -103,7 +151,7 @@ app.post('/v1/run', requireAuth, async (req: AuthedRequest, res) => {
     send({ role: 'system', kind: 'status', text: 'ยังไม่มี API key — กำลังใช้ mock mode เพิ่ม key ได้ในหน้า Settings' });
   }
 
-  const bb = createBlackboard(task, mode);
+  const bb = createBlackboard(task, mode, context);    // context = requirement summary
   try {
     await runTMAP(bb, (role, text, kind = 'status') => send({ role, text, kind }), { creds });
     send({ role: 'system', kind: 'done', text: 'done', files: bb.files, iterations: bb.iterations });

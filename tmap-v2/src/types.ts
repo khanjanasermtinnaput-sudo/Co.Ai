@@ -52,6 +52,9 @@ export interface CodeFile {
   content: string;
 }
 
+// Session phase for the two-mode system (TDD §5 — Planning → Generation).
+export type SessionPhase = 'planning' | 'generation';
+
 // The Blackboard — shared working memory every agent reads/writes.
 export interface Blackboard {
   sessionId: string;
