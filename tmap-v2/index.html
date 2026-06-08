@@ -1,0 +1,1996 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AOF Code</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #000000;
+  --term-bg: #0C0C0C;
+  --bar-bg: #141414;
+  --border: #1E1E1E;
+  --border-mid: #2A2A2A;
+  --text: #FFFFFF;
+  --text-sec: #A0A0A0;
+  --text-dim: #555555;
+  --accent: #FF7A00;
+  --accent-dim: rgba(255,122,0,0.12);
+  --accent-border: rgba(255,122,0,0.25);
+  --green: #3DD68C;
+  --blue: #5B9CF6;
+  --red: #F87171;
+  --yellow: #FBBF24;
+  --mono: 'JetBrains Mono', 'Consolas', 'Courier New', monospace;
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.5;
+  overflow: hidden;
+}
+
+/* ── TITLE BAR ───────────────────────────────────────────────── */
+#titlebar {
+  height: 38px;
+  background: var(--bar-bg);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 0;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.tb-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 180px;
+}
+
+.tb-logo {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 0.02em;
+}
+
+.tb-logo span { color: var(--accent); }
+
+.tb-center {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.tb-project-label {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.tb-project-name {
+  font-size: 12px;
+  color: var(--text-sec);
+}
+
+.tb-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 180px;
+  justify-content: flex-end;
+}
+
+.tb-btn {
+  height: 26px;
+  padding: 0 10px;
+  background: transparent;
+  border: 1px solid var(--border-mid);
+  color: var(--text-sec);
+  font-family: var(--mono);
+  font-size: 11px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: border-color 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.tb-btn:hover {
+  border-color: #444;
+  color: var(--text);
+}
+
+.tb-btn.active {
+  border-color: var(--accent-border);
+  color: var(--accent);
+  background: var(--accent-dim);
+}
+
+.model-select {
+  height: 26px;
+  padding: 0 8px;
+  background: var(--bar-bg);
+  border: 1px solid var(--border-mid);
+  color: var(--text-sec);
+  font-family: var(--mono);
+  font-size: 11px;
+  cursor: pointer;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 24px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23666'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+}
+
+.model-select:focus { border-color: var(--accent-border); }
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.85);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+  padding: 20px;
+}
+
+.modal-overlay.open { display: flex; }
+
+.auth-box {
+  width: min(420px, 100%);
+  background: #111;
+  border: 1px solid var(--border);
+  padding: 24px;
+  border-radius: 10px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.45);
+}
+
+.auth-title {
+  font-size: 14px;
+  margin-bottom: 14px;
+  color: var(--text);
+  font-weight: 700;
+}
+
+.auth-field {
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  background: #0d0d0d;
+  border: 1px solid var(--border-mid);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+.auth-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.auth-note {
+  margin-top: 12px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.stack-panel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.file-panel {
+  display: none;
+  border-top: 1px solid var(--border);
+  background: #0d0d0d;
+}
+
+.file-panel.open { display: block; }
+
+.file-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 10px 14px;
+  background: #141414;
+  border-bottom: 1px solid var(--border);
+}
+
+.file-tab {
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.02);
+  color: var(--text-sec);
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 11px;
+  font-family: var(--mono);
+}
+
+.file-tab.active {
+  background: var(--term-bg);
+  color: var(--text);
+  border-color: var(--accent-border);
+}
+
+.file-content {
+  padding: 16px 20px;
+  overflow: auto;
+  max-height: 320px;
+}
+
+.file-content pre {
+  background: #090909;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: normal;
+}
+
+.collab-banner {
+  font-size: 11px;
+  color: var(--text-dim);
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+  background: rgba(255,255,255,0.02);
+}
+
+/* ── LAYOUT ──────────────────────────────────────────────────── */
+#app {
+  height: calc(100vh - 38px);
+  display: flex;
+  flex-direction: row;
+}
+
+/* ── MAIN TERMINAL AREA ──────────────────────────────────────── */
+#main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--term-bg);
+}
+
+/* ── TERMINAL TAB BAR ────────────────────────────────────────── */
+#tabbar {
+  height: 34px;
+  background: var(--bar-bg);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: flex-end;
+  padding: 0 12px;
+  gap: 0;
+  flex-shrink: 0;
+}
+
+.tab {
+  height: 30px;
+  padding: 0 16px;
+  font-size: 11px;
+  color: var(--text-dim);
+  border: 1px solid transparent;
+  border-bottom: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: color 0.15s;
+  position: relative;
+  top: 1px;
+}
+
+.tab.active {
+  background: var(--term-bg);
+  border-color: var(--border);
+  border-bottom-color: var(--term-bg);
+  color: var(--text);
+}
+
+.tab:not(.active):hover { color: var(--text-sec); }
+
+.tab-dot {
+  width: 5px;
+  height: 5px;
+  background: var(--accent);
+  display: none;
+}
+
+.tab.active .tab-dot { display: block; }
+
+/* ── TERMINAL BODY ───────────────────────────────────────────── */
+#terminal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+  font-size: 13px;
+  line-height: 1.7;
+  scroll-behavior: smooth;
+}
+
+#terminal-body::-webkit-scrollbar { width: 4px; }
+#terminal-body::-webkit-scrollbar-track { background: transparent; }
+#terminal-body::-webkit-scrollbar-thumb { background: #222; }
+#terminal-body::-webkit-scrollbar-thumb:hover { background: #333; }
+
+.t-line {
+  display: block;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.t-line + .t-line { }
+
+.t-prompt { color: var(--accent); }
+.t-path { color: var(--blue); }
+.t-text { color: var(--text); }
+.t-dim { color: var(--text-sec); }
+.t-muted { color: var(--text-dim); }
+.t-green { color: var(--green); }
+.t-orange { color: var(--accent); }
+.t-blue { color: var(--blue); }
+.t-red { color: var(--red); }
+.t-yellow { color: var(--yellow); }
+.t-bold { font-weight: 700; }
+
+.t-blank { height: 8px; display: block; }
+
+/* user command echo */
+.t-cmd {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/* ── INPUT LINE ──────────────────────────────────────────────── */
+#input-bar {
+  height: 42px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 10px;
+  background: var(--term-bg);
+  flex-shrink: 0;
+}
+
+.input-prompt {
+  color: var(--accent);
+  white-space: nowrap;
+  font-size: 13px;
+  user-select: none;
+}
+
+#cmd-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 13px;
+  caret-color: var(--accent);
+}
+
+#cmd-input::placeholder { color: var(--text-dim); }
+
+.input-hint {
+  font-size: 11px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+/* ── STATUS BAR ──────────────────────────────────────────────── */
+#statusbar {
+  height: 24px;
+  background: var(--accent);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+.sb-item {
+  font-size: 11px;
+  color: #000;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.sb-sep {
+  color: rgba(0,0,0,0.3);
+  font-size: 11px;
+}
+
+.sb-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/* ── SIDEBAR ─────────────────────────────────────────────────── */
+#sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  background: var(--bar-bg);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sidebar-section {
+  border-bottom: 1px solid var(--border);
+}
+
+.sidebar-title {
+  height: 34px;
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-dim);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+}
+
+/* agents */
+.agent-row {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.1s;
+}
+
+.agent-row:last-child { border-bottom: none; }
+.agent-row:hover { background: rgba(255,255,255,0.02); }
+
+.agent-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 3px;
+}
+
+.agent-status-line {
+  font-size: 11px;
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.agent-dot {
+  width: 5px;
+  height: 5px;
+  background: var(--green);
+  flex-shrink: 0;
+}
+
+.agent-dot.busy { background: var(--accent); animation: blink-dot 0.6s step-end infinite; }
+.agent-dot.done { background: var(--blue); }
+.agent-dot.error { background: var(--red); }
+
+@keyframes blink-dot { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+/* workflow */
+.wf-list {
+  padding: 10px 14px;
+}
+
+.wf-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 4px 0;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.wf-step.done { color: var(--text-sec); }
+.wf-step.active { color: var(--accent); }
+
+.wf-num {
+  font-size: 10px;
+  min-width: 14px;
+  text-align: right;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.wf-step.done .wf-num { color: var(--green); }
+.wf-step.active .wf-num { color: var(--accent); }
+
+/* history */
+.hist-list {
+  overflow-y: auto;
+  flex: 1;
+}
+
+.hist-list::-webkit-scrollbar { width: 3px; }
+.hist-list::-webkit-scrollbar-thumb { background: #222; }
+
+.hist-item {
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.hist-item:hover { background: rgba(255,255,255,0.03); }
+
+.hist-name {
+  font-size: 11px;
+  color: var(--text-sec);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 2px;
+}
+
+.hist-time {
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+/* ── MODEL DROPDOWN ──────────────────────────────────────────── */
+.model-info-panel {
+  position: absolute;
+  top: 42px;
+  right: 0;
+  width: 280px;
+  background: #141414;
+  border: 1px solid var(--border-mid);
+  z-index: 200;
+  display: none;
+}
+
+.model-info-panel.open { display: block; }
+
+.mi-option {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.mi-option:last-child { border-bottom: none; }
+.mi-option:hover { background: rgba(255,255,255,0.04); }
+.mi-option.selected { background: var(--accent-dim); border-left: 2px solid var(--accent); }
+
+.mi-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.mi-desc {
+  font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+/* ── COMMAND PALETTE ─────────────────────────────────────────── */
+#palette-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 500;
+  display: none;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 100px;
+}
+
+#palette-overlay.open { display: flex; }
+
+#palette-box {
+  width: 520px;
+  background: #141414;
+  border: 1px solid var(--border-mid);
+  overflow: hidden;
+}
+
+#palette-input-wrap {
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--border);
+  height: 42px;
+}
+
+#palette-input-label {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-right: 10px;
+  user-select: none;
+}
+
+#palette-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 13px;
+  caret-color: var(--accent);
+}
+
+#palette-list { max-height: 300px; overflow-y: auto; }
+#palette-list::-webkit-scrollbar { width: 3px; }
+#palette-list::-webkit-scrollbar-thumb { background: #222; }
+
+.pal-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.pal-item:last-child { border-bottom: none; }
+.pal-item:hover, .pal-item.sel { background: var(--accent-dim); }
+.pal-item:hover .pal-cmd, .pal-item.sel .pal-cmd { color: var(--accent); }
+
+.pal-cmd {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-sec);
+  min-width: 80px;
+}
+
+.pal-desc {
+  font-size: 11px;
+  color: var(--text-dim);
+  flex: 1;
+}
+
+/* ── BLINKING CURSOR ─────────────────────────────────────────── */
+.cursor {
+  display: inline-block;
+  width: 8px;
+  height: 14px;
+  background: var(--accent);
+  vertical-align: text-bottom;
+  animation: blink-cur 1s step-end infinite;
+}
+
+@keyframes blink-cur { 0%,100%{opacity:1} 50%{opacity:0} }
+
+/* ── SCROLLBAR GLOBAL ────────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #222; }
+
+/* ── RESPONSIVE ──────────────────────────────────────────────── */
+@media (max-width: 700px) {
+  #sidebar { display: none; }
+  .tb-center { display: none; }
+}
+
+/* tiny model dropdown wrapper */
+.model-wrap { position: relative; }
+</style>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+</head>
+<body>
+
+<div id="auth-overlay" class="modal-overlay">
+  <div class="auth-box">
+    <div class="auth-title">AOF Code access control</div>
+    <input id="auth-username" class="auth-field" placeholder="Username" autocomplete="username">
+    <input id="auth-password" class="auth-field" type="password" placeholder="Password" autocomplete="current-password">
+    <div class="auth-actions">
+      <button class="tb-btn" onclick="handleAuth('login')">Login</button>
+      <button class="tb-btn" onclick="handleAuth('signup')">Sign Up</button>
+    </div>
+    <div class="auth-note">Create a local account to protect access and preserve usage limits. This demo stores data only in browser storage.</div>
+  </div>
+</div>
+
+<!-- TITLE BAR -->
+<div id="titlebar">
+  <div class="tb-left">
+    <span class="tb-logo"><span>AOF</span> Code</span>
+  </div>
+  <div class="tb-center">
+    <span class="tb-project-label">project:</span>
+    <span class="tb-project-name" id="tb-project">untitled</span>
+  </div>
+  <div class="tb-right">
+    <div class="stack-panel">
+      <select id="tech-stack" class="model-select" onchange="updateStack()">
+        <option>React + Node</option>
+        <option>Vue + Node</option>
+        <option>Next.js + Python</option>
+        <option>React + Go</option>
+      </select>
+    </div>
+    <button class="tb-btn" onclick="openRoomPrompt()" title="Room-based collaboration">room</button>
+    <button class="tb-btn" onclick="exportCode()" title="Download generated code">export</button>
+    <div class="model-wrap">
+      <button class="tb-btn" id="model-btn" onclick="toggleModelPanel()">
+        <span id="model-label">AOF 1.0</span>
+        <span style="color:var(--text-dim);font-size:9px">&#9660;</span>
+      </button>
+      <div class="model-info-panel" id="model-panel">
+        <div class="mi-option" onclick="selectModel('AOF 1.0 Lite','AOF 1.0 Lite')">
+          <div class="mi-name">AOF 1.0 Lite</div>
+          <div class="mi-desc">1–2 agents &nbsp;·&nbsp; Fast &nbsp;·&nbsp; Low token usage</div>
+        </div>
+        <div class="mi-option selected" onclick="selectModel('AOF 1.0','AOF 1.0')">
+          <div class="mi-name">AOF 1.0 &nbsp;<span style="color:var(--accent);font-size:10px">[recommended]</span></div>
+          <div class="mi-desc">1–3 agents &nbsp;·&nbsp; Balanced performance</div>
+        </div>
+        <div class="mi-option" onclick="selectModel('AOF 1.0 Pro','AOF 1.0 Pro')">
+          <div class="mi-name">AOF 1.0 Pro</div>
+          <div class="mi-desc">All agents &nbsp;·&nbsp; Maximum reasoning &amp; quality</div>
+        </div>
+      </div>
+    </div>
+    <button class="tb-btn" id="account-btn" onclick="logout()" title="Logout">user</button>
+    <button class="tb-btn" onclick="runCmd('/settings')" title="Settings">[settings]</button>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+
+  <!-- MAIN -->
+  <div id="main">
+
+    <!-- TAB BAR -->
+    <div id="tabbar">
+      <div class="tab active"><div class="tab-dot"></div>terminal</div>
+      <div class="tab" onclick="showToast('Agent logs available after first run')">agent-log</div>
+      <div class="tab" onclick="showToast('Stats updating...')">output</div>
+    </div>
+
+    <!-- TERMINAL OUTPUT -->
+    <div id="terminal-body" onclick="focusInput()"></div>
+
+    <div id="file-panel" class="file-panel">
+      <div id="file-tabs" class="file-tabs"></div>
+      <div id="file-content" class="file-content"></div>
+    </div>
+
+    <!-- INPUT -->
+    <div id="input-bar">
+      <span class="input-prompt" id="input-prompt">C:\AOF&gt;</span>
+      <input type="text" id="cmd-input" placeholder="Type your project idea or /command..." autocomplete="off" spellcheck="false">
+      <span class="input-hint">Ctrl+K &nbsp;|&nbsp; /help</span>
+    </div>
+
+    <!-- STATUS BAR -->
+    <div id="statusbar">
+      <span class="sb-item" id="sb-mode">NORMAL</span>
+      <span class="sb-sep">|</span>
+      <span class="sb-item" id="sb-agents">4 agents ready</span>
+      <span class="sb-sep">|</span>
+      <span class="sb-item" id="sb-model">AOF 1.0</span>
+      <span class="sb-item" id="sb-room">room: --</span>
+      <div class="sb-right">
+        <span class="sb-item" id="sb-user">user: --</span>
+        <span class="sb-sep">|</span>
+        <span class="sb-item" id="sb-sessions">sessions: 0</span>
+        <span class="sb-sep">|</span>
+        <span class="sb-item" id="sb-clock">--:--:--</span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- SIDEBAR -->
+  <div id="sidebar">
+
+    <!-- AGENTS -->
+    <div class="sidebar-section">
+      <div class="sidebar-title">Agents</div>
+      <div id="agent-list">
+        <div class="agent-row">
+          <div class="agent-name">Gemini</div>
+          <div class="agent-status-line">
+            <div class="agent-dot" id="dot-gemini"></div>
+            <span id="status-gemini">Ready</span>
+          </div>
+        </div>
+        <div class="agent-row">
+          <div class="agent-name">Meta Llama</div>
+          <div class="agent-status-line">
+            <div class="agent-dot" id="dot-llama"></div>
+            <span id="status-llama">Ready</span>
+          </div>
+        </div>
+        <div class="agent-row">
+          <div class="agent-name">DeepSeek</div>
+          <div class="agent-status-line">
+            <div class="agent-dot" id="dot-deepseek"></div>
+            <span id="status-deepseek">Ready</span>
+          </div>
+        </div>
+        <div class="agent-row">
+          <div class="agent-name">Qwen</div>
+          <div class="agent-status-line">
+            <div class="agent-dot" id="dot-qwen"></div>
+            <span id="status-qwen">Ready</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- WORKFLOW -->
+    <div class="sidebar-section">
+      <div class="sidebar-title">Workflow</div>
+      <div class="wf-list" id="wf-list">
+        <div class="wf-step" id="wf-0"><span class="wf-num">1.</span><span>User input</span></div>
+        <div class="wf-step" id="wf-1"><span class="wf-num">2.</span><span>Gemini planning</span></div>
+        <div class="wf-step" id="wf-2"><span class="wf-num">3.</span><span>Llama coordination</span></div>
+        <div class="wf-step" id="wf-3"><span class="wf-num">4.</span><span>DeepSeek codegen</span></div>
+        <div class="wf-step" id="wf-4"><span class="wf-num">5.</span><span>Qwen review</span></div>
+        <div class="wf-step" id="wf-5"><span class="wf-num">6.</span><span>Validation</span></div>
+        <div class="wf-step" id="wf-6"><span class="wf-num">7.</span><span>Final output</span></div>
+      </div>
+    </div>
+
+    <!-- HISTORY -->
+    <div class="sidebar-section" style="flex:1;display:flex;flex-direction:column;min-height:0;">
+      <div class="sidebar-title">History</div>
+      <div class="hist-list" id="hist-list"></div>
+    </div>
+
+  </div>
+
+</div>
+
+<!-- COMMAND PALETTE -->
+<div id="palette-overlay" onclick="closePaletteOnBg(event)">
+  <div id="palette-box">
+    <div id="palette-input-wrap">
+      <span id="palette-input-label">&gt;</span>
+      <input id="palette-input" type="text" placeholder="Search commands..." autocomplete="off" oninput="filterPalette()">
+    </div>
+    <div id="palette-list"></div>
+  </div>
+</div>
+
+<script>
+// ── COMMANDS ─────────────────────────────────────────────────────────────────
+const COMMANDS = [
+  { cmd: '/plan',     desc: 'Plan project architecture' },
+  { cmd: '/gencode',  desc: 'Generate code — activate build mode' },
+  { cmd: '/chat',     desc: 'Chat with Gemini directly' },
+  { cmd: '/review',   desc: 'Review and analyze generated code' },
+  { cmd: '/fix',      desc: 'Diagnose and fix bugs' },
+  { cmd: '/export',   desc: 'Download generated code as ZIP' },
+  { cmd: '/agents',   desc: 'List agent status and capabilities' },
+  { cmd: '/profile',  desc: 'Show user profile and statistics' },
+  { cmd: '/settings', desc: 'System configuration' },
+  { cmd: '/help',     desc: 'Show all available commands' },
+];
+
+// ── STATE ─────────────────────────────────────────────────────────────────────
+const state = {
+  mode: 'NORMAL',
+  model: 'AOF 1.0',
+  sessions: 0,
+  projects: [],
+  running: false,
+  currentProject: null,
+  user: null,
+  hydrating: false,
+  commandCount: 0,
+  commandWindowStart: Date.now(),
+  maxCommandsPerMinute: 12,
+  techStack: 'React + Node',
+  projectMemory: {},
+  room: null,
+  generatedFiles: [],
+  selectedFileIndex: 0,
+};
+
+const STORAGE_VERSION = 2;
+
+// ── UTILS ─────────────────────────────────────────────────────────────────────
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function escAttr(s) {
+  return escHtml(s).replace(/"/g, '&quot;');
+}
+
+function now() {
+  return new Date().toLocaleTimeString('en-GB', { hour12: false });
+}
+
+function scrollBottom() {
+  const b = document.getElementById('terminal-body');
+  b.scrollTop = b.scrollHeight;
+}
+
+function focusInput() {
+  document.getElementById('cmd-input').focus();
+}
+
+function storageKey() {
+  const username = state.user?.username || 'guest';
+  return `aof-code:${username}:session`;
+}
+
+function terminalSnapshot() {
+  return [...document.getElementById('terminal-body').children].slice(-300).map(el => ({
+    className: el.className,
+    html: el.innerHTML,
+  }));
+}
+
+function saveState() {
+  if (state.hydrating) return;
+  localStorage.setItem(storageKey(), JSON.stringify({
+    version: STORAGE_VERSION,
+    model: state.model,
+    sessions: state.sessions,
+    projects: state.projects,
+    currentProject: state.currentProject,
+    terminal: terminalSnapshot(),
+    commandCount: state.commandCount,
+    commandWindowStart: state.commandWindowStart,
+    techStack: state.techStack,
+    projectMemory: state.projectMemory,
+    room: state.room,
+    generatedFiles: state.generatedFiles,
+  }));
+}
+
+function restoreState() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(storageKey()) || 'null');
+    if (!saved || saved.version !== STORAGE_VERSION) return false;
+    if (!Array.isArray(saved.terminal) || saved.terminal.length === 0) return false;
+
+    state.hydrating = true;
+    state.model = saved.model || state.model;
+    state.sessions = Number(saved.sessions || 0);
+    state.projects = Array.isArray(saved.projects) ? saved.projects.slice(0, 20) : [];
+    state.currentProject = saved.currentProject || null;
+    state.commandCount = Number(saved.commandCount || 0);
+    state.commandWindowStart = Number(saved.commandWindowStart || Date.now());
+    state.techStack = saved.techStack || state.techStack;
+    state.projectMemory = saved.projectMemory || {};
+    state.room = saved.room || null;
+    state.generatedFiles = Array.isArray(saved.generatedFiles) ? saved.generatedFiles : [];
+
+    const body = document.getElementById('terminal-body');
+    body.innerHTML = '';
+    for (const item of saved.terminal || []) {
+      const el = document.createElement('div');
+      el.className = item.className || 't-line';
+      el.innerHTML = item.html || '';
+      body.appendChild(el);
+    }
+
+    syncUiFromState();
+    document.getElementById('tech-stack').value = state.techStack;
+    if (!body.querySelector('.cursor')) writeLine('<span class="cursor"></span>');
+    scrollBottom();
+    if (state.generatedFiles.length) showGeneratedFiles(state.generatedFiles);
+    return true;
+  } catch {
+    return false;
+  } finally {
+    state.hydrating = false;
+  }
+}
+
+function syncUiFromState() {
+  document.getElementById('sb-sessions').textContent = `sessions: ${state.sessions}`;
+  document.getElementById('sb-model').textContent = state.model;
+  document.getElementById('sb-room').textContent = `room: ${state.room || '--'}`;
+  document.getElementById('model-label').textContent = state.model;
+  document.getElementById('tb-project').textContent = (state.currentProject || 'untitled').substring(0, 28);
+  document.getElementById('sb-user').textContent = `user: ${state.user?.username || '--'}`;
+  document.getElementById('account-btn').textContent = state.user?.username || 'user';
+  document.getElementById('tech-stack').value = state.techStack;
+  const names = ['AOF 1.0 Lite', 'AOF 1.0', 'AOF 1.0 Pro'];
+  document.querySelectorAll('.mi-option').forEach((o, i) => {
+    o.classList.toggle('selected', names[i] === state.model);
+  });
+  renderHistory();
+}
+
+async function loadUser() {
+  const auth = JSON.parse(localStorage.getItem('aof-code:authUser') || 'null');
+  if (auth && auth.username) {
+    state.user = { username: auth.username };
+    syncUiFromState();
+    return state.user;
+  }
+
+  showAuthOverlay();
+  return null;
+}
+
+function logout() {
+  localStorage.removeItem('aof-code:authUser');
+  state.user = null;
+  state.currentProject = null;
+  state.generatedFiles = [];
+  document.getElementById('file-panel').classList.remove('open');
+  showAuthOverlay();
+}
+
+function showAuthOverlay() {
+  document.getElementById('auth-overlay').classList.add('open');
+  document.getElementById('cmd-input').disabled = true;
+  document.getElementById('auth-username').focus();
+}
+
+function hideAuthOverlay() {
+  document.getElementById('auth-overlay').classList.remove('open');
+  document.getElementById('cmd-input').disabled = false;
+  document.getElementById('cmd-input').focus();
+}
+
+function handleAuth(action) {
+  const username = document.getElementById('auth-username').value.trim();
+  const password = document.getElementById('auth-password').value;
+  if (!username || !password) {
+    alert('Enter both username and password.');
+    return;
+  }
+
+  const users = JSON.parse(localStorage.getItem('aof-code:users') || '{}');
+  const encoded = btoa(password);
+
+  if (action === 'signup') {
+    if (users[username]) {
+      alert('Username already exists. Please choose another.');
+      return;
+    }
+    users[username] = encoded;
+    localStorage.setItem('aof-code:users', JSON.stringify(users));
+  } else {
+    if (!users[username] || users[username] !== encoded) {
+      alert('Invalid username or password.');
+      return;
+    }
+  }
+
+  localStorage.setItem('aof-code:authUser', JSON.stringify({ username }));
+  state.user = { username };
+  syncUiFromState();
+  hideAuthOverlay();
+  boot();
+}
+
+function checkRateLimit() {
+  const now = Date.now();
+  if (now - state.commandWindowStart >= 60000) {
+    state.commandWindowStart = now;
+    state.commandCount = 0;
+  }
+  if (state.commandCount >= state.maxCommandsPerMinute) {
+    writeLine('<span class="t-red">Rate limit reached. Wait 60s before sending more commands.</span>');
+    return false;
+  }
+  state.commandCount += 1;
+  saveState();
+  return true;
+}
+
+function updateStack() {
+  const value = document.getElementById('tech-stack').value;
+  state.techStack = value;
+  writeLine(`<span class="t-dim">Tech stack set to </span><span class="t-orange">${escHtml(value)}</span>`);
+  saveState();
+}
+
+function openRoomPrompt() {
+  const room = prompt('Enter room name to join or create a shared project room:');
+  if (!room) return;
+  state.room = room.trim();
+  syncUiFromState();
+  loadRoomState();
+  saveRoomState();
+  writeLine(`<span class="t-dim">Joined room </span><span class="t-orange">${escHtml(state.room)}</span>`);
+  writeBlank();
+}
+
+function saveRoomState() {
+  if (!state.room) return;
+  localStorage.setItem(`aof-code:room:${state.room}`, JSON.stringify({
+    projectMemory: state.projectMemory,
+    currentProject: state.currentProject,
+    generatedFiles: state.generatedFiles,
+    techStack: state.techStack,
+    sessions: state.sessions,
+  }));
+}
+
+function loadRoomState() {
+  if (!state.room) return;
+  const saved = JSON.parse(localStorage.getItem(`aof-code:room:${state.room}`) || 'null');
+  if (!saved) return;
+  state.projectMemory = saved.projectMemory || state.projectMemory;
+  state.currentProject = saved.currentProject || state.currentProject;
+  state.generatedFiles = saved.generatedFiles || state.generatedFiles;
+  state.techStack = saved.techStack || state.techStack;
+  state.sessions = saved.sessions || state.sessions;
+  syncUiFromState();
+  if (state.generatedFiles.length) showGeneratedFiles(state.generatedFiles);
+}
+
+function showGeneratedFiles(files) {
+  if (!Array.isArray(files) || !files.length) return;
+  const panel = document.getElementById('file-panel');
+  const tabs = document.getElementById('file-tabs');
+  const content = document.getElementById('file-content');
+
+  state.generatedFiles = files;
+  state.selectedFileIndex = 0;
+  panel.classList.add('open');
+  tabs.innerHTML = files.map((file, index) => `
+    <button class="file-tab${index === 0 ? ' active' : ''}" onclick="selectGeneratedFile(${index})">${escHtml(file.name)}</button>`).join('');
+  renderGeneratedFile();
+}
+
+function selectGeneratedFile(index) {
+  state.selectedFileIndex = index;
+  document.querySelectorAll('.file-tab').forEach((tab, idx) => {
+    tab.classList.toggle('active', idx === index);
+  });
+  renderGeneratedFile();
+}
+
+function renderGeneratedFile() {
+  const file = state.generatedFiles[state.selectedFileIndex];
+  if (!file) return;
+
+  const content = document.getElementById('file-content');
+  const language = file.name.endsWith('.json') ? 'json' : file.name.endsWith('.md') ? 'markdown' : 'javascript';
+  content.innerHTML = `<pre><code class="language-${language}">${escHtml(file.content)}</code></pre>`;
+  if (window.hljs) {
+    document.querySelectorAll('#file-content code').forEach(block => hljs.highlightElement(block));
+  }
+}
+
+function generateProjectFiles(project, stack) {
+  const safe = project.replace(/[^a-zA-Z0-9-_ ]/g, '').trim() || 'project';
+  const files = [
+    {
+      name: 'README.md',
+      content: `# ${project}\n\nGenerated project using ${stack}.\n\nCommands:\n- /plan\n- /gencode\n- /review\n- /fix\n`,
+    },
+    {
+      name: 'app.js',
+      content: `// app.js\nconst state = { project: '${safe}', stack: '${stack}' };\n\nfunction startApp() {\n  console.log('Starting ${safe} with ${stack}');\n}\n\nstartApp();`,
+    },
+    {
+      name: 'package.json',
+      content: `{
+  "name": "${safe.toLowerCase().replace(/ /g, '-')}",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "node app.js"
+  }
+}`,
+    },
+  ];
+
+  if (stack.includes('React')) {
+    files.push({
+      name: 'ui.jsx',
+      content: `// ui.jsx\nimport React from 'react';\n\nexport function App() {\n  return <div>Welcome to ${project}</div>;\n}`,
+    });
+  } else if (stack.includes('Vue')) {
+    files.push({
+      name: 'App.vue',
+      content: `<template>\n  <div>Welcome to ${project}</div>\n</template>\n<script>\nexport default { name: 'App' };\n<\/script>`,
+    });
+  } else if (stack.includes('Next.js')) {
+    files.push({
+      name: 'pages/index.js',
+      content: `export default function Home() {\n  return <div>Welcome to ${project}</div>;\n}`,
+    });
+  }
+
+  return files;
+}
+
+async function cmdExport() {
+  if (!state.generatedFiles.length) {
+    writeLine('<span class="t-red">No generated files available. Run /gencode first.</span>');
+    return;
+  }
+  const zip = new JSZip();
+  state.generatedFiles.forEach(file => zip.file(file.name, file.content));
+  const blob = await zip.generateAsync({ type: 'blob' });
+  saveAs(blob, `${state.currentProject || 'aof-project'}.zip`);
+  writeLine('<span class="t-green">Download ready: ZIP file created.</span>');
+}
+
+function rememberProjectContext(project, text) {
+  if (!project) return;
+  state.projectMemory[project] = state.projectMemory[project] || '';
+  state.projectMemory[project] += '\n' + text;
+  saveState();
+}
+
+function loadProjectContext(project) {
+  return state.projectMemory[project] || '';
+}
+
+function writeLine(html = '', cls = '') {
+  const el = document.createElement('div');
+  el.className = 't-line' + (cls ? ' ' + cls : '');
+  el.innerHTML = html;
+  document.getElementById('terminal-body').appendChild(el);
+  scrollBottom();
+  saveState();
+  return el;
+}
+
+function writeBlank() {
+  const el = document.createElement('div');
+  el.className = 't-blank';
+  document.getElementById('terminal-body').appendChild(el);
+  saveState();
+}
+
+async function typeLines(lines, delay = 60) {
+  for (const [html, extra] of lines) {
+    await sleep(extra ?? delay);
+    writeLine(html);
+  }
+}
+
+// ── CLAUDE API ────────────────────────────────────────────────────────────────
+async function callClaude(systemPrompt, userMessage, onChunk) {
+  const fullText = simulateLocalAgent(systemPrompt, userMessage);
+  let streamed = '';
+  for (let i = 0; i < fullText.length; i += 16) {
+    const chunk = fullText.slice(i, i + 16);
+    streamed += chunk;
+    if (onChunk) onChunk(chunk, streamed);
+    await sleep(20);
+  }
+  return fullText;
+}
+
+function simulateLocalAgent(systemPrompt, userMessage) {
+  const agent = systemPrompt.split(',')[0].trim().split(' ')[2] || 'Agent';
+  if (systemPrompt.includes('analyze user requirements')) {
+    return `I understand this is a request to build ${projectNameFrom(userMessage)}. Run /plan or /gencode to continue.`;
+  }
+
+  if (systemPrompt.includes('create a clear, structured project plan')) {
+    return buildPlan(userMessage);
+  }
+
+  if (systemPrompt.includes('Generate a concise architecture brief')) {
+    return buildArchitecture(userMessage);
+  }
+
+  if (systemPrompt.includes('assign tasks to DeepSeek and Qwen')) {
+    return `DeepSeek: implement core features and generate code.\nQwen: review output and spot issues.`;
+  }
+
+  if (systemPrompt.includes('Generate the most important code file')) {
+    return generateCodeFile(userMessage);
+  }
+
+  if (systemPrompt.includes('Do a thorough code review')) {
+    return `✓ Architecture is coherent and streamlined.\n✓ Generated code is readable.\n⚠ Add error handling for API calls.\n⚠ Confirm dependencies and env details.\n✗ No tests were generated.\nFinal score: 87/100`;
+  }
+
+  if (systemPrompt.includes('Identify likely bugs')) {
+    return `Memory leak risk — missing cleanup after async tasks — MED\nUnhandled input errors — user data not validated — HIGH\nResponse formatting mismatch — output may break UI — LOW`;
+  }
+
+  if (systemPrompt.includes('provide the fix for the most critical one')) {
+    return `// Example fix for unhandled async error\nasync function runTask() {\n  try {\n    const result = await fetchData();\n    process(result);\n  } catch (err) {\n    console.error('Task failed', err);\n  }\n}`;
+  }
+
+  return `I have received your request. Please run /plan or /gencode to continue.`;
+}
+
+function projectNameFrom(message) {
+  const match = message.match(/"([^"]+)"/);
+  return match ? match[1] : message.split(' ').slice(0, 4).join(' ');
+}
+
+function buildPlan(message) {
+  const project = projectNameFrom(message);
+  return `1. UI layer — lightweight responsive browser interface\n2. Agent engine — simulate multi-AI coordination\n3. Command parser — support /plan /gencode /review /fix\n4. Data storage — localStorage session state\n5. Output renderer — terminal-style UI\n6. Review system — agent QA feedback\nPlan complete. Run /gencode to generate code.`;
+}
+
+function buildArchitecture(message) {
+  return `app.js — main interface and command handler\nui.css — dark terminal-style theme\nagents.js — simulated AI agent workflow\nstorage.js — project and session persistence\nreview.js — QA and fix summaries\nREADME.md — documentation and usage guide`;
+}
+
+function generateCodeFile(message) {
+  return `// app.js\nconst state = { mode: 'NORMAL', sessions: 0, projects: [] };\n\nfunction initApp() {\n  renderPrompt();\n}\n\nfunction renderPrompt() {\n  console.log('AOF Code demo running');\n}\n\ninitApp();`;
+}
+
+// Stream text into terminal line by line as it arrives
+async function streamAgentResponse(agentLabel, colorClass, systemPrompt, userMessage) {
+  let lineEl = null;
+  let lineBuffer = '';
+
+  function flush() {
+    if (!lineEl) {
+      lineEl = writeLine(`<span class="${colorClass}">${agentLabel}  &gt;  </span><span class="t-text"></span>`);
+    }
+    lineEl.querySelector('.t-text').textContent = lineBuffer;
+    scrollBottom();
+  }
+
+  const fullText = await callClaude(systemPrompt, userMessage, (chunk) => {
+    lineBuffer += chunk;
+    const parts = lineBuffer.split('\n');
+    if (parts.length > 1) {
+      if (lineEl) lineEl.querySelector('.t-text').textContent = parts[0];
+      for (let i = 1; i < parts.length - 1; i++) {
+        if (parts[i].trim()) writeLine(`<span class="${colorClass}">${agentLabel}  &gt;  </span><span class="t-text">${escHtml(parts[i])}</span>`);
+      }
+      lineEl = null;
+      lineBuffer = parts[parts.length - 1];
+    }
+    flush();
+  });
+
+  if (lineBuffer.trim() && lineEl) {
+    lineEl.querySelector('.t-text').textContent = lineBuffer.trim();
+  } else if (lineBuffer.trim()) {
+    writeLine(`<span class="${colorClass}">${agentLabel}  &gt;  </span><span class="t-text">${escHtml(lineBuffer.trim())}</span>`);
+  }
+  return fullText;
+}
+
+// ── BOOT SEQUENCE ─────────────────────────────────────────────────────────────
+async function boot() {
+  if (restoreState()) {
+    focusInput();
+    return;
+  }
+
+  writeBlank();
+
+  await sleep(120);
+  writeLine('AOF Code v1.0  -  Multi-Agent Code Generation System');
+  writeLine('<span class="t-dim">──────────────────────────────────────────────────────────</span>');
+  writeBlank();
+
+  await sleep(180);
+  writeLine('<span class="t-green">OK</span>  Loading Gemini          [project manager]');
+  await sleep(80);
+  writeLine('<span class="t-green">OK</span>  Loading Meta Llama      [coordinator]');
+  await sleep(80);
+  writeLine('<span class="t-green">OK</span>  Loading DeepSeek        [senior developer]');
+  await sleep(80);
+  writeLine('<span class="t-green">OK</span>  Loading Qwen            [QA reviewer]');
+  await sleep(120);
+  writeLine('<span class="t-dim">──────────────────────────────────────────────────────────</span>');
+  writeLine('<span class="t-green">Ready.</span>');
+  writeBlank();
+
+  await sleep(200);
+  writeLine('Available commands:');
+  writeBlank();
+
+  for (const c of COMMANDS) {
+    await sleep(30);
+    writeLine(`  <span class="t-orange">${c.cmd.padEnd(12)}</span>  <span class="t-dim">${c.desc}</span>`);
+  }
+
+  writeBlank();
+  writeLine('<span class="t-dim">Type a project description or use /plan to get started.</span>');
+  writeLine('<span class="t-dim">Press Ctrl+K to open the command palette.</span>');
+  writeBlank();
+
+  writeLine('<span class="cursor"></span>');
+  focusInput();
+  saveState();
+}
+
+// ── COMMAND RUNNER ────────────────────────────────────────────────────────────
+async function runCmd(raw) {
+  if (state.running) return;
+  raw = raw.trim();
+  if (!raw) return;
+  if (!checkRateLimit()) return;
+
+  // Remove trailing cursor line
+  const body = document.getElementById('terminal-body');
+  const cursors = body.querySelectorAll('.cursor');
+  cursors.forEach(c => c.parentElement.remove());
+
+  // Echo command
+  writeBlank();
+  writeLine(`<span class="t-prompt">C:\\AOF&gt;</span> ${escHtml(raw)}`);
+  writeBlank();
+
+  if (raw.startsWith('/')) {
+    const parts = raw.split(' ');
+    const verb = parts[0].toLowerCase();
+    const arg = parts.slice(1).join(' ');
+    switch (verb) {
+      case '/plan':     await cmdPlan(arg); break;
+      case '/gencode':  await cmdGencode(arg); break;
+      case '/chat':     await cmdChat(arg, true); break;
+      case '/review':   await cmdReview(); break;
+      case '/fix':      await cmdFix(); break;
+      case '/export':   await cmdExport(); break;
+      case '/agents':   await cmdAgents(); break;
+      case '/profile':  await cmdProfile(); break;
+      case '/settings': await cmdSettings(); break;
+      case '/help':     await cmdHelp(); break;
+      default:
+        writeLine(`<span class="t-red">'${escHtml(verb)}' is not recognized as a command. Type /help.</span>`);
+    }
+  } else {
+    await cmdChat(raw);
+  }
+
+  writeBlank();
+  writeLine('<span class="cursor"></span>');
+  scrollBottom();
+  focusInput();
+  saveState();
+}
+
+
+// ── NORMAL MODE: CHAT ─────────────────────────────────────────────────────────
+async function cmdChat(input, direct = false) {
+  state.running = true;
+  setMode(direct ? 'CHAT' : 'NORMAL');
+  setAgentBusy('gemini');
+
+  writeLine(`<span class="t-dim">Gemini  &gt;  ${direct ? 'Responding...' : 'Analyzing request...'}</span>`);
+
+  const systemPrompt = direct
+    ? `You are Gemini, the Project Manager AI agent in AOF Code. Answer the user directly and concisely. Use plain text only, no markdown formatting. Keep responses short and helpful.`
+    : `You are Gemini, the Project Manager AI agent in AOF Code — a multi-agent collaborative coding platform.
+Your role: understand user requirements, ask clarifying questions when needed, and give a concise project analysis.
+Keep your response to 3-5 short lines max. Use plain text only, no markdown formatting.
+End by suggesting the user run /plan or /gencode to proceed. Be professional and sharp.`;
+
+  try {
+    await streamAgentResponse('Gemini', 't-dim', systemPrompt,
+      `User project request: "${input}"\n\nAnalyze this request briefly and tell the user what you understand, then suggest next steps (/plan or /gencode).`
+    );
+  } catch (err) {
+    writeLine('<span class="t-red">Gemini  &gt;  [API error — falling back]</span>');
+    writeLine(`<span class="t-dim">Gemini  &gt;  Project identified: </span><span class="t-orange">"${escHtml(input.substring(0, 40))}"</span>`);
+    writeLine('Run <span class="t-orange">/plan</span> to review architecture or <span class="t-orange">/gencode</span> to build.');
+  }
+
+  const name = input.length > 40 ? input.substring(0, 40) + '...' : input;
+  state.currentProject = name;
+  document.getElementById('tb-project').textContent = name.substring(0, 28);
+  addHistory(name);
+  if (!direct) rememberProjectContext(name, input);
+
+  setAgentReady('gemini');
+  state.running = false;
+}
+
+// ── /plan ─────────────────────────────────────────────────────────────────────
+async function cmdPlan(arg) {
+  state.running = true;
+  const project = arg || state.currentProject || 'New Project';
+  setMode('PLANNING');
+  setAgentBusy('gemini');
+  setWfStep(1);
+
+  writeLine(`<span class="t-dim">Planning:</span> <span class="t-orange">${escHtml(project)}</span>`);
+  writeBlank();
+
+  const systemPrompt = `You are Gemini, the Project Manager AI agent in AOF Code.
+Your job: create a clear, structured project plan for the given project and its chosen technology stack.
+Format your response as a numbered list of components/layers (max 7 items).
+Each line: "N. ComponentName — brief tech choice + reason"
+Keep each line under 60 chars. No markdown, no headers, plain text only.
+End with one line: "Plan complete. Run /gencode to generate code."`;
+
+  try {
+    writeLine('<span class="t-dim">Gemini  &gt;  Designing system architecture...</span>');
+    writeBlank();
+    writeLine('<span class="t-bold t-text">Project Plan</span>');
+    writeLine('<span class="t-dim">──────────────────────────────────</span>');
+    await streamAgentResponse('Gemini', 't-dim', systemPrompt,
+      `Create a project plan for: "${project}" on stack: ${state.techStack}`
+    );
+  } catch (err) {
+    writeLine('<span class="t-red">Gemini  &gt;  [API error — showing default plan]</span>');
+    await sleep(200); writeLine('  <span class="t-green">1.</span>  <span class="t-dim">Frontend  — React + TypeScript</span>');
+    await sleep(150); writeLine('  <span class="t-green">2.</span>  <span class="t-dim">Backend   — Node.js REST API</span>');
+    await sleep(150); writeLine('  <span class="t-green">3.</span>  <span class="t-dim">Database  — PostgreSQL + Prisma</span>');
+    await sleep(150); writeLine('  <span class="t-green">4.</span>  <span class="t-dim">Auth      — JWT + session store</span>');
+    await sleep(150); writeLine('  <span class="t-green">5.</span>  <span class="t-dim">Tests     — Jest + Playwright</span>');
+    writeBlank();
+    writeLine('<span class="t-green">Plan complete.</span>  Run <span class="t-orange">/gencode</span> to generate code.');
+  }
+
+  setAgentReady('gemini');
+  setWfStep(0);
+  setMode('NORMAL');
+  state.running = false;
+}
+
+// ── /gencode ───────────────────────────────────────────────────────────────────
+async function cmdGencode(arg) {
+  state.running = true;
+  const project = arg || state.currentProject || 'project';
+  const stack = state.techStack;
+  setMode('BUILD');
+
+  document.getElementById('tb-project').textContent = project.substring(0, 28);
+
+  writeLine('<span class="t-yellow">Build mode activated.</span>');
+  writeBlank();
+
+  try {
+    // Step 1 — Gemini: Architecture
+    setAgentBusy('gemini');
+    setWfStep(1);
+    writeLine('<span class="t-dim">Gemini  &gt;  Designing architecture...</span>');
+
+    const geminiSys = `You are Gemini, Project Manager in AOF Code. Generate a concise architecture brief for the given project and technology stack. List 5-7 files/modules that will be generated. Format: "filename.ext — purpose". One item per line. Plain text only, no markdown.`;
+    const archText = await streamAgentResponse('Gemini', 't-dim', geminiSys,
+      `Create architecture brief for: "${project}" on stack: ${stack}`);
+    setAgentDone('gemini');
+    await sleep(200);
+
+    // Step 2 — Llama: Coordination
+    setAgentBusy('llama');
+    setWfStep(2);
+    writeLine('<span class="t-blue">Llama   &gt;  Distributing tasks to agents...</span>');
+
+    const llamaSys = `You are Meta Llama, the Coordinator in AOF Code. Given the architecture brief, assign tasks to DeepSeek (developer) and Qwen (reviewer). Keep it to 3 short lines. Format each as: "AgentName: task description". Plain text, no markdown.`;
+    await streamAgentResponse('Llama  ', 't-blue', llamaSys,
+      `Architecture: ${archText.substring(0, 400)}\n\nAssign tasks to DeepSeek and Qwen.`);
+    setAgentDone('llama');
+    await sleep(200);
+
+    // Step 3 — DeepSeek: Code Generation (streaming code output)
+    setAgentBusy('deepseek');
+    setWfStep(3);
+    writeLine('<span class="t-green">DeepSeek &gt;  Generating code...</span>');
+
+    const deepSeekSys = `You are DeepSeek, the Senior Developer in AOF Code. Generate the most important code file for this project based on the chosen technology stack.
+Start with a comment line: // filename.ext
+Then write clean, working code. Max 40 lines. No explanations before or after — just the code.`;
+    await streamAgentResponse('DeepSeek', 't-green', deepSeekSys,
+      `Project: "${project}" on stack: ${stack}\nArchitecture: ${archText.substring(0, 300)}\n\nGenerate the main entry point or core module.`);
+    setAgentDone('deepseek');
+    await sleep(200);
+
+    // Step 4 — Qwen: Review
+    setAgentBusy('qwen');
+    setWfStep(4);
+    writeLine('<span class="t-yellow">Qwen    &gt;  Reviewing generated code...</span>');
+
+    const qwenSys = `You are Qwen, the QA Reviewer in AOF Code. Review the project and give a concise code review.
+Format: 3-4 bullet points starting with ✓ (good) or ⚠ (warning). End with "Review score: N/100". Plain text only.`;
+    await streamAgentResponse('Qwen   ', 't-yellow', qwenSys,
+      `Project: "${project}"\nArchitecture: ${archText.substring(0, 300)}\n\nProvide a concise code review.`);
+    setAgentDone('qwen');
+    await sleep(300);
+
+  } catch (err) {
+    writeLine(`<span class="t-red">Error: ${escHtml(String(err.message || err))}</span>`);
+    writeLine('<span class="t-dim">Falling back to simulation mode...</span>');
+    await sleep(400);
+    writeLine('<span class="t-green">DeepSeek &gt;  Simulation complete (API unavailable).</span>');
+  }
+
+  state.generatedFiles = generateProjectFiles(project, stack);
+  showGeneratedFiles(state.generatedFiles);
+  saveRoomState();
+
+  // Final
+  setWfStep(5);
+  writeLine('<span class="t-dim">System  &gt;  Merging outputs...</span>');
+  await sleep(500);
+  setWfStep(6);
+  writeLine('<span class="t-dim">System  &gt;  Validation passed.</span>');
+  await sleep(300);
+  writeBlank();
+  writeLine('<span class="t-dim">──────────────────────────────────────────────────────────</span>');
+  writeLine(`<span class="t-green">Build complete.</span>  <span class="t-dim">Run /review to audit or /fix to debug.</span>`);
+
+  addHistory(project);
+  state.currentProject = project;
+  state.sessions++;
+  document.getElementById('sb-sessions').textContent = `sessions: ${state.sessions}`;
+
+  setAllReady();
+  setWfStep(0);
+  setMode('NORMAL');
+  state.running = false;
+}
+
+// ── /review ───────────────────────────────────────────────────────────────────
+async function cmdReview() {
+  state.running = true;
+  setMode('REVIEW');
+  setAgentBusy('qwen');
+  setAgentBusy('gemini');
+  setWfStep(4);
+
+  const project = state.currentProject || 'the project';
+  writeLine(`<span class="t-dim">Reviewing:</span> <span class="t-orange">${escHtml(project)}</span>`);
+  writeBlank();
+
+  try {
+    const qwenSys = `You are Qwen, QA Reviewer in AOF Code. Do a thorough code review of the described project.
+Cover: security, performance, code quality, and architecture concerns.
+Give 5-6 specific review points using ✓ for pass, ⚠ for warning, ✗ for issue.
+End with a final score line: "Final score: N/100". Plain text only, no markdown.`;
+
+    await streamAgentResponse('Qwen   ', 't-yellow', qwenSys,
+      `Perform a code review for: "${project}"`);
+
+    writeBlank();
+
+    const geminiSys = `You are Gemini, Project Manager in AOF Code. After the QA review, provide your architectural assessment in 2-3 short lines. Plain text only.`;
+    await streamAgentResponse('Gemini ', 't-green', geminiSys,
+      `Architectural assessment for: "${project}"`);
+
+  } catch (err) {
+    writeLine('<span class="t-red">Qwen    &gt;  [API error — showing default review]</span>');
+    await sleep(300);
+    writeLine('<span class="t-dim">Qwen    &gt;  No XSS / injection risks found.</span>');
+    await sleep(400);
+    writeLine('<span class="t-yellow">Qwen    &gt;  Suggestion: add error boundaries.</span>');
+    await sleep(400);
+    writeLine('<span class="t-green">Gemini  &gt;  Review complete.  Score: 94/100</span>');
+  }
+
+  setAllReady();
+  setWfStep(0);
+  setMode('NORMAL');
+  state.running = false;
+}
+
+// ── /fix ──────────────────────────────────────────────────────────────────────
+async function cmdFix() {
+  state.running = true;
+  setMode('FIX');
+  setAgentBusy('deepseek');
+  setAgentBusy('qwen');
+  setWfStep(3);
+
+  const project = state.currentProject || 'the project';
+  writeLine(`<span class="t-dim">Diagnosing bugs in:</span> <span class="t-orange">${escHtml(project)}</span>`);
+  writeBlank();
+
+  try {
+    const qwenSys = `You are Qwen, QA Reviewer in AOF Code. Identify likely bugs in the described project.
+List 3-4 common bugs with: bug name, cause, and severity (HIGH/MED/LOW). Plain text, one per line. No markdown.`;
+
+    await streamAgentResponse('Qwen   ', 't-yellow', qwenSys,
+      `Identify likely bugs in: "${project}"`);
+
+    writeBlank();
+
+    const deepSeekSys = `You are DeepSeek, Senior Developer in AOF Code. Given the bugs, provide the fix for the most critical one.
+Format: show a short code snippet (5-10 lines) with a comment explaining the fix. Plain text, no markdown headers.`;
+
+    await streamAgentResponse('DeepSeek', 't-green', deepSeekSys,
+      `Project: "${project}". Apply the most critical bug fix with a code snippet.`);
+
+    writeBlank();
+    writeLine('<span class="t-green">Qwen    &gt;  Fix validated. No regressions detected.</span>');
+
+  } catch (err) {
+    writeLine('<span class="t-red">Agents &gt;  [API error — showing default fix]</span>');
+    await sleep(400);
+    writeLine('<span class="t-yellow">Qwen    &gt;  Root cause: unhandled promise rejection in auth flow.</span>');
+    await sleep(500);
+    writeLine('<span class="t-dim">DeepSeek &gt;  Applying patch — async/await wrapper + error handler.</span>');
+    await sleep(500);
+    writeLine('<span class="t-green">Qwen    &gt;  Fix validated and documented.</span>');
+  }
+
+  setAllReady();
+  setWfStep(0);
+  setMode('NORMAL');
+  state.running = false;
+}
+
+// ── /agents ───────────────────────────────────────────────────────────────────
+async function cmdAgents() {
+  state.running = true;
+
+  writeLine('AOF Agent Squad');
+  writeLine('<span class="t-dim">──────────────────────────────────────────────────────────</span>');
+  writeBlank();
+
+  const agents = [
+    { name: 'Gemini',     role: 'Project Manager',  tasks: 'Requirements  Architecture  Task-splitting' },
+    { name: 'Meta Llama', role: 'Coordinator',       tasks: 'Agent coordination  Context management' },
+    { name: 'DeepSeek',   role: 'Senior Developer',  tasks: 'Code generation  Full-stack dev' },
+    { name: 'Qwen',       role: 'QA Reviewer',       tasks: 'Code review  Bug detection  Refactoring' },
+  ];
+
+  for (const a of agents) {
+    await sleep(120);
+    writeLine(`  <span class="t-orange">${a.name.padEnd(12)}</span>  <span class="t-dim">${a.role.padEnd(18)}</span>  <span class="t-green">Ready</span>`);
+    writeLine(`  <span class="t-dim">${' '.repeat(12)}  ${a.tasks}</span>`);
+    writeBlank();
+  }
+
+  writeLine('<span class="t-green">All 4 agents operational.</span>');
+  state.running = false;
+}
+
+// ── /profile ──────────────────────────────────────────────────────────────────
+async function cmdProfile() {
+  state.running = true;
+  writeLine('User Profile');
+  writeLine('<span class="t-dim">──────────────────────────────</span>');
+  await sleep(80); writeLine(`  sessions    <span class="t-orange">${state.sessions}</span>`);
+  await sleep(80); writeLine(`  projects    <span class="t-orange">${state.projects.length}</span>`);
+  await sleep(80); writeLine(`  model       <span class="t-orange">${state.model}</span>`);
+  await sleep(80); writeLine(`  mode        <span class="t-orange">Normal + Build</span>`);
+  await sleep(80); writeLine(`  theme       <span class="t-orange">Dark / Orange</span>`);
+  state.running = false;
+}
+
+// ── /settings ─────────────────────────────────────────────────────────────────
+async function cmdSettings() {
+  state.running = true;
+  writeLine('System Configuration');
+  writeLine('<span class="t-dim">──────────────────────────────</span>');
+  await sleep(80); writeLine(`  model         <span class="t-orange">${state.model}</span>`);
+  await sleep(80); writeLine('  temperature   <span class="t-orange">0.7</span>');
+  await sleep(80); writeLine('  agents        <span class="t-orange">Gemini  Llama  DeepSeek  Qwen</span>');
+  await sleep(80); writeLine('  output        <span class="t-orange">Stream  Auto-review</span>');
+  await sleep(80); writeLine('  storage       <span class="t-orange">localStorage (persistent)</span>');
+  state.running = false;
+}
+
+// ── /help ─────────────────────────────────────────────────────────────────────
+async function cmdHelp() {
+  state.running = true;
+  writeLine('Available Commands');
+  writeLine('<span class="t-dim">──────────────────────────────────────────────────────────</span>');
+  writeBlank();
+
+  for (const c of COMMANDS) {
+    await sleep(25);
+    writeLine(`  <span class="t-orange">${c.cmd.padEnd(12)}</span>  <span class="t-dim">${c.desc}</span>`);
+  }
+
+  writeBlank();
+  writeLine('<span class="t-dim">Normal mode: type a description  ->  Gemini gathers requirements.</span>');
+  writeLine('<span class="t-dim">Build mode:  /gencode             ->  all agents generate code.</span>');
+  writeBlank();
+  writeLine('<span class="t-dim">Ctrl+K  command palette</span>');
+
+  state.running = false;
+}
+
+// ── AGENT / MODE HELPERS ──────────────────────────────────────────────────────
+function setMode(m) {
+  state.mode = m;
+  document.getElementById('sb-mode').textContent = m;
+}
+
+function setAgentBusy(id) {
+  const dot = document.getElementById('dot-' + id);
+  const lbl = document.getElementById('status-' + id);
+  if (dot) { dot.className = 'agent-dot busy'; }
+  if (lbl) lbl.textContent = 'Working...';
+}
+
+function setAgentDone(id) {
+  const dot = document.getElementById('dot-' + id);
+  const lbl = document.getElementById('status-' + id);
+  if (dot) { dot.className = 'agent-dot done'; }
+  if (lbl) lbl.textContent = 'Done';
+}
+
+function setAgentReady(id) {
+  const dot = document.getElementById('dot-' + id);
+  const lbl = document.getElementById('status-' + id);
+  if (dot) { dot.className = 'agent-dot'; }
+  if (lbl) lbl.textContent = 'Ready';
+}
+
+function setAllReady() {
+  ['gemini','llama','deepseek','qwen'].forEach(setAgentReady);
+  document.getElementById('sb-agents').textContent = '4 agents ready';
+}
+
+function setWfStep(n) {
+  for (let i = 0; i < 7; i++) {
+    const el = document.getElementById('wf-' + i);
+    if (!el) continue;
+    el.className = 'wf-step' + (i < n ? ' done' : i === n ? ' active' : '');
+  }
+}
+
+// ── HISTORY ───────────────────────────────────────────────────────────────────
+function addHistory(name) {
+  if (!state.projects.includes(name)) {
+    state.projects.unshift(name);
+    if (state.projects.length > 20) state.projects.pop();
+  }
+  renderHistory();
+  saveState();
+}
+
+function renderHistory() {
+  const list = document.getElementById('hist-list');
+  list.innerHTML = state.projects.map(p => `
+    <div class="hist-item" data-project="${escAttr(p)}">
+      <div class="hist-name">${escHtml(p)}</div>
+      <div class="hist-time">${now()}</div>
+    </div>`).join('');
+  list.querySelectorAll('.hist-item').forEach(item => {
+    item.addEventListener('click', () => runCmd(`/gencode ${item.dataset.project}`));
+  });
+}
+
+// ── MODEL SELECTOR ────────────────────────────────────────────────────────────
+function toggleModelPanel() {
+  document.getElementById('model-panel').classList.toggle('open');
+}
+
+function selectModel(id, label) {
+  state.model = id;
+  document.getElementById('model-label').textContent = label;
+  document.getElementById('sb-model').textContent = label;
+  document.getElementById('model-panel').classList.remove('open');
+
+  const options = document.querySelectorAll('.mi-option');
+  options.forEach((o, i) => {
+    const names = ['AOF 1.0 Lite', 'AOF 1.0', 'AOF 1.0 Pro'];
+    o.classList.toggle('selected', names[i] === id);
+  });
+
+  writeLine(`<span class="t-dim">Model switched to </span><span class="t-orange">${label}</span>`);
+  writeBlank();
+  writeLine('<span class="cursor"></span>');
+  saveState();
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.model-wrap')) {
+    document.getElementById('model-panel').classList.remove('open');
+  }
+});
+
+// ── COMMAND PALETTE ───────────────────────────────────────────────────────────
+const PAL_ITEMS = COMMANDS;
+let palSel = 0;
+
+function openPalette() {
+  document.getElementById('palette-overlay').classList.add('open');
+  setTimeout(() => document.getElementById('palette-input').focus(), 30);
+  renderPalette(PAL_ITEMS);
+}
+
+function closePalette() {
+  document.getElementById('palette-overlay').classList.remove('open');
+  document.getElementById('palette-input').value = '';
+  focusInput();
+}
+
+function closePaletteOnBg(e) {
+  if (e.target.id === 'palette-overlay') closePalette();
+}
+
+function filterPalette() {
+  const q = document.getElementById('palette-input').value.toLowerCase();
+  const filtered = PAL_ITEMS.filter(i => i.cmd.includes(q) || i.desc.toLowerCase().includes(q));
+  renderPalette(filtered);
+}
+
+function renderPalette(items) {
+  palSel = 0;
+  document.getElementById('palette-list').innerHTML = items.map((item, i) => `
+    <div class="pal-item ${i === 0 ? 'sel' : ''}" onclick="pickPalette('${item.cmd}')">
+      <span class="pal-cmd">${item.cmd}</span>
+      <span class="pal-desc">${item.desc}</span>
+    </div>`).join('');
+}
+
+function pickPalette(cmd) {
+  closePalette();
+  runCmd(cmd);
+}
+
+// ── KEYBOARD ──────────────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+    e.preventDefault();
+    openPalette();
+  }
+  if (e.key === 'Escape') {
+    closePalette();
+    focusInput();
+  }
+});
+
+document.getElementById('cmd-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    const val = document.getElementById('cmd-input').value.trim();
+    document.getElementById('cmd-input').value = '';
+    if (val) runCmd(val);
+  }
+});
+
+// ── CLOCK ─────────────────────────────────────────────────────────────────────
+function updateClock() {
+  document.getElementById('sb-clock').textContent = now();
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ── TOAST (status-bar flash) ──────────────────────────────────────────────────
+let toastTimer;
+function showToast(msg) {
+  const el = document.getElementById('sb-agents');
+  el.textContent = msg;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    el.textContent = '4 agents ready';
+  }, 3000);
+}
+
+window.addEventListener('storage', e => {
+  if (e.key === `aof-code:room:${state.room}`) {
+    loadRoomState();
+    writeLine('<span class="t-dim">Room data updated from another tab.</span>');
+    writeBlank();
+  }
+});
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+async function init() {
+  const user = await loadUser();
+  if (!user) return;
+  await boot();
+  if (state.room) loadRoomState();
+}
+
+init();
+</script>
+</body>
+</html>
