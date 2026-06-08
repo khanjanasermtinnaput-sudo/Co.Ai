@@ -435,9 +435,10 @@ const ROLE_WF    = { planner:1, coder:3, validator:5, reviewer:4 };
 const MODE_LABEL = { lite:'AOF 1.0 Lite', normal:'AOF 1.0', pro:'AOF 1.0 Pro' };
 
 const COMMANDS = [
-  { cmd: '/gencode',  desc: 'เริ่มสร้างโค้ด (ต้องผ่าน Planning ก่อน)' },
-  { cmd: '/new',      desc: 'เริ่ม planning session ใหม่' },
-  { cmd: '/keys',     desc: 'Manage your API keys' },
+  { cmd: '/gencode',          desc: 'เริ่มสร้างโค้ด (ต้องผ่าน Planning ก่อน)' },
+  { cmd: '/new',              desc: 'เริ่ม planning session ใหม่' },
+  { cmd: '/keys',             desc: 'Manage your API keys' },
+  { cmd: '/install=(aof_code)', desc: 'ติดตั้ง AOF Code เป็นแอป (PWA)' },
   { cmd: '/export',   desc: 'Download as ZIP  ·  /export html → single index.html' },
   { cmd: '/agents',   desc: 'List agent roles and status' },
   { cmd: '/profile',  desc: 'Show user profile and statistics' },
@@ -694,6 +695,7 @@ async function runCmd(raw){
       case '/clear':   body.innerHTML=''; break;
       case '/logout':  await cmdLogout(); return;
       case '/help':    await cmdHelp(); break;
+      case '/install=(aof_code)': await cmdInstall(); break;
       default:
         writeLine(`<span class="t-red">'${escHtml(verb)}' is not a command. Type /help.</span>`);
     }
@@ -1082,10 +1084,30 @@ async function cmdHelp(){
   writeLine('Available Commands');
   writeLine('<span class="t-dim">──────────────────────────────────────────────────────────</span>');
   writeBlank();
-  for(const c of COMMANDS){ await sleep(18); writeLine(`  <span class="t-orange">${c.cmd.padEnd(12)}</span>  <span class="t-dim">${c.desc}</span>`); }
+  for(const c of COMMANDS){ await sleep(18); writeLine(`  <span class="t-orange">${c.cmd.padEnd(24)}</span>  <span class="t-dim">${c.desc}</span>`); }
   writeBlank();
   writeLine('<span class="t-purple">Workflow:</span>  <span class="t-dim">อธิบายสิ่งที่ต้องการ → RAA สรุป Requirement → /gencode → TMAP สร้างโค้ด</span>');
   writeLine('<span class="t-dim">Set provider keys with </span><span class="t-orange">/keys</span><span class="t-dim"> (openrouter key works for all 4 agents).</span>');
+}
+async function cmdInstall(){
+  if(!window._pwaPrompt){
+    if(window.matchMedia('(display-mode: standalone)').matches){
+      writeLine('<span class="t-green">✓ AOF Code ถูกติดตั้งเป็นแอปแล้ว</span>');
+    } else {
+      writeLine('<span class="t-yellow">⚠ เบราว์เซอร์นี้ไม่รองรับการติดตั้ง PWA อัตโนมัติ</span>');
+      writeLine('<span class="t-dim">ลอง: Chrome → เมนู ⋮ → "ติดตั้งแอป"  /  Safari iOS → แชร์ → "เพิ่มไปที่หน้าจอหลัก"</span>');
+    }
+    return;
+  }
+  writeLine('<span class="t-dim">กำลังเปิด install dialog...</span>');
+  window._pwaPrompt.prompt();
+  const { outcome } = await window._pwaPrompt.userChoice;
+  window._pwaPrompt = null;
+  if(outcome === 'accepted'){
+    writeLine('<span class="t-green">✓ ติดตั้ง AOF Code สำเร็จ!</span>');
+  } else {
+    writeLine('<span class="t-dim">ยกเลิกการติดตั้ง</span>');
+  }
 }
 
 // ── AGENT / MODE HELPERS ─────────────────────────────────────────────────────────
@@ -1204,6 +1226,11 @@ async function init(){
     showAuth();
   }
 }
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  window._pwaPrompt = e;
+});
+
 init();
 
 if ('serviceWorker' in navigator) {
