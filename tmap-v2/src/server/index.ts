@@ -7,6 +7,7 @@ import { dirname, join } from 'node:path';
 import { hashPassword, verifyPassword, encryptSecret, decryptSecret, maskKey } from './crypto.js';
 import { signToken, requireAuth, type AuthedRequest } from './auth.js';
 import { createUser, findUserByUsername, setUserKey, deleteUserKey, type ProviderKeyName } from './db.js';
+import { checkLoginRate, recordFailure, recordSuccess } from './rateLimit.js';
 import { bagHasAnyKey, type CredentialBag } from '../config.js';
 import { createBlackboard } from '../core/blackboard.js';
 import { runTMAP } from '../core/orchestrator.js';
@@ -48,10 +49,41 @@ app.post('/v1/auth/register', async (req, res) => {
 
 app.post('/v1/auth/login', async (req, res) => {
   const { username, pin } = req.body ?? {};
-  const user = username ? await findUserByUsername(String(username)) : undefined;
+
+  // ── rate-limit check (before any DB lookup to avoid timing oracle) ────────
+  const clientIp = String(
+    req.headers['x-forwarded-for'] ?? req.socket.remoteAddress ?? 'unknown',
+  ).split(',')[0].trim();
+
+  const uname = username ? String(username).trim() : '';
+  if (uname) {
+    const check = checkLoginRate(uname, clientIp);
+    if (check.blocked) {
+      const mins = Math.ceil(check.retryAfterSec / 60);
+      res.setHeader('Retry-After', check.retryAfterSec);
+      return res.status(429).json({
+        error: `ลองเข้าสู่ระบบบ่อยเกินไป กรุณารอ ${mins} นาทีแล้วลองใหม่`,
+        retryAfterSec: check.retryAfterSec,
+      });
+    }
+  }
+
+  // ── credential check ──────────────────────────────────────────────────────
+  const user = uname ? await findUserByUsername(uname) : undefined;
   if (!user || !verifyPassword(String(pin ?? '').trim(), user.pinHash)) {
+    if (uname) {
+      const info = recordFailure(uname, clientIp);
+      const detail = info.blocked
+        ? ` — ลองผิดเกินกำหนด บัญชีถูกล็อก ${Math.ceil(info.retryAfterSec / 60)} นาที`
+        : info.remaining > 0
+          ? ` (เหลือ ${info.remaining} ครั้ง)`
+          : '';
+      return res.status(401).json({ error: `ชื่อหรือ PIN ไม่ถูกต้อง${detail}` });
+    }
     return res.status(401).json({ error: 'ชื่อหรือ PIN ไม่ถูกต้อง' });
   }
+
+  recordSuccess(uname, clientIp);
   return res.json({ token: signToken(user.id), username: user.username });
 });
 
