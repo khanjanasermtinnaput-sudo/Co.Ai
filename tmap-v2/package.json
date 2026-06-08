@@ -15,6 +15,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.107.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.21.1",
@@ -22,11 +23,11 @@
     "tsx": "^4.19.2"
   },
   "devDependencies": {
-    "typescript": "^5.6.3",
-    "@types/node": "^22.9.0",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
-    "@types/jsonwebtoken": "^9.0.7"
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/node": "^22.9.0",
+    "typescript": "^5.6.3"
   },
   "engines": {
     "node": ">=18"

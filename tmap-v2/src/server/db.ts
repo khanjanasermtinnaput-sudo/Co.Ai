@@ -1,84 +1,124 @@
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { randomUUID } from 'node:crypto';
-
-/**
- * MVP data layer — a file-backed store behind a small repository interface.
- * Production target is PostgreSQL (see AOF_CODE_TDD.md §6); swap this module
- * for a pg-backed implementation without touching routes.
- */
+import { createClient } from '@supabase/supabase-js';
 
 export type ProviderKeyName = 'openrouter' | 'gemini' | 'deepseek' | 'qwen' | 'llama';
 
 export interface UserRecord {
   id: string;
-  email: string;
-  passwordHash: string;
-  // provider -> encrypted key blob (AES-256-GCM). Never stored in plaintext.
+  username: string;
+  pinHash: string;
   encryptedKeys: Partial<Record<ProviderKeyName, string>>;
   createdAt: string;
 }
 
-interface DbShape {
-  users: Record<string, UserRecord>; // keyed by lowercased email
+// ── Supabase client (used when SUPABASE_URL is set) ────────────────────────────
+function supabase() {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new Error('SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set');
+  return createClient(url, key, { auth: { persistSession: false } });
 }
 
-// On Vercel the filesystem is read-only except /tmp.
-// When Supabase is connected (SUPABASE_URL set), this file DB is bypassed entirely.
+function useSupabase() {
+  return Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
+}
+
+// ── Supabase implementations ───────────────────────────────────────────────────
+async function sbFindByUsername(username: string): Promise<UserRecord | undefined> {
+  const { data } = await supabase().from('users').select('*').eq('username', username.toLowerCase()).maybeSingle();
+  return data ? rowToUser(data) : undefined;
+}
+
+async function sbFindById(id: string): Promise<UserRecord | undefined> {
+  const { data } = await supabase().from('users').select('*').eq('id', id).maybeSingle();
+  return data ? rowToUser(data) : undefined;
+}
+
+async function sbCreateUser(username: string, pinHash: string): Promise<UserRecord> {
+  const { data, error } = await supabase().from('users')
+    .insert({ username: username.toLowerCase(), pin_hash: pinHash, encrypted_keys: {} })
+    .select().single();
+  if (error) throw new Error(error.message);
+  return rowToUser(data);
+}
+
+async function sbSetKey(userId: string, provider: ProviderKeyName, encrypted: string): Promise<void> {
+  const { data } = await supabase().from('users').select('encrypted_keys').eq('id', userId).single();
+  const keys = { ...(data?.encrypted_keys ?? {}), [provider]: encrypted };
+  const { error } = await supabase().from('users').update({ encrypted_keys: keys }).eq('id', userId);
+  if (error) throw new Error(error.message);
+}
+
+async function sbDeleteKey(userId: string, provider: ProviderKeyName): Promise<void> {
+  const { data } = await supabase().from('users').select('encrypted_keys').eq('id', userId).single();
+  const keys = { ...(data?.encrypted_keys ?? {}) };
+  delete keys[provider];
+  await supabase().from('users').update({ encrypted_keys: keys }).eq('id', userId);
+}
+
+function rowToUser(row: any): UserRecord {
+  return {
+    id: row.id,
+    username: row.username,
+    pinHash: row.pin_hash,
+    encryptedKeys: row.encrypted_keys ?? {},
+    createdAt: row.created_at,
+  };
+}
+
+// ── File-based fallback (local dev / Vercel /tmp) ─────────────────────────────
 const DB_PATH = process.env.VERCEL
   ? '/tmp/aof-db.json'
   : join(process.cwd(), '.aof-server', 'db.json');
 
+interface DbShape { users: Record<string, UserRecord> }
+
 function load(): DbShape {
   if (!existsSync(DB_PATH)) return { users: {} };
-  try {
-    return JSON.parse(readFileSync(DB_PATH, 'utf8')) as DbShape;
-  } catch {
-    return { users: {} };
-  }
+  try { return JSON.parse(readFileSync(DB_PATH, 'utf8')) as DbShape; } catch { return { users: {} }; }
 }
-
 function save(db: DbShape): void {
   mkdirSync(dirname(DB_PATH), { recursive: true });
   writeFileSync(DB_PATH, JSON.stringify(db, null, 2), 'utf8');
 }
 
-export function findUserByEmail(email: string): UserRecord | undefined {
-  return load().users[email.toLowerCase()];
+// ── Public API (async, works with both backends) ───────────────────────────────
+export async function findUserByUsername(username: string): Promise<UserRecord | undefined> {
+  if (useSupabase()) return sbFindByUsername(username);
+  return load().users[username.toLowerCase()];
 }
 
-export function findUserById(id: string): UserRecord | undefined {
+export async function findUserById(id: string): Promise<UserRecord | undefined> {
+  if (useSupabase()) return sbFindById(id);
   return Object.values(load().users).find((u) => u.id === id);
 }
 
-export function createUser(email: string, passwordHash: string): UserRecord {
+export async function createUser(username: string, pinHash: string): Promise<UserRecord> {
+  if (useSupabase()) return sbCreateUser(username, pinHash);
   const db = load();
-  const key = email.toLowerCase();
-  if (db.users[key]) throw new Error('email already registered');
+  const key = username.toLowerCase();
+  if (db.users[key]) throw new Error('username already taken');
   const user: UserRecord = {
-    id: randomUUID(),
-    email,
-    passwordHash,
-    encryptedKeys: {},
-    createdAt: new Date().toISOString(),
+    id: randomUUID(), username: key, pinHash,
+    encryptedKeys: {}, createdAt: new Date().toISOString(),
   };
-  db.users[key] = user;
-  save(db);
-  return user;
+  db.users[key] = user; save(db); return user;
 }
 
-export function setUserKey(userId: string, provider: ProviderKeyName, encrypted: string): void {
+export async function setUserKey(userId: string, provider: ProviderKeyName, encrypted: string): Promise<void> {
+  if (useSupabase()) return sbSetKey(userId, provider, encrypted);
   const db = load();
   const user = Object.values(db.users).find((u) => u.id === userId);
   if (!user) throw new Error('user not found');
-  user.encryptedKeys[provider] = encrypted;
-  save(db);
+  user.encryptedKeys[provider] = encrypted; save(db);
 }
 
-export function deleteUserKey(userId: string, provider: ProviderKeyName): void {
+export async function deleteUserKey(userId: string, provider: ProviderKeyName): Promise<void> {
+  if (useSupabase()) return sbDeleteKey(userId, provider);
   const db = load();
   const user = Object.values(db.users).find((u) => u.id === userId);
   if (!user) throw new Error('user not found');
-  delete user.encryptedKeys[provider];
-  save(db);
+  delete user.encryptedKeys[provider]; save(db);
 }

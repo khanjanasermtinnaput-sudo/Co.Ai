@@ -5,142 +5,293 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AOF Code</title>
 <style>
-  :root{--bg:#000;--panel:#0c0c0c;--bd:#1e1e1e;--tx:#fff;--dim:#888;--acc:#ff7a00;--grn:#3dd68c;--red:#f87171;--mono:'JetBrains Mono',Consolas,monospace}
-  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--tx);font-family:var(--mono);font-size:13px}
-  .wrap{max-width:860px;margin:0 auto;padding:24px}
-  h1{font-size:18px} h1 span{color:var(--acc)}
-  .card{background:var(--panel);border:1px solid var(--bd);border-radius:8px;padding:16px;margin:14px 0}
-  label{display:block;color:var(--dim);margin:8px 0 4px}
-  input,select,button,textarea{font-family:var(--mono);font-size:13px}
-  input,select,textarea{width:100%;background:#000;border:1px solid var(--bd);color:var(--tx);padding:8px;border-radius:6px}
-  button{background:var(--acc);color:#000;border:0;padding:8px 14px;border-radius:6px;cursor:pointer;font-weight:600}
-  button.sec{background:transparent;color:var(--tx);border:1px solid var(--bd)}
-  .row{display:flex;gap:8px;align-items:flex-end}
-  .hidden{display:none}
-  #out{background:#000;border:1px solid var(--bd);border-radius:6px;padding:12px;height:300px;overflow:auto;white-space:pre-wrap}
-  .k{color:var(--dim)} .ok{color:var(--grn)} .err{color:var(--red)} .acc{color:var(--acc)}
-  .planner{color:var(--acc)} .coder{color:var(--grn)} .reviewer{color:#fbbf24} .validator{color:#5b9cf6} .system{color:var(--dim)}
+:root{--bg:#000;--panel:#0c0c0c;--bd:#1e1e1e;--bd2:#2a2a2a;--tx:#fff;--dim:#666;--acc:#ff7a00;--grn:#3dd68c;--red:#f87171;--yel:#fbbf24;--blu:#5b9cf6;--mono:'JetBrains Mono',Consolas,monospace}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--tx);font-family:var(--mono);font-size:13px;min-height:100vh}
+.wrap{max-width:780px;margin:0 auto;padding:28px 20px}
+.hdr{display:flex;align-items:center;gap:10px;margin-bottom:28px;border-bottom:1px solid var(--bd);padding-bottom:16px}
+.logo{font-size:17px;font-weight:700}.logo span{color:var(--acc)}
+.badge{font-size:10px;color:var(--dim);border:1px solid var(--bd2);padding:2px 6px;margin-left:4px}
+.card{background:var(--panel);border:1px solid var(--bd);border-radius:8px;padding:20px;margin-bottom:16px}
+.card-title{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;margin-bottom:16px}
+label{display:block;font-size:11px;color:var(--dim);margin:12px 0 4px}
+label:first-child{margin-top:0}
+input,select,textarea{width:100%;background:#0a0a0a;border:1px solid var(--bd2);color:var(--tx);padding:9px 10px;border-radius:6px;font-family:var(--mono);font-size:13px;outline:none;transition:border-color .15s}
+input:focus,textarea:focus{border-color:var(--acc)}
+.btn-row{display:flex;gap:8px;margin-top:16px;align-items:center}
+button{font-family:var(--mono);font-size:12px;padding:8px 16px;border-radius:6px;cursor:pointer;border:0;transition:opacity .15s}
+button:hover{opacity:.85}
+.btn-p{background:var(--acc);color:#000;font-weight:700}
+.btn-s{background:transparent;color:var(--tx);border:1px solid var(--bd2)}
+.btn-d{background:transparent;color:var(--red);border:1px solid rgba(248,113,113,.25);font-size:11px;padding:5px 10px}
+.msg{font-size:12px}.msg.ok{color:var(--grn)}.msg.err{color:var(--red)}.msg.info{color:var(--dim)}
+.keys-grid{display:grid;gap:6px;margin-top:12px}
+.key-row{display:flex;align-items:center;gap:8px;font-size:12px}
+.key-name{color:var(--dim);width:110px;flex-shrink:0}
+.key-val{color:var(--grn);flex:1}.key-val.none{color:var(--bd2)}
+#out{background:#000;border:1px solid var(--bd);border-radius:6px;padding:14px;height:320px;overflow-y:auto;white-space:pre-wrap;font-size:12px;line-height:1.6}
+.planner{color:var(--acc)}.coder{color:var(--grn)}.reviewer{color:var(--yel)}.validator{color:var(--blu)}.system{color:var(--dim)}
+.tabs{display:flex;gap:0;margin-bottom:-1px}
+.tab{padding:7px 16px;font-size:12px;font-family:var(--mono);cursor:pointer;border:1px solid var(--bd);border-bottom:0;background:var(--bg);color:var(--dim);border-radius:6px 6px 0 0}
+.tab.active{background:var(--panel);color:var(--tx);border-color:var(--bd2)}
+.tab-content{display:none}.tab-content.active{display:block}
+.file-list{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.file-chip{font-size:11px;padding:3px 8px;border:1px solid var(--bd2);border-radius:4px;color:var(--dim);cursor:pointer}
+.file-chip.active{border-color:var(--acc);color:var(--acc)}
+pre{background:#000;border:1px solid var(--bd);border-radius:6px;padding:12px;overflow:auto;font-size:12px;max-height:280px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.auth-tabs{display:flex;gap:0;margin-bottom:20px}
+.auth-tab{flex:1;padding:9px;text-align:center;font-size:12px;cursor:pointer;border:1px solid var(--bd2);color:var(--dim);background:transparent;font-family:var(--mono)}
+.auth-tab:first-child{border-radius:6px 0 0 6px}
+.auth-tab:last-child{border-radius:0 6px 6px 0;border-left:0}
+.auth-tab.active{background:var(--acc);color:#000;font-weight:700;border-color:var(--acc)}
+.pin-wrap{position:relative}
+.pin-toggle{position:absolute;right:10px;top:50%;transform:translateY(-50%);cursor:pointer;color:var(--dim);font-size:11px;background:0;border:0;font-family:var(--mono)}
+@media(max-width:520px){.row2{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>AOF <span>Code</span> <span class="k" style="font-size:12px">· TMAP v2</span></h1>
+  <div class="hdr">
+    <div class="logo">AOF <span>Code</span></div>
+    <div class="badge">TMAP v2</div>
+    <div style="flex:1"></div>
+    <div id="hdr-user" style="font-size:12px;color:var(--dim)"></div>
+    <button class="btn-s" id="btn-logout" style="display:none;font-size:11px;padding:5px 10px" onclick="logout()">ออกจากระบบ</button>
+  </div>
 
   <!-- AUTH -->
-  <div class="card" id="auth">
-    <label>Email</label><input id="email" placeholder="you@example.com">
-    <label>Password (≥6)</label><input id="password" type="password">
-    <div class="row" style="margin-top:12px">
-      <button onclick="auth('login')">Login</button>
-      <button class="sec" onclick="auth('register')">Register</button>
-      <span id="authMsg" class="k"></span>
+  <div id="view-auth">
+    <div class="card" style="max-width:360px;margin:48px auto">
+      <div class="auth-tabs">
+        <button class="auth-tab active" id="tab-login" onclick="switchAuth('login')">เข้าสู่ระบบ</button>
+        <button class="auth-tab" id="tab-reg" onclick="switchAuth('register')">สมัครใหม่</button>
+      </div>
+      <label>ชื่อผู้ใช้</label>
+      <input id="a-user" placeholder="username" autocomplete="username" onkeydown="if(event.key==='Enter')document.getElementById('a-pin').focus()">
+      <label>PIN <span style="color:var(--bd2)">(ตัวเลข 4–8 หลัก)</span></label>
+      <div class="pin-wrap">
+        <input id="a-pin" type="password" inputmode="numeric" maxlength="8" placeholder="••••••••"
+               autocomplete="current-password"
+               oninput="this.value=this.value.replace(/\D/g,'').slice(0,8)"
+               onkeydown="if(event.key==='Enter')doAuth()">
+        <button class="pin-toggle" onclick="togglePin()" id="pin-eye">แสดง</button>
+      </div>
+      <div class="btn-row">
+        <button class="btn-p" style="flex:1" id="auth-btn" onclick="doAuth()">เข้าสู่ระบบ</button>
+      </div>
+      <div class="msg" id="auth-msg" style="margin-top:10px;min-height:16px;text-align:center"></div>
     </div>
   </div>
 
   <!-- APP -->
-  <div id="app" class="hidden">
-    <div class="card">
-      <div class="row" style="justify-content:space-between">
-        <div>Signed in as <span class="acc" id="who"></span></div>
-        <button class="sec" onclick="logout()">Logout</button>
-      </div>
-    </div>
+  <div id="view-app" style="display:none">
 
-    <!-- KEYS bound to account -->
+    <!-- API KEYS -->
     <div class="card">
-      <b>API Keys (ผูกกับ account นี้ · เข้ารหัสในเซิร์ฟเวอร์)</b>
-      <div class="row">
-        <div style="flex:1">
+      <div class="card-title">API Keys — ผูกกับ account ของคุณ (เข้ารหัสในเซิร์ฟเวอร์)</div>
+      <div class="row2">
+        <div>
           <label>Provider</label>
-          <select id="provider">
-            <option value="openrouter">openrouter (key เดียวครบทุก agent)</option>
-            <option value="gemini">gemini (Planner)</option>
-            <option value="deepseek">deepseek (Coder)</option>
-            <option value="qwen">qwen / DashScope (Reviewer)</option>
-            <option value="llama">llama / Groq (Validator)</option>
+          <select id="kp">
+            <option value="openrouter">openrouter (key เดียวครบ 4 agent)</option>
+            <option value="gemini">gemini — Planner</option>
+            <option value="deepseek">deepseek — Coder</option>
+            <option value="qwen">qwen — Reviewer</option>
+            <option value="llama">llama / groq — Validator</option>
           </select>
         </div>
-        <div style="flex:2">
-          <label>API Key</label><input id="keyval" placeholder="วาง key ที่นี่">
+        <div>
+          <label>วาง API Key</label>
+          <div style="display:flex;gap:6px">
+            <input id="kv" placeholder="sk-..." type="password" style="flex:1">
+            <button class="btn-p" onclick="saveKey()">บันทึก</button>
+          </div>
         </div>
-        <button onclick="saveKey()">Save</button>
       </div>
-      <div id="keysList" class="k" style="margin-top:10px"></div>
+      <div class="keys-grid" id="keys-list"></div>
+      <div id="key-msg" class="msg" style="margin-top:8px;min-height:16px"></div>
     </div>
 
     <!-- RUN -->
     <div class="card">
-      <label>Task</label>
-      <textarea id="task" rows="2" placeholder="build a todo REST API in Node.js"></textarea>
-      <div class="row" style="margin-top:8px">
+      <div class="card-title">สั่งงาน TMAP</div>
+      <label>บอกว่าอยากให้สร้างอะไร</label>
+      <textarea id="task" rows="2" placeholder="เช่น: build a REST API for a todo app in Node.js with Express"></textarea>
+      <div class="btn-row">
         <select id="mode" style="width:140px">
-          <option value="lite">lite</option>
+          <option value="lite">lite (เร็ว)</option>
           <option value="normal" selected>normal</option>
-          <option value="pro">pro</option>
+          <option value="pro">pro (ละเอียด)</option>
         </select>
-        <button onclick="run()">Run TMAP</button>
+        <button class="btn-p" id="run-btn" onclick="run()">▶ Run TMAP</button>
+        <span class="msg info" id="run-status"></span>
       </div>
-      <div id="out" style="margin-top:12px"></div>
     </div>
+
+    <!-- OUTPUT -->
+    <div id="output-section" style="display:none">
+      <div class="tabs">
+        <div class="tab active" id="tabt-terminal" onclick="switchTab('terminal')">Terminal</div>
+        <div class="tab" id="tabt-files" onclick="switchTab('files')">Files</div>
+      </div>
+      <div class="card" style="border-radius:0 8px 8px 8px;margin-top:0;padding:14px">
+        <div class="tab-content active" id="tab-terminal"><div id="out"></div></div>
+        <div class="tab-content" id="tab-files">
+          <div class="file-list" id="file-chips"></div>
+          <pre id="file-code">(เลือกไฟล์ด้านบน)</pre>
+        </div>
+      </div>
+    </div>
+
   </div>
 </div>
 
 <script>
-const API = '';
-let token = localStorage.getItem('aof:token') || '';
-let email = localStorage.getItem('aof:email') || '';
+const API='';
+let token=localStorage.getItem('aof:token')||'';
+let uname=localStorage.getItem('aof:uname')||'';
+let files=[];let activeFile=0;let authMode='login';
 
-function show(){
-  if(token){ document.getElementById('auth').classList.add('hidden');
-    document.getElementById('app').classList.remove('hidden');
-    document.getElementById('who').textContent = email; loadMe(); }
-  else { document.getElementById('auth').classList.remove('hidden');
-    document.getElementById('app').classList.add('hidden'); }
+function val(id){return document.getElementById(id).value.trim()}
+function esc(s){return String(s).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]))}
+function showMsg(id,text,type='info'){const el=document.getElementById(id);el.textContent=text;el.className='msg '+type}
+
+async function api(path,method='GET',body){
+  const r=await fetch(API+path,{method,
+    headers:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{})},
+    body:body?JSON.stringify(body):undefined});
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok)throw new Error(d.error||'HTTP '+r.status);
+  return d;
 }
-async function api(path, method='GET', body){
-  const r = await fetch(API+path,{method,headers:{'Content-Type':'application/json',
-    ...(token?{Authorization:'Bearer '+token}:{})},body:body?JSON.stringify(body):undefined});
-  const d = await r.json().catch(()=>({})); if(!r.ok) throw new Error(d.error||('HTTP '+r.status)); return d;
+
+// ── AUTH ──────────────────────────────────────────────────────────────────────
+function switchAuth(mode){
+  authMode=mode;
+  ['login','reg'].forEach(t=>{
+    document.getElementById('tab-'+t).className='auth-tab'+(t===(mode==='login'?'login':'reg')?' active':'');
+  });
+  document.getElementById('auth-btn').textContent=mode==='login'?'เข้าสู่ระบบ':'สมัครใหม่';
+  showMsg('auth-msg','');
 }
-async function auth(action){
-  const msg=document.getElementById('authMsg'); msg.textContent='...';
+function togglePin(){
+  const p=document.getElementById('a-pin'),e=document.getElementById('pin-eye');
+  p.type=p.type==='password'?'text':'password';e.textContent=p.type==='password'?'แสดง':'ซ่อน';
+}
+async function doAuth(){
+  const username=val('a-user'),pin=val('a-pin');
+  if(!username||!pin){showMsg('auth-msg','กรุณากรอกข้อมูลให้ครบ','err');return}
+  showMsg('auth-msg','กำลังดำเนินการ…','info');
+  document.getElementById('auth-btn').disabled=true;
   try{
-    const d=await api('/v1/auth/'+action,'POST',{email:val('email'),password:val('password')});
-    token=d.token; email=d.email; localStorage.setItem('aof:token',token); localStorage.setItem('aof:email',email);
-    msg.textContent=''; show();
-  }catch(e){ msg.textContent=e.message; msg.className='err'; }
+    const d=await api('/v1/auth/'+authMode,'POST',{username,pin});
+    token=d.token;uname=d.username;
+    localStorage.setItem('aof:token',token);localStorage.setItem('aof:uname',uname);
+    showView('app');
+  }catch(e){showMsg('auth-msg',e.message,'err')}
+  document.getElementById('auth-btn').disabled=false;
 }
-function logout(){ token=''; email=''; localStorage.clear(); show(); }
+function logout(){
+  token='';uname='';localStorage.clear();
+  document.getElementById('a-pin').value='';
+  showView('auth');
+}
+
+// ── APP ───────────────────────────────────────────────────────────────────────
+function showView(v){
+  document.getElementById('view-auth').style.display=v==='auth'?'':'none';
+  document.getElementById('view-app').style.display=v==='app'?'':'none';
+  document.getElementById('hdr-user').textContent=v==='app'?'👤 '+uname:'';
+  document.getElementById('btn-logout').style.display=v==='app'?'':'none';
+  if(v==='app')loadMe();
+}
+
 async function loadMe(){
-  const d=await api('/v1/me');
-  document.getElementById('keysList').innerHTML = Object.entries(d.keys)
-    .map(([p,v])=>`${p}: ${v?`<span class="ok">${v}</span>`:'<span class="k">— ยังไม่ตั้ง</span>'}`).join('  ·  ');
+  try{
+    const d=await api('/v1/me');
+    document.getElementById('keys-list').innerHTML=Object.entries(d.keys)
+      .map(([p,v])=>`<div class="key-row">
+        <span class="key-name">${p}</span>
+        ${v?`<span class="key-val">${esc(v)}</span><button class="btn-d" onclick="delKey('${p}')">ลบ</button>`
+           :'<span class="key-val none">— ยังไม่ได้ตั้ง</span>'}
+      </div>`).join('');
+  }catch(e){if(String(e).includes('401'))logout()}
 }
 async function saveKey(){
-  try{ await api('/v1/me/keys','PUT',{provider:val('provider'),key:val('keyval')});
-    document.getElementById('keyval').value=''; loadMe(); }
-  catch(e){ alert(e.message); }
+  const provider=val('kp'),key=document.getElementById('kv').value.trim();
+  if(!key){showMsg('key-msg','กรุณาวาง key ก่อน','err');return}
+  try{
+    await api('/v1/me/keys','PUT',{provider,key});
+    document.getElementById('kv').value='';
+    showMsg('key-msg','บันทึกสำเร็จ ✓','ok');
+    setTimeout(()=>showMsg('key-msg',''),2200);
+    loadMe();
+  }catch(e){showMsg('key-msg',e.message,'err')}
 }
+async function delKey(p){await api('/v1/me/keys/'+p,'DELETE');loadMe()}
+
+// ── RUN ───────────────────────────────────────────────────────────────────────
 async function run(){
-  const out=document.getElementById('out'); out.innerHTML='';
-  const r=await fetch(API+'/v1/run',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
-    body:JSON.stringify({task:val('task'),mode:val('mode')})});
-  const reader=r.body.getReader(); const dec=new TextDecoder(); let buf='';
-  while(true){ const {value,done}=await reader.read(); if(done)break; buf+=dec.decode(value,{stream:true});
-    let i; while((i=buf.indexOf('\n\n'))>=0){ const line=buf.slice(0,i); buf=buf.slice(i+2);
-      if(line.startsWith('data: ')){ const ev=JSON.parse(line.slice(6)); render(ev); } } }
+  const task=val('task');if(!task){showMsg('run-status','กรุณาพิมพ์ task','err');return}
+  document.getElementById('output-section').style.display='';
+  switchTab('terminal');
+  const out=document.getElementById('out');out.innerHTML='';
+  files=[];renderChips();
+  document.getElementById('run-btn').disabled=true;
+  showMsg('run-status','กำลังรัน…','info');
+
+  const r=await fetch(API+'/v1/run',{method:'POST',
+    headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
+    body:JSON.stringify({task,mode:val('mode')})});
+
+  const reader=r.body.getReader();const dec=new TextDecoder();let buf='';
+  while(true){
+    const{value,done}=await reader.read();if(done)break;
+    buf+=dec.decode(value,{stream:true});
+    let i;while((i=buf.indexOf('\n\n'))>=0){
+      const line=buf.slice(0,i);buf=buf.slice(i+2);
+      if(line.startsWith('data: ')){try{renderEv(JSON.parse(line.slice(6)))}catch{}}
+    }
+  }
+  document.getElementById('run-btn').disabled=false;
+  showMsg('run-status','เสร็จแล้ว ✓','ok');
 }
-function render(ev){
+
+function renderEv(ev){
   const out=document.getElementById('out');
-  if(ev.kind==='done'){ out.innerHTML+=`\n<span class="ok">✓ done · ${(ev.files||[]).length} file(s) · ${ev.iterations} iteration(s)</span>\n`;
-    (ev.files||[]).forEach(f=>out.innerHTML+=`<span class="k">— ${f.path}</span>\n`); out.scrollTop=out.scrollHeight; return; }
-  const cls=ev.role||'system'; const arrow=ev.kind==='error'?'✗':ev.kind==='output'?'›':'·';
-  out.innerHTML+=`<span class="${cls}">${(ev.role||'system').padEnd(10)}</span> ${arrow} ${ev.kind==='error'?'<span class="err">'+esc(ev.text)+'</span>':esc(ev.text)}\n`;
+  if(ev.kind==='done'){
+    files=ev.files||[];renderChips();
+    out.innerHTML+=`\n<span class="system">─────────────────────────────</span>\n`;
+    out.innerHTML+=`<span class="system">✓ เสร็จสิ้น · ${files.length} ไฟล์ · ${ev.iterations} iteration(s)</span>\n`;
+    out.scrollTop=out.scrollHeight;return;
+  }
+  const cls=ev.role||'system';
+  const arr=ev.kind==='error'?`<span style="color:var(--red)">✗</span>`:ev.kind==='output'?`<span style="color:var(--grn)">›</span>`:`<span style="color:var(--dim)">·</span>`;
+  for(const line of String(ev.text||'').split('\n')){
+    if(!line.trim())continue;
+    const txt=ev.kind==='error'?`<span style="color:var(--red)">${esc(line)}</span>`:esc(line);
+    out.innerHTML+=`<span class="${cls}">${cls.padEnd(10,' ')}</span> ${arr} ${txt}\n`;
+  }
   out.scrollTop=out.scrollHeight;
 }
-function val(id){return document.getElementById(id).value.trim();}
-function esc(s){return String(s).replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));}
-show();
+
+function switchTab(t){
+  ['terminal','files'].forEach(n=>{
+    document.getElementById('tab-'+n).classList.toggle('active',n===t);
+    document.getElementById('tabt-'+n).classList.toggle('active',n===t);
+  });
+  if(t==='files'&&files[activeFile])showFile(activeFile);
+}
+function renderChips(){
+  document.getElementById('file-chips').innerHTML=files.map((f,i)=>
+    `<div class="file-chip${i===activeFile?' active':''}" onclick="selectFile(${i})">${esc(f.path)}</div>`).join('');
+  if(files[activeFile])showFile(activeFile);
+}
+function selectFile(i){activeFile=i;renderChips()}
+function showFile(i){if(files[i])document.getElementById('file-code').textContent=files[i].content}
+
+token?showView('app'):showView('auth');
 </script>
 </body>
 </html>
