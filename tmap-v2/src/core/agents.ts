@@ -1,6 +1,5 @@
-import { chat } from '../providers/client.js';
 import type {
-  Blackboard, CodeFile, PlanStep, ResolvedProvider, ReviewIssue,
+  Blackboard, CodeFile, PlanStep, ReviewIssue, LLMCall,
 } from '../types.js';
 
 // ── PLANNER ──────────────────────────────────────────────────────────────────
@@ -10,8 +9,8 @@ Output ONLY a numbered list, max 7 lines, each line:
 "N. <path/filename> — <action: create|modify> — <short intent>"
 No prose before or after. Plain text.`;
 
-export async function runPlanner(p: ResolvedProvider, bb: Blackboard): Promise<{ steps: PlanStep[]; raw: string }> {
-  const raw = await chat(p, [
+export async function runPlanner(call: LLMCall, bb: Blackboard): Promise<{ steps: PlanStep[]; raw: string }> {
+  const raw = await call([
     { role: 'system', content: PLANNER_SYS },
     { role: 'user', content: `Task: ${bb.task}\nMode: ${bb.mode}\nContext:\n${bb.context || '(fresh project)'}` },
   ], { temperature: 0.3 });
@@ -42,7 +41,7 @@ For EACH file output a fenced block whose info string is the file path, e.g.:
 Output only code blocks. No explanation.`;
 
 export async function runCoder(
-  p: ResolvedProvider, bb: Blackboard, critique?: string,
+  call: LLMCall, bb: Blackboard, critique?: string,
 ): Promise<CodeFile[]> {
   const userParts = [
     `Task: ${bb.task}`,
@@ -59,7 +58,7 @@ export async function runCoder(
       );
     }
   }
-  const raw = await chat(p, [
+  const raw = await call([
     { role: 'system', content: CODER_SYS },
     { role: 'user', content: userParts.join('\n\n') },
   ], { temperature: 0.2, maxTokens: 4096 });
@@ -100,7 +99,7 @@ Output ONLY issues, one per line, format:
 If there are no blocking problems, output exactly: "OK | - | no blocking issues".`;
 
 export async function runReviewer(
-  p: ResolvedProvider, bb: Blackboard,
+  call: LLMCall, bb: Blackboard,
 ): Promise<{ issues: ReviewIssue[]; raw: string }> {
   const filesText = bb.files
     .map((f) => `### ${f.path}\n\`\`\`\n${f.content}\n\`\`\``)
@@ -109,7 +108,7 @@ export async function runReviewer(
     .map((v) => `${v.kind}: ${v.passed ? 'PASS' : 'FAIL'} ${v.logs}`)
     .join('\n');
 
-  const raw = await chat(p, [
+  const raw = await call([
     { role: 'system', content: REVIEWER_SYS },
     {
       role: 'user',

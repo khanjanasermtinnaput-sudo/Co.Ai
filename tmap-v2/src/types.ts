@@ -8,6 +8,17 @@ export interface ChatMessage {
   content: string;
 }
 
+// Options passed to a single LLM call. `signal` lets DARS enforce a timeout.
+export interface ChatOpts {
+  temperature?: number;
+  maxTokens?: number;
+  signal?: AbortSignal;
+}
+
+// What an agent calls to talk to a model. The orchestrator injects an
+// implementation backed by DARS (failover/health), so agents stay model-agnostic.
+export type LLMCall = (messages: ChatMessage[], opts?: ChatOpts) => Promise<string>;
+
 export interface ResolvedProvider {
   role: Role;
   providerName: string; // 'Gemini' | 'DeepSeek' | ...
@@ -55,6 +66,16 @@ export interface Blackboard {
   validations: ValidationResult[];
   iterations: number;
   log: AgentEvent[];
+  agentRuns?: AgentRun[];   // which provider actually served each agent call (DARS)
+}
+
+// Record of one agent call after DARS resolution (TDD §5.3 / §8 agent_logs).
+export interface AgentRun {
+  role: Role;
+  provider: string;  // provider that actually produced the result
+  model: string;
+  attempts: number;  // 0 = first choice worked; >0 = failover happened
+  ts: number;
 }
 
 export interface AgentEvent {

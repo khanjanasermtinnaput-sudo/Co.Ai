@@ -186,3 +186,17 @@ export function resolveAllWith(creds: CredentialBag): Record<Role, ResolvedProvi
 export function bagHasAnyKey(creds: CredentialBag): boolean {
   return Boolean(creds.openrouter || creds.gemini || creds.deepseek || creds.qwen || creds.llama);
 }
+
+/** Build a CredentialBag from process.env so the CLI/env path also runs through DARS. */
+export function bagFromEnv(): CredentialBag {
+  const bag: CredentialBag = {};
+  const or = process.env.OPENROUTER_API_KEY;
+  if (or?.trim()) bag.openrouter = or.trim();
+  for (const [pk, def] of Object.entries(PROVIDERS)) {
+    const v = process.env[def.envKey];
+    if (v?.trim()) (bag as Record<string, unknown>)[pk] = v.trim();
+    const m = process.env[def.modelEnv];
+    if (m?.trim()) { (bag.models ??= {})[pk] = m.trim(); }
+  }
+  return bag;
+}

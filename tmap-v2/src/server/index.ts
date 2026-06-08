@@ -7,7 +7,7 @@ import { dirname, join } from 'node:path';
 import { hashPassword, verifyPassword, encryptSecret, decryptSecret, maskKey } from './crypto.js';
 import { signToken, requireAuth, type AuthedRequest } from './auth.js';
 import { createUser, findUserByUsername, setUserKey, deleteUserKey, type ProviderKeyName } from './db.js';
-import { resolveAllWith, bagHasAnyKey, type CredentialBag } from '../config.js';
+import { bagHasAnyKey, type CredentialBag } from '../config.js';
 import { createBlackboard } from '../core/blackboard.js';
 import { runTMAP } from '../core/orchestrator.js';
 import { currentMode } from '../config.js';
@@ -104,9 +104,8 @@ app.post('/v1/run', requireAuth, async (req: AuthedRequest, res) => {
   }
 
   const bb = createBlackboard(task, mode);
-  const agents = resolveAllWith(creds);
   try {
-    await runTMAP(bb, (role, text, kind = 'status') => send({ role, text, kind }), agents);
+    await runTMAP(bb, (role, text, kind = 'status') => send({ role, text, kind }), { creds });
     send({ role: 'system', kind: 'done', text: 'done', files: bb.files, iterations: bb.iterations });
   } catch (e) {
     send({ role: 'system', kind: 'error', text: (e as Error).message });

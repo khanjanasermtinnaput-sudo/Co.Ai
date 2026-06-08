@@ -1,4 +1,4 @@
-import type { ChatMessage, ResolvedProvider } from '../types.js';
+import type { ChatMessage, ResolvedProvider, ChatOpts } from '../types.js';
 
 const MOCK_NOTE =
   '[mock] No API key configured. Set one in .env (run `npm run doctor`).';
@@ -11,7 +11,7 @@ const MOCK_NOTE =
 export async function chat(
   provider: ResolvedProvider,
   messages: ChatMessage[],
-  opts: { temperature?: number; maxTokens?: number } = {},
+  opts: ChatOpts = {},
 ): Promise<string> {
   if (provider.mode === 'mock') {
     return mockReply(provider.role, messages);
@@ -38,7 +38,7 @@ export async function chat(
 
   let res: Response;
   try {
-    res = await fetch(url, { method: 'POST', headers, body });
+    res = await fetch(url, { method: 'POST', headers, body, signal: opts.signal });
   } catch (e) {
     throw new Error(`network error calling ${provider.providerName}: ${(e as Error).message}`);
   }
