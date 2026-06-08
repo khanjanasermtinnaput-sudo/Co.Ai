@@ -134,6 +134,7 @@ html, body {
 #input-bar {
   height: 42px; border-top: 1px solid var(--border); display: flex;
   align-items: center; padding: 0 20px; gap: 10px; background: var(--term-bg); flex-shrink: 0;
+  position: relative;
 }
 .input-prompt { color: var(--accent); white-space: nowrap; font-size: 13px; user-select: none; }
 #cmd-input { flex: 1; background: transparent; border: none; outline: none; color: var(--text); font-family: var(--mono); font-size: 13px; caret-color: var(--accent); }
@@ -217,19 +218,19 @@ html, body {
 .key-val { color: var(--green); flex: 1; }
 .key-val.none { color: var(--border-mid); }
 
-/* ── COMMAND PALETTE ─────────────────────────────────────────── */
-#palette-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 500; display: none; align-items: flex-start; justify-content: center; padding-top: 100px; }
-#palette-overlay.open { display: flex; }
-#palette-box { width: 520px; background: #141414; border: 1px solid var(--border-mid); overflow: hidden; }
-#palette-input-wrap { display: flex; align-items: center; padding: 0 14px; border-bottom: 1px solid var(--border); height: 42px; }
-#palette-input-label { font-size: 12px; color: var(--text-dim); margin-right: 10px; }
-#palette-input { flex: 1; background: transparent; border: none; outline: none; color: var(--text); font-family: var(--mono); font-size: 13px; caret-color: var(--accent); }
-#palette-list { max-height: 300px; overflow-y: auto; }
-.pal-item { display: flex; align-items: center; gap: 14px; padding: 10px 14px; border-bottom: 1px solid var(--border); cursor: pointer; }
-.pal-item:last-child { border-bottom: none; }
-.pal-item:hover, .pal-item.sel { background: var(--accent-dim); }
-.pal-cmd { font-size: 12px; font-weight: 600; color: var(--text-sec); min-width: 90px; }
-.pal-desc { font-size: 11px; color: var(--text-dim); flex: 1; }
+/* ── INLINE COMMAND AUTOCOMPLETE ─────────────────────────────── */
+#cmd-ac {
+  position: absolute; left: 16px; right: 16px; bottom: calc(100% + 6px);
+  background: #141414; border: 1px solid var(--border-mid);
+  max-height: 280px; overflow-y: auto; z-index: 300; display: none;
+  box-shadow: 0 -10px 30px rgba(0,0,0,0.5);
+}
+#cmd-ac.open { display: block; }
+.ac-item { display: flex; align-items: center; gap: 14px; padding: 9px 14px; border-bottom: 1px solid var(--border); cursor: pointer; }
+.ac-item:last-child { border-bottom: none; }
+.ac-item:hover, .ac-item.sel { background: var(--accent-dim); }
+.ac-cmd { font-size: 12px; font-weight: 600; color: var(--accent); min-width: 92px; }
+.ac-desc { font-size: 11px; color: var(--text-dim); flex: 1; }
 
 .cursor { display: inline-block; width: 8px; height: 14px; background: var(--accent); vertical-align: text-bottom; animation: blink-cur 1s step-end infinite; }
 @keyframes blink-cur { 0%,100%{opacity:1} 50%{opacity:0} }
@@ -336,9 +337,10 @@ html, body {
     </div>
     <div id="terminal-body" onclick="focusInput()"></div>
     <div id="input-bar">
+      <div id="cmd-ac"></div>
       <span class="input-prompt" id="input-prompt">C:\AOF&gt;</span>
       <input type="text" id="cmd-input" placeholder="อธิบายสิ่งที่คุณต้องการสร้าง..." autocomplete="off" spellcheck="false" disabled>
-      <span class="input-hint">Ctrl+K &nbsp;|&nbsp; /help</span>
+      <span class="input-hint">พิมพ์ <span style="color:var(--accent)">/</span> เพื่อดูคำสั่ง</span>
     </div>
     <div id="statusbar" class="planning">
       <span class="sb-item" id="sb-mode">PLANNING</span>
@@ -413,16 +415,6 @@ html, body {
   </div>
 </div>
 
-<!-- COMMAND PALETTE -->
-<div id="palette-overlay" onclick="closePaletteOnBg(event)">
-  <div id="palette-box">
-    <div id="palette-input-wrap">
-      <span id="palette-input-label">&gt;</span>
-      <input id="palette-input" type="text" placeholder="Search commands..." autocomplete="off" oninput="filterPalette()">
-    </div>
-    <div id="palette-list"></div>
-  </div>
-</div>
 
 <script>
 // ── CONFIG / API ──────────────────────────────────────────────────────────────
@@ -657,7 +649,7 @@ async function boot(){
   }catch(e){
     if(String(e.message).includes('401')){ cmdLogout(); return; }
   }
-  writeLine('<span class="t-dim">Ctrl+K = command palette</span>');
+  writeLine('<span class="t-dim">พิมพ์ </span><span class="t-orange">/</span><span class="t-dim"> เพื่อดูคำสั่งทั้งหมด</span>');
   writeBlank();
   writeLine('<span class="cursor"></span>');
   focusInput();
@@ -1119,26 +1111,58 @@ function selectModel(mode){
 }
 document.addEventListener('click', e=>{ if(!e.target.closest('.model-wrap')) document.getElementById('model-panel').classList.remove('open'); });
 
-// ── COMMAND PALETTE ──────────────────────────────────────────────────────────────
-function openPalette(){ document.getElementById('palette-overlay').classList.add('open'); setTimeout(()=>document.getElementById('palette-input').focus(),30); renderPalette(COMMANDS); }
-function closePalette(){ document.getElementById('palette-overlay').classList.remove('open'); document.getElementById('palette-input').value=''; focusInput(); }
-function closePaletteOnBg(e){ if(e.target.id==='palette-overlay') closePalette(); }
-function filterPalette(){ const q=document.getElementById('palette-input').value.toLowerCase(); renderPalette(COMMANDS.filter(i=>i.cmd.includes(q)||i.desc.toLowerCase().includes(q))); }
-function renderPalette(items){
-  document.getElementById('palette-list').innerHTML = items.map((item,i)=>`
-    <div class="pal-item ${i===0?'sel':''}" onclick="pickPalette('${item.cmd}')">
-      <span class="pal-cmd">${item.cmd}</span><span class="pal-desc">${item.desc}</span>
+// ── INLINE COMMAND AUTOCOMPLETE ──────────────────────────────────────────────────
+// พิมพ์ "/" ในช่องแชท → ขึ้นรายการคำสั่งทั้งหมด คลิกเลือกได้เลย (แทน Ctrl+K เดิม)
+let acIndex = -1, acItems = [];
+function acEl(){ return document.getElementById('cmd-ac'); }
+function updateAutocomplete(){
+  const v = document.getElementById('cmd-input').value;
+  // show only while typing the command word — hide once a space (args) is entered
+  if(v[0] !== '/' || v.includes(' ')){ closeAutocomplete(); return; }
+  const q = v.slice(1).toLowerCase();
+  acItems = COMMANDS.filter(c => c.cmd.slice(1).startsWith(q));
+  if(!acItems.length){ closeAutocomplete(); return; }
+  acIndex = 0;
+  renderAutocomplete();
+  acEl().classList.add('open');
+}
+function renderAutocomplete(){
+  acEl().innerHTML = acItems.map((item,i)=>`
+    <div class="ac-item ${i===acIndex?'sel':''}" onmousedown="event.preventDefault();pickCommand(${i})">
+      <span class="ac-cmd">${item.cmd}</span><span class="ac-desc">${item.desc}</span>
     </div>`).join('');
 }
-function pickPalette(cmd){ closePalette(); document.getElementById('cmd-input').value=cmd+' '; focusInput(); }
+function closeAutocomplete(){ acEl().classList.remove('open'); acIndex=-1; acItems=[]; }
+function moveAutocomplete(d){
+  if(!acItems.length) return;
+  acIndex = (acIndex + d + acItems.length) % acItems.length;
+  renderAutocomplete();
+  const sel = acEl().querySelector('.ac-item.sel'); if(sel) sel.scrollIntoView({block:'nearest'});
+}
+function pickCommand(i){
+  const item = acItems[i]; if(!item) return;
+  const inp = document.getElementById('cmd-input');
+  closeAutocomplete();
+  inp.value='';
+  runCmd(item.cmd);
+}
 
 // ── KEYBOARD ─────────────────────────────────────────────────────────────────────
 document.addEventListener('keydown', e=>{
-  if((e.ctrlKey||e.metaKey) && e.key==='k'){ e.preventDefault(); if(state.token) openPalette(); }
-  if(e.key==='Escape'){ closePalette(); closeKeys(); focusInput(); }
+  if(e.key==='Escape'){ closeAutocomplete(); closeKeys(); focusInput(); }
 });
-document.getElementById('cmd-input').addEventListener('keydown', e=>{
-  if(e.key==='Enter'){ const v=document.getElementById('cmd-input').value.trim(); document.getElementById('cmd-input').value=''; if(v) runCmd(v); }
+const cmdInput = document.getElementById('cmd-input');
+cmdInput.addEventListener('input', updateAutocomplete);
+cmdInput.addEventListener('blur', ()=> setTimeout(closeAutocomplete, 120));
+cmdInput.addEventListener('keydown', e=>{
+  const acOpen = acEl().classList.contains('open');
+  if(acOpen && e.key==='ArrowDown'){ e.preventDefault(); moveAutocomplete(1); return; }
+  if(acOpen && e.key==='ArrowUp'){ e.preventDefault(); moveAutocomplete(-1); return; }
+  if(acOpen && e.key==='Tab'){ e.preventDefault(); const it=acItems[acIndex]; if(it){ cmdInput.value=it.cmd+' '; closeAutocomplete(); } return; }
+  if(e.key==='Enter'){
+    if(acOpen && acItems[acIndex]){ e.preventDefault(); pickCommand(acIndex); return; }
+    const v=cmdInput.value.trim(); cmdInput.value=''; closeAutocomplete(); if(v) runCmd(v);
+  }
 });
 
 // ── CLOCK / TOAST ────────────────────────────────────────────────────────────────
