@@ -4,6 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AOF Code</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#000000">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="AOF Code">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -697,6 +705,57 @@ html, body {
 
 /* tiny model dropdown wrapper */
 .model-wrap { position: relative; }
+
+/* PWA install button */
+#pwa-install-btn {
+  display: none;
+  height: 26px;
+  padding: 0 10px;
+  background: var(--accent-dim);
+  border: 1px solid var(--accent-border);
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 11px;
+  cursor: pointer;
+  align-items: center;
+  gap: 5px;
+  animation: pwa-glow 2s ease-in-out infinite;
+  white-space: nowrap;
+}
+#pwa-install-btn.visible { display: flex; }
+#pwa-install-btn:hover { background: rgba(255,122,0,0.2); }
+
+@keyframes pwa-glow {
+  0%,100% { box-shadow: 0 0 0 0 rgba(255,122,0,0); }
+  50%      { box-shadow: 0 0 8px 2px rgba(255,122,0,0.25); }
+}
+
+/* PWA install toast */
+#pwa-toast {
+  position: fixed;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%) translateY(60px);
+  background: #141414;
+  border: 1px solid var(--accent-border);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 16px 20px;
+  z-index: 800;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  transition: transform 0.3s ease;
+  min-width: 300px;
+  max-width: 90vw;
+}
+#pwa-toast.show { transform: translateX(-50%) translateY(0); }
+#pwa-toast img { width: 36px; height: 36px; }
+.pwa-toast-text { flex: 1; }
+.pwa-toast-title { color: var(--text); font-weight: 700; margin-bottom: 3px; }
+.pwa-toast-sub { color: var(--text-dim); font-size: 10px; }
+.pwa-toast-actions { display: flex; gap: 8px; margin-top: 10px; }
 </style>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github-dark.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
@@ -721,6 +780,7 @@ html, body {
 <!-- TITLE BAR -->
 <div id="titlebar">
   <div class="tb-left">
+    <img src="icon-48.png" alt="AOF" style="width:22px;height:22px;object-fit:contain;flex-shrink:0;">
     <span class="tb-logo"><span>AOF</span> Code</span>
   </div>
   <div class="tb-center">
@@ -761,6 +821,22 @@ html, body {
     </div>
     <button class="tb-btn" id="account-btn" onclick="logout()" title="Logout">user</button>
     <button class="tb-btn" onclick="runCmd('/settings')" title="Settings">[settings]</button>
+    <button id="pwa-install-btn" onclick="pwaInstall()" title="Install AOF Code as app">
+      <span>&#8659;</span> install app
+    </button>
+  </div>
+</div>
+
+<!-- PWA install toast -->
+<div id="pwa-toast">
+  <img src="icon-48.png" alt="AOF Code">
+  <div class="pwa-toast-text">
+    <div class="pwa-toast-title">Install AOF Code</div>
+    <div class="pwa-toast-sub">ติดตั้งเป็นแอปบนหน้าจอหลัก</div>
+    <div class="pwa-toast-actions">
+      <button class="tb-btn active" onclick="pwaInstall()" style="height:24px;font-size:11px;">Install</button>
+      <button class="tb-btn" onclick="pwaToastDismiss()" style="height:24px;font-size:11px;">Later</button>
+    </div>
   </div>
 </div>
 
@@ -1982,6 +2058,61 @@ window.addEventListener('storage', e => {
     writeBlank();
   }
 });
+
+// ── PWA ───────────────────────────────────────────────────────────────────────
+var _pwaPrompt = null;
+var _pwaToastTimer = null;
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('sw.js').catch(function(){});
+  });
+}
+
+window.addEventListener('beforeinstallprompt', function(e) {
+  e.preventDefault();
+  _pwaPrompt = e;
+  document.getElementById('pwa-install-btn').classList.add('visible');
+  // show toast after 3s if not dismissed before
+  _pwaToastTimer = setTimeout(function() {
+    var toast = document.getElementById('pwa-toast');
+    if (toast && !localStorage.getItem('aof-pwa-dismissed')) {
+      toast.classList.add('show');
+    }
+  }, 3000);
+});
+
+window.addEventListener('appinstalled', function() {
+  _pwaPrompt = null;
+  document.getElementById('pwa-install-btn').classList.remove('visible');
+  pwaToastDismiss();
+  writeLine('<span class="t-green">AOF Code installed as app successfully.</span>');
+});
+
+function pwaInstall() {
+  pwaToastDismiss();
+  if (_pwaPrompt) {
+    _pwaPrompt.prompt();
+    _pwaPrompt.userChoice.then(function(result) {
+      if (result.outcome === 'accepted') {
+        _pwaPrompt = null;
+        document.getElementById('pwa-install-btn').classList.remove('visible');
+      }
+    });
+  } else {
+    // iOS / already installed
+    writeLine('<span class="t-dim">iOS: tap Share &#8594; Add to Home Screen to install.</span>');
+    writeBlank();
+    writeLine('<span class="cursor"></span>');
+  }
+}
+
+function pwaToastDismiss() {
+  clearTimeout(_pwaToastTimer);
+  var toast = document.getElementById('pwa-toast');
+  if (toast) toast.classList.remove('show');
+  localStorage.setItem('aof-pwa-dismissed', '1');
+}
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
 async function init() {
