@@ -343,7 +343,7 @@ html, body {
     <div id="statusbar" class="planning">
       <span class="sb-item" id="sb-mode">PLANNING</span>
       <span class="sb-sep">|</span>
-      <span class="sb-item" id="sb-agents">4 agents ready</span>
+      <span class="sb-item" id="sb-agents">RAA active</span>
       <span class="sb-sep">|</span>
       <span class="sb-item" id="sb-model">AOF 1.0</span>
       <div class="sb-right">
@@ -1084,7 +1084,7 @@ function setAgentDone(role){ const d=document.getElementById('dot-'+role),l=docu
 function setAgentReady(role){ const d=document.getElementById('dot-'+role),l=document.getElementById('status-'+role); if(d)d.className='agent-dot'; if(l)l.textContent='Ready'; }
 function resetAgents(){
   ['planner','coder','reviewer','validator'].forEach(setAgentReady);
-  if(state.phase==='generation') document.getElementById('sb-agents').textContent='4 agents ready';
+  document.getElementById('sb-agents').textContent=agentsLabel();
 }
 function setWfStep(n){ for(let i=0;i<7;i++){ const el=document.getElementById('wf-'+i); if(!el)continue; el.className='wf-step'+(i<n?' done':i===n?' active':''); } }
 
@@ -1135,15 +1135,26 @@ document.getElementById('cmd-input').addEventListener('keydown', e=>{
 function updateClock(){ document.getElementById('sb-clock').textContent=now(); }
 setInterval(updateClock,1000); updateClock();
 let toastTimer;
-function showToast(msg){ const el=document.getElementById('sb-agents'); el.textContent=msg; clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.textContent='4 agents ready',3000); }
+function agentsLabel(){ return state.phase==='planning' ? 'RAA active' : '4 agents ready'; }
+function showToast(msg){ const el=document.getElementById('sb-agents'); el.textContent=msg; clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.textContent=agentsLabel(),3000); }
 
 // ── INIT ─────────────────────────────────────────────────────────────────────────
 async function init(){
   syncUser();
   if(!state.token){ showAuth(); return; }
   // verify token still valid
-  try{ await api('/v1/me'); document.getElementById('cmd-input').disabled=false; await boot(); }
-  catch(e){ if(String(e.message).includes('401')){ state.token=''; localStorage.removeItem('aof:token'); } showAuth(); }
+  try{
+    await api('/v1/me');
+    document.getElementById('cmd-input').disabled=false;
+    await boot();
+  }catch(e){
+    const is401 = String(e.message).includes('401');
+    if(is401){ state.token=''; localStorage.removeItem('aof:token'); }
+    // show error in terminal before redirecting to login
+    const body=document.getElementById('terminal-body');
+    if(body){ body.innerHTML=''; writeLine('<span class="t-red">Session error: '+escHtml(e.message)+'</span>'); }
+    setTimeout(showAuth, 800);
+  }
 }
 init();
 </script>
