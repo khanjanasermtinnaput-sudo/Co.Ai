@@ -1,146 +1,831 @@
 <!DOCTYPE html>
-<html lang="th">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AOF Code</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 <style>
-  :root{--bg:#000;--panel:#0c0c0c;--bd:#1e1e1e;--tx:#fff;--dim:#888;--acc:#ff7a00;--grn:#3dd68c;--red:#f87171;--mono:'JetBrains Mono',Consolas,monospace}
-  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--tx);font-family:var(--mono);font-size:13px}
-  .wrap{max-width:860px;margin:0 auto;padding:24px}
-  h1{font-size:18px} h1 span{color:var(--acc)}
-  .card{background:var(--panel);border:1px solid var(--bd);border-radius:8px;padding:16px;margin:14px 0}
-  label{display:block;color:var(--dim);margin:8px 0 4px}
-  input,select,button,textarea{font-family:var(--mono);font-size:13px}
-  input,select,textarea{width:100%;background:#000;border:1px solid var(--bd);color:var(--tx);padding:8px;border-radius:6px}
-  button{background:var(--acc);color:#000;border:0;padding:8px 14px;border-radius:6px;cursor:pointer;font-weight:600}
-  button.sec{background:transparent;color:var(--tx);border:1px solid var(--bd)}
-  .row{display:flex;gap:8px;align-items:flex-end}
-  .hidden{display:none}
-  #out{background:#000;border:1px solid var(--bd);border-radius:6px;padding:12px;height:300px;overflow:auto;white-space:pre-wrap}
-  .k{color:var(--dim)} .ok{color:var(--grn)} .err{color:var(--red)} .acc{color:var(--acc)}
-  .planner{color:var(--acc)} .coder{color:var(--grn)} .reviewer{color:#fbbf24} .validator{color:#5b9cf6} .system{color:var(--dim)}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #000000;
+  --term-bg: #0C0C0C;
+  --bar-bg: #141414;
+  --border: #1E1E1E;
+  --border-mid: #2A2A2A;
+  --text: #FFFFFF;
+  --text-sec: #A0A0A0;
+  --text-dim: #555555;
+  --accent: #FF7A00;
+  --accent-dim: rgba(255,122,0,0.12);
+  --accent-border: rgba(255,122,0,0.25);
+  --green: #3DD68C;
+  --blue: #5B9CF6;
+  --red: #F87171;
+  --yellow: #FBBF24;
+  --mono: 'JetBrains Mono', 'Consolas', 'Courier New', monospace;
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.5;
+  overflow: hidden;
+}
+
+/* ── TITLE BAR ───────────────────────────────────────────────── */
+#titlebar {
+  height: 38px;
+  background: var(--bar-bg);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  user-select: none;
+  flex-shrink: 0;
+}
+.tb-left { display: flex; align-items: center; gap: 10px; min-width: 180px; }
+.tb-logo { font-size: 13px; font-weight: 700; color: var(--text); letter-spacing: 0.02em; }
+.tb-logo span { color: var(--accent); }
+.tb-center { flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.tb-project-label { font-size: 12px; color: var(--text-dim); }
+.tb-project-name { font-size: 12px; color: var(--text-sec); }
+.tb-right { display: flex; align-items: center; gap: 6px; min-width: 180px; justify-content: flex-end; }
+
+.tb-btn {
+  height: 26px; padding: 0 10px; background: transparent;
+  border: 1px solid var(--border-mid); color: var(--text-sec);
+  font-family: var(--mono); font-size: 11px; cursor: pointer;
+  display: flex; align-items: center; gap: 6px;
+  transition: border-color 0.15s, color 0.15s; white-space: nowrap;
+}
+.tb-btn:hover { border-color: #444; color: var(--text); }
+.tb-btn.active { border-color: var(--accent-border); color: var(--accent); background: var(--accent-dim); }
+
+.model-select {
+  height: 26px; padding: 0 24px 0 8px; background: var(--bar-bg);
+  border: 1px solid var(--border-mid); color: var(--text-sec);
+  font-family: var(--mono); font-size: 11px; cursor: pointer; outline: none;
+  appearance: none; -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23666'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 8px center;
+}
+.model-select:focus { border-color: var(--accent-border); }
+
+/* ── LAYOUT ──────────────────────────────────────────────────── */
+#app { height: calc(100vh - 38px); display: flex; flex-direction: row; }
+#main { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--term-bg); }
+
+#tabbar {
+  height: 34px; background: var(--bar-bg); border-bottom: 1px solid var(--border);
+  display: flex; align-items: flex-end; padding: 0 12px; flex-shrink: 0;
+}
+.tab {
+  height: 30px; padding: 0 16px; font-size: 11px; color: var(--text-dim);
+  border: 1px solid transparent; border-bottom: none; cursor: pointer;
+  display: flex; align-items: center; gap: 8px; position: relative; top: 1px;
+}
+.tab.active { background: var(--term-bg); border-color: var(--border); border-bottom-color: var(--term-bg); color: var(--text); }
+.tab:not(.active):hover { color: var(--text-sec); }
+.tab-dot { width: 5px; height: 5px; background: var(--accent); display: none; }
+.tab.active .tab-dot { display: block; }
+
+#terminal-body { flex: 1; overflow-y: auto; padding: 16px 20px; font-size: 13px; line-height: 1.7; scroll-behavior: smooth; }
+#terminal-body::-webkit-scrollbar { width: 4px; }
+#terminal-body::-webkit-scrollbar-thumb { background: #222; }
+
+.t-line { display: block; white-space: pre-wrap; word-break: break-word; }
+.t-prompt { color: var(--accent); }
+.t-text { color: var(--text); }
+.t-dim { color: var(--text-sec); }
+.t-muted { color: var(--text-dim); }
+.t-green { color: var(--green); }
+.t-orange { color: var(--accent); }
+.t-blue { color: var(--blue); }
+.t-red { color: var(--red); }
+.t-yellow { color: var(--yellow); }
+.t-bold { font-weight: 700; }
+.t-blank { height: 8px; display: block; }
+
+#input-bar {
+  height: 42px; border-top: 1px solid var(--border); display: flex;
+  align-items: center; padding: 0 20px; gap: 10px; background: var(--term-bg); flex-shrink: 0;
+}
+.input-prompt { color: var(--accent); white-space: nowrap; font-size: 13px; user-select: none; }
+#cmd-input { flex: 1; background: transparent; border: none; outline: none; color: var(--text); font-family: var(--mono); font-size: 13px; caret-color: var(--accent); }
+#cmd-input::placeholder { color: var(--text-dim); }
+.input-hint { font-size: 11px; color: var(--text-dim); white-space: nowrap; }
+
+#statusbar { height: 24px; background: var(--accent); display: flex; align-items: center; padding: 0 12px; gap: 16px; flex-shrink: 0; }
+.sb-item { font-size: 11px; color: #000; font-weight: 500; display: flex; align-items: center; gap: 5px; }
+.sb-sep { color: rgba(0,0,0,0.3); font-size: 11px; }
+.sb-right { margin-left: auto; display: flex; align-items: center; gap: 16px; }
+
+/* ── SIDEBAR ─────────────────────────────────────────────────── */
+#sidebar { width: 220px; flex-shrink: 0; background: var(--bar-bg); border-left: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+.sidebar-section { border-bottom: 1px solid var(--border); }
+.sidebar-title { height: 34px; display: flex; align-items: center; padding: 0 14px; font-size: 10px; font-weight: 700; color: var(--text-dim); letter-spacing: 0.1em; text-transform: uppercase; border-bottom: 1px solid var(--border); }
+.agent-row { padding: 10px 14px; border-bottom: 1px solid var(--border); }
+.agent-row:last-child { border-bottom: none; }
+.agent-name { font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 3px; }
+.agent-role { font-size: 10px; color: var(--text-dim); }
+.agent-status-line { font-size: 11px; color: var(--text-dim); display: flex; align-items: center; gap: 5px; margin-top: 2px; }
+.agent-dot { width: 5px; height: 5px; background: var(--green); flex-shrink: 0; }
+.agent-dot.busy { background: var(--accent); animation: blink-dot 0.6s step-end infinite; }
+.agent-dot.done { background: var(--blue); }
+.agent-dot.error { background: var(--red); }
+@keyframes blink-dot { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+.wf-list { padding: 10px 14px; }
+.wf-step { display: flex; align-items: flex-start; gap: 10px; padding: 4px 0; font-size: 11px; color: var(--text-dim); }
+.wf-step.done { color: var(--text-sec); }
+.wf-step.active { color: var(--accent); }
+.wf-num { font-size: 10px; min-width: 14px; text-align: right; flex-shrink: 0; margin-top: 1px; }
+.wf-step.done .wf-num { color: var(--green); }
+.wf-step.active .wf-num { color: var(--accent); }
+
+.hist-list { overflow-y: auto; flex: 1; }
+.hist-list::-webkit-scrollbar { width: 3px; }
+.hist-list::-webkit-scrollbar-thumb { background: #222; }
+.hist-item { padding: 8px 14px; border-bottom: 1px solid var(--border); cursor: pointer; }
+.hist-item:hover { background: rgba(255,255,255,0.03); }
+.hist-name { font-size: 11px; color: var(--text-sec); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; }
+.hist-time { font-size: 10px; color: var(--text-dim); }
+
+/* ── MODEL DROPDOWN ──────────────────────────────────────────── */
+.model-wrap { position: relative; }
+.model-info-panel { position: absolute; top: 30px; right: 0; width: 280px; background: #141414; border: 1px solid var(--border-mid); z-index: 200; display: none; }
+.model-info-panel.open { display: block; }
+.mi-option { padding: 12px 14px; border-bottom: 1px solid var(--border); cursor: pointer; }
+.mi-option:last-child { border-bottom: none; }
+.mi-option:hover { background: rgba(255,255,255,0.04); }
+.mi-option.selected { background: var(--accent-dim); border-left: 2px solid var(--accent); }
+.mi-name { font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+.mi-desc { font-size: 11px; color: var(--text-dim); line-height: 1.5; }
+
+/* ── OVERLAYS (auth / keys) ──────────────────────────────────── */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); display: none; align-items: center; justify-content: center; z-index: 999; padding: 20px; }
+.modal-overlay.open { display: flex; }
+.modal-box { width: min(420px, 100%); background: #111; border: 1px solid var(--border-mid); padding: 24px; border-radius: 10px; box-shadow: 0 20px 60px rgba(0,0,0,0.45); }
+.modal-title { font-size: 14px; margin-bottom: 4px; color: var(--text); font-weight: 700; }
+.modal-title span { color: var(--accent); }
+.modal-sub { font-size: 11px; color: var(--text-dim); margin-bottom: 16px; }
+.auth-tabs { display: flex; margin-bottom: 16px; }
+.auth-tab { flex: 1; padding: 9px; text-align: center; font-size: 12px; cursor: pointer; border: 1px solid var(--border-mid); color: var(--text-dim); background: transparent; font-family: var(--mono); }
+.auth-tab:first-child { border-radius: 6px 0 0 6px; }
+.auth-tab:last-child { border-radius: 0 6px 6px 0; border-left: 0; }
+.auth-tab.active { background: var(--accent); color: #000; font-weight: 700; border-color: var(--accent); }
+.fld-label { display: block; font-size: 11px; color: var(--text-dim); margin: 12px 0 4px; }
+.fld { width: 100%; background: #0a0a0a; border: 1px solid var(--border-mid); color: var(--text); padding: 10px 12px; border-radius: 6px; font-family: var(--mono); font-size: 13px; outline: none; }
+.fld:focus { border-color: var(--accent); }
+.pin-wrap { position: relative; }
+.pin-toggle { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); cursor: pointer; color: var(--text-dim); font-size: 11px; background: 0; border: 0; font-family: var(--mono); }
+.btn-p { background: var(--accent); color: #000; border: 0; padding: 10px 16px; border-radius: 6px; cursor: pointer; font-weight: 700; font-family: var(--mono); font-size: 12px; }
+.btn-s { background: transparent; color: var(--text); border: 1px solid var(--border-mid); padding: 8px 14px; border-radius: 6px; cursor: pointer; font-family: var(--mono); font-size: 12px; }
+.btn-d { background: transparent; color: var(--red); border: 1px solid rgba(248,113,113,.25); font-size: 11px; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-family: var(--mono); }
+.modal-msg { font-size: 12px; margin-top: 10px; min-height: 16px; }
+.modal-msg.ok { color: var(--green); }
+.modal-msg.err { color: var(--red); }
+.modal-msg.info { color: var(--text-dim); }
+.keys-grid { display: grid; gap: 7px; margin-top: 14px; }
+.key-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.key-name { color: var(--text-dim); width: 96px; flex-shrink: 0; }
+.key-val { color: var(--green); flex: 1; }
+.key-val.none { color: var(--border-mid); }
+
+/* ── COMMAND PALETTE ─────────────────────────────────────────── */
+#palette-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 500; display: none; align-items: flex-start; justify-content: center; padding-top: 100px; }
+#palette-overlay.open { display: flex; }
+#palette-box { width: 520px; background: #141414; border: 1px solid var(--border-mid); overflow: hidden; }
+#palette-input-wrap { display: flex; align-items: center; padding: 0 14px; border-bottom: 1px solid var(--border); height: 42px; }
+#palette-input-label { font-size: 12px; color: var(--text-dim); margin-right: 10px; }
+#palette-input { flex: 1; background: transparent; border: none; outline: none; color: var(--text); font-family: var(--mono); font-size: 13px; caret-color: var(--accent); }
+#palette-list { max-height: 300px; overflow-y: auto; }
+.pal-item { display: flex; align-items: center; gap: 14px; padding: 10px 14px; border-bottom: 1px solid var(--border); cursor: pointer; }
+.pal-item:last-child { border-bottom: none; }
+.pal-item:hover, .pal-item.sel { background: var(--accent-dim); }
+.pal-cmd { font-size: 12px; font-weight: 600; color: var(--text-sec); min-width: 90px; }
+.pal-desc { font-size: 11px; color: var(--text-dim); flex: 1; }
+
+.cursor { display: inline-block; width: 8px; height: 14px; background: var(--accent); vertical-align: text-bottom; animation: blink-cur 1s step-end infinite; }
+@keyframes blink-cur { 0%,100%{opacity:1} 50%{opacity:0} }
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-thumb { background: #222; }
+
+@media (max-width: 760px) { #sidebar { display: none; } .tb-center { display: none; } }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <h1>AOF <span>Code</span> <span class="k" style="font-size:12px">· TMAP v2</span></h1>
 
-  <!-- AUTH -->
-  <div class="card" id="auth">
-    <label>Email</label><input id="email" placeholder="you@example.com">
-    <label>Password (≥6)</label><input id="password" type="password">
-    <div class="row" style="margin-top:12px">
-      <button onclick="auth('login')">Login</button>
-      <button class="sec" onclick="auth('register')">Register</button>
-      <span id="authMsg" class="k"></span>
+<!-- AUTH OVERLAY -->
+<div id="auth-overlay" class="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-title">AOF <span>Code</span> access</div>
+    <div class="modal-sub">เข้าสู่ระบบด้วยชื่อผู้ใช้ + PIN (ตัวเลข 4–8 หลัก)</div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="tab-login" onclick="switchAuth('login')">เข้าสู่ระบบ</button>
+      <button class="auth-tab" id="tab-register" onclick="switchAuth('register')">สมัครใหม่</button>
     </div>
+    <label class="fld-label">ชื่อผู้ใช้ (Username)</label>
+    <input id="auth-username" class="fld" placeholder="username" autocomplete="username"
+           onkeydown="if(event.key==='Enter')document.getElementById('auth-pin').focus()">
+    <label class="fld-label">PIN <span style="color:var(--border-mid)">(ตัวเลข 4–8 หลัก)</span></label>
+    <div class="pin-wrap">
+      <input id="auth-pin" class="fld" type="password" inputmode="numeric" maxlength="8" placeholder="••••••••"
+             autocomplete="current-password"
+             oninput="this.value=this.value.replace(/\D/g,'').slice(0,8)"
+             onkeydown="if(event.key==='Enter')doAuth()">
+      <button class="pin-toggle" onclick="togglePin()" id="pin-eye">แสดง</button>
+    </div>
+    <div style="margin-top:16px;display:flex;gap:8px">
+      <button class="btn-p" style="flex:1" id="auth-btn" onclick="doAuth()">เข้าสู่ระบบ</button>
+    </div>
+    <div class="modal-msg info" id="auth-msg"></div>
   </div>
+</div>
 
-  <!-- APP -->
-  <div id="app" class="hidden">
-    <div class="card">
-      <div class="row" style="justify-content:space-between">
-        <div>Signed in as <span class="acc" id="who"></span></div>
-        <button class="sec" onclick="logout()">Logout</button>
-      </div>
+<!-- KEYS OVERLAY -->
+<div id="keys-overlay" class="modal-overlay">
+  <div class="modal-box" style="width:min(520px,100%)">
+    <div class="modal-title">API Keys <span style="font-size:11px;color:var(--text-dim);font-weight:400">· ผูกกับ account · เข้ารหัสในเซิร์ฟเวอร์</span></div>
+    <div class="modal-sub">ใส่ key ของ provider จริง เพื่อให้ agents ทำงานได้ (openrouter key เดียวใช้ได้ครบ 4 agent)</div>
+    <label class="fld-label">Provider</label>
+    <select id="kp" class="fld">
+      <option value="openrouter">openrouter (key เดียวครบ 4 agent)</option>
+      <option value="gemini">gemini — Planner</option>
+      <option value="deepseek">deepseek — Coder</option>
+      <option value="qwen">qwen — Reviewer</option>
+      <option value="llama">llama / groq — Validator</option>
+    </select>
+    <label class="fld-label">วาง API Key</label>
+    <div style="display:flex;gap:8px">
+      <input id="kv" class="fld" type="password" placeholder="sk-..." style="flex:1">
+      <button class="btn-p" onclick="saveKey()">บันทึก</button>
     </div>
-
-    <!-- KEYS bound to account -->
-    <div class="card">
-      <b>API Keys (ผูกกับ account นี้ · เข้ารหัสในเซิร์ฟเวอร์)</b>
-      <div class="row">
-        <div style="flex:1">
-          <label>Provider</label>
-          <select id="provider">
-            <option value="openrouter">openrouter (key เดียวครบทุก agent)</option>
-            <option value="gemini">gemini (Planner)</option>
-            <option value="deepseek">deepseek (Coder)</option>
-            <option value="qwen">qwen / DashScope (Reviewer)</option>
-            <option value="llama">llama / Groq (Validator)</option>
-          </select>
-        </div>
-        <div style="flex:2">
-          <label>API Key</label><input id="keyval" placeholder="วาง key ที่นี่">
-        </div>
-        <button onclick="saveKey()">Save</button>
-      </div>
-      <div id="keysList" class="k" style="margin-top:10px"></div>
-    </div>
-
-    <!-- RUN -->
-    <div class="card">
-      <label>Task</label>
-      <textarea id="task" rows="2" placeholder="build a todo REST API in Node.js"></textarea>
-      <div class="row" style="margin-top:8px">
-        <select id="mode" style="width:140px">
-          <option value="lite">lite</option>
-          <option value="normal" selected>normal</option>
-          <option value="pro">pro</option>
-        </select>
-        <button onclick="run()">Run TMAP</button>
-      </div>
-      <div id="out" style="margin-top:12px"></div>
+    <div class="keys-grid" id="keys-list"></div>
+    <div class="modal-msg info" id="key-msg"></div>
+    <div style="margin-top:18px;text-align:right">
+      <button class="btn-s" onclick="closeKeys()">ปิด</button>
     </div>
   </div>
 </div>
 
-<script>
-const API = '';
-let token = localStorage.getItem('aof:token') || '';
-let email = localStorage.getItem('aof:email') || '';
+<!-- TITLE BAR -->
+<div id="titlebar">
+  <div class="tb-left"><span class="tb-logo"><span>AOF</span> Code</span></div>
+  <div class="tb-center">
+    <span class="tb-project-label">project:</span>
+    <span class="tb-project-name" id="tb-project">untitled</span>
+  </div>
+  <div class="tb-right">
+    <div class="model-wrap">
+      <button class="tb-btn" id="model-btn" onclick="toggleModelPanel()">
+        <span id="model-label">AOF 1.0</span>
+        <span style="color:var(--text-dim);font-size:9px">&#9660;</span>
+      </button>
+      <div class="model-info-panel" id="model-panel">
+        <div class="mi-option" onclick="selectModel('lite')">
+          <div class="mi-name">AOF 1.0 Lite</div><div class="mi-desc">Plan → Code → Review &nbsp;·&nbsp; เร็ว (ไม่วน loop)</div>
+        </div>
+        <div class="mi-option selected" onclick="selectModel('normal')">
+          <div class="mi-name">AOF 1.0 &nbsp;<span style="color:var(--accent);font-size:10px">[recommended]</span></div><div class="mi-desc">วนแก้ได้ 1 รอบ &nbsp;·&nbsp; สมดุล</div>
+        </div>
+        <div class="mi-option" onclick="selectModel('pro')">
+          <div class="mi-name">AOF 1.0 Pro</div><div class="mi-desc">วนแก้ได้ 3 รอบ &nbsp;·&nbsp; ละเอียดสุด</div>
+        </div>
+      </div>
+    </div>
+    <button class="tb-btn" onclick="runCmd('/export')" title="Download generated code">export</button>
+    <button class="tb-btn" onclick="openKeys()" title="API keys">keys</button>
+    <button class="tb-btn" id="account-btn" onclick="runCmd('/logout')" title="Logout">user</button>
+    <button class="tb-btn" onclick="runCmd('/settings')" title="Settings">[settings]</button>
+  </div>
+</div>
 
-function show(){
-  if(token){ document.getElementById('auth').classList.add('hidden');
-    document.getElementById('app').classList.remove('hidden');
-    document.getElementById('who').textContent = email; loadMe(); }
-  else { document.getElementById('auth').classList.remove('hidden');
-    document.getElementById('app').classList.add('hidden'); }
+<!-- APP -->
+<div id="app">
+  <div id="main">
+    <div id="tabbar">
+      <div class="tab active"><div class="tab-dot"></div>terminal</div>
+      <div class="tab" onclick="showToast('Agent logs stream live in the terminal')">agent-log</div>
+      <div class="tab" onclick="showToast('Generated files: run /export to download')">output</div>
+    </div>
+    <div id="terminal-body" onclick="focusInput()"></div>
+    <div id="input-bar">
+      <span class="input-prompt" id="input-prompt">C:\AOF&gt;</span>
+      <input type="text" id="cmd-input" placeholder="Type a task or /command..." autocomplete="off" spellcheck="false">
+      <span class="input-hint">Ctrl+K &nbsp;|&nbsp; /help</span>
+    </div>
+    <div id="statusbar">
+      <span class="sb-item" id="sb-mode">NORMAL</span>
+      <span class="sb-sep">|</span>
+      <span class="sb-item" id="sb-agents">4 agents ready</span>
+      <span class="sb-sep">|</span>
+      <span class="sb-item" id="sb-model">AOF 1.0</span>
+      <div class="sb-right">
+        <span class="sb-item" id="sb-user">user: --</span>
+        <span class="sb-sep">|</span>
+        <span class="sb-item" id="sb-sessions">sessions: 0</span>
+        <span class="sb-sep">|</span>
+        <span class="sb-item" id="sb-clock">--:--:--</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-title">Agents</div>
+      <div id="agent-list">
+        <div class="agent-row">
+          <div class="agent-name">Gemini</div><div class="agent-role">Planner</div>
+          <div class="agent-status-line"><div class="agent-dot" id="dot-planner"></div><span id="status-planner">Ready</span></div>
+        </div>
+        <div class="agent-row">
+          <div class="agent-name">DeepSeek</div><div class="agent-role">Coder</div>
+          <div class="agent-status-line"><div class="agent-dot" id="dot-coder"></div><span id="status-coder">Ready</span></div>
+        </div>
+        <div class="agent-row">
+          <div class="agent-name">Qwen</div><div class="agent-role">Reviewer</div>
+          <div class="agent-status-line"><div class="agent-dot" id="dot-reviewer"></div><span id="status-reviewer">Ready</span></div>
+        </div>
+        <div class="agent-row">
+          <div class="agent-name">Meta Llama</div><div class="agent-role">Validator</div>
+          <div class="agent-status-line"><div class="agent-dot" id="dot-validator"></div><span id="status-validator">Ready</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-title">Workflow</div>
+      <div class="wf-list" id="wf-list">
+        <div class="wf-step" id="wf-0"><span class="wf-num">1.</span><span>User input</span></div>
+        <div class="wf-step" id="wf-1"><span class="wf-num">2.</span><span>Gemini planning</span></div>
+        <div class="wf-step" id="wf-2"><span class="wf-num">3.</span><span>Llama coordination</span></div>
+        <div class="wf-step" id="wf-3"><span class="wf-num">4.</span><span>DeepSeek codegen</span></div>
+        <div class="wf-step" id="wf-4"><span class="wf-num">5.</span><span>Qwen review</span></div>
+        <div class="wf-step" id="wf-5"><span class="wf-num">6.</span><span>Validation</span></div>
+        <div class="wf-step" id="wf-6"><span class="wf-num">7.</span><span>Final output</span></div>
+      </div>
+    </div>
+    <div class="sidebar-section" style="flex:1;display:flex;flex-direction:column;min-height:0;">
+      <div class="sidebar-title">History</div>
+      <div class="hist-list" id="hist-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- COMMAND PALETTE -->
+<div id="palette-overlay" onclick="closePaletteOnBg(event)">
+  <div id="palette-box">
+    <div id="palette-input-wrap">
+      <span id="palette-input-label">&gt;</span>
+      <input id="palette-input" type="text" placeholder="Search commands..." autocomplete="off" oninput="filterPalette()">
+    </div>
+    <div id="palette-list"></div>
+  </div>
+</div>
+
+<script>
+// ── CONFIG / API ──────────────────────────────────────────────────────────────
+const API = '';
+const PROVIDERS = ['openrouter','gemini','deepseek','qwen','llama'];
+const ROLE_AGENT = { planner:'Gemini', coder:'DeepSeek', reviewer:'Qwen', validator:'Meta Llama' };
+const ROLE_COLOR = { planner:'t-orange', coder:'t-green', reviewer:'t-yellow', validator:'t-blue', system:'t-dim' };
+const ROLE_WF    = { planner:1, coder:3, validator:5, reviewer:4 };
+const MODE_LABEL = { lite:'AOF 1.0 Lite', normal:'AOF 1.0', pro:'AOF 1.0 Pro' };
+
+const COMMANDS = [
+  { cmd: '/gencode',  desc: 'Generate code with all agents (real run)' },
+  { cmd: '/plan',     desc: 'Run TMAP — plan → code → validate → review' },
+  { cmd: '/keys',     desc: 'Manage your API keys' },
+  { cmd: '/export',   desc: 'Download generated code as ZIP' },
+  { cmd: '/agents',   desc: 'List agent roles and status' },
+  { cmd: '/profile',  desc: 'Show user profile and statistics' },
+  { cmd: '/settings', desc: 'System configuration' },
+  { cmd: '/clear',    desc: 'Clear the terminal' },
+  { cmd: '/logout',   desc: 'Sign out' },
+  { cmd: '/help',     desc: 'Show all available commands' },
+];
+
+const state = {
+  token: localStorage.getItem('aof:token') || '',
+  user:  localStorage.getItem('aof:uname') || '',
+  mode: 'normal',
+  sessions: 0,
+  projects: [],
+  running: false,
+  authMode: 'login',
+  files: [],
+  lastTask: null,
+};
+
+// ── UTILS ─────────────────────────────────────────────────────────────────────
+function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+function escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function now(){ return new Date().toLocaleTimeString('en-GB',{hour12:false}); }
+function val(id){ return document.getElementById(id).value.trim(); }
+function scrollBottom(){ const b=document.getElementById('terminal-body'); b.scrollTop=b.scrollHeight; }
+function focusInput(){ const i=document.getElementById('cmd-input'); if(!i.disabled) i.focus(); }
+
+function writeLine(html='', cls=''){
+  const el=document.createElement('div');
+  el.className='t-line'+(cls?' '+cls:'');
+  el.innerHTML=html;
+  document.getElementById('terminal-body').appendChild(el);
+  scrollBottom();
+  return el;
 }
+function writeBlank(){ const el=document.createElement('div'); el.className='t-blank'; document.getElementById('terminal-body').appendChild(el); }
+
+// ── REST helper ───────────────────────────────────────────────────────────────
 async function api(path, method='GET', body){
-  const r = await fetch(API+path,{method,headers:{'Content-Type':'application/json',
-    ...(token?{Authorization:'Bearer '+token}:{})},body:body?JSON.stringify(body):undefined});
-  const d = await r.json().catch(()=>({})); if(!r.ok) throw new Error(d.error||('HTTP '+r.status)); return d;
+  const r = await fetch(API+path, {
+    method,
+    headers: { 'Content-Type':'application/json', ...(state.token?{Authorization:'Bearer '+state.token}:{}) },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const d = await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(d.error || ('HTTP '+r.status));
+  return d;
 }
-async function auth(action){
-  const msg=document.getElementById('authMsg'); msg.textContent='...';
+
+// ── AUTH ──────────────────────────────────────────────────────────────────────
+function switchAuth(mode){
+  state.authMode = mode;
+  document.getElementById('tab-login').classList.toggle('active', mode==='login');
+  document.getElementById('tab-register').classList.toggle('active', mode==='register');
+  document.getElementById('auth-btn').textContent = mode==='login' ? 'เข้าสู่ระบบ' : 'สมัครใหม่';
+  authMsg('','info');
+}
+function togglePin(){
+  const p=document.getElementById('auth-pin'), e=document.getElementById('pin-eye');
+  p.type = p.type==='password' ? 'text' : 'password';
+  e.textContent = p.type==='password' ? 'แสดง' : 'ซ่อน';
+}
+function authMsg(text,type='info'){ const el=document.getElementById('auth-msg'); el.textContent=text; el.className='modal-msg '+type; }
+
+async function doAuth(){
+  const username = val('auth-username'), pin = val('auth-pin');
+  if(!username || !pin){ authMsg('กรุณากรอกชื่อผู้ใช้และ PIN','err'); return; }
+  authMsg('กำลังดำเนินการ…','info');
+  document.getElementById('auth-btn').disabled = true;
   try{
-    const d=await api('/v1/auth/'+action,'POST',{email:val('email'),password:val('password')});
-    token=d.token; email=d.email; localStorage.setItem('aof:token',token); localStorage.setItem('aof:email',email);
-    msg.textContent=''; show();
-  }catch(e){ msg.textContent=e.message; msg.className='err'; }
+    const d = await api('/v1/auth/'+state.authMode, 'POST', { username, pin });
+    state.token = d.token; state.user = d.username;
+    localStorage.setItem('aof:token', state.token);
+    localStorage.setItem('aof:uname', state.user);
+    authMsg('','info');
+    document.getElementById('auth-overlay').classList.remove('open');
+    document.getElementById('cmd-input').disabled = false;
+    syncUser();
+    await boot();
+  }catch(e){ authMsg(e.message,'err'); }
+  document.getElementById('auth-btn').disabled = false;
 }
-function logout(){ token=''; email=''; localStorage.clear(); show(); }
-async function loadMe(){
-  const d=await api('/v1/me');
-  document.getElementById('keysList').innerHTML = Object.entries(d.keys)
-    .map(([p,v])=>`${p}: ${v?`<span class="ok">${v}</span>`:'<span class="k">— ยังไม่ตั้ง</span>'}`).join('  ·  ');
+
+function showAuth(){
+  document.getElementById('auth-overlay').classList.add('open');
+  document.getElementById('cmd-input').disabled = true;
+  setTimeout(()=>document.getElementById('auth-username').focus(), 50);
+}
+
+async function cmdLogout(){
+  state.token=''; state.user=''; state.files=[]; state.sessions=0;
+  localStorage.removeItem('aof:token'); localStorage.removeItem('aof:uname');
+  document.getElementById('terminal-body').innerHTML='';
+  syncUser();
+  showAuth();
+}
+
+function syncUser(){
+  document.getElementById('sb-user').textContent = 'user: ' + (state.user || '--');
+  document.getElementById('account-btn').textContent = state.user || 'user';
+}
+
+// ── KEYS ──────────────────────────────────────────────────────────────────────
+function openKeys(){ if(!state.token){ showAuth(); return; } document.getElementById('keys-overlay').classList.add('open'); loadKeys(); }
+function closeKeys(){ document.getElementById('keys-overlay').classList.remove('open'); focusInput(); }
+function keyMsg(text,type='info'){ const el=document.getElementById('key-msg'); el.textContent=text; el.className='modal-msg '+type; }
+
+async function loadKeys(){
+  try{
+    const d = await api('/v1/me');
+    document.getElementById('keys-list').innerHTML = Object.entries(d.keys).map(([p,v])=>`
+      <div class="key-row">
+        <span class="key-name">${p}</span>
+        ${v ? `<span class="key-val">${escHtml(v)}</span><button class="btn-d" onclick="delKey('${p}')">ลบ</button>`
+            : '<span class="key-val none">— ยังไม่ได้ตั้ง</span>'}
+      </div>`).join('');
+  }catch(e){ if(String(e.message).includes('401')) cmdLogout(); }
 }
 async function saveKey(){
-  try{ await api('/v1/me/keys','PUT',{provider:val('provider'),key:val('keyval')});
-    document.getElementById('keyval').value=''; loadMe(); }
-  catch(e){ alert(e.message); }
+  const provider = val('kp'), key = document.getElementById('kv').value.trim();
+  if(!key){ keyMsg('กรุณาวาง key ก่อน','err'); return; }
+  try{
+    await api('/v1/me/keys','PUT',{ provider, key });
+    document.getElementById('kv').value='';
+    keyMsg('บันทึกสำเร็จ ✓','ok');
+    setTimeout(()=>keyMsg('','info'), 2000);
+    loadKeys();
+  }catch(e){ keyMsg(e.message,'err'); }
 }
-async function run(){
-  const out=document.getElementById('out'); out.innerHTML='';
-  const r=await fetch(API+'/v1/run',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
-    body:JSON.stringify({task:val('task'),mode:val('mode')})});
-  const reader=r.body.getReader(); const dec=new TextDecoder(); let buf='';
-  while(true){ const {value,done}=await reader.read(); if(done)break; buf+=dec.decode(value,{stream:true});
-    let i; while((i=buf.indexOf('\n\n'))>=0){ const line=buf.slice(0,i); buf=buf.slice(i+2);
-      if(line.startsWith('data: ')){ const ev=JSON.parse(line.slice(6)); render(ev); } } }
+async function delKey(p){ try{ await api('/v1/me/keys/'+p,'DELETE'); loadKeys(); }catch(e){ keyMsg(e.message,'err'); } }
+
+// ── BOOT ──────────────────────────────────────────────────────────────────────
+async function boot(){
+  const body=document.getElementById('terminal-body'); body.innerHTML='';
+  writeBlank();
+  writeLine('AOF Code v2.0  -  Multi-Agent Code Generation System');
+  writeLine('<span class="t-dim">──────────────────────────────────────────────────────────</span>');
+  writeBlank();
+  await sleep(120);
+  writeLine('<span class="t-green">OK</span>  Loading Gemini          [planner]');
+  await sleep(70); writeLine('<span class="t-green">OK</span>  Loading DeepSeek        [coder]');
+  await sleep(70); writeLine('<span class="t-green">OK</span>  Loading Qwen            [reviewer]');
+  await sleep(70); writeLine('<span class="t-green">OK</span>  Loading Meta Llama      [validator]');
+  await sleep(100);
+  writeLine('<span class="t-dim">──────────────────────────────────────────────────────────</span>');
+  writeLine('<span class="t-green">Ready.</span>  <span class="t-dim">Signed in as </span><span class="t-orange">'+escHtml(state.user)+'</span>');
+  writeBlank();
+  await sleep(120);
+  writeLine('Available commands:');
+  writeBlank();
+  for(const c of COMMANDS){ await sleep(20); writeLine(`  <span class="t-orange">${c.cmd.padEnd(12)}</span>  <span class="t-dim">${c.desc}</span>`); }
+  writeBlank();
+
+  // hint if no key set
+  try{
+    const me = await api('/v1/me');
+    const hasKey = Object.values(me.keys).some(Boolean);
+    if(!hasKey){
+      writeLine('<span class="t-yellow">!</span>  <span class="t-dim">No API key set — runs use mock mode. Add a key with </span><span class="t-orange">/keys</span>');
+    }else{
+      writeLine('<span class="t-dim">Type a task (e.g. </span><span class="t-orange">build a todo REST API in Node.js</span><span class="t-dim">) then Enter — or use </span><span class="t-orange">/gencode</span>');
+    }
+  }catch(e){
+    if(String(e.message).includes('401')){ cmdLogout(); return; }
+  }
+  writeLine('<span class="t-dim">Press Ctrl+K to open the command palette.</span>');
+  writeBlank();
+  writeLine('<span class="cursor"></span>');
+  focusInput();
 }
-function render(ev){
-  const out=document.getElementById('out');
-  if(ev.kind==='done'){ out.innerHTML+=`\n<span class="ok">✓ done · ${(ev.files||[]).length} file(s) · ${ev.iterations} iteration(s)</span>\n`;
-    (ev.files||[]).forEach(f=>out.innerHTML+=`<span class="k">— ${f.path}</span>\n`); out.scrollTop=out.scrollHeight; return; }
-  const cls=ev.role||'system'; const arrow=ev.kind==='error'?'✗':ev.kind==='output'?'›':'·';
-  out.innerHTML+=`<span class="${cls}">${(ev.role||'system').padEnd(10)}</span> ${arrow} ${ev.kind==='error'?'<span class="err">'+esc(ev.text)+'</span>':esc(ev.text)}\n`;
-  out.scrollTop=out.scrollHeight;
+
+// ── COMMAND RUNNER ──────────────────────────────────────────────────────────────
+async function runCmd(raw){
+  if(state.running) return;
+  raw=(raw||'').trim(); if(!raw) return;
+  if(!state.token){ showAuth(); return; }
+
+  const body=document.getElementById('terminal-body');
+  body.querySelectorAll('.cursor').forEach(c=>c.parentElement.remove());
+
+  writeBlank();
+  writeLine(`<span class="t-prompt">C:\\AOF&gt;</span> ${escHtml(raw)}`);
+  writeBlank();
+
+  if(raw.startsWith('/')){
+    const parts=raw.split(' ');
+    const verb=parts[0].toLowerCase();
+    const arg=parts.slice(1).join(' ');
+    switch(verb){
+      case '/gencode': case '/plan': case '/run': case '/review': case '/fix':
+        await runTask(arg); break;
+      case '/keys':    openKeys(); break;
+      case '/export':  await cmdExport(); break;
+      case '/agents':  await cmdAgents(); break;
+      case '/profile': await cmdProfile(); break;
+      case '/settings':await cmdSettings(); break;
+      case '/clear':   body.innerHTML=''; break;
+      case '/logout':  await cmdLogout(); return;
+      case '/help':    await cmdHelp(); break;
+      default:
+        writeLine(`<span class="t-red">'${escHtml(verb)}' is not a command. Type /help.</span>`);
+    }
+  }else{
+    await runTask(raw);
+  }
+
+  writeBlank();
+  writeLine('<span class="cursor"></span>');
+  scrollBottom(); focusInput();
 }
-function val(id){return document.getElementById(id).value.trim();}
-function esc(s){return String(s).replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));}
-show();
+
+// ── REAL TMAP RUN (SSE) ─────────────────────────────────────────────────────────
+async function runTask(task){
+  task=(task||state.lastTask||'').trim();
+  if(!task){ writeLine('<span class="t-red">Please provide a task, e.g. /gencode build a todo API</span>'); return; }
+  state.lastTask=task;
+  state.running=true;
+  setMode('BUILD');
+  resetAgents();
+  state.files=[];
+  const shortName = task.length>40 ? task.substring(0,40)+'...' : task;
+  document.getElementById('tb-project').textContent = shortName.substring(0,28);
+  addHistory(shortName);
+
+  writeLine('<span class="t-yellow">Build mode activated.</span>  <span class="t-dim">mode: '+state.mode+'</span>');
+  writeBlank();
+
+  let curRole=null, maxWf=0;
+  const setWf=(n)=>{ maxWf=Math.max(maxWf,n); setWfStep(maxWf); };
+
+  try{
+    const r = await fetch(API+'/v1/run', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+state.token },
+      body: JSON.stringify({ task, mode: state.mode }),
+    });
+    if(r.status===401){ cmdLogout(); return; }
+    if(!r.ok){ const e=await r.json().catch(()=>({})); throw new Error(e.error||('HTTP '+r.status)); }
+
+    const reader=r.body.getReader(); const dec=new TextDecoder(); let buf='';
+    while(true){
+      const {value,done}=await reader.read(); if(done) break;
+      buf+=dec.decode(value,{stream:true});
+      let i;
+      while((i=buf.indexOf('\n\n'))>=0){
+        const line=buf.slice(0,i); buf=buf.slice(i+2);
+        if(!line.startsWith('data: ')) continue;
+        let ev; try{ ev=JSON.parse(line.slice(6)); }catch{ continue; }
+        // role transition → agent dots + workflow
+        if(ev.role && ev.role!=='system' && ev.role!==curRole){
+          if(curRole) setAgentDone(curRole);
+          curRole=ev.role; setAgentBusy(curRole);
+          if(ROLE_WF[curRole]!=null) setWf(ROLE_WF[curRole]);
+        }
+        renderEv(ev);
+      }
+    }
+    if(curRole) setAgentDone(curRole);
+  }catch(err){
+    writeLine(`<span class="t-red">Error: ${escHtml(String(err.message||err))}</span>`);
+  }
+
+  setWfStep(6);
+  state.sessions++;
+  document.getElementById('sb-sessions').textContent='sessions: '+state.sessions;
+  resetAgents();
+  setWfStep(0);
+  setMode('NORMAL');
+  state.running=false;
+}
+
+function renderEv(ev){
+  const role=ev.role||'system';
+  const color=ROLE_COLOR[role]||'t-dim';
+  const label=(ROLE_AGENT[role]||'System');
+
+  if(ev.kind==='done'){
+    state.files=ev.files||[];
+    writeBlank();
+    writeLine('<span class="t-dim">──────────────────────────────────────────────────────────</span>');
+    writeLine(`<span class="t-green">Build complete.</span>  <span class="t-dim">${state.files.length} file(s) · ${ev.iterations||1} iteration(s).</span>  <span class="t-dim">Run </span><span class="t-orange">/export</span><span class="t-dim"> to download.</span>`);
+    for(const f of state.files){ writeLine(`  <span class="t-dim">— ${escHtml(f.path)}</span>`); }
+    return;
+  }
+  const arrow = ev.kind==='error' ? '<span class="t-red">✗</span>' : ev.kind==='output' ? '<span class="t-green">›</span>' : '<span class="t-muted">·</span>';
+  for(const ln of String(ev.text||'').split('\n')){
+    if(!ln.trim()) continue;
+    const txt = ev.kind==='error' ? `<span class="t-red">${escHtml(ln)}</span>` : `<span class="t-text">${escHtml(ln)}</span>`;
+    writeLine(`<span class="${color}">${label.padEnd(11)}</span>${arrow} ${txt}`);
+  }
+}
+
+// ── EXPORT ──────────────────────────────────────────────────────────────────────
+async function cmdExport(){
+  if(!state.files.length){ writeLine('<span class="t-yellow">No generated files yet. Run /gencode &lt;task&gt; first.</span>'); return; }
+  if(typeof JSZip==='undefined'){ writeLine('<span class="t-red">ZIP library not loaded.</span>'); return; }
+  writeLine('<span class="t-dim">Packaging '+state.files.length+' file(s)...</span>');
+  const zip=new JSZip();
+  for(const f of state.files){ zip.file(f.path, f.content||''); }
+  const blob=await zip.generateAsync({type:'blob'});
+  const name=(state.lastTask||'aof-code').replace(/[^a-z0-9]+/gi,'-').slice(0,40)+'.zip';
+  saveAs(blob, name);
+  writeLine('<span class="t-green">Exported → '+escHtml(name)+'</span>');
+}
+
+// ── INFO COMMANDS ────────────────────────────────────────────────────────────────
+async function cmdAgents(){
+  writeLine('AOF Agent Squad  (TMAP v2)');
+  writeLine('<span class="t-dim">──────────────────────────────────────────────────────────</span>');
+  writeBlank();
+  const rows=[
+    ['Gemini','Planner','breaks the task into a concrete plan'],
+    ['DeepSeek','Coder','writes the actual code files'],
+    ['Qwen','Reviewer','reviews code, flags issues'],
+    ['Meta Llama','Validator','runs grounded syntax validation'],
+  ];
+  for(const [n,role,desc] of rows){
+    await sleep(60);
+    writeLine(`  <span class="t-orange">${n.padEnd(12)}</span> <span class="t-dim">${role.padEnd(11)}</span> <span class="t-green">Ready</span>`);
+    writeLine(`  <span class="t-dim">${' '.repeat(12)} ${desc}</span>`);
+    writeBlank();
+  }
+  writeLine('<span class="t-green">Agents collaborate through a shared blackboard (plan → code → validate → review).</span>');
+}
+async function cmdProfile(){
+  let keysLine='—';
+  try{ const me=await api('/v1/me'); keysLine=Object.entries(me.keys).filter(([,v])=>v).map(([p])=>p).join('  ')||'none set'; }catch{}
+  writeLine('User Profile');
+  writeLine('<span class="t-dim">──────────────────────────────</span>');
+  writeLine(`  user        <span class="t-orange">${escHtml(state.user)}</span>`);
+  writeLine(`  sessions    <span class="t-orange">${state.sessions}</span>`);
+  writeLine(`  mode        <span class="t-orange">${MODE_LABEL[state.mode]}</span>`);
+  writeLine(`  api keys    <span class="t-orange">${escHtml(keysLine)}</span>`);
+}
+async function cmdSettings(){
+  writeLine('System Configuration');
+  writeLine('<span class="t-dim">──────────────────────────────</span>');
+  writeLine(`  model       <span class="t-orange">${MODE_LABEL[state.mode]}</span> <span class="t-dim">(mode: ${state.mode})</span>`);
+  writeLine('  agents      <span class="t-orange">Gemini  DeepSeek  Qwen  Llama</span>');
+  writeLine('  backend     <span class="t-orange">TMAP v2  (/v1/run · SSE)</span>');
+  writeLine('  keys        <span class="t-dim">manage with </span><span class="t-orange">/keys</span>');
+  writeBlank();
+  writeLine('<span class="t-dim">Opening API key manager...</span>');
+  openKeys();
+}
+async function cmdHelp(){
+  writeLine('Available Commands');
+  writeLine('<span class="t-dim">──────────────────────────────────────────────────────────</span>');
+  writeBlank();
+  for(const c of COMMANDS){ await sleep(18); writeLine(`  <span class="t-orange">${c.cmd.padEnd(12)}</span>  <span class="t-dim">${c.desc}</span>`); }
+  writeBlank();
+  writeLine('<span class="t-dim">Type a task directly  ->  all agents generate real code.</span>');
+  writeLine('<span class="t-dim">Set provider keys first with </span><span class="t-orange">/keys</span><span class="t-dim"> (openrouter key works for all).</span>');
+}
+
+// ── AGENT / MODE HELPERS ─────────────────────────────────────────────────────────
+function setMode(m){ document.getElementById('sb-mode').textContent=m; }
+function setAgentBusy(role){ const d=document.getElementById('dot-'+role),l=document.getElementById('status-'+role); if(d)d.className='agent-dot busy'; if(l)l.textContent='Working...'; }
+function setAgentDone(role){ const d=document.getElementById('dot-'+role),l=document.getElementById('status-'+role); if(d)d.className='agent-dot done'; if(l)l.textContent='Done'; }
+function setAgentReady(role){ const d=document.getElementById('dot-'+role),l=document.getElementById('status-'+role); if(d)d.className='agent-dot'; if(l)l.textContent='Ready'; }
+function resetAgents(){ ['planner','coder','reviewer','validator'].forEach(setAgentReady); document.getElementById('sb-agents').textContent='4 agents ready'; }
+function setWfStep(n){ for(let i=0;i<7;i++){ const el=document.getElementById('wf-'+i); if(!el)continue; el.className='wf-step'+(i<n?' done':i===n?' active':''); } }
+
+// ── HISTORY ──────────────────────────────────────────────────────────────────────
+function addHistory(name){ if(!state.projects.includes(name)){ state.projects.unshift(name); if(state.projects.length>20)state.projects.pop(); } renderHistory(); }
+function renderHistory(){
+  document.getElementById('hist-list').innerHTML = state.projects.map(p=>`
+    <div class="hist-item" onclick="reRun('${escHtml(p).replace(/'/g,"\\'")}')">
+      <div class="hist-name">${escHtml(p)}</div><div class="hist-time">${now()}</div>
+    </div>`).join('');
+}
+function reRun(p){ document.getElementById('cmd-input').value='/gencode '+p; focusInput(); }
+
+// ── MODEL SELECTOR ───────────────────────────────────────────────────────────────
+function toggleModelPanel(){ document.getElementById('model-panel').classList.toggle('open'); }
+function selectModel(mode){
+  state.mode=mode;
+  document.getElementById('model-label').textContent=MODE_LABEL[mode];
+  document.getElementById('sb-model').textContent=MODE_LABEL[mode];
+  document.getElementById('model-panel').classList.remove('open');
+  document.querySelectorAll('.mi-option').forEach((o,i)=>o.classList.toggle('selected',['lite','normal','pro'][i]===mode));
+}
+document.addEventListener('click', e=>{ if(!e.target.closest('.model-wrap')) document.getElementById('model-panel').classList.remove('open'); });
+
+// ── COMMAND PALETTE ──────────────────────────────────────────────────────────────
+function openPalette(){ document.getElementById('palette-overlay').classList.add('open'); setTimeout(()=>document.getElementById('palette-input').focus(),30); renderPalette(COMMANDS); }
+function closePalette(){ document.getElementById('palette-overlay').classList.remove('open'); document.getElementById('palette-input').value=''; focusInput(); }
+function closePaletteOnBg(e){ if(e.target.id==='palette-overlay') closePalette(); }
+function filterPalette(){ const q=document.getElementById('palette-input').value.toLowerCase(); renderPalette(COMMANDS.filter(i=>i.cmd.includes(q)||i.desc.toLowerCase().includes(q))); }
+function renderPalette(items){
+  document.getElementById('palette-list').innerHTML = items.map((item,i)=>`
+    <div class="pal-item ${i===0?'sel':''}" onclick="pickPalette('${item.cmd}')">
+      <span class="pal-cmd">${item.cmd}</span><span class="pal-desc">${item.desc}</span>
+    </div>`).join('');
+}
+function pickPalette(cmd){ closePalette(); document.getElementById('cmd-input').value=cmd+' '; focusInput(); }
+
+// ── KEYBOARD ─────────────────────────────────────────────────────────────────────
+document.addEventListener('keydown', e=>{
+  if((e.ctrlKey||e.metaKey) && e.key==='k'){ e.preventDefault(); if(state.token) openPalette(); }
+  if(e.key==='Escape'){ closePalette(); closeKeys(); focusInput(); }
+});
+document.getElementById('cmd-input').addEventListener('keydown', e=>{
+  if(e.key==='Enter'){ const v=document.getElementById('cmd-input').value.trim(); document.getElementById('cmd-input').value=''; if(v) runCmd(v); }
+});
+
+// ── CLOCK / TOAST ────────────────────────────────────────────────────────────────
+function updateClock(){ document.getElementById('sb-clock').textContent=now(); }
+setInterval(updateClock,1000); updateClock();
+let toastTimer;
+function showToast(msg){ const el=document.getElementById('sb-agents'); el.textContent=msg; clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.textContent='4 agents ready',3000); }
+
+// ── INIT ─────────────────────────────────────────────────────────────────────────
+async function init(){
+  syncUser();
+  if(!state.token){ showAuth(); return; }
+  // verify token still valid
+  try{ await api('/v1/me'); document.getElementById('cmd-input').disabled=false; await boot(); }
+  catch(e){ if(String(e.message).includes('401')){ state.token=''; localStorage.removeItem('aof:token'); } showAuth(); }
+}
+init();
 </script>
 </body>
 </html>
