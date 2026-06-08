@@ -437,7 +437,7 @@ const COMMANDS = [
   { cmd: '/gencode',  desc: 'เริ่มสร้างโค้ด (ต้องผ่าน Planning ก่อน)' },
   { cmd: '/new',      desc: 'เริ่ม planning session ใหม่' },
   { cmd: '/keys',     desc: 'Manage your API keys' },
-  { cmd: '/export',   desc: 'Download generated code as ZIP' },
+  { cmd: '/export',   desc: 'Download as ZIP  ·  /export html → single index.html' },
   { cmd: '/agents',   desc: 'List agent roles and status' },
   { cmd: '/profile',  desc: 'Show user profile and statistics' },
   { cmd: '/settings', desc: 'System configuration' },
@@ -676,7 +676,7 @@ async function runCmd(raw){
       case '/new':
         await cmdNewSession(); break;
       case '/keys':    openKeys(); break;
-      case '/export':  await cmdExport(); break;
+      case '/export':  await cmdExport(arg); break;
       case '/agents':  await cmdAgents(); break;
       case '/profile': await cmdProfile(); break;
       case '/settings':await cmdSettings(); break;
@@ -958,8 +958,27 @@ function renderEv(ev){
 }
 
 // ── EXPORT ──────────────────────────────────────────────────────────────────────
-async function cmdExport(){
-  if(!state.files.length){ writeLine('<span class="t-yellow">No generated files yet. Run /gencode &lt;task&gt; first.</span>'); return; }
+async function cmdExport(arg=''){
+  if(!state.files.length){
+    writeLine('<span class="t-yellow">No generated files yet. Run /gencode first.</span>');
+    return;
+  }
+
+  // /export html — bundle everything into one self-contained index.html
+  if(arg.trim().toLowerCase()==='html'){
+    cmdExportHtml();
+    return;
+  }
+
+  // Single HTML file → download directly (no need to ZIP)
+  if(state.files.length===1 && /\.html?$/i.test(state.files[0].path)){
+    const f=state.files[0];
+    saveAs(new Blob([f.content||''],{type:'text/html'}), 'index.html');
+    writeLine('<span class="t-green">Downloaded → index.html</span>');
+    return;
+  }
+
+  // Multiple files → ZIP
   if(typeof JSZip==='undefined'){ writeLine('<span class="t-red">ZIP library not loaded.</span>'); return; }
   writeLine('<span class="t-dim">Packaging '+state.files.length+' file(s)...</span>');
   const zip=new JSZip();
@@ -968,6 +987,44 @@ async function cmdExport(){
   const name=(state.lastTask||'aof-code').replace(/[^a-z0-9]+/gi,'-').slice(0,40)+'.zip';
   saveAs(blob, name);
   writeLine('<span class="t-green">Exported → '+escHtml(name)+'</span>');
+  writeLine('<span class="t-dim">  Tip: <span class="t-orange">/export html</span> → bundle ทุกไฟล์เป็น index.html ไฟล์เดียว</span>');
+}
+
+// Bundle all HTML/CSS/JS into one self-contained index.html (inline everything)
+function cmdExportHtml(){
+  const htmlFile =
+    state.files.find(f=>/index\.html?$/i.test(f.path)) ||
+    state.files.find(f=>/\.html?$/i.test(f.path));
+  if(!htmlFile){
+    writeLine('<span class="t-yellow">ไม่มีไฟล์ HTML ในผลลัพธ์ — ใช้ /export เพื่อดาวน์โหลดเป็น ZIP แทน</span>');
+    return;
+  }
+
+  writeLine('<span class="t-dim">Bundling into single index.html (inlining CSS + JS)...</span>');
+  let html = htmlFile.content || '';
+
+  // Inline <link rel="stylesheet" href="...">
+  html = html.replace(
+    /<link([^>]+)rel=["']stylesheet["'][^>]*href=["']([^"'#?]+)["'][^>]*\/?>/gi,
+    (match, _attrs, href)=>{
+      const base = href.split('/').pop();
+      const css  = state.files.find(f=>f.path===href||f.path.endsWith('/'+base)||f.path===base);
+      return css ? `<style>\n${css.content||''}\n</style>` : match;
+    }
+  );
+
+  // Inline <script src="..."></script>
+  html = html.replace(
+    /<script([^>]*)\bsrc=["']([^"'#?]+)["']([^>]*)><\/script>/gi,
+    (match, pre, src, post)=>{
+      const base = src.split('/').pop();
+      const js   = state.files.find(f=>f.path===src||f.path.endsWith('/'+base)||f.path===base);
+      return js ? `<script${pre}${post}>\n${js.content||''}\n</script>` : match;
+    }
+  );
+
+  saveAs(new Blob([html],{type:'text/html'}), 'index.html');
+  writeLine('<span class="t-green">Exported → index.html</span> <span class="t-dim">(self-contained · เปิดได้เลยในเบราว์เซอร์)</span>');
 }
 
 // ── INFO COMMANDS ────────────────────────────────────────────────────────────────
