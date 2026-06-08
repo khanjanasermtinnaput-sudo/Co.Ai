@@ -247,6 +247,35 @@ html, body {
 ::-webkit-scrollbar-thumb { background: #222; }
 
 @media (max-width: 760px) { #sidebar { display: none; } .tb-center { display: none; } }
+
+/* ── PWA INSTALL BANNER ──────────────────────────────────────── */
+#pwa-banner {
+  position: fixed; bottom: 20px; right: 20px; z-index: 9999;
+  background: #141414; border: 1px solid var(--accent-border);
+  display: flex; align-items: center; gap: 12px; padding: 12px 14px;
+  max-width: 320px; pointer-events: none;
+  opacity: 0; transform: translateY(16px);
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+#pwa-banner.show { opacity: 1; transform: translateY(0); pointer-events: all; }
+#pwa-banner img { width: 36px; height: 36px; flex-shrink: 0; }
+.pwa-info { flex: 1; min-width: 0; }
+.pwa-info-title { font-size: 12px; font-weight: 700; color: var(--text); }
+.pwa-info-sub { font-size: 11px; color: var(--text-sec); margin-top: 1px; }
+#pwa-install-btn {
+  height: 26px; padding: 0 12px; background: var(--accent); border: none;
+  color: #000; font-family: var(--mono); font-size: 11px; font-weight: 700;
+  cursor: pointer; flex-shrink: 0; white-space: nowrap;
+  transition: opacity 0.15s;
+}
+#pwa-install-btn:hover { opacity: 0.85; }
+#pwa-close-btn {
+  width: 22px; height: 22px; background: transparent; border: 1px solid var(--border-mid);
+  color: var(--text-dim); font-family: var(--mono); font-size: 11px;
+  cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+  transition: border-color 0.15s, color 0.15s;
+}
+#pwa-close-btn:hover { border-color: #444; color: var(--text); }
 </style>
 </head>
 <body>
@@ -302,6 +331,17 @@ html, body {
       <button class="btn-s" onclick="closeKeys()">ปิด</button>
     </div>
   </div>
+</div>
+
+<!-- PWA INSTALL BANNER -->
+<div id="pwa-banner">
+  <img src="/icons/icon.svg" alt="AOF Code">
+  <div class="pwa-info">
+    <div class="pwa-info-title">AOF Code</div>
+    <div class="pwa-info-sub">ติดตั้งเป็นแอปบนอุปกรณ์นี้</div>
+  </div>
+  <button id="pwa-install-btn" onclick="doPwaInstall()">ติดตั้ง</button>
+  <button id="pwa-close-btn" onclick="closePwaBanner()" title="ปิด">✕</button>
 </div>
 
 <!-- TITLE BAR -->
@@ -435,10 +475,9 @@ const ROLE_WF    = { planner:1, coder:3, validator:5, reviewer:4 };
 const MODE_LABEL = { lite:'AOF 1.0 Lite', normal:'AOF 1.0', pro:'AOF 1.0 Pro' };
 
 const COMMANDS = [
-  { cmd: '/gencode',          desc: 'เริ่มสร้างโค้ด (ต้องผ่าน Planning ก่อน)' },
-  { cmd: '/new',              desc: 'เริ่ม planning session ใหม่' },
-  { cmd: '/keys',             desc: 'Manage your API keys' },
-  { cmd: '/install=(aof_code)', desc: 'ติดตั้ง AOF Code เป็นแอป (PWA)' },
+  { cmd: '/gencode',  desc: 'เริ่มสร้างโค้ด (ต้องผ่าน Planning ก่อน)' },
+  { cmd: '/new',      desc: 'เริ่ม planning session ใหม่' },
+  { cmd: '/keys',     desc: 'Manage your API keys' },
   { cmd: '/export',   desc: 'Download as ZIP  ·  /export html → single index.html' },
   { cmd: '/agents',   desc: 'List agent roles and status' },
   { cmd: '/profile',  desc: 'Show user profile and statistics' },
@@ -695,7 +734,6 @@ async function runCmd(raw){
       case '/clear':   body.innerHTML=''; break;
       case '/logout':  await cmdLogout(); return;
       case '/help':    await cmdHelp(); break;
-      case '/install=(aof_code)': await cmdInstall(); break;
       default:
         writeLine(`<span class="t-red">'${escHtml(verb)}' is not a command. Type /help.</span>`);
     }
@@ -1084,30 +1122,10 @@ async function cmdHelp(){
   writeLine('Available Commands');
   writeLine('<span class="t-dim">──────────────────────────────────────────────────────────</span>');
   writeBlank();
-  for(const c of COMMANDS){ await sleep(18); writeLine(`  <span class="t-orange">${c.cmd.padEnd(24)}</span>  <span class="t-dim">${c.desc}</span>`); }
+  for(const c of COMMANDS){ await sleep(18); writeLine(`  <span class="t-orange">${c.cmd.padEnd(12)}</span>  <span class="t-dim">${c.desc}</span>`); }
   writeBlank();
   writeLine('<span class="t-purple">Workflow:</span>  <span class="t-dim">อธิบายสิ่งที่ต้องการ → RAA สรุป Requirement → /gencode → TMAP สร้างโค้ด</span>');
   writeLine('<span class="t-dim">Set provider keys with </span><span class="t-orange">/keys</span><span class="t-dim"> (openrouter key works for all 4 agents).</span>');
-}
-async function cmdInstall(){
-  if(!window._pwaPrompt){
-    if(window.matchMedia('(display-mode: standalone)').matches){
-      writeLine('<span class="t-green">✓ AOF Code ถูกติดตั้งเป็นแอปแล้ว</span>');
-    } else {
-      writeLine('<span class="t-yellow">⚠ เบราว์เซอร์นี้ไม่รองรับการติดตั้ง PWA อัตโนมัติ</span>');
-      writeLine('<span class="t-dim">ลอง: Chrome → เมนู ⋮ → "ติดตั้งแอป"  /  Safari iOS → แชร์ → "เพิ่มไปที่หน้าจอหลัก"</span>');
-    }
-    return;
-  }
-  writeLine('<span class="t-dim">กำลังเปิด install dialog...</span>');
-  window._pwaPrompt.prompt();
-  const { outcome } = await window._pwaPrompt.userChoice;
-  window._pwaPrompt = null;
-  if(outcome === 'accepted'){
-    writeLine('<span class="t-green">✓ ติดตั้ง AOF Code สำเร็จ!</span>');
-  } else {
-    writeLine('<span class="t-dim">ยกเลิกการติดตั้ง</span>');
-  }
 }
 
 // ── AGENT / MODE HELPERS ─────────────────────────────────────────────────────────
@@ -1229,7 +1247,23 @@ async function init(){
 window.addEventListener('beforeinstallprompt', e => {
   e.preventDefault();
   window._pwaPrompt = e;
+  setTimeout(showPwaBanner, 5000);
 });
+
+function showPwaBanner(){
+  if(window.matchMedia('(display-mode: standalone)').matches) return;
+  document.getElementById('pwa-banner').classList.add('show');
+}
+function closePwaBanner(){
+  document.getElementById('pwa-banner').classList.remove('show');
+}
+async function doPwaInstall(){
+  closePwaBanner();
+  if(!window._pwaPrompt) return;
+  window._pwaPrompt.prompt();
+  const { outcome } = await window._pwaPrompt.userChoice;
+  window._pwaPrompt = null;
+}
 
 init();
 
