@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: aof-code
+    runtime: node
+    rootDir: tmap-v2
+    plan: free
+    buildCommand: npm install
+    startCommand: npm run server
+    envVars:
+      - key: JWT_SECRET
+        generateValue: true
+      - key: AOF_MASTER_KEY
+        generateValue: true
+      - key: AOF_MODE
+        value: normal
+      - key: NODE_ENV
+        value: production
