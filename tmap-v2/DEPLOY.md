@@ -54,8 +54,23 @@ docker run -p 8787:8787 \
 
 ---
 
+## ตัวเลือก D — Vercel / serverless (ต้องใช้ Supabase)
+
+> ⚠️ บน Vercel ดิสก์ `/tmp` เป็นแบบชั่วคราว — ข้อมูล user/PIN จะหายทุกครั้งที่ cold start
+> (อาการ: สมัครแล้ว login ไม่ได้ "ชื่อหรือ PIN ไม่ถูกต้อง") **ต้องตั้ง Supabase ให้ครบ**
+
+1. สร้างโปรเจกต์ที่ https://supabase.com → SQL Editor → วาง `supabase/migration.sql` → Run
+2. คัดลอก URL + **Service Role Key** จาก Settings → API
+3. ตั้ง env บน Vercel:
+   - `SUPABASE_URL`
+   - `SUPABASE_SERVICE_ROLE_KEY`
+   - `JWT_SECRET`, `AOF_MASTER_KEY` (ค่าสุ่มยาว ๆ)
+4. เมื่อมี 2 ค่าแรกครบ ระบบจะเก็บข้อมูลลง Supabase ถาวรอัตโนมัติ (ถ้าไม่ตั้งจะ fallback ไฟล์ `/tmp`)
+
+---
+
 ## ขึ้น production จริง ควรทำเพิ่ม
-- เปลี่ยน DB ไฟล์ → **PostgreSQL** (persist + scale)
+- เปลี่ยน DB ไฟล์ → **Supabase/PostgreSQL** (persist + scale) — ตั้ง `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`
 - จำกัด **CORS** เป็นโดเมนจริง (ตอนนี้เปิดกว้างเพื่อ dev)
 - ใส่ **rate limit** ฝั่ง server
 - บังคับ **HTTPS** (host ส่วนใหญ่ให้มาแล้ว)
