@@ -248,6 +248,40 @@ html, body {
 
 @media (max-width: 760px) { #sidebar { display: none; } .tb-center { display: none; } }
 
+/* ── COPY BUTTON (on code blocks in output) ──────────────────── */
+.code-block-wrap { position: relative; margin: 4px 0; }
+.copy-btn {
+  position: absolute; top: 4px; right: 6px;
+  background: var(--border-mid); color: var(--text-sec);
+  border: 1px solid #333; border-radius: 3px;
+  font-family: var(--mono); font-size: 10px;
+  padding: 2px 7px; cursor: pointer;
+  opacity: 0; transition: opacity 0.15s;
+}
+.code-block-wrap:hover .copy-btn { opacity: 1; }
+.copy-btn.copied { color: var(--green); border-color: var(--green); }
+pre.code-output {
+  background: #0a0a0a; border: 1px solid var(--border);
+  padding: 8px 10px; overflow-x: auto; white-space: pre;
+  font-size: 12px; color: var(--text-sec); line-height: 1.5;
+}
+
+/* ── AUTO-GENCODE BANNER ─────────────────────────────────────── */
+.auto-gencode-bar {
+  margin: 8px 0; padding: 10px 14px;
+  border: 1px solid var(--accent-border);
+  background: var(--accent-dim);
+  display: flex; align-items: center; gap: 10px;
+}
+.auto-gencode-bar span { flex: 1; font-size: 12px; color: var(--text); }
+.auto-gencode-bar button {
+  height: 26px; padding: 0 14px; background: var(--accent); color: #000;
+  border: none; font-family: var(--mono); font-size: 11px; font-weight: 700; cursor: pointer;
+}
+.auto-gencode-bar .skip-btn {
+  background: transparent; color: var(--text-dim); border: 1px solid var(--border-mid);
+}
+
 /* ── PWA INSTALL BANNER ──────────────────────────────────────── */
 #pwa-banner {
   position: fixed; bottom: 20px; right: 20px; z-index: 9999;
@@ -511,6 +545,71 @@ function val(id){ return document.getElementById(id).value.trim(); }
 function scrollBottom(){ const b=document.getElementById('terminal-body'); b.scrollTop=b.scrollHeight; }
 function focusInput(){ const i=document.getElementById('cmd-input'); if(!i.disabled) i.focus(); }
 
+// ── COPY BUTTON helper ────────────────────────────────────────────────────────
+function copyText(btn, text){
+  navigator.clipboard.writeText(text).then(()=>{
+    btn.textContent='copied!'; btn.classList.add('copied');
+    setTimeout(()=>{ btn.textContent='copy'; btn.classList.remove('copied'); }, 1500);
+  }).catch(()=>{ btn.textContent='err'; setTimeout(()=>btn.textContent='copy',1500); });
+}
+
+// Wrap a code block string in a styled <pre> with copy button
+function makeCodeBlock(code){
+  const wrap = document.createElement('div');
+  wrap.className = 'code-block-wrap t-line';
+  const pre = document.createElement('pre');
+  pre.className = 'code-output';
+  pre.textContent = code;
+  const btn = document.createElement('button');
+  btn.className = 'copy-btn';
+  btn.textContent = 'copy';
+  btn.onclick = () => copyText(btn, code);
+  wrap.appendChild(pre);
+  wrap.appendChild(btn);
+  return wrap;
+}
+
+// ── IndexedDB: session history ────────────────────────────────────────────────
+let _idb = null;
+function openIDB(){
+  if(_idb) return Promise.resolve(_idb);
+  return new Promise((res,rej)=>{
+    const req = indexedDB.open('aof-history',1);
+    req.onupgradeneeded = e => {
+      const db = e.target.result;
+      if(!db.objectStoreNames.contains('sessions')){
+        const s = db.createObjectStore('sessions',{keyPath:'id',autoIncrement:true});
+        s.createIndex('ts','ts');
+      }
+    };
+    req.onsuccess = e => { _idb = e.target.result; res(_idb); };
+    req.onerror = () => rej(req.error);
+  });
+}
+async function idbSaveSession(task, sessionId){
+  try{
+    const db = await openIDB();
+    const tx = db.transaction('sessions','readwrite');
+    tx.objectStore('sessions').add({ task, sessionId, ts: Date.now() });
+  }catch{ /* non-fatal */ }
+}
+async function idbLoadHistory(limit=20){
+  try{
+    const db = await openIDB();
+    return new Promise((res)=>{
+      const tx = db.transaction('sessions','readonly');
+      const req = tx.objectStore('sessions').index('ts').openCursor(null,'prev');
+      const rows = [];
+      req.onsuccess = e => {
+        const c = e.target.result;
+        if(!c || rows.length >= limit) return res(rows);
+        rows.push(c.value); c.continue();
+      };
+      req.onerror = () => res([]);
+    });
+  }catch{ return []; }
+}
+
 function writeLine(html='', cls=''){
   const el=document.createElement('div');
   el.className='t-line'+(cls?' '+cls:'');
@@ -702,6 +801,8 @@ async function boot(){
   writeBlank();
   writeLine('<span class="cursor"></span>');
   focusInput();
+  // load history sidebar from server + IndexedDB
+  loadServerHistory();
 }
 
 // ── COMMAND RUNNER ──────────────────────────────────────────────────────────────
@@ -863,10 +964,17 @@ async function sendToRAA(message){
           if(ev.hasSummary && ev.summary){
             state.reqSummary = ev.summary;
             setPlanWfStep(3);
-            // highlight the /gencode call-to-action
             writeBlank();
             writeLine('<span class="t-dim">──────────────────────────────────────────────────────────</span>');
-            writeLine('<span class="t-purple">✅ Requirement Summary พร้อมแล้ว</span>  <span class="t-dim">พิมพ์ </span><span class="t-purple t-bold">/gencode</span><span class="t-dim"> เพื่อเริ่มสร้างโค้ด</span>');
+            writeLine('<span class="t-purple">✅ Requirement Summary พร้อมแล้ว</span>');
+            // auto-gencode banner
+            const bar = document.createElement('div');
+            bar.className = 'auto-gencode-bar t-line';
+            bar.innerHTML = `<span>พร้อมสร้างโค้ดแล้ว — เริ่ม TMAP engine เลยไหม?</span>
+              <button onclick="runCmd('/gencode');this.closest('.auto-gencode-bar').remove()">🚀 /gencode</button>
+              <button class="skip-btn" onclick="this.closest('.auto-gencode-bar').remove()">ข้ามก่อน</button>`;
+            document.getElementById('terminal-body').appendChild(bar);
+            scrollBottom();
           }
         }
       }
@@ -981,6 +1089,10 @@ async function runTask(task, context){
   setWfStep(6);
   state.sessions++;
   document.getElementById('sb-sessions').textContent='sessions: '+state.sessions;
+  // save to IndexedDB
+  if(task) await idbSaveSession(task, null);
+  // refresh sidebar history
+  await loadServerHistory();
   resetAgents();
   setWfStep(0);
   setMode('NORMAL');
@@ -997,11 +1109,58 @@ function renderEv(ev){
     writeBlank();
     writeLine('<span class="t-dim">──────────────────────────────────────────────────────────</span>');
     writeLine(`<span class="t-green">Build complete.</span>  <span class="t-dim">${state.files.length} file(s) · ${ev.iterations||1} iteration(s).</span>  <span class="t-dim">Run </span><span class="t-orange">/export</span><span class="t-dim"> to download.</span>`);
-    for(const f of state.files){ writeLine(`  <span class="t-dim">— ${escHtml(f.path)}</span>`); }
+    for(const f of state.files){
+      const row = document.createElement('div');
+      row.className='t-line';
+      row.innerHTML=`  <span class="t-dim">— ${escHtml(f.path)}</span>`;
+      // copy button for each file
+      const cb = document.createElement('button');
+      cb.className='copy-btn'; cb.style.cssText='position:static;opacity:1;margin-left:8px;display:inline';
+      cb.textContent='copy';
+      cb.onclick=()=>copyText(cb, f.content||'');
+      row.appendChild(cb);
+      document.getElementById('terminal-body').appendChild(row);
+    }
+    scrollBottom();
     return;
   }
   const arrow = ev.kind==='error' ? '<span class="t-red">✗</span>' : ev.kind==='output' ? '<span class="t-green">›</span>' : '<span class="t-muted">·</span>';
-  for(const ln of String(ev.text||'').split('\n')){
+  const text = String(ev.text||'');
+
+  // Detect code blocks (```...```) in output and render them styled
+  const codeBlockRe = /```(?:\w+)?\n([\s\S]*?)```/g;
+  let lastIdx=0, hasCode=false, match;
+  const frag = document.createDocumentFragment();
+  while((match=codeBlockRe.exec(text))!==null){
+    hasCode=true;
+    // text before code block
+    const before = text.slice(lastIdx, match.index);
+    for(const ln of before.split('\n')){
+      if(!ln.trim()) continue;
+      const el=document.createElement('div'); el.className='t-line';
+      el.innerHTML=`<span class="${color}">${label.padEnd(11)}</span>${arrow} <span class="t-text">${escHtml(ln)}</span>`;
+      frag.appendChild(el);
+    }
+    // code block
+    frag.appendChild(makeCodeBlock(match[1]));
+    lastIdx = match.index+match[0].length;
+  }
+  if(hasCode){
+    // remaining text
+    const after = text.slice(lastIdx);
+    for(const ln of after.split('\n')){
+      if(!ln.trim()) continue;
+      const el=document.createElement('div'); el.className='t-line';
+      el.innerHTML=`<span class="${color}">${label.padEnd(11)}</span>${arrow} <span class="t-text">${escHtml(ln)}</span>`;
+      frag.appendChild(el);
+    }
+    document.getElementById('terminal-body').appendChild(frag);
+    scrollBottom();
+    return;
+  }
+
+  // No code block — plain rendering
+  for(const ln of text.split('\n')){
     if(!ln.trim()) continue;
     const txt = ev.kind==='error' ? `<span class="t-red">${escHtml(ln)}</span>` : `<span class="t-text">${escHtml(ln)}</span>`;
     writeLine(`<span class="${color}">${label.padEnd(11)}</span>${arrow} ${txt}`);
@@ -1098,14 +1257,23 @@ async function cmdAgents(){
   writeLine('<span class="t-green">Agents collaborate through a shared blackboard (plan → code → validate → review).</span>');
 }
 async function cmdProfile(){
-  let keysLine='—';
-  try{ const me=await api('/v1/me'); keysLine=Object.entries(me.keys).filter(([,v])=>v).map(([p])=>p).join('  ')||'none set'; }catch{}
+  let keysLine='—', costLine='—', sessCount='—';
+  try{
+    const me=await api('/v1/me');
+    keysLine=Object.entries(me.keys).filter(([,v])=>v).map(([p])=>p).join('  ')||'none set';
+  }catch{}
+  try{
+    const cost=await api('/v1/me/cost');
+    costLine=`$${(cost.totalCostUsd||0).toFixed(4)}  (${(cost.totalTokens||0).toLocaleString()} tokens · ${cost.sessionCount||0} sessions)`;
+    sessCount=String(cost.sessionCount||0);
+  }catch{}
   writeLine('User Profile');
   writeLine('<span class="t-dim">──────────────────────────────</span>');
   writeLine(`  user        <span class="t-orange">${escHtml(state.user)}</span>`);
-  writeLine(`  sessions    <span class="t-orange">${state.sessions}</span>`);
+  writeLine(`  sessions    <span class="t-orange">${sessCount}</span>`);
   writeLine(`  mode        <span class="t-orange">${MODE_LABEL[state.mode]}</span>`);
   writeLine(`  api keys    <span class="t-orange">${escHtml(keysLine)}</span>`);
+  writeLine(`  total cost  <span class="t-orange">${escHtml(costLine)}</span>`);
 }
 async function cmdSettings(){
   writeLine('System Configuration');
@@ -1148,6 +1316,27 @@ function renderHistory(){
     </div>`).join('');
 }
 function reRun(p){ document.getElementById('cmd-input').value=p; focusInput(); }
+
+async function loadServerHistory(){
+  try{
+    const d = await api('/v1/sessions?limit=20');
+    const sessions = d.sessions || [];
+    if(!sessions.length){
+      // fall back to IndexedDB
+      const rows = await idbLoadHistory();
+      state.projects = rows.map(r=>r.task||'session').slice(0,20);
+    } else {
+      state.projects = sessions.map(s=>s.task||s.summary||'session').slice(0,20);
+      document.getElementById('sb-sessions').textContent='sessions: '+sessions.length;
+    }
+    renderHistory();
+  }catch{
+    // offline fallback — load from IndexedDB
+    const rows = await idbLoadHistory();
+    state.projects = rows.map(r=>r.task||'session').slice(0,20);
+    renderHistory();
+  }
+}
 
 // ── MODEL SELECTOR ───────────────────────────────────────────────────────────────
 function toggleModelPanel(){ document.getElementById('model-panel').classList.toggle('open'); }

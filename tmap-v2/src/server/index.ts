@@ -6,7 +6,12 @@ import { dirname, join } from 'node:path';
 
 import { hashPassword, verifyPassword, encryptSecret, decryptSecret, maskKey } from './crypto.js';
 import { signToken, requireAuth, type AuthedRequest } from './auth.js';
-import { createUser, findUserByUsername, setUserKey, deleteUserKey, type ProviderKeyName } from './db.js';
+import {
+  createUser, findUserByUsername, setUserKey, deleteUserKey,
+  createSession, updateSession, getUserSessions, getSession, getSessionLogs,
+  addCost, getUserCost,
+  type ProviderKeyName,
+} from './db.js';
 import { checkLoginRate, recordFailure, recordSuccess } from './rateLimit.js';
 import { bagHasAnyKey, type CredentialBag } from '../config.js';
 import { createBlackboard } from '../core/blackboard.js';
@@ -31,7 +36,7 @@ function validPin(p: unknown): p is string {
   return typeof p === 'string' && /^\d{4,8}$/.test(String(p).trim());
 }
 
-// ── AUTH (username + PIN ≤ 8 digits) ──────────────────────────────────────────
+// ── AUTH ──────────────────────────────────────────────────────────────────────
 app.post('/v1/auth/register', async (req, res) => {
   const { username, pin } = req.body ?? {};
   if (!validUsername(username)) {
@@ -49,8 +54,6 @@ app.post('/v1/auth/register', async (req, res) => {
 
 app.post('/v1/auth/login', async (req, res) => {
   const { username, pin } = req.body ?? {};
-
-  // ── rate-limit check (before any DB lookup to avoid timing oracle) ────────
   const clientIp = String(
     req.headers['x-forwarded-for'] ?? req.socket.remoteAddress ?? 'unknown',
   ).split(',')[0].trim();
@@ -68,7 +71,6 @@ app.post('/v1/auth/login', async (req, res) => {
     }
   }
 
-  // ── credential check ──────────────────────────────────────────────────────
   const user = uname ? await findUserByUsername(uname) : undefined;
   if (!user || !verifyPassword(String(pin ?? '').trim(), user.pinHash)) {
     if (uname) {
@@ -115,8 +117,29 @@ app.delete('/v1/me/keys/:provider', requireAuth, async (req: AuthedRequest, res)
   res.json({ ok: true });
 });
 
+// ── SESSIONS ─────────────────────────────────────────────────────────────────
+app.get('/v1/sessions', requireAuth, async (req: AuthedRequest, res) => {
+  const limit = Math.min(Number(req.query.limit) || 20, 100);
+  const sessions = await getUserSessions(req.user!.id, limit);
+  res.json({ sessions });
+});
+
+app.get('/v1/sessions/:id', requireAuth, async (req: AuthedRequest, res) => {
+  const session = await getSession(req.params.id);
+  if (!session || session.userId !== req.user!.id) {
+    return res.status(404).json({ error: 'session not found' });
+  }
+  const logs = await getSessionLogs(req.params.id);
+  res.json({ session, logs });
+});
+
+// ── COST TRACKING ─────────────────────────────────────────────────────────────
+app.get('/v1/me/cost', requireAuth, async (req: AuthedRequest, res) => {
+  const cost = await getUserCost(req.user!.id);
+  res.json(cost ?? { userId: req.user!.id, totalCostUsd: 0, totalTokens: 0, sessionCount: 0 });
+});
+
 // ── PLANNING CHAT — RAA (SSE stream) ─────────────────────────────────────────
-// Stateless: client sends full history each turn so this works on serverless.
 app.post('/v1/chat', requireAuth, async (req: AuthedRequest, res) => {
   const message = String(req.body?.message ?? '').trim();
   const history: ChatMessage[] = Array.isArray(req.body?.history) ? req.body.history : [];
@@ -134,17 +157,12 @@ app.post('/v1/chat', requireAuth, async (req: AuthedRequest, res) => {
     Connection: 'keep-alive',
   });
   const send = (event: object) => res.write(`data: ${JSON.stringify(event)}\n\n`);
-
   const emit = (_role: string, text: string, kind = 'status') =>
     send({ role: 'raa', kind, text });
 
-  // RAA uses its own LLM call via DARS (planner slot — best at reasoning/conversation)
   const call = async (messages: ChatMessage[], opts = {}) => {
     const r = await chatWithDARS('planner', messages, opts, {
-      creds,
-      health: globalHealth,
-      emit,
-      sessionId: 'raa-' + u.id,
+      creds, health: globalHealth, emit, sessionId: 'raa-' + u.id,
     });
     return r.text;
   };
@@ -163,7 +181,7 @@ app.post('/v1/chat', requireAuth, async (req: AuthedRequest, res) => {
 app.post('/v1/run', requireAuth, async (req: AuthedRequest, res) => {
   const task = String(req.body?.task ?? '').trim();
   const mode = (['lite', 'normal', 'pro'].includes(req.body?.mode) ? req.body.mode : currentMode()) as Mode;
-  const context = String(req.body?.context ?? '').trim();   // optional: requirement summary from RAA
+  const context = String(req.body?.context ?? '').trim();
   if (!task) return res.status(400).json({ error: 'task required' });
 
   const u = req.user!;
@@ -183,14 +201,44 @@ app.post('/v1/run', requireAuth, async (req: AuthedRequest, res) => {
     send({ role: 'system', kind: 'status', text: 'ยังไม่มี API key — กำลังใช้ mock mode เพิ่ม key ได้ในหน้า Settings' });
   }
 
-  const bb = createBlackboard(task, mode, context);    // context = requirement summary
+  const bb = createBlackboard(task, mode, context);
+
+  // Create session record immediately so it appears in history
+  const sessionRec = await createSession(u.id, task, mode);
+  // Use the same sessionId as the blackboard for consistency
+  bb.sessionId = sessionRec.id;
+
   try {
-    await runTMAP(bb, (role, text, kind = 'status') => send({ role, text, kind }), { creds });
-    send({ role: 'system', kind: 'done', text: 'done', files: bb.files, iterations: bb.iterations });
+    await runTMAP(bb, (role, text, kind = 'status') => send({ role, text, kind }), {
+      creds,
+      onSessionStart: async () => { /* already created */ },
+      onSessionEnd: async (_sid, result) => {
+        await updateSession(sessionRec.id, {
+          status: result.status,
+          filesCount: result.filesCount,
+          iterations: result.iterations,
+          costUsd: result.costUsd,
+          tokensUsed: result.tokensUsed,
+          summary: task.slice(0, 120),
+        });
+        await addCost(u.id, result.tokensUsed, result.costUsd);
+      },
+      onAgentCall: async (_sid, log) => {
+        const { appendAgentLog } = await import('./db.js');
+        await appendAgentLog({ sessionId: sessionRec.id, ...log });
+      },
+    });
+    send({ role: 'system', kind: 'done', text: 'done', files: bb.files, iterations: bb.iterations, sessionId: sessionRec.id });
   } catch (e) {
+    await updateSession(sessionRec.id, { status: 'error' });
     send({ role: 'system', kind: 'error', text: (e as Error).message });
   }
   res.end();
+});
+
+// ── HEALTH ────────────────────────────────────────────────────────────────────
+app.get('/v1/health', (_req, res) => {
+  res.json(globalHealth.snapshot());
 });
 
 // ── static ────────────────────────────────────────────────────────────────────

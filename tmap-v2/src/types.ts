@@ -87,3 +87,43 @@ export interface AgentEvent {
   type: 'status' | 'output' | 'validation' | 'error';
   text: string;
 }
+
+// Session record stored in db.json
+export interface SessionRecord {
+  id: string;
+  userId: string;
+  task: string;
+  mode: Mode;
+  status: 'running' | 'done' | 'error';
+  filesCount: number;
+  iterations: number;
+  costUsd: number;
+  tokensUsed: number;
+  createdAt: string;
+  updatedAt: string;
+  summary?: string; // short one-line summary of what was built
+}
+
+// Per-agent-call log entry
+export interface AgentLog {
+  id: string;
+  sessionId: string;
+  role: Role;
+  provider: string;
+  model: string;
+  attempts: number;
+  inputTokens: number;
+  outputTokens: number;
+  costUsd: number;
+  durationMs: number;
+  ts: string;
+}
+
+// Cost tracking per user
+export interface CostRecord {
+  userId: string;
+  totalCostUsd: number;
+  totalTokens: number;
+  sessionCount: number;
+  updatedAt: string;
+}
