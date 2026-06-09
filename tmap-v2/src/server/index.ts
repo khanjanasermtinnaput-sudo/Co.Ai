@@ -13,6 +13,7 @@ import {
   type ProviderKeyName,
 } from './db.js';
 import { checkLoginRate, recordFailure, recordSuccess } from './rateLimit.js';
+import { logger, incRequest, incError, incTmapRun, incTmapError, addTokens, incAgentCall, getMetrics } from './logger.js';
 import { bagHasAnyKey, type CredentialBag } from '../config.js';
 import { createBlackboard } from '../core/blackboard.js';
 import { runTMAP } from '../core/orchestrator.js';
@@ -27,6 +28,13 @@ const PROVIDERS: ProviderKeyName[] = ['openrouter', 'gemini', 'deepseek', 'qwen'
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// ── REQUEST LOGGING middleware ────────────────────────────────────────────────
+app.use((req, _res, next) => {
+  incRequest();
+  logger.info('request', { method: req.method, path: req.path, ip: String(req.headers['x-forwarded-for'] ?? req.socket.remoteAddress ?? '').split(',')[0].trim() });
+  next();
+});
 
 // ── VALIDATION helpers ─────────────────────────────────────────────────────────
 function validUsername(u: unknown): u is string {
@@ -208,6 +216,9 @@ app.post('/v1/run', requireAuth, async (req: AuthedRequest, res) => {
   // Use the same sessionId as the blackboard for consistency
   bb.sessionId = sessionRec.id;
 
+  incTmapRun();
+  logger.info('tmap_start', { sessionId: sessionRec.id, mode, user: u.username, taskLen: task.length });
+
   try {
     await runTMAP(bb, (role, text, kind = 'status') => send({ role, text, kind }), {
       creds,
@@ -222,23 +233,35 @@ app.post('/v1/run', requireAuth, async (req: AuthedRequest, res) => {
           summary: task.slice(0, 120),
         });
         await addCost(u.id, result.tokensUsed, result.costUsd);
+        addTokens(result.tokensUsed, result.costUsd);
+        logger.info('tmap_done', { sessionId: sessionRec.id, files: result.filesCount, iterations: result.iterations, costUsd: result.costUsd, status: result.status });
+        if (result.status === 'error') incTmapError();
       },
       onAgentCall: async (_sid, log) => {
         const { appendAgentLog } = await import('./db.js');
         await appendAgentLog({ sessionId: sessionRec.id, ...log });
+        incAgentCall(log.role, log.provider);
+        logger.debug('agent_call', { role: log.role, provider: log.provider, model: log.model, durationMs: log.durationMs, tokens: log.inputTokens + log.outputTokens });
       },
     });
     send({ role: 'system', kind: 'done', text: 'done', files: bb.files, iterations: bb.iterations, sessionId: sessionRec.id });
   } catch (e) {
+    incError();
+    incTmapError();
     await updateSession(sessionRec.id, { status: 'error' });
+    logger.error('tmap_error', { sessionId: sessionRec.id, error: (e as Error).message });
     send({ role: 'system', kind: 'error', text: (e as Error).message });
   }
   res.end();
 });
 
-// ── HEALTH ────────────────────────────────────────────────────────────────────
+// ── HEALTH + METRICS ─────────────────────────────────────────────────────────
 app.get('/v1/health', (_req, res) => {
   res.json(globalHealth.snapshot());
+});
+
+app.get('/v1/metrics', (_req, res) => {
+  res.json(getMetrics());
 });
 
 // ── static ────────────────────────────────────────────────────────────────────

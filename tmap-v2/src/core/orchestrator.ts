@@ -7,6 +7,7 @@ import { chatWithDARS, type DarsContext } from '../dars/run.js';
 import { HealthStore, globalHealth } from '../dars/health.js';
 import { listProviderCandidates } from '../dars/select.js';
 import { gatherProjectContext } from './context.js';
+import { runCoderVote } from './vote.js';
 
 type Emit = (role: string, text: string, kind?: 'status' | 'output' | 'error') => void;
 
@@ -129,9 +130,17 @@ export async function runTMAP(
     for (let iter = 0; ; iter++) {
       bb.iterations = iter + 1;
 
-      // 2) CODE
-      emit('coder', `${iter === 0 ? 'generating code' : `revising (iteration ${iter + 1})`} (${label('coder')})`, 'status');
-      bb.files = await runCoder(callFor('coder'), bb, critique);
+      // 2) CODE — pro mode uses voting (2 coders, reviewer picks best)
+      const useVoting = bb.mode === 'pro' && iter === 0;
+      if (useVoting) {
+        emit('coder', `generating code with consensus vote (${label('coder')} × 2)`, 'status');
+        const vote = await runCoderVote(callFor('coder'), callFor('reviewer'), bb, critique);
+        bb.files = vote.files;
+        emit('coder', `vote winner: candidate ${vote.winnerIndex === 0 ? 'A' : 'B'} — ${vote.reason}`, 'status');
+      } else {
+        emit('coder', `${iter === 0 ? 'generating code' : `revising (iteration ${iter + 1})`} (${label('coder')})`, 'status');
+        bb.files = await runCoder(callFor('coder'), bb, critique);
+      }
       logEvent(bb, { role: 'coder', type: 'output', text: bb.files.map((f) => f.path).join(', ') });
       emit('coder', `produced ${bb.files.length} file(s): ${bb.files.map((f) => f.path).join(', ')}`, 'output');
 

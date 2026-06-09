@@ -51,9 +51,8 @@ export interface CostRecord {
 
 // ── File-based storage (persistent JSON, no 500MB limit) ──────────────────────
 // Vercel ephemeral /tmp is OK for demo; for self-hosted this persists across restarts.
-const DB_PATH = process.env.VERCEL
-  ? '/tmp/aof-db.json'
-  : join(process.cwd(), '.aof-server', 'db.json');
+const DB_PATH = process.env.AOF_DB_PATH
+  ?? (process.env.VERCEL ? '/tmp/aof-db.json' : join(process.cwd(), '.aof-server', 'db.json'));
 
 interface DbShape {
   users: Record<string, UserRecord>;
