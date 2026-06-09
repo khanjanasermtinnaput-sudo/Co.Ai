@@ -266,21 +266,6 @@ pre.code-output {
   font-size: 12px; color: var(--text-sec); line-height: 1.5;
 }
 
-/* ── AUTO-GENCODE BANNER ─────────────────────────────────────── */
-.auto-gencode-bar {
-  margin: 8px 0; padding: 10px 14px;
-  border: 1px solid var(--accent-border);
-  background: var(--accent-dim);
-  display: flex; align-items: center; gap: 10px;
-}
-.auto-gencode-bar span { flex: 1; font-size: 12px; color: var(--text); }
-.auto-gencode-bar button {
-  height: 26px; padding: 0 14px; background: var(--accent); color: #000;
-  border: none; font-family: var(--mono); font-size: 11px; font-weight: 700; cursor: pointer;
-}
-.auto-gencode-bar .skip-btn {
-  background: transparent; color: var(--text-dim); border: 1px solid var(--border-mid);
-}
 
 /* ── PWA INSTALL BANNER ──────────────────────────────────────── */
 #pwa-banner {
@@ -966,15 +951,7 @@ async function sendToRAA(message){
             setPlanWfStep(3);
             writeBlank();
             writeLine('<span class="t-dim">──────────────────────────────────────────────────────────</span>');
-            writeLine('<span class="t-purple">✅ Requirement Summary พร้อมแล้ว</span>');
-            // auto-gencode banner
-            const bar = document.createElement('div');
-            bar.className = 'auto-gencode-bar t-line';
-            bar.innerHTML = `<span>พร้อมสร้างโค้ดแล้ว — เริ่ม TMAP engine เลยไหม?</span>
-              <button onclick="runCmd('/gencode');this.closest('.auto-gencode-bar').remove()">🚀 /gencode</button>
-              <button class="skip-btn" onclick="this.closest('.auto-gencode-bar').remove()">ข้ามก่อน</button>`;
-            document.getElementById('terminal-body').appendChild(bar);
-            scrollBottom();
+            writeLine('<span class="t-purple">✅ Requirement Summary พร้อมแล้ว</span>  <span class="t-dim">พิมพ์ </span><span class="t-purple t-bold">/gencode</span><span class="t-dim"> เพื่อเริ่มสร้างโค้ด</span>');
           }
         }
       }
