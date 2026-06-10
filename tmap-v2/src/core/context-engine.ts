@@ -12,6 +12,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, extname, dirname, basename } from 'node:path';
 import { gatherProjectContext, type ProjectContext } from './context.js';
+import { buildIndex, rank, type RetrievalIndex } from './retrieval.js';
 
 export interface FileNode {
   path: string;   // project-relative, posix separators
@@ -200,46 +201,15 @@ export function detectProjectType(base: ProjectContext, tree: FileNode[]): strin
   return 'unknown';
 }
 
-// ── relevance scoring (task -> files) ─────────────────────────────────────────
-
-const STOPWORDS = new Set([
-  'the', 'and', 'for', 'with', 'that', 'this', 'from', 'add', 'make', 'create',
-  'build', 'new', 'use', 'using', 'file', 'files', 'code', 'app', 'page',
-]);
-
-function tokenize(s: string): string[] {
-  return s.toLowerCase()
-    .split(/[^a-z0-9]+/)
-    .filter((t) => t.length > 2 && !STOPWORDS.has(t));
-}
+// ── relevance scoring (task -> files) — BM25 via retrieval.ts ──────────────────
 
 export function selectRelevantFiles(
   rootDir: string, task: string, tree: FileNode[], graph: DependencyGraph, k = 8,
+  index?: RetrievalIndex,
 ): string[] {
-  const terms = [...new Set(tokenize(task))];
-  if (!terms.length) return [];
-
-  const scored: Array<{ path: string; score: number }> = [];
-  for (const node of tree) {
-    let score = 0;
-    const nameTokens = tokenize(node.path);
-    for (const t of terms) {
-      if (nameTokens.some((n) => n.includes(t) || t.includes(n))) score += 5;
-    }
-    // content match — head of file only, keeps the scan cheap
-    try {
-      const head = readFileSync(join(rootDir, node.path), 'utf8').slice(0, 4000).toLowerCase();
-      for (const t of terms) {
-        const hits = head.split(t).length - 1;
-        score += Math.min(hits, 5);
-      }
-    } catch { /* unreadable — name score only */ }
-    // dependency hotspots are more likely to matter
-    score += Math.min((graph.importers[node.path]?.length ?? 0) * 0.5, 3);
-    if (score > 0) scored.push({ path: node.path, score });
-  }
-  scored.sort((a, b) => b.score - a.score);
-  return scored.slice(0, k).map((s) => s.path);
+  if (!task.trim()) return [];
+  const idx = index ?? buildIndex(rootDir, tree, graph);
+  return rank(idx, task, k).map((r) => r.path);
 }
 
 // ── convention detection ──────────────────────────────────────────────────────
@@ -286,13 +256,45 @@ export function detectConventions(rootDir: string, tree: FileNode[]): string[] {
 const MAX_EXCERPT_LINES = 30;
 const MAX_EXCERPT_TOTAL = 4500;
 
-export function buildContextV2(rootDir = process.cwd(), task = ''): ProjectContextV2 {
+// Per-root scan cache so repeated runs in the same server process don't re-walk
+// and re-index the whole tree. Short TTL keeps it fresh enough for active editing.
+interface ScanCache {
+  at: number;
+  base: ProjectContext;
+  tree: FileNode[];
+  graph: DependencyGraph;
+  index: RetrievalIndex;
+  conventions: string[];
+  projectType: string;
+}
+const SCAN_TTL_MS = 15_000;
+const scanCache = new Map<string, ScanCache>();
+
+function getScan(rootDir: string): ScanCache {
+  const cached = scanCache.get(rootDir);
+  if (cached && Date.now() - cached.at < SCAN_TTL_MS) return cached;
+
   const base = gatherProjectContext(rootDir);
   const tree = readProjectTree(rootDir);
   const graph = buildDependencyGraph(rootDir, tree);
-  const projectType = detectProjectType(base, tree);
-  const relevantFiles = task ? selectRelevantFiles(rootDir, task, tree, graph) : [];
+  const index = buildIndex(rootDir, tree, graph);
   const conventions = detectConventions(rootDir, tree);
+  const projectType = detectProjectType(base, tree);
+
+  const scan: ScanCache = { at: Date.now(), base, tree, graph, index, conventions, projectType };
+  scanCache.set(rootDir, scan);
+  return scan;
+}
+
+/** Clear the scan cache (call after writing files to a project root). */
+export function invalidateScan(rootDir?: string): void {
+  if (rootDir) scanCache.delete(rootDir);
+  else scanCache.clear();
+}
+
+export function buildContextV2(rootDir = process.cwd(), task = ''): ProjectContextV2 {
+  const { base, tree, graph, index, conventions, projectType } = getScan(rootDir);
+  const relevantFiles = task ? selectRelevantFiles(rootDir, task, tree, graph, 8, index) : [];
 
   const summary = buildSummaryV2(rootDir, {
     base, projectType, tree, graph, relevantFiles, conventions, summary: '',

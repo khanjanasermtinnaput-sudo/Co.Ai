@@ -7,7 +7,11 @@ import { chatWithDARS, type DarsContext } from '../dars/run.js';
 import { HealthStore, globalHealth } from '../dars/health.js';
 import { listProviderCandidates } from '../dars/select.js';
 import { gatherProjectContext } from './context.js';
-import { buildContextV2 } from './context-engine.js';
+import { buildContextV2, type ProjectContextV2 } from './context-engine.js';
+import { runArchitect, architectToContext } from './architect.js';
+import { analyzeImpact, impactToContext } from './impact.js';
+import { runDocumenter } from './documenter.js';
+import type { DependencyGraph } from './context-engine.js';
 import { runCoderVote } from './vote.js';
 
 type Emit = (role: string, text: string, kind?: 'status' | 'output' | 'error') => void;
@@ -73,24 +77,29 @@ export async function runTMAP(
 
   // Inject project context into blackboard context if not already provided.
   // Context Engine v2: tree + dependency graph + relevant-file selection.
-  if (!bb.context && !runOpts.skipContext) {
+  let projGraph: DependencyGraph | undefined;
+  let projType = bb.contextMeta?.projectType ?? '';
+  if (!runOpts.skipContext) {
     try {
-      const v2 = buildContextV2(runOpts.projectRoot ?? process.cwd(), bb.task);
-      if (v2.summary) {
+      const v2: ProjectContextV2 = buildContextV2(runOpts.projectRoot ?? process.cwd(), bb.task);
+      projGraph = v2.graph;
+      projType = v2.projectType;
+      if (!bb.context && v2.summary) {
         bb.context = v2.summary;
-        bb.contextMeta = {
-          projectType: v2.projectType,
-          relevantFiles: v2.relevantFiles,
-          conventions: v2.conventions,
-          fileCount: v2.tree.length,
-        };
         emit('system', `context engine: ${v2.projectType} · ${v2.tree.length} files scanned · ${v2.relevantFiles.length} relevant`, 'status');
       }
+      // Keep structured meta even when context came from RAA/memory
+      bb.contextMeta = {
+        projectType: v2.projectType,
+        relevantFiles: v2.relevantFiles,
+        conventions: v2.conventions,
+        fileCount: v2.tree.length,
+      };
     } catch {
       // v2 failure is non-fatal — fall back to the flat v1 scan
       try {
         const projCtx = gatherProjectContext(runOpts.projectRoot);
-        if (projCtx.summary) {
+        if (!bb.context && projCtx.summary) {
           bb.context = projCtx.summary;
           emit('system', `project context detected: ${projCtx.techStack || 'unknown'}`, 'status');
         }
@@ -132,8 +141,49 @@ export async function runTMAP(
   };
 
   let status: 'done' | 'error' = 'done';
+  // Smart stages (Architect, Impact, Documenter) run in normal/pro — lite stays fast.
+  const smart = bb.mode !== 'lite';
 
   try {
+    // 0a) ARCHITECT — design + new/modify decision before planning
+    if (smart) {
+      try {
+        emit('architect', `designing architecture (${label('planner')})`, 'status');
+        const decision = await runArchitect(callFor('planner'), bb);
+        bb.architect = decision;
+        if (decision.approach) emit('architect', `approach: ${decision.approach}`, 'output');
+        if (decision.newFiles.length) emit('architect', `new files: ${decision.newFiles.join(', ')}`, 'output');
+        if (decision.modifyFiles.length) emit('architect', `modify: ${decision.modifyFiles.join(', ')}`, 'output');
+        for (const r of decision.risks) emit('architect', `risk: ${r}`, 'output');
+        bb.context = [bb.context, architectToContext(decision)].filter(Boolean).join('\n\n');
+      } catch (e) {
+        emit('architect', `architect stage skipped: ${(e as Error).message}`, 'status');
+      }
+    }
+
+    // 0b) IMPACT ANALYSIS — what breaks if we touch the planned files
+    if (smart && bb.architect?.modifyFiles.length) {
+      try {
+        emit('impact', 'analysing change impact', 'status');
+        const report = analyzeImpact({ graph: projGraph, modifyFiles: bb.architect.modifyFiles });
+        bb.impact = report;
+        emit('impact', report.summary, report.risks.some((r) => r.level === 'high') ? 'error' : 'output');
+        for (const r of report.risks.filter((x) => x.level !== 'low')) {
+          emit('impact', `[${r.level.toUpperCase()}] ${r.file} — ${r.affects.length} dependent(s)`, 'output');
+        }
+        const impactCtx = impactToContext(report);
+        if (impactCtx) bb.context = [bb.context, impactCtx].filter(Boolean).join('\n\n');
+      } catch (e) {
+        emit('impact', `impact stage skipped: ${(e as Error).message}`, 'status');
+      }
+    }
+
+    // 0c) UI-AWARENESS — give the Coder design guidance for web/UI projects
+    if (smart && isUiProject(projType, bb.task)) {
+      bb.context = [bb.context, UI_GUIDANCE].filter(Boolean).join('\n\n');
+      emit('system', 'UI-aware mode: design guidance injected for the Coder', 'status');
+    }
+
     // 1) PLAN
     emit('planner', `planning (${label('planner')})`, 'status');
     const plan = await runPlanner(callFor('planner'), bb);
@@ -187,6 +237,23 @@ export async function runTMAP(
       }
       break;
     }
+
+    // 5) DOCUMENT — generate a README for what was built (normal/pro)
+    if (smart && bb.files.length) {
+      try {
+        emit('documenter', `writing documentation (${label('reviewer')})`, 'status');
+        const docs = await runDocumenter(callFor('reviewer'), bb);
+        if (docs.length) {
+          bb.docs = docs;
+          // merge docs into output (skip paths already produced by the Coder)
+          const existing = new Set(bb.files.map((f) => f.path));
+          for (const d of docs) if (!existing.has(d.path)) bb.files.push(d);
+          emit('documenter', `generated ${docs.map((d) => d.path).join(', ')}`, 'output');
+        }
+      } catch (e) {
+        emit('documenter', `documentation stage skipped: ${(e as Error).message}`, 'status');
+      }
+    }
   } catch (e) {
     status = 'error';
     throw e;
@@ -203,6 +270,20 @@ export async function runTMAP(
   }
 
   return bb;
+}
+
+const UI_GUIDANCE = `## UI/UX Guidance (this is a web/UI project)
+The generated interface must look professionally designed, not generic:
+- Clear visual hierarchy, consistent spacing, modern typography
+- A cohesive color system with a single accent; avoid plain boxes and heavy borders
+- Responsive layout (mobile + desktop) and sensible empty/loading/error states
+- Subtle, tasteful micro-interactions (hover/focus transitions)
+- Accessibility: semantic HTML, labels for inputs, sufficient contrast, keyboard focus
+Aim for a result comparable to Linear / Vercel / Stripe in polish.`;
+
+function isUiProject(projectType: string, task: string): boolean {
+  if (/static-web|react|nextjs|vue|svelte/.test(projectType)) return true;
+  return /\b(ui|ux|page|website|web app|landing|dashboard|component|frontend|html|css|หน้าเว็บ|เว็บ|หน้าจอ)\b/i.test(task);
 }
 
 function buildCritique(valLogs: string[], blocking: ReviewIssue[]): string {

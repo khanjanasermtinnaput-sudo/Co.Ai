@@ -852,11 +852,14 @@ html, body {
 }
 .agent-row:hover .agent-avatar { transform: scale(1.05); }
 
-.av-raa      { background: rgba(155,111,255,0.15); color: var(--purple); border: 1px solid rgba(155,111,255,0.3); }
-.av-planner  { background: rgba(255,122,0,0.12);   color: var(--accent); border: 1px solid rgba(255,122,0,0.25); }
-.av-coder    { background: rgba(34,209,114,0.1);   color: var(--green);  border: 1px solid rgba(34,209,114,0.22); }
-.av-reviewer { background: rgba(255,190,11,0.1);   color: var(--yellow); border: 1px solid rgba(255,190,11,0.22); }
-.av-validator{ background: rgba(79,145,248,0.1);   color: var(--blue);   border: 1px solid rgba(79,145,248,0.22); }
+.av-raa       { background: rgba(155,111,255,0.15); color: var(--purple); border: 1px solid rgba(155,111,255,0.3); }
+.av-architect { background: rgba(91,156,246,0.13);  color: #6FA8FF;       border: 1px solid rgba(91,156,246,0.28); }
+.av-planner   { background: rgba(255,122,0,0.12);   color: var(--accent); border: 1px solid rgba(255,122,0,0.25); }
+.av-coder     { background: rgba(34,209,114,0.1);   color: var(--green);  border: 1px solid rgba(34,209,114,0.22); }
+.av-reviewer  { background: rgba(255,190,11,0.1);   color: var(--yellow); border: 1px solid rgba(255,190,11,0.22); }
+.av-validator { background: rgba(79,145,248,0.1);   color: var(--blue);   border: 1px solid rgba(79,145,248,0.22); }
+.av-documenter{ background: rgba(34,209,114,0.1);   color: var(--green);  border: 1px solid rgba(34,209,114,0.22); }
+.av-impact    { background: rgba(242,90,90,0.1);    color: var(--red);    border: 1px solid rgba(242,90,90,0.22); }
 
 .agent-info { flex: 1; min-width: 0; }
 .agent-name {
@@ -1637,6 +1640,20 @@ select.fld {
           </div>
         </div>
 
+        <div class="agent-row" id="architect-row">
+          <div class="agent-row-inner">
+            <div class="agent-avatar av-architect">A</div>
+            <div class="agent-info">
+              <div class="agent-name">Architect</div>
+              <div class="agent-role">Design &amp; impact</div>
+            </div>
+            <div class="agent-status-line">
+              <div class="agent-dot" id="dot-architect"></div>
+              <span class="agent-status-text" id="status-architect">Ready</span>
+            </div>
+          </div>
+        </div>
+
         <div class="agent-row">
           <div class="agent-row-inner">
             <div class="agent-avatar av-planner">G</div>
@@ -1689,6 +1706,20 @@ select.fld {
             <div class="agent-status-line">
               <div class="agent-dot" id="dot-validator"></div>
               <span class="agent-status-text" id="status-validator">Ready</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="agent-row" id="documenter-row">
+          <div class="agent-row-inner">
+            <div class="agent-avatar av-documenter">D</div>
+            <div class="agent-info">
+              <div class="agent-name">Documenter</div>
+              <div class="agent-role">README &amp; docs</div>
+            </div>
+            <div class="agent-status-line">
+              <div class="agent-dot" id="dot-documenter"></div>
+              <span class="agent-status-text" id="status-documenter">Ready</span>
             </div>
           </div>
         </div>
@@ -1761,8 +1792,8 @@ select.fld {
 // ── CONFIG / API ──────────────────────────────────────────────────────────────
 const API = '';
 const PROVIDERS = ['openrouter','gemini','deepseek','qwen','llama'];
-const ROLE_AGENT = { planner:'Gemini', coder:'DeepSeek', reviewer:'Qwen', validator:'Meta Llama' };
-const ROLE_COLOR = { planner:'t-orange', coder:'t-green', reviewer:'t-yellow', validator:'t-blue', system:'t-dim' };
+const ROLE_AGENT = { architect:'Architect', planner:'Gemini', coder:'DeepSeek', reviewer:'Qwen', validator:'Meta Llama', documenter:'Documenter', impact:'Impact' };
+const ROLE_COLOR = { architect:'t-blue', planner:'t-orange', coder:'t-green', reviewer:'t-yellow', validator:'t-blue', documenter:'t-green', impact:'t-red', system:'t-dim' };
 const ROLE_WF    = { planner:1, coder:3, validator:5, reviewer:4 };
 const MODE_LABEL = { lite:'AOF 1.0 Lite', normal:'AOF 1.0', pro:'AOF 1.0 Pro' };
 
@@ -1966,10 +1997,12 @@ async function boot(){
   await sleep(120);
   writeLine('<span class="t-purple">OK</span>  Loading RAA             [requirements architect]');
   await sleep(70);
-  writeLine('<span class="t-green">OK</span>  Loading Gemini          [planner]');
+  writeLine('<span class="t-blue">OK</span>  Loading Architect       [design &amp; impact analysis]');
+  await sleep(70); writeLine('<span class="t-green">OK</span>  Loading Gemini          [planner]');
   await sleep(70); writeLine('<span class="t-green">OK</span>  Loading DeepSeek        [coder]');
   await sleep(70); writeLine('<span class="t-green">OK</span>  Loading Qwen            [reviewer]');
   await sleep(70); writeLine('<span class="t-green">OK</span>  Loading Meta Llama      [validator]');
+  await sleep(70); writeLine('<span class="t-green">OK</span>  Loading Documenter      [readme &amp; docs]');
   await sleep(100);
   writeLine('<span class="t-dim">──────────────────────────────────────────────────────────</span>');
   writeLine('<span class="t-green">Ready.</span>  <span class="t-dim">Signed in as </span><span class="t-orange">'+escHtml(state.user)+'</span>');
@@ -2110,7 +2143,7 @@ function setPhase(p){
     raaRow.style.display = 'none';
     wfPlan.style.display = 'none';
     wfGen.style.display  = '';
-    document.getElementById('sb-agents').textContent = '4 agents ready';
+    document.getElementById('sb-agents').textContent = '6 agents ready';
   }
 }
 
@@ -2368,18 +2401,21 @@ async function cmdAgents(){
   writeLine('<span class="t-dim">──────────────────────────────────────────────────────────</span>');
   writeBlank();
   const rows=[
+    ['Architect','Design','decides approach + new/modify files, flags risks early'],
     ['Gemini','Planner','breaks the task into a concrete plan'],
     ['DeepSeek','Coder','writes the actual code files'],
-    ['Qwen','Reviewer','reviews code, flags issues'],
     ['Meta Llama','Validator','runs grounded syntax validation'],
+    ['Qwen','Reviewer','reviews code, flags issues'],
+    ['Documenter','Docs','generates a README for the result'],
   ];
   for(const [n,role,desc] of rows){
-    await sleep(60);
+    await sleep(50);
     writeLine(`  <span class="t-orange">${n.padEnd(12)}</span> <span class="t-dim">${role.padEnd(11)}</span> <span class="t-green">Ready</span>`);
     writeLine(`  <span class="t-dim">${' '.repeat(12)} ${desc}</span>`);
     writeBlank();
   }
-  writeLine('<span class="t-green">Agents collaborate through a shared blackboard (plan → code → validate → review).</span>');
+  writeLine('<span class="t-green">Pipeline: architect → plan → code → validate → review → document.</span>');
+  writeLine('<span class="t-dim">Plus an Impact Analysis pass that warns which files a change might break.</span>');
 }
 async function cmdProfile(){
   let keysLine='—';
@@ -2418,7 +2454,7 @@ function setAgentBusy(role){ const d=document.getElementById('dot-'+role),l=docu
 function setAgentDone(role){ const d=document.getElementById('dot-'+role),l=document.getElementById('status-'+role); if(d)d.className='agent-dot done'; if(l)l.textContent='Done'; }
 function setAgentReady(role){ const d=document.getElementById('dot-'+role),l=document.getElementById('status-'+role); if(d)d.className='agent-dot'; if(l)l.textContent='Ready'; }
 function resetAgents(){
-  ['planner','coder','reviewer','validator'].forEach(setAgentReady);
+  ['architect','planner','coder','reviewer','validator','documenter'].forEach(setAgentReady);
   document.getElementById('sb-agents').textContent=agentsLabel();
 }
 function setWfStep(n){ for(let i=0;i<7;i++){ const el=document.getElementById('wf-'+i); if(!el)continue; el.className='wf-step'+(i<n?' done':i===n?' active':''); } }
@@ -2499,12 +2535,15 @@ cmdInput.addEventListener('keydown', e=>{
 // ── VISUAL TMAP — TABS / AGENT LOG / OUTPUT ───────────────────────────────────
 const PANELS = { terminal: 'terminal-body', agentlog: 'agentlog-body', output: 'output-body' };
 const ROLE_AV = {
-  raa:       ['R',  'av-raa',       'RAA'],
-  planner:   ['G',  'av-planner',   'Gemini'],
-  coder:     ['DS', 'av-coder',     'DeepSeek'],
-  reviewer:  ['Q',  'av-reviewer',  'Qwen'],
-  validator: ['L',  'av-validator', 'Meta Llama'],
-  system:    ['S',  'av-system',    'System'],
+  raa:        ['R',  'av-raa',        'RAA'],
+  architect:  ['A',  'av-architect',  'Architect'],
+  planner:    ['G',  'av-planner',    'Gemini'],
+  coder:      ['DS', 'av-coder',      'DeepSeek'],
+  reviewer:   ['Q',  'av-reviewer',   'Qwen'],
+  validator:  ['L',  'av-validator',  'Meta Llama'],
+  documenter: ['D',  'av-documenter', 'Documenter'],
+  impact:     ['I',  'av-impact',     'Impact'],
+  system:     ['S',  'av-system',     'System'],
 };
 
 function switchTab(name){
@@ -2609,7 +2648,7 @@ function formatSize(n){
 function updateClock(){ document.getElementById('sb-clock').textContent=now(); }
 setInterval(updateClock,1000); updateClock();
 let toastTimer;
-function agentsLabel(){ return state.phase==='planning' ? 'RAA active' : '4 agents ready'; }
+function agentsLabel(){ return state.phase==='planning' ? 'RAA active' : '6 agents ready'; }
 function showToast(msg){ const el=document.getElementById('sb-agents'); el.textContent=msg; clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.textContent=agentsLabel(),3000); }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────

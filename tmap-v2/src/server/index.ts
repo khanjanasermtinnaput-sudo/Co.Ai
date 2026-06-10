@@ -256,8 +256,12 @@ app.post('/v1/run', requireAuth, async (req: AuthedRequest, res) => {
         });
         await addCost(u.id, result.tokensUsed, result.costUsd);
         addTokens(result.tokensUsed, result.costUsd);
-        // Record into project memory so the next session starts informed
+        // Record into project memory so the next session starts informed.
+        // Architecture decisions from the Architect stage become durable memory.
         try {
+          const decisions: string[] = [];
+          if (bb.architect?.approach) decisions.push(bb.architect.approach);
+          for (const r of bb.architect?.risks ?? []) decisions.push(`Avoid: ${r}`);
           recordSessionMemory(u.id, {
             task: task.slice(0, 160),
             status: result.status,
@@ -265,8 +269,9 @@ app.post('/v1/run', requireAuth, async (req: AuthedRequest, res) => {
             iterations: result.iterations,
             at: new Date().toISOString(),
           }, {
-            techStack: bb.contextMeta?.projectType,
+            techStack: bb.architect?.techStack || bb.contextMeta?.projectType,
             conventions: bb.contextMeta?.conventions,
+            decisions,
           });
         } catch { /* memory is best-effort */ }
         logger.info('tmap_done', { sessionId: sessionRec.id, files: result.filesCount, iterations: result.iterations, costUsd: result.costUsd, status: result.status });

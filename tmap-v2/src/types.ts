@@ -63,6 +63,31 @@ export interface ContextMeta {
   fileCount: number;
 }
 
+// Architect Agent output (core/architect.ts) — the design stage before planning.
+export interface ArchitectDecision {
+  approach: string;        // short design approach / pattern
+  newFiles: string[];      // files that should be created
+  modifyFiles: string[];   // existing files that should be modified
+  risks: string[];         // architectural concerns flagged up-front
+  techStack: string;
+  raw: string;
+}
+
+// Impact Analysis Engine output (core/impact.ts).
+export interface ImpactRisk {
+  file: string;
+  level: 'high' | 'med' | 'low';
+  reason: string;
+  affects: string[];       // files that import / depend on this one
+}
+
+export interface ImpactReport {
+  risks: ImpactRisk[];
+  affectedFiles: string[];
+  summary: string;
+  skipped?: boolean;       // true when there was no dependency graph to analyse
+}
+
 // The Blackboard — shared working memory every agent reads/writes.
 export interface Blackboard {
   sessionId: string;
@@ -70,6 +95,9 @@ export interface Blackboard {
   mode: Mode;
   context: string;
   contextMeta?: ContextMeta;
+  architect?: ArchitectDecision;  // design stage output
+  impact?: ImpactReport;          // pre-flight risk analysis
+  docs?: CodeFile[];              // generated documentation files
   plan: PlanStep[];
   planText: string;
   files: CodeFile[];
