@@ -7,6 +7,7 @@ import { chatWithDARS, type DarsContext } from '../dars/run.js';
 import { HealthStore, globalHealth } from '../dars/health.js';
 import { listProviderCandidates } from '../dars/select.js';
 import { gatherProjectContext } from './context.js';
+import { buildContextV2 } from './context-engine.js';
 import { runCoderVote } from './vote.js';
 
 type Emit = (role: string, text: string, kind?: 'status' | 'output' | 'error') => void;
@@ -70,15 +71,31 @@ export async function runTMAP(
 
   await runOpts.onSessionStart?.(bb.sessionId);
 
-  // Inject project context into blackboard context if not already provided
+  // Inject project context into blackboard context if not already provided.
+  // Context Engine v2: tree + dependency graph + relevant-file selection.
   if (!bb.context && !runOpts.skipContext) {
     try {
-      const projCtx = gatherProjectContext(runOpts.projectRoot);
-      if (projCtx.summary) {
-        bb.context = projCtx.summary;
-        emit('system', `project context detected: ${projCtx.techStack || 'unknown'}`, 'status');
+      const v2 = buildContextV2(runOpts.projectRoot ?? process.cwd(), bb.task);
+      if (v2.summary) {
+        bb.context = v2.summary;
+        bb.contextMeta = {
+          projectType: v2.projectType,
+          relevantFiles: v2.relevantFiles,
+          conventions: v2.conventions,
+          fileCount: v2.tree.length,
+        };
+        emit('system', `context engine: ${v2.projectType} · ${v2.tree.length} files scanned · ${v2.relevantFiles.length} relevant`, 'status');
       }
-    } catch { /* context scan failure is non-fatal */ }
+    } catch {
+      // v2 failure is non-fatal — fall back to the flat v1 scan
+      try {
+        const projCtx = gatherProjectContext(runOpts.projectRoot);
+        if (projCtx.summary) {
+          bb.context = projCtx.summary;
+          emit('system', `project context detected: ${projCtx.techStack || 'unknown'}`, 'status');
+        }
+      } catch { /* context scan failure is non-fatal */ }
+    }
   }
 
   const ctx: DarsContext = { creds, health, emit, sessionId: bb.sessionId };

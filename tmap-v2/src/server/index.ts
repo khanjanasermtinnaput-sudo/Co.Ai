@@ -18,6 +18,7 @@ import { bagHasAnyKey, type CredentialBag } from '../config.js';
 import { createBlackboard } from '../core/blackboard.js';
 import { runTMAP } from '../core/orchestrator.js';
 import { runRAA } from '../core/raa.js';
+import { loadMemory, memoryToContext, recordSessionMemory, clearMemory } from '../core/memory.js';
 import { currentMode } from '../config.js';
 import type { Mode, ChatMessage } from '../types.js';
 import { chatWithDARS } from '../dars/run.js';
@@ -147,6 +148,16 @@ app.get('/v1/me/cost', requireAuth, async (req: AuthedRequest, res) => {
   res.json(cost ?? { userId: req.user!.id, totalCostUsd: 0, totalTokens: 0, sessionCount: 0 });
 });
 
+// ── PROJECT MEMORY ────────────────────────────────────────────────────────────
+app.get('/v1/memory', requireAuth, (req: AuthedRequest, res) => {
+  res.json(loadMemory(req.user!.id));
+});
+
+app.delete('/v1/memory', requireAuth, (req: AuthedRequest, res) => {
+  clearMemory(req.user!.id);
+  res.json({ ok: true });
+});
+
 // ── PLANNING CHAT — RAA (SSE stream) ─────────────────────────────────────────
 app.post('/v1/chat', requireAuth, async (req: AuthedRequest, res) => {
   const message = String(req.body?.message ?? '').trim();
@@ -209,7 +220,18 @@ app.post('/v1/run', requireAuth, async (req: AuthedRequest, res) => {
     send({ role: 'system', kind: 'status', text: 'ยังไม่มี API key — กำลังใช้ mock mode เพิ่ม key ได้ในหน้า Settings' });
   }
 
-  const bb = createBlackboard(task, mode, context);
+  // Project memory: prepend what we know from previous sessions for this user
+  let memCtx = '';
+  try {
+    const mem = loadMemory(u.id);
+    memCtx = memoryToContext(mem);
+    if (memCtx) {
+      send({ role: 'system', kind: 'status', text: `memory: loaded ${mem.sessions.length} previous session(s)` });
+    }
+  } catch { /* memory is best-effort */ }
+
+  const fullContext = [context, memCtx].filter(Boolean).join('\n\n');
+  const bb = createBlackboard(task, mode, fullContext);
 
   // Create session record immediately so it appears in history
   const sessionRec = await createSession(u.id, task, mode);
@@ -234,6 +256,19 @@ app.post('/v1/run', requireAuth, async (req: AuthedRequest, res) => {
         });
         await addCost(u.id, result.tokensUsed, result.costUsd);
         addTokens(result.tokensUsed, result.costUsd);
+        // Record into project memory so the next session starts informed
+        try {
+          recordSessionMemory(u.id, {
+            task: task.slice(0, 160),
+            status: result.status,
+            files: bb.files.map((f) => f.path).slice(0, 20),
+            iterations: result.iterations,
+            at: new Date().toISOString(),
+          }, {
+            techStack: bb.contextMeta?.projectType,
+            conventions: bb.contextMeta?.conventions,
+          });
+        } catch { /* memory is best-effort */ }
         logger.info('tmap_done', { sessionId: sessionRec.id, files: result.filesCount, iterations: result.iterations, costUsd: result.costUsd, status: result.status });
         if (result.status === 'error') incTmapError();
       },

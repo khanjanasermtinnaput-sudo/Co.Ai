@@ -1,6 +1,7 @@
 node_modules/
 .env
 .aof/
+.aof-server/
 dist/
 *.log
 aof-output/

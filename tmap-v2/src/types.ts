@@ -55,12 +55,21 @@ export interface CodeFile {
 // Session phase for the two-mode system (TDD §5 — Planning → Generation).
 export type SessionPhase = 'planning' | 'generation';
 
+// Structured metadata produced by the Context Engine v2 (core/context-engine.ts).
+export interface ContextMeta {
+  projectType: string;
+  relevantFiles: string[];
+  conventions: string[];
+  fileCount: number;
+}
+
 // The Blackboard — shared working memory every agent reads/writes.
 export interface Blackboard {
   sessionId: string;
   task: string;
   mode: Mode;
   context: string;
+  contextMeta?: ContextMeta;
   plan: PlanStep[];
   planText: string;
   files: CodeFile[];
