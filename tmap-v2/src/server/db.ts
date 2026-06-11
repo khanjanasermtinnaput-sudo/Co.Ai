@@ -49,8 +49,48 @@ export interface CostRecord {
   updatedAt: string;
 }
 
-// ── File-based storage (persistent JSON, no 500MB limit) ──────────────────────
-// Vercel ephemeral /tmp is OK for demo; for self-hosted this persists across restarts.
+// ── Supabase (persistent Postgres via PostgREST) ──────────────────────────────
+// When SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY are set, user accounts and their
+// encrypted API keys are stored in Postgres so they survive across requests and
+// serverless cold starts. Without it, we fall back to the JSON file below — which
+// on Vercel lives in the ephemeral /tmp and is wiped between invocations, so every
+// visit would require re-creating the account.
+const SUPABASE_URL = process.env.SUPABASE_URL?.replace(/\/$/, '');
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const useSupabase = Boolean(SUPABASE_URL && SUPABASE_KEY);
+
+interface SupabaseUserRow {
+  id: string;
+  username: string;
+  pin_hash: string;
+  encrypted_keys: Partial<Record<ProviderKeyName, string>> | null;
+  created_at: string;
+}
+
+function rowToUser(row: SupabaseUserRow): UserRecord {
+  return {
+    id: row.id,
+    username: row.username,
+    pinHash: row.pin_hash,
+    encryptedKeys: row.encrypted_keys ?? {},
+    createdAt: row.created_at,
+  };
+}
+
+async function sb(path: string, init: RequestInit = {}): Promise<Response> {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    ...init,
+    headers: {
+      apikey: SUPABASE_KEY!,
+      Authorization: `Bearer ${SUPABASE_KEY}`,
+      'Content-Type': 'application/json',
+      ...(init.headers ?? {}),
+    },
+  });
+  return res;
+}
+
+// ── File-based storage (fallback for local/dev) ───────────────────────────────
 const DB_PATH = process.env.AOF_DB_PATH
   ?? (process.env.VERCEL ? '/tmp/aof-db.json' : join(process.cwd(), '.aof-server', 'db.json'));
 
@@ -77,16 +117,40 @@ function save(db: DbShape): void {
 
 // ── USER ──────────────────────────────────────────────────────────────────────
 export async function findUserByUsername(username: string): Promise<UserRecord | undefined> {
-  return load().users[username.toLowerCase()];
+  const key = username.toLowerCase();
+  if (useSupabase) {
+    const res = await sb(`users?username=eq.${encodeURIComponent(key)}&select=*&limit=1`);
+    if (!res.ok) throw new Error(`supabase findUserByUsername failed: ${res.status}`);
+    const rows = (await res.json()) as SupabaseUserRow[];
+    return rows[0] ? rowToUser(rows[0]) : undefined;
+  }
+  return load().users[key];
 }
 
 export async function findUserById(id: string): Promise<UserRecord | undefined> {
+  if (useSupabase) {
+    const res = await sb(`users?id=eq.${encodeURIComponent(id)}&select=*&limit=1`);
+    if (!res.ok) throw new Error(`supabase findUserById failed: ${res.status}`);
+    const rows = (await res.json()) as SupabaseUserRow[];
+    return rows[0] ? rowToUser(rows[0]) : undefined;
+  }
   return Object.values(load().users).find((u) => u.id === id);
 }
 
 export async function createUser(username: string, pinHash: string): Promise<UserRecord> {
-  const db = load();
   const key = username.toLowerCase();
+  if (useSupabase) {
+    const res = await sb('users', {
+      method: 'POST',
+      headers: { Prefer: 'return=representation' },
+      body: JSON.stringify({ username: key, pin_hash: pinHash, encrypted_keys: {} }),
+    });
+    if (res.status === 409) throw new Error('username already taken');
+    if (!res.ok) throw new Error(`supabase createUser failed: ${res.status} ${await res.text()}`);
+    const rows = (await res.json()) as SupabaseUserRow[];
+    return rowToUser(rows[0]);
+  }
+  const db = load();
   if (db.users[key]) throw new Error('username already taken');
   const user: UserRecord = {
     id: randomUUID(), username: key, pinHash,
@@ -98,6 +162,17 @@ export async function createUser(username: string, pinHash: string): Promise<Use
 }
 
 export async function setUserKey(userId: string, provider: ProviderKeyName, encrypted: string): Promise<void> {
+  if (useSupabase) {
+    const current = await findUserById(userId);
+    if (!current) throw new Error('user not found');
+    const encryptedKeys = { ...current.encryptedKeys, [provider]: encrypted };
+    const res = await sb(`users?id=eq.${encodeURIComponent(userId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ encrypted_keys: encryptedKeys }),
+    });
+    if (!res.ok) throw new Error(`supabase setUserKey failed: ${res.status}`);
+    return;
+  }
   const db = load();
   const user = Object.values(db.users).find((u) => u.id === userId);
   if (!user) throw new Error('user not found');
@@ -106,6 +181,18 @@ export async function setUserKey(userId: string, provider: ProviderKeyName, encr
 }
 
 export async function deleteUserKey(userId: string, provider: ProviderKeyName): Promise<void> {
+  if (useSupabase) {
+    const current = await findUserById(userId);
+    if (!current) throw new Error('user not found');
+    const encryptedKeys = { ...current.encryptedKeys };
+    delete encryptedKeys[provider];
+    const res = await sb(`users?id=eq.${encodeURIComponent(userId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ encrypted_keys: encryptedKeys }),
+    });
+    if (!res.ok) throw new Error(`supabase deleteUserKey failed: ${res.status}`);
+    return;
+  }
   const db = load();
   const user = Object.values(db.users).find((u) => u.id === userId);
   if (!user) throw new Error('user not found');
