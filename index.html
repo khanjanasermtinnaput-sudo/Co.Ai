@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AOF Code</title>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -697,11 +696,15 @@ html, body {
 
 /* tiny model dropdown wrapper */
 .model-wrap { position: relative; }
+
+/* self-contained code highlighting (replaces external highlight.js theme) */
+#file-content pre { background: #0D0D0D; border: 1px solid var(--border); padding: 12px; border-radius: 6px; overflow: auto; }
+#file-content code { font-family: var(--mono); color: var(--text-sec); white-space: pre; }
+.tok-keyword { color: #C586C0; }
+.tok-string  { color: #CE9178; }
+.tok-comment { color: #6A9955; font-style: italic; }
+.tok-number  { color: #B5CEA8; }
 </style>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github-dark.min.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 </head>
 <body>
 
@@ -1180,10 +1183,47 @@ function renderGeneratedFile() {
 
   const content = document.getElementById('file-content');
   const language = file.name.endsWith('.json') ? 'json' : file.name.endsWith('.md') ? 'markdown' : 'javascript';
-  content.innerHTML = `<pre><code class="language-${language}">${escHtml(file.content)}</code></pre>`;
-  if (window.hljs) {
-    document.querySelectorAll('#file-content code').forEach(block => hljs.highlightElement(block));
+  content.innerHTML = `<pre><code class="language-${language}">${highlightCode(file.content)}</code></pre>`;
+}
+
+/* Lightweight, dependency-free syntax highlighter (JS/JSON/Markdown friendly).
+   Scans the source and wraps tokens in spans; all text is HTML-escaped. */
+function highlightCode(code) {
+  const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const kw = new Set(['const','let','var','function','return','if','else','for','while','do',
+    'import','export','default','from','new','class','extends','async','await','true','false',
+    'null','undefined','typeof','instanceof','of','in','this','switch','case','break','continue','try','catch','throw']);
+  const out = [];
+  const n = code.length;
+  let i = 0;
+  while (i < n) {
+    const c = code[i];
+    if (c === '/' && code[i + 1] === '/') {            // line comment
+      let j = i; while (j < n && code[j] !== '\n') j++;
+      out.push('<span class="tok-comment">' + esc(code.slice(i, j)) + '</span>'); i = j; continue;
+    }
+    if (c === '/' && code[i + 1] === '*') {            // block comment
+      let j = i + 2; while (j < n && !(code[j] === '*' && code[j + 1] === '/')) j++;
+      j = Math.min(n, j + 2);
+      out.push('<span class="tok-comment">' + esc(code.slice(i, j)) + '</span>'); i = j; continue;
+    }
+    if (c === '"' || c === "'" || c === '`') {          // string
+      let j = i + 1; while (j < n) { if (code[j] === '\\') { j += 2; continue; } if (code[j] === c) { j++; break; } j++; }
+      out.push('<span class="tok-string">' + esc(code.slice(i, j)) + '</span>'); i = j; continue;
+    }
+    if (c >= '0' && c <= '9') {                          // number
+      let j = i; while (j < n && /[0-9.]/.test(code[j])) j++;
+      out.push('<span class="tok-number">' + esc(code.slice(i, j)) + '</span>'); i = j; continue;
+    }
+    if (/[A-Za-z_$]/.test(c)) {                          // identifier / keyword
+      let j = i; while (j < n && /[A-Za-z0-9_$]/.test(code[j])) j++;
+      const word = code.slice(i, j);
+      out.push(kw.has(word) ? '<span class="tok-keyword">' + esc(word) + '</span>' : esc(word));
+      i = j; continue;
+    }
+    out.push(esc(c)); i++;
   }
+  return out.join('');
 }
 
 function generateProjectFiles(project, stack) {
@@ -1234,11 +1274,74 @@ async function cmdExport() {
     writeLine('<span class="t-red">No generated files available. Run /gencode first.</span>');
     return;
   }
-  const zip = new JSZip();
-  state.generatedFiles.forEach(file => zip.file(file.name, file.content));
-  const blob = await zip.generateAsync({ type: 'blob' });
-  saveAs(blob, `${state.currentProject || 'aof-project'}.zip`);
+  const blob = buildZipBlob(state.generatedFiles);
+  downloadBlob(blob, `${state.currentProject || 'aof-project'}.zip`);
   writeLine('<span class="t-green">Download ready: ZIP file created.</span>');
+}
+
+/* CRC-32 (used by the ZIP local/central headers) */
+function crc32(bytes) {
+  let crc = ~0;
+  for (let i = 0; i < bytes.length; i++) {
+    crc ^= bytes[i];
+    for (let j = 0; j < 8; j++) crc = (crc >>> 1) ^ (0xEDB88320 & -(crc & 1));
+  }
+  return (~crc) >>> 0;
+}
+
+/* Minimal, dependency-free ZIP writer (STORE / no compression) — replaces JSZip. */
+function buildZipBlob(files) {
+  const enc = new TextEncoder();
+  const u16 = n => [n & 0xff, (n >>> 8) & 0xff];
+  const u32 = n => [n & 0xff, (n >>> 8) & 0xff, (n >>> 16) & 0xff, (n >>> 24) & 0xff];
+  const chunks = [];
+  const central = [];
+  let offset = 0;
+
+  files.forEach(f => {
+    const nameBytes = enc.encode(f.name);
+    const dataBytes = enc.encode(f.content);
+    const crc = crc32(dataBytes);
+    const size = dataBytes.length;
+
+    const local = [].concat(
+      u32(0x04034b50), u16(20), u16(0), u16(0), u16(0), u16(0),
+      u32(crc), u32(size), u32(size), u16(nameBytes.length), u16(0)
+    );
+    chunks.push(new Uint8Array(local), nameBytes, dataBytes);
+
+    const cd = [].concat(
+      u32(0x02014b50), u16(20), u16(20), u16(0), u16(0), u16(0), u16(0),
+      u32(crc), u32(size), u32(size), u16(nameBytes.length), u16(0), u16(0), u16(0), u16(0),
+      u32(0), u32(offset)
+    );
+    central.push({ header: new Uint8Array(cd), name: nameBytes });
+    offset += local.length + nameBytes.length + dataBytes.length;
+  });
+
+  const cdStart = offset;
+  let cdSize = 0;
+  central.forEach(c => { chunks.push(c.header, c.name); cdSize += c.header.length + c.name.length; });
+
+  const end = [].concat(
+    u32(0x06054b50), u16(0), u16(0), u16(files.length), u16(files.length),
+    u32(cdSize), u32(cdStart), u16(0)
+  );
+  chunks.push(new Uint8Array(end));
+
+  return new Blob(chunks, { type: 'application/zip' });
+}
+
+/* Trigger a file download from a Blob — replaces FileSaver's saveAs. */
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 function rememberProjectContext(project, text) {
