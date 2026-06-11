@@ -8,6 +8,7 @@ interface ProviderDef {
   defaultModel: string;
   modelEnv: string;        // env var to override model name
   openrouterModel: string; // model id when routed through OpenRouter
+  api?: 'openai' | 'anthropic'; // wire protocol for a DIRECT call (default openai)
 }
 
 // Provider catalogue. All use the OpenAI-compatible /chat/completions shape,
@@ -45,7 +46,35 @@ export const PROVIDERS: Record<string, ProviderDef> = {
     modelEnv: 'LLAMA_MODEL',
     openrouterModel: 'meta-llama/llama-3.3-70b-instruct',
   },
+  claude: {
+    name: 'Claude',
+    envKey: 'ANTHROPIC_API_KEY',
+    baseURL: 'https://api.anthropic.com/v1',
+    defaultModel: 'claude-opus-4-8',
+    modelEnv: 'CLAUDE_MODEL',
+    openrouterModel: 'anthropic/claude-opus-4-8',
+    api: 'anthropic',
+  },
 };
+
+// Per-role model choice for Claude: Opus for the intelligence-sensitive roles
+// (coder/reviewer), Sonnet for the high-volume ones (planner/validator) to keep
+// cost down. A CLAUDE_MODEL env / creds.models override wins over this.
+const CLAUDE_ROLE_MODEL: Record<Role, string> = {
+  coder: 'claude-opus-4-8',
+  reviewer: 'claude-opus-4-8',
+  planner: 'claude-sonnet-4-6',
+  validator: 'claude-sonnet-4-6',
+};
+
+/** Resolve the model name for a direct call to `providerKey` serving `role`. */
+export function modelForRole(
+  providerKey: string, role: Role, def: ProviderDef, override?: string,
+): string {
+  if (override?.trim()) return override.trim();
+  if (providerKey === 'claude') return CLAUDE_ROLE_MODEL[role] ?? def.defaultModel;
+  return def.defaultModel;
+}
 
 // Default role -> provider mapping (overridable; this is config, not hardcode).
 export const ROLE_PROVIDER: Record<Role, string> = {
@@ -69,15 +98,16 @@ function openrouterKey(): string | undefined {
 
 /** Resolve which provider/model/key a given role should use right now. */
 export function resolveRole(role: Role): ResolvedProvider {
-  const def = PROVIDERS[ROLE_PROVIDER[role]];
+  const providerKey = ROLE_PROVIDER[role];
+  const def = PROVIDERS[providerKey];
 
   // 1) Direct provider key wins.
   const key = directKey(def);
   if (key) {
     return {
       role, providerName: def.name, baseURL: def.baseURL, apiKey: key,
-      model: process.env[def.modelEnv]?.trim() || def.defaultModel,
-      mode: 'direct',
+      model: modelForRole(providerKey, role, def, process.env[def.modelEnv]),
+      mode: 'direct', api: def.api,
     };
   }
 
@@ -98,8 +128,8 @@ export function resolveRole(role: Role): ResolvedProvider {
     if (k) {
       return {
         role, providerName: `${def.name} -> ${od.name} (fallback)`, baseURL: od.baseURL,
-        apiKey: k, model: process.env[od.modelEnv]?.trim() || od.defaultModel,
-        mode: 'fallback',
+        apiKey: k, model: modelForRole(otherKey, role, od, process.env[od.modelEnv]),
+        mode: 'fallback', api: od.api,
       };
     }
   }
@@ -138,6 +168,7 @@ export interface CredentialBag {
   deepseek?: string;
   qwen?: string;
   llama?: string;
+  claude?: string;
   models?: Partial<Record<string, string>>; // providerKey -> model override
 }
 
@@ -149,13 +180,14 @@ function bagKey(providerKey: string, creds: CredentialBag): string | undefined {
 export function resolveRoleWith(role: Role, creds: CredentialBag): ResolvedProvider {
   const providerKey = ROLE_PROVIDER[role];
   const def = PROVIDERS[providerKey];
-  const model = creds.models?.[providerKey] || def.defaultModel;
+  const model = modelForRole(providerKey, role, def, creds.models?.[providerKey]);
 
   const direct = bagKey(providerKey, creds);
   if (direct) {
-    return { role, providerName: def.name, baseURL: def.baseURL, apiKey: direct, model, mode: 'direct' };
+    return { role, providerName: def.name, baseURL: def.baseURL, apiKey: direct, model, mode: 'direct', api: def.api };
   }
   if (creds.openrouter?.trim()) {
+    // OpenRouter is OpenAI-compatible regardless of the underlying vendor.
     return {
       role, providerName: `${def.name} (via OpenRouter)`, baseURL: OPENROUTER_BASE,
       apiKey: creds.openrouter.trim(), model: def.openrouterModel, mode: 'openrouter',
@@ -167,7 +199,8 @@ export function resolveRoleWith(role: Role, creds: CredentialBag): ResolvedProvi
       const od = PROVIDERS[otherKey];
       return {
         role, providerName: `${def.name} -> ${od.name} (fallback)`, baseURL: od.baseURL,
-        apiKey: k, model: creds.models?.[otherKey] || od.defaultModel, mode: 'fallback',
+        apiKey: k, model: modelForRole(otherKey, role, od, creds.models?.[otherKey]),
+        mode: 'fallback', api: od.api,
       };
     }
   }
@@ -184,7 +217,7 @@ export function resolveAllWith(creds: CredentialBag): Record<Role, ResolvedProvi
 }
 
 export function bagHasAnyKey(creds: CredentialBag): boolean {
-  return Boolean(creds.openrouter || creds.gemini || creds.deepseek || creds.qwen || creds.llama);
+  return Boolean(creds.openrouter || creds.gemini || creds.deepseek || creds.qwen || creds.llama || creds.claude);
 }
 
 /** Build a CredentialBag from process.env so the CLI/env path also runs through DARS. */

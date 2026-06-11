@@ -3,7 +3,7 @@
 // keys for, pick the healthiest, most role-appropriate one — and try OpenRouter
 // routes as additional backups.
 
-import { PROVIDERS, type CredentialBag } from '../config.js';
+import { PROVIDERS, modelForRole, type CredentialBag } from '../config.js';
 import type { Role, ResolvedProvider } from '../types.js';
 import { HealthStore } from './health.js';
 
@@ -12,15 +12,15 @@ const OPENROUTER_BASE = 'https://openrouter.ai/api/v1';
 // Role × provider fit (0..1). Seeded from general strengths; can later be made
 // data-driven from Agent Memory / eval telemetry (TDD §6.6).
 const ROLE_CAPABILITY: Record<Role, Record<string, number>> = {
-  planner:   { gemini: 0.90, qwen: 0.80, llama: 0.72, deepseek: 0.70 },
-  coder:     { deepseek: 0.92, qwen: 0.85, gemini: 0.72, llama: 0.62 },
-  reviewer:  { qwen: 0.86, gemini: 0.82, deepseek: 0.76, llama: 0.70 },
-  validator: { llama: 0.82, deepseek: 0.80, gemini: 0.76, qwen: 0.74 },
+  planner:   { claude: 0.93, gemini: 0.90, qwen: 0.80, llama: 0.72, deepseek: 0.70 },
+  coder:     { claude: 0.95, deepseek: 0.92, qwen: 0.85, gemini: 0.72, llama: 0.62 },
+  reviewer:  { claude: 0.94, qwen: 0.86, gemini: 0.82, deepseek: 0.76, llama: 0.70 },
+  validator: { claude: 0.88, llama: 0.82, deepseek: 0.80, gemini: 0.76, qwen: 0.74 },
 };
 
 // Rough relative cost, 0 cheap .. 1 expensive.
 const PROVIDER_COST: Record<string, number> = {
-  llama: 0.10, deepseek: 0.30, qwen: 0.40, gemini: 0.50,
+  llama: 0.10, deepseek: 0.30, qwen: 0.40, gemini: 0.50, claude: 0.95,
 };
 
 export interface DarsCandidate {
@@ -46,7 +46,7 @@ export function listProviderCandidates(role: Role, creds: CredentialBag): DarsCa
         healthKey: pk,
         provider: {
           role, providerName: def.name, baseURL: def.baseURL, apiKey: direct.trim(),
-          model: creds.models?.[pk] || def.defaultModel, mode: 'direct',
+          model: modelForRole(pk, role, def, creds.models?.[pk]), mode: 'direct', api: def.api,
         },
       });
     }

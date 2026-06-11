@@ -61,7 +61,7 @@ export async function runCoder(
   const raw = await call([
     { role: 'system', content: CODER_SYS },
     { role: 'user', content: userParts.join('\n\n') },
-  ], { temperature: 0.2, maxTokens: 4096 });
+  ], { temperature: 0.2, maxTokens: 8192 });
 
   return parseCodeBlocks(raw);
 }

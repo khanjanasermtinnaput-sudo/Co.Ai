@@ -26,6 +26,9 @@ export interface ResolvedProvider {
   apiKey: string;
   model: string;
   mode: 'direct' | 'openrouter' | 'fallback' | 'mock';
+  // Wire protocol. Most vendors speak the OpenAI-compatible /chat/completions
+  // shape; Anthropic uses its own /messages shape (see providers/client.ts).
+  api?: 'openai' | 'anthropic';
 }
 
 export interface PlanStep {
