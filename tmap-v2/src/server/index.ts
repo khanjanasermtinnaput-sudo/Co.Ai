@@ -42,7 +42,14 @@ function validUsername(u: unknown): u is string {
   return typeof u === 'string' && /^[a-zA-Z0-9_]{2,32}$/.test(u.trim());
 }
 function validPin(p: unknown): p is string {
-  return typeof p === 'string' && /^\d{4,8}$/.test(String(p).trim());
+  return typeof p === 'string' && /^\d{6,12}$/.test(String(p).trim());
+}
+// Reject trivially-guessable PINs: a single repeated digit, or a strictly
+// ascending/descending run (123456, 654321, 000000). Rate limiting covers the
+// rest; this just stops the worst choices at registration.
+function isWeakPin(pin: string): boolean {
+  if (/^(\d)\1+$/.test(pin)) return true;
+  return '0123456789'.includes(pin) || '9876543210'.includes(pin);
 }
 
 // ── AUTH ──────────────────────────────────────────────────────────────────────
@@ -52,7 +59,10 @@ app.post('/v1/auth/register', async (req, res) => {
     return res.status(400).json({ error: 'ชื่อผู้ใช้ต้องเป็นตัวอักษร/ตัวเลข 2-32 ตัว' });
   }
   if (!validPin(pin)) {
-    return res.status(400).json({ error: 'PIN ต้องเป็นตัวเลข 4-8 หลัก' });
+    return res.status(400).json({ error: 'PIN ต้องเป็นตัวเลข 6-12 หลัก' });
+  }
+  if (isWeakPin(String(pin).trim())) {
+    return res.status(400).json({ error: 'PIN เดาง่ายเกินไป — เลี่ยงเลขซ้ำหรือเรียงต่อกัน (เช่น 123456, 000000)' });
   }
   if (await findUserByUsername(username)) {
     return res.status(409).json({ error: 'ชื่อนี้ถูกใช้แล้ว' });
@@ -305,8 +315,10 @@ app.get('/v1/metrics', (_req, res) => {
 });
 
 // ── static ────────────────────────────────────────────────────────────────────
+// Single source of truth: the repo-root `public/` dir (also what Vercel serves
+// statically). __dirname is src/server, so go up two levels.
 const __dirname = dirname(fileURLToPath(import.meta.url));
-app.use(express.static(join(__dirname, 'public')));
+app.use(express.static(join(__dirname, '..', '..', 'public')));
 
 export default app;
 

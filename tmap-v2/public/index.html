@@ -1395,7 +1395,7 @@ select.fld {
 <div id="auth-overlay" class="modal-overlay">
   <div class="modal-box">
     <div class="modal-title">AOF <span>Code</span></div>
-    <div class="modal-sub">เข้าสู่ระบบด้วยชื่อผู้ใช้ + PIN (ตัวเลข 4–8 หลัก)</div>
+    <div class="modal-sub">เข้าสู่ระบบด้วยชื่อผู้ใช้ + PIN (ตัวเลข 6–12 หลัก)</div>
     <div class="auth-tabs">
       <button class="auth-tab active" id="tab-login" onclick="switchAuth('login')">เข้าสู่ระบบ</button>
       <button class="auth-tab" id="tab-register" onclick="switchAuth('register')">สมัครใหม่</button>
@@ -1403,11 +1403,11 @@ select.fld {
     <label class="fld-label">ชื่อผู้ใช้ (Username)</label>
     <input id="auth-username" class="fld" placeholder="username" autocomplete="username"
            onkeydown="if(event.key==='Enter')document.getElementById('auth-pin').focus()">
-    <label class="fld-label">PIN <span style="color:var(--fg3);font-weight:400">(ตัวเลข 4–8 หลัก)</span></label>
+    <label class="fld-label">PIN <span style="color:var(--fg3);font-weight:400">(ตัวเลข 6–12 หลัก)</span></label>
     <div class="pin-wrap">
-      <input id="auth-pin" class="fld" type="password" inputmode="numeric" maxlength="8" placeholder="••••••••"
+      <input id="auth-pin" class="fld" type="password" inputmode="numeric" maxlength="12" placeholder="••••••••"
              autocomplete="current-password"
-             oninput="this.value=this.value.replace(/\D/g,'').slice(0,8)"
+             oninput="this.value=this.value.replace(/\D/g,'').slice(0,12)"
              onkeydown="if(event.key==='Enter')doAuth()">
       <button class="pin-toggle" onclick="togglePin()" id="pin-eye">แสดง</button>
     </div>
@@ -1915,6 +1915,7 @@ function startLockoutCountdown(secs){
 async function doAuth(){
   const username = val('auth-username'), pin = val('auth-pin');
   if(!username || !pin){ authMsg('กรุณากรอกชื่อผู้ใช้และ PIN','err'); return; }
+  if(state.authMode === 'register' && pin.length < 6){ authMsg('PIN ต้องมีอย่างน้อย 6 หลัก','err'); return; }
   authMsg('กำลังดำเนินการ…','info');
   const btn = document.getElementById('auth-btn');
   btn.disabled = true;

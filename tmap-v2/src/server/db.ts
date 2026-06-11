@@ -1,177 +1,63 @@
-import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
-import { join, dirname } from 'node:path';
-import { randomUUID } from 'node:crypto';
+// Storage facade — picks a backend at startup and delegates to it.
+//
+//   SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY set  → SupabaseStore (durable, serverless-safe)
+//   otherwise                                     → FileStore (atomic JSON, render disk / local)
+//
+// The rest of the server imports these functions and stays storage-agnostic.
 
-export type ProviderKeyName = 'openrouter' | 'gemini' | 'deepseek' | 'qwen' | 'llama' | 'claude';
+import type { Store } from './store/types.js';
+import { FileStore } from './store/fileStore.js';
+import { SupabaseStore } from './store/supabaseStore.js';
 
-export interface UserRecord {
-  id: string;
-  username: string;
-  pinHash: string;
-  encryptedKeys: Partial<Record<ProviderKeyName, string>>;
-  createdAt: string;
-}
+export type {
+  ProviderKeyName, UserRecord, SessionRecord, AgentLogRecord, CostRecord,
+} from './store/types.js';
+import type {
+  ProviderKeyName, UserRecord, SessionRecord, AgentLogRecord, CostRecord,
+} from './store/types.js';
 
-export interface SessionRecord {
-  id: string;
-  userId: string;
-  task: string;
-  mode: string;
-  status: 'running' | 'done' | 'error';
-  filesCount: number;
-  iterations: number;
-  costUsd: number;
-  tokensUsed: number;
-  createdAt: string;
-  updatedAt: string;
-  summary?: string;
-}
-
-export interface AgentLogRecord {
-  id: string;
-  sessionId: string;
-  role: string;
-  provider: string;
-  model: string;
-  attempts: number;
-  inputTokens: number;
-  outputTokens: number;
-  costUsd: number;
-  durationMs: number;
-  ts: string;
-}
-
-export interface CostRecord {
-  userId: string;
-  totalCostUsd: number;
-  totalTokens: number;
-  sessionCount: number;
-  updatedAt: string;
-}
-
-// ── File-based storage (persistent JSON, no 500MB limit) ──────────────────────
-// Vercel ephemeral /tmp is OK for demo; for self-hosted this persists across restarts.
-const DB_PATH = process.env.AOF_DB_PATH
-  ?? (process.env.VERCEL ? '/tmp/aof-db.json' : join(process.cwd(), '.aof-server', 'db.json'));
-
-interface DbShape {
-  users: Record<string, UserRecord>;
-  sessions: Record<string, SessionRecord>;
-  agentLogs: AgentLogRecord[];
-  costs: Record<string, CostRecord>; // userId -> cost
-}
-
-function load(): DbShape {
-  if (!existsSync(DB_PATH)) return { users: {}, sessions: {}, agentLogs: [], costs: {} };
-  try {
-    return JSON.parse(readFileSync(DB_PATH, 'utf8')) as DbShape;
-  } catch {
-    return { users: {}, sessions: {}, agentLogs: [], costs: {} };
+function pickStore(): Store {
+  const url = process.env.SUPABASE_URL?.trim();
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  if (url && key) {
+    console.log('AOF Code → storage: Supabase (Postgres)');
+    return new SupabaseStore(url, key);
   }
+  return new FileStore();
 }
 
-function save(db: DbShape): void {
-  mkdirSync(dirname(DB_PATH), { recursive: true });
-  writeFileSync(DB_PATH, JSON.stringify(db, null, 2), 'utf8');
-}
+const store: Store = pickStore();
 
-// ── USER ──────────────────────────────────────────────────────────────────────
-export async function findUserByUsername(username: string): Promise<UserRecord | undefined> {
-  return load().users[username.toLowerCase()];
-}
-
-export async function findUserById(id: string): Promise<UserRecord | undefined> {
-  return Object.values(load().users).find((u) => u.id === id);
-}
-
-export async function createUser(username: string, pinHash: string): Promise<UserRecord> {
-  const db = load();
-  const key = username.toLowerCase();
-  if (db.users[key]) throw new Error('username already taken');
-  const user: UserRecord = {
-    id: randomUUID(), username: key, pinHash,
-    encryptedKeys: {}, createdAt: new Date().toISOString(),
-  };
-  db.users[key] = user;
-  save(db);
-  return user;
-}
-
-export async function setUserKey(userId: string, provider: ProviderKeyName, encrypted: string): Promise<void> {
-  const db = load();
-  const user = Object.values(db.users).find((u) => u.id === userId);
-  if (!user) throw new Error('user not found');
-  user.encryptedKeys[provider] = encrypted;
-  save(db);
-}
-
-export async function deleteUserKey(userId: string, provider: ProviderKeyName): Promise<void> {
-  const db = load();
-  const user = Object.values(db.users).find((u) => u.id === userId);
-  if (!user) throw new Error('user not found');
-  delete user.encryptedKeys[provider];
-  save(db);
-}
+// ── USERS ───────────────────────────────────────────────────────────────────
+export const findUserByUsername = (username: string): Promise<UserRecord | undefined> =>
+  store.findUserByUsername(username);
+export const findUserById = (id: string): Promise<UserRecord | undefined> =>
+  store.findUserById(id);
+export const createUser = (username: string, pinHash: string): Promise<UserRecord> =>
+  store.createUser(username, pinHash);
+export const setUserKey = (userId: string, provider: ProviderKeyName, encrypted: string): Promise<void> =>
+  store.setUserKey(userId, provider, encrypted);
+export const deleteUserKey = (userId: string, provider: ProviderKeyName): Promise<void> =>
+  store.deleteUserKey(userId, provider);
 
 // ── SESSIONS ─────────────────────────────────────────────────────────────────
-export async function createSession(userId: string, task: string, mode: string): Promise<SessionRecord> {
-  const db = load();
-  const session: SessionRecord = {
-    id: randomUUID(), userId, task, mode,
-    status: 'running',
-    filesCount: 0, iterations: 0, costUsd: 0, tokensUsed: 0,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
-  db.sessions[session.id] = session;
-  save(db);
-  return session;
-}
-
-export async function updateSession(id: string, patch: Partial<SessionRecord>): Promise<void> {
-  const db = load();
-  if (!db.sessions[id]) return;
-  Object.assign(db.sessions[id], patch, { updatedAt: new Date().toISOString() });
-  save(db);
-}
-
-export async function getUserSessions(userId: string, limit = 20): Promise<SessionRecord[]> {
-  const db = load();
-  return Object.values(db.sessions)
-    .filter((s) => s.userId === userId)
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-    .slice(0, limit);
-}
-
-export async function getSession(id: string): Promise<SessionRecord | undefined> {
-  return load().sessions[id];
-}
+export const createSession = (userId: string, task: string, mode: string): Promise<SessionRecord> =>
+  store.createSession(userId, task, mode);
+export const updateSession = (id: string, patch: Partial<SessionRecord>): Promise<void> =>
+  store.updateSession(id, patch);
+export const getUserSessions = (userId: string, limit = 20): Promise<SessionRecord[]> =>
+  store.getUserSessions(userId, limit);
+export const getSession = (id: string): Promise<SessionRecord | undefined> =>
+  store.getSession(id);
 
 // ── AGENT LOGS ────────────────────────────────────────────────────────────────
-export async function appendAgentLog(log: Omit<AgentLogRecord, 'id' | 'ts'>): Promise<void> {
-  const db = load();
-  db.agentLogs.push({ id: randomUUID(), ts: new Date().toISOString(), ...log });
-  // keep last 5000 entries to avoid unbounded growth
-  if (db.agentLogs.length > 5000) db.agentLogs = db.agentLogs.slice(-5000);
-  save(db);
-}
+export const appendAgentLog = (log: Omit<AgentLogRecord, 'id' | 'ts'>): Promise<void> =>
+  store.appendAgentLog(log);
+export const getSessionLogs = (sessionId: string): Promise<AgentLogRecord[]> =>
+  store.getSessionLogs(sessionId);
 
-export async function getSessionLogs(sessionId: string): Promise<AgentLogRecord[]> {
-  return load().agentLogs.filter((l) => l.sessionId === sessionId);
-}
-
-// ── COST TRACKING ─────────────────────────────────────────────────────────────
-export async function addCost(userId: string, tokens: number, costUsd: number): Promise<void> {
-  const db = load();
-  const existing = db.costs[userId] ?? { userId, totalCostUsd: 0, totalTokens: 0, sessionCount: 0, updatedAt: '' };
-  existing.totalCostUsd = Math.round((existing.totalCostUsd + costUsd) * 1e8) / 1e8;
-  existing.totalTokens += tokens;
-  existing.sessionCount += 1;
-  existing.updatedAt = new Date().toISOString();
-  db.costs[userId] = existing;
-  save(db);
-}
-
-export async function getUserCost(userId: string): Promise<CostRecord | undefined> {
-  return load().costs[userId];
-}
+// ── COST TRACKING ───────────────────────────────────────────────────────────
+export const addCost = (userId: string, tokens: number, costUsd: number): Promise<void> =>
+  store.addCost(userId, tokens, costUsd);
+export const getUserCost = (userId: string): Promise<CostRecord | undefined> =>
+  store.getUserCost(userId);
