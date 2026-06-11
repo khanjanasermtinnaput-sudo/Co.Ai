@@ -42,6 +42,7 @@ OPENROUTER_API_KEY=sk-or-v1-xxxxxxxxxxxxxxxx
 | `DEEPSEEK_API_KEY`  | Coder     | https://platform.deepseek.com/api_keys |
 | `DASHSCOPE_API_KEY` | Reviewer (Qwen) | https://dashscope.console.aliyun.com |
 | `GROQ_API_KEY`      | Validator (Llama) | https://console.groq.com/keys |
+| `ANTHROPIC_API_KEY` | ทุก role — Opus (Coder, Reviewer) + Sonnet (Planner, Validator) | https://console.anthropic.com/settings/keys |
 
 > key อยู่ในไฟล์ `.env` ฝั่งเครื่องคุณเท่านั้น — `.gitignore` กันไม่ให้หลุดขึ้น git แล้ว
 

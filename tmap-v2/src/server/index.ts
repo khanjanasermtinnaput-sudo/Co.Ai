@@ -24,7 +24,7 @@ import type { Mode, ChatMessage } from '../types.js';
 import { chatWithDARS } from '../dars/run.js';
 import { globalHealth } from '../dars/health.js';
 
-const PROVIDERS: ProviderKeyName[] = ['openrouter', 'gemini', 'deepseek', 'qwen', 'llama'];
+const PROVIDERS: ProviderKeyName[] = ['openrouter', 'gemini', 'deepseek', 'qwen', 'llama', 'claude'];
 
 const app = express();
 app.use(cors());

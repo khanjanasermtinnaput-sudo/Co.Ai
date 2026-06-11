@@ -17,6 +17,11 @@ export async function chat(
     return mockReply(provider.role, messages);
   }
 
+  // Anthropic speaks its own /messages shape (system is top-level, not a message role).
+  if (provider.api === 'anthropic') {
+    return chatAnthropic(provider, messages, opts);
+  }
+
   const url = `${provider.baseURL}/chat/completions`;
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -55,6 +60,64 @@ export async function chat(
     data?.choices?.[0]?.message?.content ??
     data?.choices?.[0]?.text ??
     '';
+  if (!content) throw new Error(`${provider.providerName}: empty response`);
+  return String(content).trim();
+}
+
+/**
+ * Anthropic Messages API (https://api.anthropic.com/v1/messages).
+ * Differs from the OpenAI shape: `system` is a top-level string, `messages`
+ * carries only user/assistant turns, auth is `x-api-key` + `anthropic-version`,
+ * and `max_tokens` is required.
+ */
+async function chatAnthropic(
+  provider: ResolvedProvider,
+  messages: ChatMessage[],
+  opts: ChatOpts,
+): Promise<string> {
+  const url = `${provider.baseURL}/messages`;
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'x-api-key': provider.apiKey,
+    'anthropic-version': '2023-06-01',
+  };
+
+  // Hoist all system turns into the single top-level `system` field.
+  const system = messages.filter((m) => m.role === 'system').map((m) => m.content).join('\n\n');
+  const turns = messages
+    .filter((m) => m.role !== 'system')
+    .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }));
+  // Anthropic requires the conversation to be non-empty and to start with a user turn.
+  if (!turns.length || turns[0].role !== 'user') {
+    turns.unshift({ role: 'user', content: system || 'continue' });
+  }
+
+  const body = JSON.stringify({
+    model: provider.model,
+    ...(system ? { system } : {}),
+    messages: turns,
+    max_tokens: opts.maxTokens ?? 2048,
+    temperature: opts.temperature ?? 0.2,
+    stream: false,
+  });
+
+  let res: Response;
+  try {
+    res = await fetch(url, { method: 'POST', headers, body, signal: opts.signal });
+  } catch (e) {
+    throw new Error(`network error calling ${provider.providerName}: ${(e as Error).message}`);
+  }
+
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(`${provider.providerName} HTTP ${res.status}: ${detail.slice(0, 300)}`);
+  }
+
+  const data: any = await res.json();
+  // content is an array of blocks; concatenate the text blocks.
+  const content = Array.isArray(data?.content)
+    ? data.content.filter((b: any) => b?.type === 'text').map((b: any) => b.text).join('')
+    : '';
   if (!content) throw new Error(`${provider.providerName}: empty response`);
   return String(content).trim();
 }

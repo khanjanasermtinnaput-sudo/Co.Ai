@@ -1430,6 +1430,7 @@ select.fld {
       <option value="deepseek">deepseek — Coder</option>
       <option value="qwen">qwen — Reviewer</option>
       <option value="llama">llama / groq — Validator</option>
+      <option value="claude">claude / anthropic — Opus (Coder, Reviewer) + Sonnet (Planner, Validator)</option>
     </select>
     <label class="fld-label">วาง API Key</label>
     <div style="display:flex;gap:8px;align-items:flex-start">
@@ -1791,7 +1792,7 @@ select.fld {
 <script>
 // ── CONFIG / API ──────────────────────────────────────────────────────────────
 const API = '';
-const PROVIDERS = ['openrouter','gemini','deepseek','qwen','llama'];
+const PROVIDERS = ['openrouter','gemini','deepseek','qwen','llama','claude'];
 const ROLE_AGENT = { architect:'Architect', planner:'Gemini', coder:'DeepSeek', reviewer:'Qwen', validator:'Meta Llama', documenter:'Documenter', impact:'Impact' };
 const ROLE_COLOR = { architect:'t-blue', planner:'t-orange', coder:'t-green', reviewer:'t-yellow', validator:'t-blue', documenter:'t-green', impact:'t-red', system:'t-dim' };
 const ROLE_WF    = { planner:1, coder:3, validator:5, reviewer:4 };

@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
-export type ProviderKeyName = 'openrouter' | 'gemini' | 'deepseek' | 'qwen' | 'llama';
+export type ProviderKeyName = 'openrouter' | 'gemini' | 'deepseek' | 'qwen' | 'llama' | 'claude';
 
 export interface UserRecord {
   id: string;

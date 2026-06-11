@@ -48,6 +48,8 @@ const COST_PER_1M: Record<string, { input: number; output: number }> = {
   'deepseek-chat':    { input: 0.14, output: 0.28 },
   'qwen-plus':        { input: 0.40, output: 1.20 },
   'llama-3.3-70b-versatile': { input: 0.59, output: 0.79 },
+  'claude-opus-4-8':   { input: 5.00, output: 25.00 },
+  'claude-sonnet-4-6': { input: 3.00, output: 15.00 },
   default:            { input: 0.50, output: 1.50 },
 };
 
