@@ -40,4 +40,39 @@ describe('validateFiles', () => {
     assert.equal(results.length, 3);
     assert.ok(results.every((r) => r.passed));
   });
+
+  test('passes valid TS with ternary and switch (regression: regex-strip false-fail)', () => {
+    const content = [
+      'const x: number = 1;',
+      "const label: string = x > 0 ? 'pos' : 'neg';",
+      'switch (x) {',
+      '  case 1:',
+      '    console.log(label);',
+      '    break;',
+      '  default:',
+      '    break;',
+      '}',
+    ].join('\n');
+    const results = validateFiles([{ path: 'app.ts', language: 'typescript', content }]);
+    assert.equal(results[0].passed, true);
+    assert.equal(results[0].kind, 'syntax');
+  });
+
+  test('passes valid TS with interface, generics and union types', () => {
+    const content = [
+      'interface Box<T> { value: T }',
+      'type Id = string | number;',
+      'function wrap<T>(value: T): Box<T> { return { value }; }',
+      'const id: Id = wrap<number>(1).value;',
+      'console.log(id);',
+    ].join('\n');
+    const results = validateFiles([{ path: 'box.ts', language: 'typescript', content }]);
+    assert.equal(results[0].passed, true);
+  });
+
+  test('fails TS with a real syntax error', () => {
+    const results = validateFiles([{ path: 'bad.ts', language: 'typescript', content: 'const x: number = ;' }]);
+    assert.equal(results[0].passed, false);
+    assert.equal(results[0].kind, 'syntax');
+  });
 });

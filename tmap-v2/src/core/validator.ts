@@ -2,6 +2,7 @@ import { execFileSync, execSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import ts from 'typescript';
 import type { CodeFile, ValidationResult } from '../types.js';
 
 /**
@@ -53,25 +54,32 @@ function checkJs(f: CodeFile): ValidationResult {
 }
 
 function checkTs(f: CodeFile): ValidationResult {
-  // Quick structural check: parse as text for obvious issues (balanced braces, no bare syntax errors)
-  // Full tsc would need a tsconfig; this is a lightweight gate.
-  let dir: string | undefined;
+  // Grounded TS syntax check via the real TypeScript compiler. transpileModule
+  // parses the file and reports genuine syntax errors without needing a tsconfig,
+  // while accepting valid TS (type annotations, generics, ternaries, switch) that
+  // the old regex-stripping heuristic used to fail by mistake.
   try {
-    dir = mkdtempSync(join(tmpdir(), 'aof-ts-'));
-    // Strip type annotations for a quick JS parse (not perfect but catches obvious issues)
-    const stripped = f.content
-      .replace(/:\s*\w+(\[\])?(\s*\|[\s\w\[\]|]+)?/g, '')   // simple type annotations
-      .replace(/<[^>]+>/g, '')                                 // generics
-      .replace(/^(interface|type)\s+\w+[^{]*\{[^}]*\}/gm, '');// type/interface blocks
-    const jsFile = join(dir, 'check.mjs');
-    writeFileSync(jsFile, stripped, 'utf8');
-    execFileSync(process.execPath, ['--check', jsFile], { stdio: 'pipe' });
-    return { kind: 'syntax', passed: true, logs: `${f.path}: TS syntax OK (lightweight check)` };
+    const out = ts.transpileModule(f.content, {
+      fileName: f.path,
+      reportDiagnostics: true,
+      compilerOptions: {
+        module: ts.ModuleKind.ESNext,
+        target: ts.ScriptTarget.ES2022,
+        jsx: ts.JsxEmit.Preserve,
+        isolatedModules: false,
+      },
+    });
+    const errors = (out.diagnostics ?? []).filter((d) => d.category === ts.DiagnosticCategory.Error);
+    if (!errors.length) {
+      return { kind: 'syntax', passed: true, logs: `${f.path}: TS syntax OK` };
+    }
+    const msg = errors
+      .slice(0, 3)
+      .map((d) => ts.flattenDiagnosticMessageText(d.messageText, ' '))
+      .join(' · ');
+    return { kind: 'syntax', passed: false, logs: `${f.path}: ${msg}` };
   } catch (e: any) {
-    const msg = (e.stderr?.toString() || e.message || '').split('\n').slice(0, 4).join(' ');
-    return { kind: 'syntax', passed: false, logs: `${f.path}: possible syntax issue: ${msg}` };
-  } finally {
-    if (dir) rmSync(dir, { recursive: true, force: true });
+    return { kind: 'syntax', passed: false, logs: `${f.path}: ${e.message || 'TS parse error'}` };
   }
 }
 
