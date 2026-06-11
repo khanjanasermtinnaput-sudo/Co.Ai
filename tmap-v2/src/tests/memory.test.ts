@@ -64,6 +64,25 @@ test('memoryToContext renders sessions, decisions and guidance', () => {
   assert.ok(ctx.includes('Stay consistent'));
 });
 
+test('records and renders L4 failure patterns to avoid (deduped)', () => {
+  const key = 'user-fail';
+  recordSessionMemory(key, {
+    task: 'build login', status: 'error', files: [], iterations: 2, at: new Date().toISOString(),
+  }, {
+    failures: [
+      'validation: app.ts SyntaxError missing )',
+      'validation: app.ts SyntaxError missing )', // duplicate → collapsed
+      '[HIGH] auth.ts — no rate limiting',
+    ],
+  });
+
+  const mem = loadMemory(key);
+  assert.equal(mem.failures.length, 2);
+  const ctx = memoryToContext(mem);
+  assert.ok(ctx.includes('Known failure patterns to avoid'));
+  assert.ok(ctx.includes('no rate limiting'));
+});
+
 test('clearMemory removes the record', () => {
   const key = 'user-4';
   recordSessionMemory(key, {

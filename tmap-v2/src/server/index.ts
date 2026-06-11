@@ -272,6 +272,7 @@ app.post('/v1/run', requireAuth, async (req: AuthedRequest, res) => {
             techStack: bb.architect?.techStack || bb.contextMeta?.projectType,
             conventions: bb.contextMeta?.conventions,
             decisions,
+            failures: bb.failureNotes,
           });
         } catch { /* memory is best-effort */ }
         logger.info('tmap_done', { sessionId: sessionRec.id, files: result.filesCount, iterations: result.iterations, costUsd: result.costUsd, status: result.status });

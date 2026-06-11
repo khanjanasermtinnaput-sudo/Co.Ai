@@ -12,7 +12,7 @@ import { runArchitect, architectToContext } from './architect.js';
 import { analyzeImpact, impactToContext } from './impact.js';
 import { runDocumenter } from './documenter.js';
 import type { DependencyGraph } from './context-engine.js';
-import { runCoderVote } from './vote.js';
+import { runCoderVote, letter } from './vote.js';
 
 type Emit = (role: string, text: string, kind?: 'status' | 'output' | 'error') => void;
 
@@ -69,6 +69,7 @@ export async function runTMAP(
   const creds = runOpts.creds ?? bagFromEnv();
   const health = runOpts.health ?? globalHealth;
   bb.agentRuns = bb.agentRuns ?? [];
+  bb.failureNotes = bb.failureNotes ?? [];
 
   let totalCostUsd = 0;
   let totalTokens = 0;
@@ -200,10 +201,10 @@ export async function runTMAP(
       // 2) CODE — pro mode uses voting (2 coders, reviewer picks best)
       const useVoting = bb.mode === 'pro' && iter === 0;
       if (useVoting) {
-        emit('coder', `generating code with consensus vote (${label('coder')} × 2)`, 'status');
+        emit('coder', `generating code with consensus vote (${label('coder')} × 3)`, 'status');
         const vote = await runCoderVote(callFor('coder'), callFor('reviewer'), bb, critique);
         bb.files = vote.files;
-        emit('coder', `vote winner: candidate ${vote.winnerIndex === 0 ? 'A' : 'B'} — ${vote.reason}`, 'status');
+        emit('coder', `vote winner: candidate ${letter(vote.winnerIndex)}/${vote.candidateCount} — ${vote.reason}`, 'status');
       } else {
         emit('coder', `${iter === 0 ? 'generating code' : `revising (iteration ${iter + 1})`} (${label('coder')})`, 'status');
         bb.files = await runCoder(callFor('coder'), bb, critique);
@@ -229,6 +230,14 @@ export async function runTMAP(
       emit('reviewer', review.raw, 'output');
 
       const blocking = review.issues.filter((i) => i.severity === 'HIGH');
+
+      // L4 — remember failures seen this run so future sessions avoid them.
+      for (const v of bb.validations.filter((x) => !x.passed)) {
+        bb.failureNotes!.push(`validation: ${v.logs}`);
+      }
+      for (const b of blocking) {
+        bb.failureNotes!.push(`[${b.severity}] ${[b.file, b.message].filter(Boolean).join(' — ')}`);
+      }
 
       if (iter < maxIter && (validationFailed || blocking.length)) {
         critique = buildCritique(bb.validations.filter((v) => !v.passed).map((v) => v.logs), blocking);

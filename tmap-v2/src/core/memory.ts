@@ -20,18 +20,26 @@ export interface MemorySessionEntry {
   at: string;
 }
 
+export interface FailureEntry {
+  task: string;
+  problem: string;
+  at: string;
+}
+
 export interface ProjectMemory {
   key: string;
   techStack?: string;
   conventions: string[];
   decisions: string[];
   sessions: MemorySessionEntry[];
+  failures: FailureEntry[];
   updatedAt: string;
 }
 
 const MAX_SESSIONS = 10;
 const MAX_CONVENTIONS = 12;
 const MAX_DECISIONS = 20;
+const MAX_FAILURES = 15;
 
 function memoryDir(): string {
   return process.env.AOF_MEMORY_DIR
@@ -47,7 +55,7 @@ function memoryPath(key: string): string {
 }
 
 export function emptyMemory(key: string): ProjectMemory {
-  return { key: sanitizeKey(key), conventions: [], decisions: [], sessions: [], updatedAt: '' };
+  return { key: sanitizeKey(key), conventions: [], decisions: [], sessions: [], failures: [], updatedAt: '' };
 }
 
 export function loadMemory(key: string): ProjectMemory {
@@ -61,6 +69,7 @@ export function loadMemory(key: string): ProjectMemory {
       conventions: Array.isArray(raw.conventions) ? raw.conventions : [],
       decisions: Array.isArray(raw.decisions) ? raw.decisions : [],
       sessions: Array.isArray(raw.sessions) ? raw.sessions : [],
+      failures: Array.isArray(raw.failures) ? raw.failures : [],
     };
   } catch {
     return emptyMemory(key);
@@ -82,6 +91,7 @@ export interface RecordSessionOpts {
   techStack?: string;
   conventions?: string[];
   decisions?: string[];
+  failures?: string[];
 }
 
 /** Append a finished session to memory (newest first, capped). */
@@ -99,6 +109,13 @@ export function recordSessionMemory(
   }
   if (opts.decisions?.length) {
     mem.decisions = dedupe([...mem.decisions, ...opts.decisions]).slice(0, MAX_DECISIONS);
+  }
+  if (opts.failures?.length) {
+    const fresh: FailureEntry[] = dedupe(opts.failures).map((problem) => ({ task: entry.task, problem, at: entry.at }));
+    const seen = new Set<string>();
+    mem.failures = [...fresh, ...mem.failures]
+      .filter((f) => (seen.has(f.problem) ? false : (seen.add(f.problem), true)))
+      .slice(0, MAX_FAILURES);
   }
 
   saveMemory(mem);
@@ -119,7 +136,8 @@ function dedupe(arr: string[]): string[] {
 
 /** Render memory as a context block for the Planner. Empty string when nothing useful. */
 export function memoryToContext(mem: ProjectMemory): string {
-  const hasContent = mem.sessions.length || mem.decisions.length || mem.conventions.length || mem.techStack;
+  const hasContent = mem.sessions.length || mem.decisions.length || mem.conventions.length
+    || mem.techStack || mem.failures.length;
   if (!hasContent) return '';
 
   const lines: string[] = ['## Project Memory (from previous sessions)'];
@@ -128,6 +146,10 @@ export function memoryToContext(mem: ProjectMemory): string {
   if (mem.decisions.length) {
     lines.push('Architecture decisions:');
     for (const d of mem.decisions.slice(0, 8)) lines.push(`- ${d}`);
+  }
+  if (mem.failures.length) {
+    lines.push('Known failure patterns to avoid (do NOT repeat these):');
+    for (const f of mem.failures.slice(0, 8)) lines.push(`- ${f.problem}`);
   }
   if (mem.sessions.length) {
     lines.push(`Recent sessions (${mem.sessions.length}):`);

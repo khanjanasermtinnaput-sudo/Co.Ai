@@ -1,55 +1,92 @@
-// Voting / Consensus Engine (TDD §5 — parallel agents, majority vote)
-// Used in pro mode: runs Coder twice in parallel, Reviewer picks the better result.
+// Voting / Consensus Engine (TDD §5 — parallel agents, weighted vote).
+// Used in pro mode: runs the Coder N times in parallel at different
+// temperatures (genuine diversity), then a Reviewer call scores them on a
+// weighted rubric and picks the best one.
 
 import type { LLMCall, CodeFile, Blackboard } from '../types.js';
 import { runCoder } from './agents.js';
 
 export interface VoteResult {
   files: CodeFile[];
-  winnerIndex: number;   // 0 or 1
+  winnerIndex: number;    // 0-based index of the chosen candidate
+  candidateCount: number; // how many viable candidates were judged
   reason: string;
 }
 
+// ≥3 candidates per the Consensus Engine spec. Varying the temperature is what
+// actually makes the candidates differ — same temperature twice was nearly a
+// no-op in the previous implementation.
+const VOTE_TEMPS = [0.2, 0.5, 0.8];
+
+const JUDGE_SYS = `You are a code quality judge in AOF Code (TMAP v2).
+Score each candidate implementation on:
+- accuracy / correctness (40%)
+- completeness vs the task (30%)
+- logic consistency (20%)
+- efficiency & clarity (10%)
+Pick the single best candidate overall.
+Respond with EXACTLY two lines:
+PICK: <letter>
+REASON: <one short sentence>`;
+
 /**
- * Run two Coder instances in parallel, then use a Reviewer call to pick the better one.
- * Falls back to candidate A if the reviewer call fails.
+ * Generate diverse Coder candidates in parallel, then have the Reviewer pick the
+ * best per the weighted rubric. Falls back to the first viable candidate if the
+ * judge call fails.
  */
 export async function runCoderVote(
   coderCall: LLMCall,
   reviewerCall: LLMCall,
   bb: Blackboard,
   critique?: string,
+  temps: number[] = VOTE_TEMPS,
 ): Promise<VoteResult> {
-  // Run two coders in parallel with slightly different temperatures
-  const [candidateA, candidateB] = await Promise.all([
-    runCoder(coderCall, bb, critique),
-    runCoder(coderCall, bb, critique),   // same call, different random seed from temperature
-  ]);
+  const settled = await Promise.allSettled(
+    temps.map((t) => runCoder(coderCall, bb, critique, t)),
+  );
+  const candidates = settled
+    .filter((s): s is PromiseFulfilledResult<CodeFile[]> => s.status === 'fulfilled' && s.value.length > 0)
+    .map((s) => s.value);
 
-  // Ask reviewer to pick the better candidate
+  if (candidates.length === 0) {
+    return { files: [], winnerIndex: 0, candidateCount: 0, reason: 'all coder candidates failed' };
+  }
+  if (candidates.length === 1) {
+    return { files: candidates[0], winnerIndex: 0, candidateCount: 1, reason: 'only one viable candidate' };
+  }
+
   try {
-    const prompt = buildVotePrompt(bb.task, candidateA, candidateB);
     const decision = await reviewerCall([
-      { role: 'system', content: 'You are a code quality judge. Pick the better implementation and explain why in one sentence. Respond ONLY with: PICK: A or PICK: B\nREASON: <one sentence>' },
-      { role: 'user', content: prompt },
-    ], { temperature: 0.1, maxTokens: 120 });
+      { role: 'system', content: JUDGE_SYS },
+      { role: 'user', content: buildVotePrompt(bb.task, candidates) },
+    ], { temperature: 0.1, maxTokens: 160 });
 
-    const pickB = /PICK:\s*B/i.test(decision);
-    const reasonMatch = decision.match(/REASON:\s*(.+)/i);
-    return {
-      files: pickB ? candidateB : candidateA,
-      winnerIndex: pickB ? 1 : 0,
-      reason: reasonMatch?.[1]?.trim() ?? (pickB ? 'Candidate B selected' : 'Candidate A selected'),
-    };
+    const winnerIndex = parsePick(decision, candidates.length);
+    const reason = parseReason(decision) ?? `Candidate ${letter(winnerIndex)} selected`;
+    return { files: candidates[winnerIndex], winnerIndex, candidateCount: candidates.length, reason };
   } catch {
-    // Reviewer unavailable — fall back to candidate A
-    return { files: candidateA, winnerIndex: 0, reason: 'Reviewer unavailable; defaulted to candidate A' };
+    return { files: candidates[0], winnerIndex: 0, candidateCount: candidates.length, reason: 'Judge unavailable; defaulted to candidate A' };
   }
 }
 
-function buildVotePrompt(task: string, a: CodeFile[], b: CodeFile[]): string {
+export function letter(i: number): string {
+  return String.fromCharCode(65 + i);
+}
+
+export function parsePick(decision: string, count: number): number {
+  const m = decision.match(/PICK:\s*([A-Za-z])/);
+  if (!m) return 0;
+  const idx = m[1].toUpperCase().charCodeAt(0) - 65;
+  return idx >= 0 && idx < count ? idx : 0;
+}
+
+function parseReason(decision: string): string | undefined {
+  return decision.match(/REASON:\s*(.+)/i)?.[1]?.trim();
+}
+
+function buildVotePrompt(task: string, candidates: CodeFile[][]): string {
   const fmt = (files: CodeFile[], label: string) =>
     `=== CANDIDATE ${label} (${files.length} file(s)) ===\n` +
     files.map((f) => `--- ${f.path} ---\n${f.content.slice(0, 800)}`).join('\n');
-  return `Task: ${task}\n\n${fmt(a, 'A')}\n\n${fmt(b, 'B')}`;
+  return `Task: ${task}\n\n` + candidates.map((c, i) => fmt(c, letter(i))).join('\n\n');
 }

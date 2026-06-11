@@ -107,6 +107,7 @@ export interface Blackboard {
   iterations: number;
   log: AgentEvent[];
   agentRuns?: AgentRun[];   // which provider actually served each agent call (DARS)
+  failureNotes?: string[];  // L4: validation/review failures seen this run (fed to memory)
 }
 
 // Record of one agent call after DARS resolution (TDD §5.3 / §8 agent_logs).

@@ -41,7 +41,7 @@ For EACH file output a fenced block whose info string is the file path, e.g.:
 Output only code blocks. No explanation.`;
 
 export async function runCoder(
-  call: LLMCall, bb: Blackboard, critique?: string,
+  call: LLMCall, bb: Blackboard, critique?: string, temperature = 0.2,
 ): Promise<CodeFile[]> {
   const userParts = [
     `Task: ${bb.task}`,
@@ -61,34 +61,44 @@ export async function runCoder(
   const raw = await call([
     { role: 'system', content: CODER_SYS },
     { role: 'user', content: userParts.join('\n\n') },
-  ], { temperature: 0.2, maxTokens: 4096 });
+  ], { temperature, maxTokens: 4096 });
 
   return parseCodeBlocks(raw);
 }
 
+// Line-based fenced-block parser. Supports variable-length fences (``` ```,
+// ```` ````, ~~~) so a Markdown/README file that itself contains a ``` code
+// fence can be emitted inside a longer outer fence without being truncated.
 export function parseCodeBlocks(text: string): CodeFile[] {
   const files: CodeFile[] = [];
-  const re = /```([^\n]*)\n([\s\S]*?)```/g;
-  let m: RegExpExecArray | null;
-  let i = 0;
-  while ((m = re.exec(text))) {
-    const info = m[1].trim();
-    const content = m[2].replace(/\s+$/, '') + '\n';
-    let path = '';
-    const pm = info.match(/path=([^\s]+)/);
-    if (pm) path = pm[1];
-    else {
-      const lang = info.split(/\s/)[0] || 'txt';
-      const ext = LANG_EXT[lang] || lang || 'txt';
-      path = `file${i === 0 ? '' : i}.${ext}`;
-    }
+  const lines = text.split('\n');
+  let idx = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const open = lines[i].match(/^\s*(`{3,}|~{3,})(.*)$/);
+    if (!open) continue;
+    const fence = open[1];
+    const closeRe = new RegExp(`^\\s*${fence[0]}{${fence.length},}\\s*$`);
+    const body: string[] = [];
+    let j = i + 1;
+    for (; j < lines.length && !closeRe.test(lines[j]); j++) body.push(lines[j]);
+    const content = body.join('\n').replace(/\s+$/, '') + '\n';
+    const path = resolveBlockPath(open[2].trim(), idx);
     files.push({ path, language: extLang(path), content });
-    i++;
+    idx++;
+    i = j; // resume after the closing fence
   }
   if (!files.length && text.trim()) {
     files.push({ path: 'output.txt', language: 'text', content: text.trim() + '\n' });
   }
   return files;
+}
+
+function resolveBlockPath(info: string, idx: number): string {
+  const pm = info.match(/path=([^\s]+)/);
+  if (pm) return pm[1];
+  const lang = info.split(/\s/)[0] || 'txt';
+  const ext = LANG_EXT[lang] || lang || 'txt';
+  return `file${idx === 0 ? '' : idx}.${ext}`;
 }
 
 // ── REVIEWER ─────────────────────────────────────────────────────────────────
@@ -118,15 +128,45 @@ export async function runReviewer(
 
   const issues: ReviewIssue[] = [];
   for (const line of raw.split('\n')) {
-    const parts = line.split('|').map((s) => s.trim());
-    if (parts.length >= 3) {
-      const sev = parts[0].toUpperCase();
-      if (['HIGH', 'MED', 'LOW'].includes(sev)) {
-        issues.push({ severity: sev as ReviewIssue['severity'], file: parts[1], message: parts.slice(2).join(' | ') });
-      }
-    }
+    const issue = parseReviewLine(line);
+    if (issue) issues.push(issue);
   }
   return { issues, raw };
+}
+
+// Robust parse of one reviewer line. Accepts the canonical
+// "SEV | file | message" form plus common variants (colon/dash/bracket
+// separators, the MEDIUM spelling) so a blocking HIGH issue is never silently
+// dropped just because the model formatted it a little differently.
+const SEV_MAP: Record<string, ReviewIssue['severity']> = {
+  HIGH: 'HIGH', MED: 'MED', MEDIUM: 'MED', LOW: 'LOW',
+};
+
+export function parseReviewLine(line: string): ReviewIssue | null {
+  const t = line.trim().replace(/^[-*•]\s+/, '');
+  if (!t) return null;
+
+  // Canonical pipe form: SEV | file | message
+  const piped = t.split('|').map((s) => s.trim());
+  if (piped.length >= 3) {
+    const sev = SEV_MAP[piped[0].toUpperCase().replace(/[^A-Z]/g, '')];
+    if (sev) return { severity: sev, file: piped[1] || undefined, message: piped.slice(2).join(' | ') || '(no detail)' };
+  }
+
+  // Fallback: a leading severity token in any common style.
+  const m = t.match(/^[\[(]?\s*(HIGH|MEDIUM|MED|LOW)\b\s*[\])]?\s*[:|\-–—]?\s*(.*)$/i);
+  if (!m) return null;
+  const sev = SEV_MAP[m[1].toUpperCase()];
+  if (!sev) return null;
+  const rest = m[2].trim();
+  if (!rest) return { severity: sev, message: '(no detail)' };
+
+  // Peel a file path off the front when one is clearly present.
+  const fm = rest.match(/^([^\s:|–—]+)\s*[:|\-–—]\s+(.+)$/);
+  if (fm && /[./]/.test(fm[1])) {
+    return { severity: sev, file: fm[1], message: fm[2].trim() };
+  }
+  return { severity: sev, message: rest };
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
