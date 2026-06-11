@@ -12,6 +12,7 @@ create table if not exists users (
 -- Row Level Security (เปิดไว้แต่ให้ service role ผ่านได้ทั้งหมด)
 alter table users enable row level security;
 
+drop policy if exists "service role full access" on users;
 create policy "service role full access"
   on users using (true) with check (true);
 
