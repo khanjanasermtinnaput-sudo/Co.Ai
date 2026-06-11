@@ -55,6 +55,12 @@ alter table sessions   enable row level security;
 alter table agent_logs enable row level security;
 alter table costs      enable row level security;
 
+-- drop ก่อน create เพื่อให้รัน migration ซ้ำได้ (create policy ไม่มี if not exists)
+drop policy if exists "service role full access" on users;
+drop policy if exists "service role full access" on sessions;
+drop policy if exists "service role full access" on agent_logs;
+drop policy if exists "service role full access" on costs;
+
 create policy "service role full access" on users      using (true) with check (true);
 create policy "service role full access" on sessions   using (true) with check (true);
 create policy "service role full access" on agent_logs using (true) with check (true);
