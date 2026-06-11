@@ -118,3 +118,26 @@ export function pruneExpired(): void {
 
 // Auto-prune every 30 minutes (lightweight — only runs while the instance is warm)
 setInterval(pruneExpired, 30 * 60 * 1_000).unref?.();
+
+// ── CHAT rate limit (per authenticated user) ─────────────────────────────────
+// 60 requests per hour — prevents runaway API spend if an account is compromised.
+
+const CHAT_MAX    = 60;
+const CHAT_WIN_MS = 60 * 60 * 1_000;  // 1 hour
+
+interface ChatBucket { count: number; windowEnd: number; }
+const chatStore = new Map<string, ChatBucket>();
+
+export function checkChatRate(userId: string): RateLimitInfo {
+  const now  = Date.now();
+  let   b    = chatStore.get(userId);
+  if (!b || b.windowEnd <= now) {
+    b = { count: 0, windowEnd: now + CHAT_WIN_MS };
+  }
+  if (b.count >= CHAT_MAX) {
+    return { blocked: true, remaining: 0, retryAfterSec: Math.ceil((b.windowEnd - now) / 1_000) };
+  }
+  b.count += 1;
+  chatStore.set(userId, b);
+  return { blocked: false, remaining: CHAT_MAX - b.count, retryAfterSec: 0 };
+}

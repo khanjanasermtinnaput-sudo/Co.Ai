@@ -116,9 +116,9 @@ export async function runTMAP(
     const r = await chatWithDARS(role, messages, opts, ctx);
     const durationMs = Date.now() - startMs;
 
-    // Estimate token counts from message lengths (rough; real counts need provider headers)
-    const inputTokens = Math.ceil(messages.reduce((s, m) => s + m.content.length, 0) / 4);
-    const outputTokens = Math.ceil(r.text.length / 4);
+    // Prefer real token counts from the provider response; fall back to char/4 estimate.
+    const inputTokens = r.usage?.inputTokens ?? Math.ceil(messages.reduce((s, m) => s + m.content.length, 0) / 4);
+    const outputTokens = r.usage?.outputTokens ?? Math.ceil(r.text.length / 4);
     const costUsd = estimateCost(r.provider.model, inputTokens, outputTokens);
 
     totalCostUsd += costUsd;

@@ -2,7 +2,7 @@
 // Detect → select backup → switch → continue (without failing the job) → log.
 // Agents call `chatWithDARS` instead of `chat`; the orchestrator is otherwise untouched.
 
-import { chat } from '../providers/client.js';
+import { chat, type TokenUsage } from '../providers/client.js';
 import type { ChatMessage, ResolvedProvider, Role, ChatOpts } from '../types.js';
 import type { CredentialBag } from '../config.js';
 import { listProviderCandidates, pickHealthy } from './select.js';
@@ -37,6 +37,7 @@ export interface DarsResult {
   text: string;
   provider: ResolvedProvider;
   attempts: number; // 0 = succeeded on first choice
+  usage?: TokenUsage;  // real token counts from provider (when available)
 }
 
 export async function chatWithDARS(
@@ -49,7 +50,8 @@ export async function chatWithDARS(
     const mock: ResolvedProvider = {
       role, providerName: `${role} (mock)`, baseURL: '', apiKey: '', model: 'mock', mode: 'mock',
     };
-    return { text: await chat(mock, messages, opts), provider: mock, attempts: 0 };
+    const result = await chat(mock, messages, opts);
+    return { text: result.text, provider: mock, attempts: 0 };
   }
 
   const tried = new Set<string>();
@@ -62,11 +64,11 @@ export async function chatWithDARS(
 
     const t0 = Date.now();
     try {
-      const text = await callOnce(cand.provider, messages, opts);
+      const result = await callOnce(cand.provider, messages, opts);
       const latencyMs = Date.now() - t0;
       ctx.health.recordSuccess(cand.healthKey, latencyMs);
 
-      if (isLowQuality(role, text)) {
+      if (isLowQuality(role, result.text)) {
         ctx.health.recordFailure(cand.healthKey, 'low_quality');
         log(ctx, { ts: Date.now(), role, provider: cand.provider.providerName, event: 'low_quality', attempt, latencyMs });
         ctx.emit('system', `${cand.provider.providerName} returned a low-quality result → trying another model`, 'status');
@@ -78,7 +80,7 @@ export async function chatWithDARS(
         ctx.emit('system', `recovered on ${cand.provider.providerName}`, 'status');
       }
       log(ctx, { ts: Date.now(), role, provider: cand.provider.providerName, event: 'success', attempt, latencyMs });
-      return { text, provider: cand.provider, attempts: attempt };
+      return { text: result.text, provider: cand.provider, attempts: attempt, usage: result.usage };
     } catch (e) {
       const err = e as Error;
       const kind = classifyError(err);
@@ -93,7 +95,7 @@ export async function chatWithDARS(
 }
 
 // One call with a hard timeout via AbortController.
-async function callOnce(provider: ResolvedProvider, messages: ChatMessage[], opts: ChatOpts): Promise<string> {
+async function callOnce(provider: ResolvedProvider, messages: ChatMessage[], opts: ChatOpts) {
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), PER_CALL_TIMEOUT);
   try {

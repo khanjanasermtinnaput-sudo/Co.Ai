@@ -12,7 +12,7 @@ import {
   addCost, getUserCost,
   type ProviderKeyName,
 } from './db.js';
-import { checkLoginRate, recordFailure, recordSuccess } from './rateLimit.js';
+import { checkLoginRate, recordFailure, recordSuccess, checkChatRate } from './rateLimit.js';
 import { logger, incRequest, incError, incTmapRun, incTmapError, addTokens, incAgentCall, getMetrics } from './logger.js';
 import { bagHasAnyKey, type CredentialBag } from '../config.js';
 import { createBlackboard } from '../core/blackboard.js';
@@ -175,6 +175,12 @@ app.post('/v1/chat', requireAuth, async (req: AuthedRequest, res) => {
   if (!message) return res.status(400).json({ error: 'message required' });
 
   const u = req.user!;
+
+  const chatLimit = checkChatRate(u.id);
+  if (chatLimit.blocked) {
+    res.setHeader('Retry-After', chatLimit.retryAfterSec);
+    return res.status(429).json({ error: `ส่งข้อความบ่อยเกินไป กรุณารอ ${Math.ceil(chatLimit.retryAfterSec / 60)} นาที` });
+  }
   const creds: CredentialBag = {};
   for (const p of PROVIDERS) {
     if (u.encryptedKeys[p]) (creds as Record<string, string>)[p] = decryptSecret(u.encryptedKeys[p]!);
@@ -254,6 +260,7 @@ app.post('/v1/run', requireAuth, async (req: AuthedRequest, res) => {
   try {
     await runTMAP(bb, (role, text, kind = 'status') => send({ role, text, kind }), {
       creds,
+      skipContext: true,  // server CWD is the app's own source — not the user's project
       onSessionStart: async () => { /* already created */ },
       onSessionEnd: async (_sid, result) => {
         await updateSession(sessionRec.id, {

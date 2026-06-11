@@ -8,13 +8,26 @@ const MOCK_NOTE =
  * POST {baseURL}/chat/completions  — works for Gemini (openai endpoint),
  * DeepSeek, Qwen (DashScope compatible-mode), Llama (Groq) and OpenRouter.
  */
+// Token usage extracted from a provider response (may be absent on some vendors).
+export interface TokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+}
+
+// Augmented return value so callers can record real token counts.
+export interface ChatResult {
+  text: string;
+  usage?: TokenUsage;
+}
+
 export async function chat(
   provider: ResolvedProvider,
   messages: ChatMessage[],
   opts: ChatOpts = {},
-): Promise<string> {
+): Promise<ChatResult> {
   if (provider.mode === 'mock') {
-    return mockReply(provider.role, messages);
+    const text = mockReply(provider.role, messages);
+    return { text };
   }
 
   // Anthropic speaks its own /messages shape (system is top-level, not a message role).
@@ -37,7 +50,7 @@ export async function chat(
     model: provider.model,
     messages,
     temperature: opts.temperature ?? 0.2,
-    max_tokens: opts.maxTokens ?? 2048,
+    max_tokens: opts.maxTokens ?? 4096,
     stream: false,
   });
 
@@ -61,7 +74,12 @@ export async function chat(
     data?.choices?.[0]?.text ??
     '';
   if (!content) throw new Error(`${provider.providerName}: empty response`);
-  return String(content).trim();
+
+  const usage: TokenUsage | undefined = data?.usage
+    ? { inputTokens: data.usage.prompt_tokens ?? 0, outputTokens: data.usage.completion_tokens ?? 0 }
+    : undefined;
+
+  return { text: String(content).trim(), usage };
 }
 
 /**
@@ -74,7 +92,7 @@ async function chatAnthropic(
   provider: ResolvedProvider,
   messages: ChatMessage[],
   opts: ChatOpts,
-): Promise<string> {
+): Promise<ChatResult> {
   const url = `${provider.baseURL}/messages`;
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -96,7 +114,7 @@ async function chatAnthropic(
     model: provider.model,
     ...(system ? { system } : {}),
     messages: turns,
-    max_tokens: opts.maxTokens ?? 2048,
+    max_tokens: opts.maxTokens ?? 4096,
     temperature: opts.temperature ?? 0.2,
     stream: false,
   });
@@ -119,7 +137,12 @@ async function chatAnthropic(
     ? data.content.filter((b: any) => b?.type === 'text').map((b: any) => b.text).join('')
     : '';
   if (!content) throw new Error(`${provider.providerName}: empty response`);
-  return String(content).trim();
+
+  const usage: TokenUsage | undefined = data?.usage
+    ? { inputTokens: data.usage.input_tokens ?? 0, outputTokens: data.usage.output_tokens ?? 0 }
+    : undefined;
+
+  return { text: String(content).trim(), usage };
 }
 
 // Offline fallback so the pipeline still demonstrates end-to-end without keys.
@@ -128,7 +151,7 @@ function mockReply(role: string, messages: ChatMessage[]): string {
   if (role === 'planner')
     return `1. entrypoint — main module\n2. core logic — feature implementation\n3. tests — basic coverage\n${MOCK_NOTE}`;
   if (role === 'coder')
-    return `\`\`\`js\n// main.js — ${MOCK_NOTE}\nexport function main() {\n  console.log("hello from AOF mock");\n}\nmain();\n\`\`\``;
+    return `\`\`\`path=main.js\n// main.js — ${MOCK_NOTE}\nexport function main() {\n  console.log("hello from AOF mock");\n}\nmain();\n\`\`\``;
   if (role === 'reviewer')
     return `LOW | general | ${MOCK_NOTE} Add error handling and tests.`;
   return `skipped | ${MOCK_NOTE}`;
