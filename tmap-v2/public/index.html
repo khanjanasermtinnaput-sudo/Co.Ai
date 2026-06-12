@@ -1500,6 +1500,10 @@ select.fld {
           <div class="mi-name">AOF 1.0 Pro</div>
           <div class="mi-desc">วนแก้ได้ 3 รอบ · ละเอียดสุด</div>
         </div>
+        <div class="mi-option" onclick="selectModel('titan')" style="border-top:1px solid var(--border,rgba(255,255,255,0.08))">
+          <div class="mi-name" style="color:var(--accent)">⬢ AOF Titan <span style="font-size:10px;font-weight:700">highest</span></div>
+          <div class="mi-desc">AI System Architect — วางแผนลึก + Approval Gate แล้วสร้างด้วย Pro</div>
+        </div>
       </div>
     </div>
 
@@ -1795,7 +1799,7 @@ const PROVIDERS = ['openrouter','gemini','deepseek','qwen','llama'];
 const ROLE_AGENT = { architect:'Architect', planner:'Gemini', coder:'DeepSeek', reviewer:'Qwen', validator:'Meta Llama', documenter:'Documenter', impact:'Impact', titan:'Titan' };
 const ROLE_COLOR = { architect:'t-blue', planner:'t-orange', coder:'t-green', reviewer:'t-yellow', validator:'t-blue', documenter:'t-green', impact:'t-red', titan:'t-orange', system:'t-dim' };
 const ROLE_WF    = { planner:1, coder:3, validator:5, reviewer:4 };
-const MODE_LABEL = { lite:'AOF 1.0 Lite', normal:'AOF 1.0', pro:'AOF 1.0 Pro' };
+const MODE_LABEL = { lite:'AOF 1.0 Lite', normal:'AOF 1.0', pro:'AOF 1.0 Pro', titan:'AOF Titan' };
 
 const COMMANDS = [
   { cmd: '/gencode',  desc: 'เริ่มสร้างโค้ด (ต้องผ่าน Planning ก่อน)' },
@@ -2095,11 +2099,8 @@ async function handleGencode(){
       return;
     }
     // Titan always generates at Pro quality — no need to set it manually.
-    const prevMode = state.mode;
     state.mode = 'pro';
-    document.getElementById('model-label').textContent = MODE_LABEL['pro'];
-    document.getElementById('sb-model').textContent    = MODE_LABEL['pro'];
-    document.querySelectorAll('.mi-option').forEach((o,i)=>o.classList.toggle('selected',i===2));
+    setModelUI('pro');
     setPhase('generation');
     writeLine('<span class="t-orange">Titan Blueprint approved.</span>  <span class="t-dim">กำลังส่งพิมพ์เขียวให้ TMAP engine (</span><span class="t-orange">Pro mode</span><span class="t-dim">) ...</span>');
     writeBlank();
@@ -2145,6 +2146,7 @@ async function cmdNewSession(){
   state.titan=false;
   state.titanBlueprint=null;
   setPhase('planning');
+  setModelUI(state.mode);
   writeLine('<span class="t-purple">New planning session.</span>  <span class="t-dim">อธิบายสิ่งที่ต้องการสร้าง</span>');
 }
 
@@ -2154,6 +2156,7 @@ async function cmdTitanMode(idea){
   state.titanBlueprint=null;
   state.chatHistory=[];
   setPhase('planning');
+  setModelUI('titan');
   document.getElementById('sb-agents').textContent='TITAN active';
   writeLine('<span class="t-orange t-bold">⬢ TITAN MODE</span>  <span class="t-dim">Think First, Build Later — AI System Architect</span>');
   writeLine('<span class="t-dim">Titan จะถามจนเข้าใจ ≥85% → เสนอแผน A/B/C + ความเสี่ยง → รอ Approval ก่อนสร้างโค้ด</span>');
@@ -2621,12 +2624,27 @@ function reRun(p){ document.getElementById('cmd-input').value=p; focusInput(); }
 
 // ── MODEL SELECTOR ────────────────────────────────────────────────────────────
 function toggleModelPanel(){ document.getElementById('model-panel').classList.toggle('open'); }
+function setModelUI(key){
+  document.getElementById('model-label').textContent=MODE_LABEL[key];
+  document.getElementById('sb-model').textContent=MODE_LABEL[key];
+  document.querySelectorAll('.mi-option').forEach((o,i)=>o.classList.toggle('selected',['lite','normal','pro','titan'][i]===key));
+}
 function selectModel(mode){
-  state.mode=mode;
-  document.getElementById('model-label').textContent=MODE_LABEL[mode];
-  document.getElementById('sb-model').textContent=MODE_LABEL[mode];
   document.getElementById('model-panel').classList.remove('open');
-  document.querySelectorAll('.mi-option').forEach((o,i)=>o.classList.toggle('selected',['lite','normal','pro'][i]===mode));
+  if(mode==='titan'){
+    setModelUI('titan');
+    if(!state.titan) cmdTitanMode('');   // enter Titan planning session
+    return;
+  }
+  if(state.titan){
+    // leaving Titan back to a normal TMAP mode
+    state.titan=false;
+    state.titanBlueprint=null;
+    setPhase('planning');
+    writeLine('<span class="t-dim">ออกจาก Titan Mode — กลับสู่ planning ปกติ (RAA)</span>');
+  }
+  state.mode=mode;
+  setModelUI(mode);
 }
 document.addEventListener('click', e=>{ if(!e.target.closest('.model-wrap')) document.getElementById('model-panel').classList.remove('open'); });
 
