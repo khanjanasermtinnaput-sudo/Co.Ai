@@ -1,14 +1,11 @@
 name: Deploy GitHub Pages
 
 on:
-  workflow_run:
-    workflows: ["Enable GitHub Pages"]
-    types: [completed]
+  push:
     branches: [main]
 
 jobs:
   deploy:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -21,13 +18,11 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v5
         with:
-          path: ./
+          path: ./tmap-v2/public
 
       - name: Deploy to GitHub Pages
         id: deployment
