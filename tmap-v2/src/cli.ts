@@ -6,6 +6,7 @@ import { createBlackboard, loadSession } from './core/blackboard.js';
 import { runTMAP } from './core/orchestrator.js';
 import { gatherProjectContext } from './core/context.js';
 import { runTitan, blueprintToBuild } from './core/titan.js';
+import { loadMemory, memoryToContext, recordDecision } from './core/memory.js';
 import { chatWithDARS } from './dars/run.js';
 import { globalHealth } from './dars/health.js';
 import type { Role, ChatMessage } from './types.js';
@@ -241,6 +242,14 @@ async function cmdTitan(task: string, opts: { apply: boolean; mode?: string }) {
     return r.text;
   };
 
+  // Project Memory: keyed by project root so Titan remembers across CLI sessions.
+  const memoryKey = process.cwd();
+  let memoryContext = '';
+  try {
+    memoryContext = memoryToContext(loadMemory(memoryKey));
+    if (memoryContext) console.log(c.dim('project memory loaded — Titan จำการตัดสินใจเก่าของโปรเจกต์นี้ได้\n'));
+  } catch { /* memory is best-effort */ }
+
   const history: ChatMessage[] = [];
   let message = task || (await ask(c.orange('คุณ› ') + c.dim('(อธิบายสิ่งที่อยากสร้าง) ')));
 
@@ -250,15 +259,23 @@ async function cmdTitan(task: string, opts: { apply: boolean; mode?: string }) {
       if (/^(exit|quit|ออก)$/i.test(message.trim())) break;
 
       console.log(c.dim('\n… Titan กำลังคิด\n'));
-      const result = await runTitan(call, history, message);
+      const result = await runTitan(call, history, message, { emit, memoryContext });
       history.push({ role: 'user', content: message });
       history.push({ role: 'assistant', content: result.text });
+      if (result.confidenceBlocked) {
+        console.log(c.yellow(`\n⛔ Confidence ${result.confidence}% < 85% — Titan ถูกระบบบังคับให้ถามต่อ ห้ามวางแผน\n`));
+      }
 
       for (const line of result.text.split('\n')) {
         console.log(`${c.orange('titan     ')} ${c.dim('›')} ${line}`);
       }
 
       if (result.hasBlueprint && result.blueprint) {
+        // Record the approved blueprint into persistent project memory.
+        try {
+          const bp = result.blueprint;
+          recordDecision(memoryKey, `Titan blueprint: ${bp.project} — plan ${bp.chosenPlan || '?'}, stack ${bp.techStack || '?'}`);
+        } catch { /* memory is best-effort */ }
         console.log(c.dim('\n' + '─'.repeat(60)));
         console.log(c.green('Blueprint อนุมัติแล้ว ✓'));
         const go = await ask(`${c.bold('ส่งให้ TMAP สร้างโค้ดเลยไหม?')} ${c.dim('(y/N)')} `);

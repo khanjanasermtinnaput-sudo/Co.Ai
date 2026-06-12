@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { runTitan, parseBlueprint, blueprintToBuild } from '../core/titan.js';
+import { runTitan, parseBlueprint, parseConfidence, blueprintToBuild } from '../core/titan.js';
+import type { ChatMessage } from '../types.js';
 
 const PLAN_REPLY = [
   'นี่คือแผนครับ',
@@ -9,10 +10,14 @@ const PLAN_REPLY = [
   '- ระบบต้อง scale ได้',
   '# Plans',
   '## Plan A — Fastest',
+  '# Planning Score',
+  'Overall Confidence: 91%',
   '===END PLAN===',
   'APPROVAL REQUIRED',
   '1. Approve and Generate Code',
 ].join('\n');
+
+const LOW_CONFIDENCE_PLAN = PLAN_REPLY.replace('Overall Confidence: 91%', 'Overall Confidence: 70%');
 
 const BLUEPRINT_REPLY = [
   'อนุมัติแล้ว สร้างพิมพ์เขียวให้ครับ',
@@ -30,15 +35,16 @@ const BLUEPRINT_REPLY = [
 
 test('runTitan detects a plan (approval gate) but no blueprint', async () => {
   const call = async () => PLAN_REPLY;
-  const r = await runTitan(call, [], 'สร้างเว็บ todo');
+  const r = await runTitan(call, [], 'สร้างเว็บ todo', { selfReview: false });
   assert.equal(r.hasPlan, true);
   assert.equal(r.hasBlueprint, false);
   assert.equal(r.blueprint, undefined);
+  assert.equal(r.confidence, 91);
 });
 
 test('runTitan detects an approved blueprint and parses it', async () => {
   const call = async () => BLUEPRINT_REPLY;
-  const r = await runTitan(call, [], '1');
+  const r = await runTitan(call, [], '1', { selfReview: false });
   assert.equal(r.hasBlueprint, true);
   assert.equal(r.blueprint?.project, 'Todo SaaS API');
   assert.equal(r.blueprint?.chosenPlan, 'B — Balanced');
@@ -66,15 +72,123 @@ test('blueprintToBuild falls back to a default task name', () => {
 
 test('runTitan passes history through to the model call', async () => {
   let seen = 0;
-  const call = async (messages: { role: string; content: string }[]) => {
+  const call = async (messages: ChatMessage[]) => {
     seen = messages.length;
     return 'คำถามเพิ่มเติมครับ';
   };
-  const history = [
-    { role: 'user' as const, content: 'อยากได้เว็บ' },
-    { role: 'assistant' as const, content: 'ตอบคำถามก่อนครับ' },
+  const history: ChatMessage[] = [
+    { role: 'user', content: 'อยากได้เว็บ' },
+    { role: 'assistant', content: 'ตอบคำถามก่อนครับ' },
   ];
   const r = await runTitan(call, history, '3, 2, 4');
   assert.equal(seen, 4); // system + 2 history + new user message
   assert.equal(r.hasPlan, false);
+});
+
+// ── parseConfidence ───────────────────────────────────────────────────────────
+test('parseConfidence reads the Overall Confidence line', () => {
+  assert.equal(parseConfidence(PLAN_REPLY), 91);
+  assert.equal(parseConfidence('Overall Confidence: 70 %'), 70);
+  assert.equal(parseConfidence('no score here'), null);
+});
+
+test('parseConfidence uses the LAST occurrence (revised plans)', () => {
+  assert.equal(parseConfidence('Overall Confidence: 80%\n...\nOverall Confidence: 93%'), 93);
+});
+
+// ── ENFORCED CONFIDENCE CHECK ─────────────────────────────────────────────────
+test('a plan below 85% confidence is withheld and replaced by questions', async () => {
+  const calls: string[] = [];
+  const call = async (messages: ChatMessage[]) => {
+    calls.push(messages[messages.length - 1].content);
+    if (calls.length === 1) return LOW_CONFIDENCE_PLAN;
+    return 'ขอถามเพิ่ม: 1) ผู้ใช้กี่คน? 2) ต้องมี auth ไหม?';
+  };
+  const r = await runTitan(call, [], 'สร้างเว็บ', { selfReview: false });
+  assert.equal(r.confidenceBlocked, true);
+  assert.equal(r.hasPlan, false);
+  assert.equal(r.confidence, 70);
+  assert.ok(!r.text.includes('===TITAN PLAN==='));       // plan physically removed
+  assert.match(calls[1], /SYSTEM ENFORCEMENT/);          // enforcement call happened
+});
+
+test('a plan at/above 85% confidence is NOT blocked', async () => {
+  const call = async () => PLAN_REPLY;
+  const r = await runTitan(call, [], 'สร้างเว็บ', { selfReview: false });
+  assert.equal(r.confidenceBlocked, undefined);
+  assert.equal(r.hasPlan, true);
+});
+
+// ── REAL SELF REVIEW LOOP ─────────────────────────────────────────────────────
+test('self-review runs 5 passes and applies findings via a revision call', async () => {
+  let n = 0;
+  const REVISED = PLAN_REPLY.replace('- ระบบต้อง scale ได้', '- ระบบต้อง scale ได้ (เพิ่ม rate limiting แล้ว)');
+  const call = async (messages: ChatMessage[]) => {
+    n++;
+    if (n === 1) return PLAN_REPLY;                       // the plan turn
+    const sys = messages[0].content;
+    if (/Self-Review engine \(pass: Security\)/.test(sys)) return '- ควรเพิ่ม rate limiting ที่ API';
+    if (/Self-Review engine/.test(sys)) return 'OK';      // other 4 passes clean
+    return REVISED;                                       // the revision call
+  };
+  const events: string[] = [];
+  const r = await runTitan(call, [], 'สร้างเว็บ', { emit: (_r, t) => events.push(t) });
+  assert.equal(n, 7);                                     // 1 plan + 5 passes + 1 revision
+  assert.equal(r.hasPlan, true);
+  assert.deepEqual(r.reviewFindings, ['[Security] ควรเพิ่ม rate limiting ที่ API']);
+  assert.match(r.text, /rate limiting แล้ว/);             // revision applied
+  assert.ok(events.some((e) => /self-review pass 3\/5: Security/.test(e)));
+});
+
+test('self-review with all passes clean leaves the plan unchanged', async () => {
+  let n = 0;
+  const call = async () => (++n === 1 ? PLAN_REPLY : 'OK');
+  const r = await runTitan(call, [], 'สร้างเว็บ');
+  assert.equal(n, 6);                                     // 1 plan + 5 passes, no revision
+  assert.equal(r.text, PLAN_REPLY);
+  assert.equal(r.reviewFindings, undefined);
+});
+
+test('a broken revision (lost markers) keeps the original plan', async () => {
+  let n = 0;
+  const call = async (messages: ChatMessage[]) => {
+    n++;
+    if (n === 1) return PLAN_REPLY;
+    if (/Self-Review engine/.test(messages[0].content)) return '- finding';
+    return 'oops, free text without markers';
+  };
+  const r = await runTitan(call, [], 'สร้างเว็บ');
+  assert.equal(r.hasPlan, true);
+  assert.match(r.text, /===TITAN PLAN===/);               // original survived
+});
+
+test('a failing review pass is skipped without killing the turn', async () => {
+  let n = 0;
+  const call = async (messages: ChatMessage[]) => {
+    n++;
+    if (n === 1) return PLAN_REPLY;
+    if (/Self-Review engine/.test(messages[0].content)) throw new Error('provider down');
+    return 'unused';
+  };
+  const r = await runTitan(call, [], 'สร้างเว็บ');
+  assert.equal(r.hasPlan, true);
+  assert.equal(r.reviewFindings, undefined);
+});
+
+// ── PROJECT MEMORY ────────────────────────────────────────────────────────────
+test('memoryContext is injected into the system prompt', async () => {
+  let sys = '';
+  const call = async (messages: ChatMessage[]) => { sys = messages[0].content; return 'ถามต่อครับ'; };
+  await runTitan(call, [], 'สวัสดี', { memoryContext: '## Project Memory\nTech stack: Node.js + Express' });
+  assert.match(sys, /Project Memory/);
+  assert.match(sys, /Tech stack: Node\.js \+ Express/);
+  assert.match(sys, /stay consistent with past decisions/);
+});
+
+test('blueprint turns skip the self-review loop entirely', async () => {
+  let n = 0;
+  const call = async () => { n++; return BLUEPRINT_REPLY; };
+  const r = await runTitan(call, [], '1');
+  assert.equal(n, 1);                                     // exactly one call — no review passes
+  assert.equal(r.hasBlueprint, true);
 });

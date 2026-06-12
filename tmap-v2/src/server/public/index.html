@@ -2190,7 +2190,13 @@ async function sendToTitan(message){
         const line=buf.slice(0,i); buf=buf.slice(i+2);
         if(!line.startsWith('data: ')) continue;
         let ev; try{ ev=JSON.parse(line.slice(6)); }catch{ continue; }
-        if(ev.kind==='status') logAgentEvent('titan','status',ev.text);
+        if(ev.kind==='status'){
+          logAgentEvent('titan','status',ev.text);
+          // surface the enforced pipeline stages (self-review passes, confidence gate, memory)
+          if(/self-review|confidence|memory/i.test(ev.text||'')){
+            writeLine('<span class="t-dim">⬢ '+escHtml(ev.text)+'</span>');
+          }
+        }
         if(ev.kind==='error')  logAgentEvent('titan','error',ev.text);
         if(ev.kind==='output'){
           accText = ev.text||'';
@@ -2208,7 +2214,14 @@ async function sendToTitan(message){
             writeLine('<span class="t-orange">⬢ Titan Blueprint อนุมัติแล้ว</span>  <span class="t-dim">พิมพ์ </span><span class="t-orange t-bold">/gencode</span><span class="t-dim"> เพื่อสร้างโค้ดตามพิมพ์เขียว</span>');
           } else if(ev.hasPlan){
             writeBlank();
+            if(ev.confidence != null){
+              const nf = (ev.reviewFindings||[]).length;
+              writeLine('<span class="t-dim">⬢ confidence </span><span class="t-green">'+ev.confidence+'%</span><span class="t-dim"> (ผ่านเกณฑ์ 85%) · self-review 5 pass'+(nf?' — แก้ '+nf+' จุด':' — ไม่พบจุดต้องแก้')+'</span>');
+            }
             writeLine('<span class="t-yellow">APPROVAL REQUIRED</span>  <span class="t-dim">ตอบ </span><span class="t-orange">1</span><span class="t-dim">=Approve · </span><span class="t-orange">2</span><span class="t-dim">=Revise · </span><span class="t-orange">3</span><span class="t-dim">=Compare more · </span><span class="t-orange">4</span><span class="t-dim">=Ask more</span>');
+          } else if(ev.confidenceBlocked){
+            writeBlank();
+            writeLine('<span class="t-yellow">⛔ Confidence '+(ev.confidence!=null?ev.confidence+'%':'')+' &lt; 85%</span>  <span class="t-dim">ระบบบังคับให้ Titan ถามต่อก่อนวางแผน</span>');
           }
         }
       }

@@ -19,7 +19,7 @@ import { createBlackboard } from '../core/blackboard.js';
 import { runTMAP } from '../core/orchestrator.js';
 import { runRAA } from '../core/raa.js';
 import { runTitan } from '../core/titan.js';
-import { loadMemory, memoryToContext, recordSessionMemory, clearMemory } from '../core/memory.js';
+import { loadMemory, memoryToContext, recordSessionMemory, recordDecision, clearMemory } from '../core/memory.js';
 import { currentMode } from '../config.js';
 import type { Mode, ChatMessage } from '../types.js';
 import { chatWithDARS } from '../dars/run.js';
@@ -225,15 +225,32 @@ app.post('/v1/titan', requireAuth, async (req: AuthedRequest, res) => {
     return r.text;
   };
 
+  // Project Memory: Titan stays consistent with past decisions across sessions.
+  let memoryContext = '';
   try {
-    const result = await runTitan(call, history, message);
+    memoryContext = memoryToContext(loadMemory(u.id));
+    if (memoryContext) emit('titan', 'project memory loaded', 'status');
+  } catch { /* memory is best-effort */ }
+
+  try {
+    const result = await runTitan(call, history, message, { emit, memoryContext });
     send({ role: 'titan', kind: 'output', text: result.text });
     send({
       role: 'titan', kind: 'done',
       hasPlan: result.hasPlan,
       hasBlueprint: result.hasBlueprint,
       blueprint: result.blueprint ?? null,
+      confidence: result.confidence ?? null,
+      confidenceBlocked: result.confidenceBlocked ?? false,
+      reviewFindings: result.reviewFindings ?? [],
     });
+    // Record the approved blueprint as a durable architecture decision.
+    if (result.hasBlueprint && result.blueprint?.project) {
+      try {
+        const bp = result.blueprint;
+        recordDecision(u.id, `Titan blueprint: ${bp.project} — plan ${bp.chosenPlan || '?'}, stack ${bp.techStack || '?'}`);
+      } catch { /* memory is best-effort */ }
+    }
   } catch (e) {
     send({ role: 'titan', kind: 'error', text: (e as Error).message });
   }
