@@ -265,9 +265,11 @@ async function cmdTitan(task: string, opts: { apply: boolean; mode?: string }) {
         if (/^(y|yes|ใช่)$/i.test(go.trim())) {
           rl.close();
           const build = blueprintToBuild(result.blueprint);
-          const mode = (opts.mode ?? currentMode()) as 'lite' | 'normal' | 'pro';
-          const bb = createBlackboard(build.task, mode, build.context);
+          // Titan always generates at Pro quality (override only if explicitly set lower)
+          const mode = (opts.mode === 'lite' || opts.mode === 'normal' ? opts.mode : 'pro') as 'lite' | 'normal' | 'pro';
           console.log(c.dim('─'.repeat(60)));
+          console.log(c.dim(`mode: ${c.orange(mode)} (Titan → Pro by default)`));
+          const bb = createBlackboard(build.task, mode, build.context);
           await runTMAP(bb, emit);
           const outDir = opts.apply ? process.cwd() : join(process.cwd(), 'aof-output');
           for (const f of bb.files) {

@@ -2094,8 +2094,14 @@ async function handleGencode(){
       writeLine('<span class="t-yellow">!</span>  <span class="t-dim">Titan ยังไม่ปล่อย Blueprint — ต้องผ่าน Approval Gate ก่อน (ตอบ </span><span class="t-orange">1. Approve and Generate Code</span><span class="t-dim"> ในแชท)</span>');
       return;
     }
+    // Titan always generates at Pro quality — no need to set it manually.
+    const prevMode = state.mode;
+    state.mode = 'pro';
+    document.getElementById('model-label').textContent = MODE_LABEL['pro'];
+    document.getElementById('sb-model').textContent    = MODE_LABEL['pro'];
+    document.querySelectorAll('.mi-option').forEach((o,i)=>o.classList.toggle('selected',i===2));
     setPhase('generation');
-    writeLine('<span class="t-orange">Titan Blueprint approved.</span>  <span class="t-dim">กำลังส่งพิมพ์เขียวให้ TMAP engine...</span>');
+    writeLine('<span class="t-orange">Titan Blueprint approved.</span>  <span class="t-dim">กำลังส่งพิมพ์เขียวให้ TMAP engine (</span><span class="t-orange">Pro mode</span><span class="t-dim">) ...</span>');
     writeBlank();
     const bp = state.titanBlueprint;
     await runTask(bp.project || 'project from Titan blueprint',
