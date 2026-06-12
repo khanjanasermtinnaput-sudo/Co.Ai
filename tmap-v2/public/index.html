@@ -1936,7 +1936,10 @@ async function doAuth(){
     syncUser();
     await boot();
   }catch(e){
-    authMsg(e.message,'err');
+    const msg = (e.status===404||e.status===503||e.status===502)
+      ? 'เซิร์ฟเวอร์ไม่พร้อมใช้งาน กรุณาลองใหม่ในอีกสักครู่'
+      : e.message;
+    authMsg(msg,'err');
     if(e.status===429 && e.retryAfterSec>0){
       startLockoutCountdown(e.retryAfterSec);
       return;
@@ -2838,6 +2841,9 @@ async function init(){
     const body=document.getElementById('terminal-body');
     if(body) body.innerHTML='';
     showAuth();
+    if(e.status !== 401){
+      authMsg('เซิร์ฟเวอร์ไม่พร้อมใช้งาน กรุณาลองใหม่ในอีกสักครู่','err');
+    }
   }
 }
 window.addEventListener('beforeinstallprompt', e => {

@@ -48,55 +48,65 @@ function validPin(p: unknown): p is string {
 
 // ── AUTH ──────────────────────────────────────────────────────────────────────
 app.post('/v1/auth/register', async (req, res) => {
-  const { username, pin } = req.body ?? {};
-  if (!validUsername(username)) {
-    return res.status(400).json({ error: 'ชื่อผู้ใช้ต้องเป็นตัวอักษร/ตัวเลข 2-32 ตัว' });
+  try {
+    const { username, pin } = req.body ?? {};
+    if (!validUsername(username)) {
+      return res.status(400).json({ error: 'ชื่อผู้ใช้ต้องเป็นตัวอักษร/ตัวเลข 2-32 ตัว' });
+    }
+    if (!validPin(pin)) {
+      return res.status(400).json({ error: 'PIN ต้องเป็นตัวเลข 4-8 หลัก' });
+    }
+    if (await findUserByUsername(username)) {
+      return res.status(409).json({ error: 'ชื่อนี้ถูกใช้แล้ว' });
+    }
+    const user = await createUser(username.trim(), hashPassword(String(pin).trim()));
+    return res.json({ token: signToken(user.id), username: user.username });
+  } catch (e) {
+    logger.error('register_error', { error: (e as Error).message });
+    return res.status(500).json({ error: 'เกิดข้อผิดพลาด กรุณาลองใหม่' });
   }
-  if (!validPin(pin)) {
-    return res.status(400).json({ error: 'PIN ต้องเป็นตัวเลข 4-8 หลัก' });
-  }
-  if (await findUserByUsername(username)) {
-    return res.status(409).json({ error: 'ชื่อนี้ถูกใช้แล้ว' });
-  }
-  const user = await createUser(username.trim(), hashPassword(String(pin).trim()));
-  return res.json({ token: signToken(user.id), username: user.username });
 });
 
 app.post('/v1/auth/login', async (req, res) => {
-  const { username, pin } = req.body ?? {};
-  const clientIp = String(
-    req.headers['x-forwarded-for'] ?? req.socket.remoteAddress ?? 'unknown',
-  ).split(',')[0].trim();
+  try {
+    const { username, pin } = req.body ?? {};
+    const clientIp = String(
+      req.headers['x-forwarded-for'] ?? req.socket.remoteAddress ?? 'unknown',
+    ).split(',')[0].trim();
 
-  const uname = username ? String(username).trim() : '';
-  if (uname) {
-    const check = checkLoginRate(uname, clientIp);
-    if (check.blocked) {
-      const mins = Math.ceil(check.retryAfterSec / 60);
-      res.setHeader('Retry-After', check.retryAfterSec);
-      return res.status(429).json({
-        error: `ลองเข้าสู่ระบบบ่อยเกินไป กรุณารอ ${mins} นาทีแล้วลองใหม่`,
-        retryAfterSec: check.retryAfterSec,
-      });
-    }
-  }
-
-  const user = uname ? await findUserByUsername(uname) : undefined;
-  if (!user || !verifyPassword(String(pin ?? '').trim(), user.pinHash)) {
+    const uname = username ? String(username).trim() : '';
     if (uname) {
-      const info = recordFailure(uname, clientIp);
-      const detail = info.blocked
-        ? ` — ลองผิดเกินกำหนด บัญชีถูกล็อก ${Math.ceil(info.retryAfterSec / 60)} นาที`
-        : info.remaining > 0
-          ? ` (เหลือ ${info.remaining} ครั้ง)`
-          : '';
-      return res.status(401).json({ error: `ชื่อหรือ PIN ไม่ถูกต้อง${detail}` });
+      const check = checkLoginRate(uname, clientIp);
+      if (check.blocked) {
+        const mins = Math.ceil(check.retryAfterSec / 60);
+        res.setHeader('Retry-After', check.retryAfterSec);
+        return res.status(429).json({
+          error: `ลองเข้าสู่ระบบบ่อยเกินไป กรุณารอ ${mins} นาทีแล้วลองใหม่`,
+          retryAfterSec: check.retryAfterSec,
+        });
+      }
     }
-    return res.status(401).json({ error: 'ชื่อหรือ PIN ไม่ถูกต้อง' });
-  }
 
-  recordSuccess(uname, clientIp);
-  return res.json({ token: signToken(user.id), username: user.username });
+    const user = uname ? await findUserByUsername(uname) : undefined;
+    if (!user || !verifyPassword(String(pin ?? '').trim(), user.pinHash)) {
+      if (uname) {
+        const info = recordFailure(uname, clientIp);
+        const detail = info.blocked
+          ? ` — ลองผิดเกินกำหนด บัญชีถูกล็อก ${Math.ceil(info.retryAfterSec / 60)} นาที`
+          : info.remaining > 0
+            ? ` (เหลือ ${info.remaining} ครั้ง)`
+            : '';
+        return res.status(401).json({ error: `ชื่อหรือ PIN ไม่ถูกต้อง${detail}` });
+      }
+      return res.status(401).json({ error: 'ชื่อหรือ PIN ไม่ถูกต้อง' });
+    }
+
+    recordSuccess(uname, clientIp);
+    return res.json({ token: signToken(user.id), username: user.username });
+  } catch (e) {
+    logger.error('login_error', { error: (e as Error).message });
+    return res.status(500).json({ error: 'เกิดข้อผิดพลาด กรุณาลองใหม่' });
+  }
 });
 
 // ── ACCOUNT + KEYS ────────────────────────────────────────────────────────────
@@ -369,6 +379,16 @@ app.get('/v1/metrics', (_req, res) => {
 // ── static ────────────────────────────────────────────────────────────────────
 const __dirname = dirname(fileURLToPath(import.meta.url));
 app.use(express.static(join(__dirname, 'public')));
+
+// ── 404 + global error handler ────────────────────────────────────────────────
+app.use((_req, res) => {
+  res.status(404).json({ error: 'not found' });
+});
+
+app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  logger.error('unhandled_error', { error: err.message });
+  res.status(500).json({ error: 'internal server error' });
+});
 
 export default app;
 
