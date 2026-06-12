@@ -18,6 +18,7 @@ import { bagHasAnyKey, type CredentialBag } from '../config.js';
 import { createBlackboard } from '../core/blackboard.js';
 import { runTMAP } from '../core/orchestrator.js';
 import { runRAA } from '../core/raa.js';
+import { runTitan } from '../core/titan.js';
 import { loadMemory, memoryToContext, recordSessionMemory, clearMemory } from '../core/memory.js';
 import { currentMode } from '../config.js';
 import type { Mode, ChatMessage } from '../types.js';
@@ -192,6 +193,49 @@ app.post('/v1/chat', requireAuth, async (req: AuthedRequest, res) => {
     send({ role: 'raa', kind: 'done', hasSummary: result.hasSummary, summary: result.summary ?? null });
   } catch (e) {
     send({ role: 'raa', kind: 'error', text: (e as Error).message });
+  }
+  res.end();
+});
+
+// ── TITAN MODE — AI System Architect (SSE stream) ────────────────────────────
+app.post('/v1/titan', requireAuth, async (req: AuthedRequest, res) => {
+  const message = String(req.body?.message ?? '').trim();
+  const history: ChatMessage[] = Array.isArray(req.body?.history) ? req.body.history : [];
+  if (!message) return res.status(400).json({ error: 'message required' });
+
+  const u = req.user!;
+  const creds: CredentialBag = {};
+  for (const p of PROVIDERS) {
+    if (u.encryptedKeys[p]) (creds as Record<string, string>)[p] = decryptSecret(u.encryptedKeys[p]!);
+  }
+
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive',
+  });
+  const send = (event: object) => res.write(`data: ${JSON.stringify(event)}\n\n`);
+  const emit = (_role: string, text: string, kind = 'status') =>
+    send({ role: 'titan', kind, text });
+
+  const call = async (messages: ChatMessage[], opts = {}) => {
+    const r = await chatWithDARS('planner', messages, opts, {
+      creds, health: globalHealth, emit, sessionId: 'titan-' + u.id,
+    });
+    return r.text;
+  };
+
+  try {
+    const result = await runTitan(call, history, message);
+    send({ role: 'titan', kind: 'output', text: result.text });
+    send({
+      role: 'titan', kind: 'done',
+      hasPlan: result.hasPlan,
+      hasBlueprint: result.hasBlueprint,
+      blueprint: result.blueprint ?? null,
+    });
+  } catch (e) {
+    send({ role: 'titan', kind: 'error', text: (e as Error).message });
   }
   res.end();
 });

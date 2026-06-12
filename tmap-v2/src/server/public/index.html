@@ -1792,13 +1792,14 @@ select.fld {
 // ── CONFIG / API ──────────────────────────────────────────────────────────────
 const API = '';
 const PROVIDERS = ['openrouter','gemini','deepseek','qwen','llama'];
-const ROLE_AGENT = { architect:'Architect', planner:'Gemini', coder:'DeepSeek', reviewer:'Qwen', validator:'Meta Llama', documenter:'Documenter', impact:'Impact' };
-const ROLE_COLOR = { architect:'t-blue', planner:'t-orange', coder:'t-green', reviewer:'t-yellow', validator:'t-blue', documenter:'t-green', impact:'t-red', system:'t-dim' };
+const ROLE_AGENT = { architect:'Architect', planner:'Gemini', coder:'DeepSeek', reviewer:'Qwen', validator:'Meta Llama', documenter:'Documenter', impact:'Impact', titan:'Titan' };
+const ROLE_COLOR = { architect:'t-blue', planner:'t-orange', coder:'t-green', reviewer:'t-yellow', validator:'t-blue', documenter:'t-green', impact:'t-red', titan:'t-orange', system:'t-dim' };
 const ROLE_WF    = { planner:1, coder:3, validator:5, reviewer:4 };
 const MODE_LABEL = { lite:'AOF 1.0 Lite', normal:'AOF 1.0', pro:'AOF 1.0 Pro' };
 
 const COMMANDS = [
   { cmd: '/gencode',  desc: 'เริ่มสร้างโค้ด (ต้องผ่าน Planning ก่อน)' },
+  { cmd: '/titan',    desc: 'Titan Mode — AI System Architect วางแผนลึกก่อนสร้าง (approval gate)' },
   { cmd: '/new',      desc: 'เริ่ม planning session ใหม่' },
   { cmd: '/keys',     desc: 'Manage your API keys' },
   { cmd: '/export',   desc: 'Download as ZIP  ·  /export html → single index.html' },
@@ -1824,6 +1825,9 @@ const state = {
   phase: 'planning',           // 'planning' | 'generation'
   chatHistory: [],             // RAA conversation history [{role,content}]
   reqSummary: null,            // RequirementSummary from RAA (or null)
+  // ── Titan Mode (AI System Architect) ──
+  titan: false,                // true = planning messages go to Titan instead of RAA
+  titanBlueprint: null,        // approved TitanBlueprint (or null)
   // ── Visual TMAP (tabs) ──
   activeTab: 'terminal',       // 'terminal' | 'agentlog' | 'output'
   agentLog: [],                // structured agent events [{role,kind,text,ts}]
@@ -2053,6 +2057,8 @@ async function runCmd(raw){
     switch(verb){
       case '/gencode':
         await handleGencode(); break;
+      case '/titan':
+        await cmdTitanMode(arg); break;
       case '/new':
         await cmdNewSession(); break;
       case '/keys':    openKeys(); break;
@@ -2068,7 +2074,8 @@ async function runCmd(raw){
     }
   }else{
     if(state.phase === 'planning'){
-      await sendToRAA(raw);
+      if(state.titan) await sendToTitan(raw);
+      else await sendToRAA(raw);
     } else {
       await runTask(raw);
     }
@@ -2081,6 +2088,20 @@ async function runCmd(raw){
 
 // ── /gencode ──────────────────────────────────────────────────────────────────
 async function handleGencode(){
+  // Titan Mode: code generation is forbidden before the approval gate.
+  if(state.titan){
+    if(!state.titanBlueprint){
+      writeLine('<span class="t-yellow">!</span>  <span class="t-dim">Titan ยังไม่ปล่อย Blueprint — ต้องผ่าน Approval Gate ก่อน (ตอบ </span><span class="t-orange">1. Approve and Generate Code</span><span class="t-dim"> ในแชท)</span>');
+      return;
+    }
+    setPhase('generation');
+    writeLine('<span class="t-orange">Titan Blueprint approved.</span>  <span class="t-dim">กำลังส่งพิมพ์เขียวให้ TMAP engine...</span>');
+    writeBlank();
+    const bp = state.titanBlueprint;
+    await runTask(bp.project || 'project from Titan blueprint',
+      '## Approved Titan Blueprint (follow this exactly)\n' + bp.raw);
+    return;
+  }
   if(state.phase === 'planning' && !state.reqSummary){
     writeLine('<span class="t-yellow">!</span>  <span class="t-dim">อธิบายสิ่งที่ต้องการสร้างก่อน จากนั้นค่อยพิมพ์ </span><span class="t-purple">/gencode</span>');
     writeLine('<span class="t-dim">RAA จะช่วยสรุป Requirement ให้พร้อมก่อนเริ่ม TMAP</span>');
@@ -2115,8 +2136,118 @@ function buildContextFromSummary(s){
 async function cmdNewSession(){
   state.chatHistory=[];
   state.reqSummary=null;
+  state.titan=false;
+  state.titanBlueprint=null;
   setPhase('planning');
   writeLine('<span class="t-purple">New planning session.</span>  <span class="t-dim">อธิบายสิ่งที่ต้องการสร้าง</span>');
+}
+
+// ── TITAN MODE — AI System Architect ─────────────────────────────────────────
+async function cmdTitanMode(idea){
+  state.titan=true;
+  state.titanBlueprint=null;
+  state.chatHistory=[];
+  setPhase('planning');
+  document.getElementById('sb-agents').textContent='TITAN active';
+  writeLine('<span class="t-orange t-bold">⬢ TITAN MODE</span>  <span class="t-dim">Think First, Build Later — AI System Architect</span>');
+  writeLine('<span class="t-dim">Titan จะถามจนเข้าใจ ≥85% → เสนอแผน A/B/C + ความเสี่ยง → รอ Approval ก่อนสร้างโค้ด</span>');
+  if(idea && idea.trim()){
+    writeBlank();
+    await sendToTitan(idea.trim());
+  } else {
+    writeLine('<span class="t-dim">อธิบายไอเดียที่อยากสร้างได้เลย</span>');
+  }
+}
+
+async function sendToTitan(message){
+  if(state.running) return;
+  state.running = true;
+  setPlanWfStep(1);
+
+  try {
+    const r = await fetch(API+'/v1/titan', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json', Authorization:'Bearer '+state.token },
+      body: JSON.stringify({ message, history: state.chatHistory }),
+    });
+    if(r.status===401){ cmdLogout(); return; }
+    if(!r.ok){ const e=await r.json().catch(()=>({})); throw new Error(e.error||('HTTP '+r.status)); }
+
+    const reader=r.body.getReader(); const dec=new TextDecoder(); let buf='';
+    let accText='';
+
+    while(true){
+      const {value,done}=await reader.read(); if(done) break;
+      buf+=dec.decode(value,{stream:true});
+      let i;
+      while((i=buf.indexOf('\n\n'))>=0){
+        const line=buf.slice(0,i); buf=buf.slice(i+2);
+        if(!line.startsWith('data: ')) continue;
+        let ev; try{ ev=JSON.parse(line.slice(6)); }catch{ continue; }
+        if(ev.kind==='status') logAgentEvent('titan','status',ev.text);
+        if(ev.kind==='error')  logAgentEvent('titan','error',ev.text);
+        if(ev.kind==='output'){
+          accText = ev.text||'';
+          renderTitan(ev.text);
+          setPlanWfStep(2);
+          logAgentEvent('titan','output',ev.text);
+        }
+        if(ev.kind==='done'){
+          setPlanWfStep(ev.hasBlueprint ? 3 : ev.hasPlan ? 2 : 1);
+          if(ev.hasBlueprint && ev.blueprint){
+            state.titanBlueprint = ev.blueprint;
+            setPlanWfStep(3);
+            writeBlank();
+            writeLine('<span class="t-dim">──────────────────────────────────────────────────────────</span>');
+            writeLine('<span class="t-orange">⬢ Titan Blueprint อนุมัติแล้ว</span>  <span class="t-dim">พิมพ์ </span><span class="t-orange t-bold">/gencode</span><span class="t-dim"> เพื่อสร้างโค้ดตามพิมพ์เขียว</span>');
+          } else if(ev.hasPlan){
+            writeBlank();
+            writeLine('<span class="t-yellow">APPROVAL REQUIRED</span>  <span class="t-dim">ตอบ </span><span class="t-orange">1</span><span class="t-dim">=Approve · </span><span class="t-orange">2</span><span class="t-dim">=Revise · </span><span class="t-orange">3</span><span class="t-dim">=Compare more · </span><span class="t-orange">4</span><span class="t-dim">=Ask more</span>');
+          }
+        }
+      }
+    }
+
+    state.chatHistory.push({ role:'user', content: message });
+    state.chatHistory.push({ role:'assistant', content: accText });
+  } catch(err){
+    writeLine(`<span class="t-red">Error: ${escHtml(String(err.message||err))}</span>`);
+  }
+  state.running = false;
+}
+
+function renderTitan(text){
+  if(!text) return;
+  // Box the structured blocks (plan / blueprint), print the rest as chat lines.
+  const blocks = [
+    { start:'===TITAN PLAN===',      end:'===END PLAN===',      title:'TITAN PLAN' },
+    { start:'===TITAN BLUEPRINT===', end:'===END BLUEPRINT===', title:'TITAN BLUEPRINT' },
+  ];
+  for(const b of blocks){
+    const si = text.indexOf(b.start);
+    const ei = text.indexOf(b.end);
+    if(si>=0 && ei>si){
+      const before = text.slice(0, si).trim();
+      const inside = text.slice(si+b.start.length, ei).trim();
+      const after  = text.slice(ei+b.end.length).trim();
+      if(before) renderTitanLines(before);
+      const box = document.createElement('div');
+      box.className='req-summary-box t-line';
+      box.innerHTML = '<div class="req-summary-title">'+b.title+'</div>' + escHtml(inside);
+      document.getElementById('terminal-body').appendChild(box);
+      scrollBottom();
+      if(after) renderTitan(after);   // a reply may contain plan then more text
+      return;
+    }
+  }
+  renderTitanLines(text);
+}
+
+function renderTitanLines(text){
+  for(const ln of text.split('\n')){
+    if(ln.trim()==='') writeBlank();
+    else writeLine(`<span class="t-orange">TITAN      </span><span class="t-muted">›</span> <span class="t-text">${escHtml(ln)}</span>`);
+  }
 }
 
 // ── Phase switch ──────────────────────────────────────────────────────────────
