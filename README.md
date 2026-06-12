@@ -11,3 +11,6 @@
 - เลือก tech stack ก่อน /gencode (React / Vue / Next.js + Node / Python / Go)
 - เสนอไฟล์ที่สร้างเป็นแท็บหลายไฟล์และดาวน์โหลดเป็น `.zip`
 - ฟีเจอร์ห้องร่วมงานเบื้องต้น (room) สำหรับแชร์โครงการในแท็บเดียวกัน
+- git add .
+- git commit -m "redeploy"
+- git push
