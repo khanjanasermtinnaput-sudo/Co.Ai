@@ -150,12 +150,12 @@ app.get('/v1/me/cost', requireAuth, async (req: AuthedRequest, res) => {
 });
 
 // ── PROJECT MEMORY ────────────────────────────────────────────────────────────
-app.get('/v1/memory', requireAuth, (req: AuthedRequest, res) => {
-  res.json(loadMemory(req.user!.id));
+app.get('/v1/memory', requireAuth, async (req: AuthedRequest, res) => {
+  res.json(await loadMemory(req.user!.id));
 });
 
-app.delete('/v1/memory', requireAuth, (req: AuthedRequest, res) => {
-  clearMemory(req.user!.id);
+app.delete('/v1/memory', requireAuth, async (req: AuthedRequest, res) => {
+  await clearMemory(req.user!.id);
   res.json({ ok: true });
 });
 
@@ -228,7 +228,7 @@ app.post('/v1/titan', requireAuth, async (req: AuthedRequest, res) => {
   // Project Memory: Titan stays consistent with past decisions across sessions.
   let memoryContext = '';
   try {
-    memoryContext = memoryToContext(loadMemory(u.id));
+    memoryContext = memoryToContext(await loadMemory(u.id));
     if (memoryContext) emit('titan', 'project memory loaded', 'status');
   } catch { /* memory is best-effort */ }
 
@@ -248,7 +248,7 @@ app.post('/v1/titan', requireAuth, async (req: AuthedRequest, res) => {
     if (result.hasBlueprint && result.blueprint?.project) {
       try {
         const bp = result.blueprint;
-        recordDecision(u.id, `Titan blueprint: ${bp.project} — plan ${bp.chosenPlan || '?'}, stack ${bp.techStack || '?'}`);
+        await recordDecision(u.id, `Titan blueprint: ${bp.project} — plan ${bp.chosenPlan || '?'}, stack ${bp.techStack || '?'}`);
       } catch { /* memory is best-effort */ }
     }
   } catch (e) {
@@ -284,7 +284,7 @@ app.post('/v1/run', requireAuth, async (req: AuthedRequest, res) => {
   // Project memory: prepend what we know from previous sessions for this user
   let memCtx = '';
   try {
-    const mem = loadMemory(u.id);
+    const mem = await loadMemory(u.id);
     memCtx = memoryToContext(mem);
     if (memCtx) {
       send({ role: 'system', kind: 'status', text: `memory: loaded ${mem.sessions.length} previous session(s)` });
@@ -323,7 +323,7 @@ app.post('/v1/run', requireAuth, async (req: AuthedRequest, res) => {
           const decisions: string[] = [];
           if (bb.architect?.approach) decisions.push(bb.architect.approach);
           for (const r of bb.architect?.risks ?? []) decisions.push(`Avoid: ${r}`);
-          recordSessionMemory(u.id, {
+          await recordSessionMemory(u.id, {
             task: task.slice(0, 160),
             status: result.status,
             files: bb.files.map((f) => f.path).slice(0, 20),

@@ -8,6 +8,11 @@
 //
 // Injected into the Blackboard context at run start so the Planner knows what
 // was built before, instead of treating every session as the first one.
+//
+// Storage: Supabase (memories table) when SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY
+// are set — so memory survives serverless cold starts on Vercel. Otherwise a
+// local JSON file per key. Supabase failures fall back to the file silently:
+// memory is best-effort and must never break a run.
 
 import { mkdirSync, readFileSync, writeFileSync, existsSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
@@ -58,31 +63,81 @@ export function emptyMemory(key: string): ProjectMemory {
   return { key: sanitizeKey(key), conventions: [], decisions: [], sessions: [], failures: [], updatedAt: '' };
 }
 
-export function loadMemory(key: string): ProjectMemory {
+// ── Supabase backend (persists across serverless cold starts) ─────────────────
+const SUPABASE_URL = process.env.SUPABASE_URL?.replace(/\/$/, '');
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const useSupabase = Boolean(SUPABASE_URL && SUPABASE_KEY);
+
+async function sb(path: string, init: RequestInit = {}): Promise<Response> {
+  return fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    ...init,
+    headers: {
+      apikey: SUPABASE_KEY!,
+      Authorization: `Bearer ${SUPABASE_KEY}`,
+      'Content-Type': 'application/json',
+      ...(init.headers ?? {}),
+    },
+  });
+}
+
+function normalize(key: string, raw: Partial<ProjectMemory>): ProjectMemory {
+  return {
+    ...emptyMemory(key),
+    ...raw,
+    key: sanitizeKey(key),
+    conventions: Array.isArray(raw.conventions) ? raw.conventions : [],
+    decisions: Array.isArray(raw.decisions) ? raw.decisions : [],
+    sessions: Array.isArray(raw.sessions) ? raw.sessions : [],
+    failures: Array.isArray(raw.failures) ? raw.failures : [],
+  };
+}
+
+export async function loadMemory(key: string): Promise<ProjectMemory> {
+  if (useSupabase) {
+    try {
+      const res = await sb(`memories?key=eq.${encodeURIComponent(sanitizeKey(key))}&select=data&limit=1`);
+      if (res.ok) {
+        const rows = (await res.json()) as Array<{ data: Partial<ProjectMemory> }>;
+        if (rows[0]?.data) return normalize(key, rows[0].data);
+        return emptyMemory(key);
+      }
+    } catch { /* fall through to file */ }
+  }
+  return loadMemoryFile(key);
+}
+
+function loadMemoryFile(key: string): ProjectMemory {
   const path = memoryPath(key);
   if (!existsSync(path)) return emptyMemory(key);
   try {
-    const raw = JSON.parse(readFileSync(path, 'utf8')) as Partial<ProjectMemory>;
-    return {
-      ...emptyMemory(key),
-      ...raw,
-      conventions: Array.isArray(raw.conventions) ? raw.conventions : [],
-      decisions: Array.isArray(raw.decisions) ? raw.decisions : [],
-      sessions: Array.isArray(raw.sessions) ? raw.sessions : [],
-      failures: Array.isArray(raw.failures) ? raw.failures : [],
-    };
+    return normalize(key, JSON.parse(readFileSync(path, 'utf8')) as Partial<ProjectMemory>);
   } catch {
     return emptyMemory(key);
   }
 }
 
-export function saveMemory(mem: ProjectMemory): void {
-  mkdirSync(memoryDir(), { recursive: true });
+export async function saveMemory(mem: ProjectMemory): Promise<void> {
   mem.updatedAt = new Date().toISOString();
+  if (useSupabase) {
+    try {
+      const res = await sb('memories', {
+        method: 'POST',
+        headers: { Prefer: 'resolution=merge-duplicates' },
+        body: JSON.stringify({ key: mem.key, data: mem, updated_at: mem.updatedAt }),
+      });
+      if (res.ok) return;
+    } catch { /* fall through to file */ }
+  }
+  mkdirSync(memoryDir(), { recursive: true });
   writeFileSync(memoryPath(mem.key), JSON.stringify(mem, null, 2), 'utf8');
 }
 
-export function clearMemory(key: string): void {
+export async function clearMemory(key: string): Promise<void> {
+  if (useSupabase) {
+    try {
+      await sb(`memories?key=eq.${encodeURIComponent(sanitizeKey(key))}`, { method: 'DELETE' });
+    } catch { /* best-effort */ }
+  }
   const path = memoryPath(key);
   if (existsSync(path)) unlinkSync(path);
 }
@@ -95,10 +150,10 @@ export interface RecordSessionOpts {
 }
 
 /** Append a finished session to memory (newest first, capped). */
-export function recordSessionMemory(
+export async function recordSessionMemory(
   key: string, entry: MemorySessionEntry, opts: RecordSessionOpts = {},
-): ProjectMemory {
-  const mem = loadMemory(key);
+): Promise<ProjectMemory> {
+  const mem = await loadMemory(key);
 
   mem.sessions.unshift(entry);
   if (mem.sessions.length > MAX_SESSIONS) mem.sessions.length = MAX_SESSIONS;
@@ -118,15 +173,15 @@ export function recordSessionMemory(
       .slice(0, MAX_FAILURES);
   }
 
-  saveMemory(mem);
+  await saveMemory(mem);
   return mem;
 }
 
 /** Add a free-form architecture decision note. */
-export function recordDecision(key: string, decision: string): ProjectMemory {
-  const mem = loadMemory(key);
+export async function recordDecision(key: string, decision: string): Promise<ProjectMemory> {
+  const mem = await loadMemory(key);
   mem.decisions = dedupe([...mem.decisions, decision.trim()]).slice(0, MAX_DECISIONS);
-  saveMemory(mem);
+  await saveMemory(mem);
   return mem;
 }
 

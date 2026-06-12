@@ -18,3 +18,16 @@ create policy "service role full access"
 
 -- index เพื่อความเร็ว
 create index if not exists users_username_idx on users (username);
+
+-- ── Project Memory (Titan + TMAP จำข้าม session ถาวร) ─────────────────────────
+create table if not exists memories (
+  key        text        primary key,                 -- userId (web) หรือ project key (CLI)
+  data       jsonb       default '{}'::jsonb not null, -- ProjectMemory ทั้งก้อน
+  updated_at timestamptz default now() not null
+);
+
+alter table memories enable row level security;
+
+drop policy if exists "service role full access" on memories;
+create policy "service role full access"
+  on memories using (true) with check (true);

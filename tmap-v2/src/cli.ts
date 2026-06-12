@@ -246,7 +246,7 @@ async function cmdTitan(task: string, opts: { apply: boolean; mode?: string }) {
   const memoryKey = process.cwd();
   let memoryContext = '';
   try {
-    memoryContext = memoryToContext(loadMemory(memoryKey));
+    memoryContext = memoryToContext(await loadMemory(memoryKey));
     if (memoryContext) console.log(c.dim('project memory loaded — Titan จำการตัดสินใจเก่าของโปรเจกต์นี้ได้\n'));
   } catch { /* memory is best-effort */ }
 
@@ -274,7 +274,7 @@ async function cmdTitan(task: string, opts: { apply: boolean; mode?: string }) {
         // Record the approved blueprint into persistent project memory.
         try {
           const bp = result.blueprint;
-          recordDecision(memoryKey, `Titan blueprint: ${bp.project} — plan ${bp.chosenPlan || '?'}, stack ${bp.techStack || '?'}`);
+          await recordDecision(memoryKey, `Titan blueprint: ${bp.project} — plan ${bp.chosenPlan || '?'}, stack ${bp.techStack || '?'}`);
         } catch { /* memory is best-effort */ }
         console.log(c.dim('\n' + '─'.repeat(60)));
         console.log(c.green('Blueprint อนุมัติแล้ว ✓'));
