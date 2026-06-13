@@ -64,7 +64,7 @@ export function Composer({
   return (
     <div
       className={cn(
-        "group glass rounded-2xl border border-white/10 shadow-glass transition-card",
+        "group glass rounded-2xl border border-border shadow-glass transition-card dark:border-white/10",
         "focus-within:border-primary/40 focus-within:shadow-glow",
         size === "lg" ? "p-3" : "p-2.5",
         className,

@@ -28,8 +28,9 @@ export function QuickActions() {
           <Link
             href={action.href}
             className={cn(
-              "group relative flex h-full flex-col gap-3 overflow-hidden rounded-2xl border border-white/[0.07] bg-card/60 p-4 transition-card",
-              "hover:-translate-y-1 hover:border-primary/30 hover:shadow-glow",
+              "group relative flex h-full flex-col gap-3 overflow-hidden rounded-2xl border border-border bg-card/60 p-4 shadow-card-soft transition-card",
+              "hover:-translate-y-0.5 hover:scale-[1.02] hover:border-primary/40 hover:shadow-card-hover",
+              "dark:border-white/[0.07] dark:shadow-none dark:hover:border-primary/30 dark:hover:shadow-glow-sm",
             )}
           >
             {/* hover gradient wash */}
@@ -40,7 +41,7 @@ export function QuickActions() {
               )}
             />
             <div className="relative flex items-start justify-between">
-              <span className="flex size-11 items-center justify-center rounded-xl border border-white/10 bg-background/60 text-2xl shadow-sm transition-transform duration-300 group-hover:scale-110">
+              <span className="flex size-11 items-center justify-center rounded-xl border border-border bg-background/60 text-2xl shadow-sm transition-transform duration-300 group-hover:scale-110 dark:border-white/10">
                 {action.emoji}
               </span>
               <ArrowUpRight className="size-4 text-muted-foreground opacity-0 transition-all duration-300 group-hover:translate-x-0.5 group-hover:opacity-100" />

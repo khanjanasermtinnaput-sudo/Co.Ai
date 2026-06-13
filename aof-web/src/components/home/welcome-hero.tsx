@@ -26,7 +26,9 @@ export function WelcomeHero() {
         transition={{ duration: 0.55, delay: 0.05, ease: [0.22, 1, 0.36, 1] }}
         className="text-balance text-4xl font-semibold tracking-tight sm:text-5xl"
       >
-        <Sparkles className="mb-1 mr-1 inline size-7 text-primary sm:size-8" />
+        <span className="mb-1 mr-1 inline-block animate-float [will-change:transform]">
+          <Sparkles className="inline size-7 text-primary sm:size-8" />
+        </span>
         <span className="text-gradient-gold">{BRAND.welcome}</span>
       </motion.h1>
 
