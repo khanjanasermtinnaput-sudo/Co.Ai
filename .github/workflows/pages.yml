@@ -22,7 +22,10 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v5
         with:
-          path: ./tmap-v2/public
+          # Redirect shell → the live app+backend on Render.
+          # (GitHub Pages is static-only and cannot host the Express backend,
+          #  so serving the full app here would 404 on every /v1/ call.)
+          path: ./pages
 
       - name: Deploy to GitHub Pages
         id: deployment
