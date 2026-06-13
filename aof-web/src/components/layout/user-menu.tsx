@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CreditCard, LogOut, Settings, Sparkles, UserRound } from "lucide-react";
+import { CreditCard, LogIn, LogOut, Settings, Sparkles, UserRound } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/providers/auth-provider";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -36,6 +36,10 @@ export function UserMenu({ expanded = false }: UserMenuProps) {
   const { user, configured, signOut } = useAuth();
   const router = useRouter();
 
+  // A "real" session only exists in live mode with a signed-in user. In demo
+  // mode (or when signed out) we surface a clear Sign in button instead.
+  const realSession = configured && !!user;
+
   const name = user?.name ?? "Aof User";
   const email = user?.email ?? "you@aof.ai";
   const avatarUrl = user?.avatarUrl;
@@ -45,6 +49,24 @@ export function UserMenu({ expanded = false }: UserMenuProps) {
     await signOut();
     if (configured) router.replace("/login");
   };
+
+  if (!realSession) {
+    return (
+      <Link
+        href="/login"
+        aria-label="Sign in"
+        className={cn(
+          "group flex items-center rounded-xl font-medium transition-colors",
+          expanded
+            ? "w-full gap-3 bg-primary/10 p-2.5 text-sm text-foreground hover:bg-primary/15"
+            : "size-10 justify-center text-muted-foreground hover:bg-white/5",
+        )}
+      >
+        <LogIn className="size-[18px] shrink-0 text-primary" />
+        {expanded && <span>Sign in</span>}
+      </Link>
+    );
+  }
 
   return (
     <DropdownMenu>
