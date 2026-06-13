@@ -16,7 +16,10 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 
   React.useEffect(() => {
     if (configured && !loading && !user) {
-      router.replace("/login");
+      // Brief grace period so we don't bounce to /login while the auth state is
+      // still propagating right after an OAuth exchange (avoids a redirect loop).
+      const t = setTimeout(() => router.replace("/login"), 350);
+      return () => clearTimeout(t);
     }
   }, [configured, loading, user, router]);
 

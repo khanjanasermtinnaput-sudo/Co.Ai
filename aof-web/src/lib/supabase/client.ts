@@ -25,7 +25,10 @@ export function getSupabase(): SupabaseClient | null {
     auth: {
       persistSession: true, // "remember me" — session survives reloads
       autoRefreshToken: true,
-      detectSessionInUrl: true, // handle the ?code= redirect from Google OAuth
+      // The /auth/callback page exchanges the OAuth code explicitly, so we turn
+      // off automatic URL detection to avoid double-exchanging the code (which
+      // throws "code already used" and bounces the user back to /login).
+      detectSessionInUrl: false,
       flowType: "pkce",
     },
   });

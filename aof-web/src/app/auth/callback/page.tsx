@@ -6,11 +6,13 @@ import { getSupabase } from "@/lib/supabase/client";
 import { LogoMark } from "@/components/brand/logo";
 
 /**
- * OAuth landing page. The Supabase client (detectSessionInUrl) exchanges the
- * `?code=` for a session automatically; we just wait for it and route home.
+ * OAuth landing page. Google redirects here with a `?code=` (PKCE). We exchange
+ * it for a session exactly once, then route into the app. Errors fall back to
+ * /login instead of looping.
  */
 export default function AuthCallbackPage() {
   const router = useRouter();
+  const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     const supabase = getSupabase();
@@ -19,34 +21,54 @@ export default function AuthCallbackPage() {
       return;
     }
 
-    let done = false;
-    const finish = (path: string) => {
-      if (done) return;
-      done = true;
-      router.replace(path);
+    let cancelled = false;
+    const goLogin = (msg: string) => {
+      if (cancelled) return;
+      setError(msg);
+      setTimeout(() => router.replace("/login"), 1600);
     };
 
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session) finish("/");
-    });
+    (async () => {
+      const params = new URLSearchParams(window.location.search);
+      const oauthError = params.get("error_description") || params.get("error");
+      if (oauthError) {
+        goLogin(oauthError);
+        return;
+      }
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) finish("/");
-    });
+      const code = params.get("code");
+      if (code) {
+        const { error: exErr } = await supabase.auth.exchangeCodeForSession(code);
+        if (exErr) {
+          // The code may already have been consumed — if a session exists, proceed.
+          const { data } = await supabase.auth.getSession();
+          if (data.session) {
+            if (!cancelled) router.replace("/");
+            return;
+          }
+          goLogin(exErr.message);
+          return;
+        }
+        if (!cancelled) router.replace("/");
+        return;
+      }
 
-    // Safety net: if nothing resolves, send the user back to sign in.
-    const timeout = setTimeout(() => finish("/login"), 8000);
+      // No code present — maybe the user is already signed in.
+      const { data } = await supabase.auth.getSession();
+      if (!cancelled) router.replace(data.session ? "/" : "/login");
+    })();
 
     return () => {
-      sub.subscription.unsubscribe();
-      clearTimeout(timeout);
+      cancelled = true;
     };
   }, [router]);
 
   return (
-    <main className="flex min-h-dvh flex-col items-center justify-center gap-4">
-      <LogoMark size={44} className="animate-pulse" />
-      <p className="text-sm text-muted-foreground">Signing you in…</p>
+    <main className="flex min-h-dvh flex-col items-center justify-center gap-4 px-6 text-center">
+      <LogoMark size={44} className={error ? undefined : "animate-pulse"} />
+      <p className="text-sm text-muted-foreground">
+        {error ? `Sign-in failed: ${error}` : "Signing you in…"}
+      </p>
     </main>
   );
 }
