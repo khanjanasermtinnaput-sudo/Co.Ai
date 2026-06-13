@@ -32,6 +32,7 @@ export function NewProjectDialog({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [type, setType] = useState<ProjectType>("web-app");
+  const [submitting, setSubmitting] = useState(false);
 
   const reset = () => {
     setName("");
@@ -39,12 +40,19 @@ export function NewProjectDialog({
     setType("web-app");
   };
 
-  const submit = () => {
+  const submit = async () => {
     if (!name.trim()) {
       toast.error("Give your project a name");
       return;
     }
-    const p = create({ name, description, type });
+    if (submitting) return;
+    setSubmitting(true);
+    const p = await create({ name, description, type });
+    setSubmitting(false);
+    if (!p) {
+      toast.error("Couldn't create project", { description: "Please try again." });
+      return;
+    }
     toast.success("Project created", { description: p.name });
     reset();
     onOpenChange(false);
@@ -122,7 +130,9 @@ export function NewProjectDialog({
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={submit}>Create project</Button>
+          <Button onClick={submit} disabled={submitting}>
+            {submitting ? "Creating…" : "Create project"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -1,11 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence } from "framer-motion";
 import { Plus, Search, Pin, FolderKanban } from "lucide-react";
 import { useProjectStore } from "@/store/project-store";
+import { useAuth } from "@/components/providers/auth-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ProjectCard, NewProjectCard } from "./project-card";
 import { NewProjectDialog } from "./new-project-dialog";
 
@@ -13,7 +15,16 @@ export function ProjectsView() {
   const projects = useProjectStore((s) => s.projects);
   const query = useProjectStore((s) => s.query);
   const setQuery = useProjectStore((s) => s.setQuery);
+  const load = useProjectStore((s) => s.load);
+  const loading = useProjectStore((s) => s.loading);
+  const loaded = useProjectStore((s) => s.loaded);
+  const { user } = useAuth();
   const [dialogOpen, setDialogOpen] = useState(false);
+
+  // Load (and reload when the signed-in user changes).
+  useEffect(() => {
+    load();
+  }, [load, user?.id]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -84,7 +95,13 @@ export function ProjectsView() {
         <h2 className="mb-3 text-sm font-medium text-muted-foreground">
           {query ? "Results" : "Recent"}
         </h2>
-        {recent.length === 0 && pinned.length === 0 ? (
+        {loading && !loaded ? (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-[188px] rounded-2xl" />
+            ))}
+          </div>
+        ) : recent.length === 0 && pinned.length === 0 ? (
           <EmptyState query={query} onCreate={() => setDialogOpen(true)} />
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">

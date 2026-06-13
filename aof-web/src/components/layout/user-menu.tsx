@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { CreditCard, LogOut, Settings, Sparkles, UserRound } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { useAuth } from "@/components/providers/auth-provider";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
@@ -16,21 +18,33 @@ import {
 
 interface UserMenuProps {
   expanded?: boolean;
-  name?: string;
-  email?: string;
 }
 
-export function UserMenu({
-  expanded = false,
-  name = "Aof User",
-  email = "you@aof.ai",
-}: UserMenuProps) {
-  const initials = name
-    .split(" ")
-    .map((p) => p[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
+function initialsOf(name: string): string {
+  return (
+    name
+      .split(" ")
+      .map((p) => p[0])
+      .filter(Boolean)
+      .slice(0, 2)
+      .join("")
+      .toUpperCase() || "A"
+  );
+}
+
+export function UserMenu({ expanded = false }: UserMenuProps) {
+  const { user, configured, signOut } = useAuth();
+  const router = useRouter();
+
+  const name = user?.name ?? "Aof User";
+  const email = user?.email ?? "you@aof.ai";
+  const avatarUrl = user?.avatarUrl;
+  const initials = initialsOf(name);
+
+  const handleLogout = async () => {
+    await signOut();
+    if (configured) router.replace("/login");
+  };
 
   return (
     <DropdownMenu>
@@ -43,6 +57,7 @@ export function UserMenu({
           )}
         >
           <Avatar className="size-9 ring-1 ring-white/10">
+            {avatarUrl && <AvatarImage src={avatarUrl} alt={name} />}
             <AvatarFallback>{initials}</AvatarFallback>
           </Avatar>
           {expanded && (
@@ -56,6 +71,7 @@ export function UserMenu({
       <DropdownMenuContent side="right" align="end" className="w-60">
         <DropdownMenuLabel className="flex items-center gap-2 py-2.5">
           <Avatar className="size-8">
+            {avatarUrl && <AvatarImage src={avatarUrl} alt={name} />}
             <AvatarFallback className="text-[10px]">{initials}</AvatarFallback>
           </Avatar>
           <div className="min-w-0">
@@ -85,7 +101,10 @@ export function UserMenu({
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem className="text-destructive focus:text-destructive">
+        <DropdownMenuItem
+          onClick={handleLogout}
+          className="text-destructive focus:text-destructive"
+        >
           <LogOut /> Log out
         </DropdownMenuItem>
       </DropdownMenuContent>

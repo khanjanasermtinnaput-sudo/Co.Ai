@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useTheme } from "next-themes";
 import {
@@ -13,8 +14,11 @@ import {
   Sun,
   Sparkles,
   ShieldCheck,
+  LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/components/providers/auth-provider";
+import { getSupabase } from "@/lib/supabase/client";
 import { useMounted } from "@/hooks/use-mounted";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -75,8 +79,42 @@ export function SettingsView({ defaultTab = "account" }: { defaultTab?: string }
 }
 
 function AccountTab() {
-  const [name, setName] = useState("Aof User");
-  const [email, setEmail] = useState("you@aof.ai");
+  const { user, configured, signOut } = useAuth();
+  const router = useRouter();
+  const [name, setName] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  // Keep the form in sync with the signed-in user.
+  useEffect(() => {
+    if (user) setName(user.name);
+  }, [user]);
+
+  const email = user?.email ?? "you@aof.ai";
+
+  const save = async () => {
+    setSaving(true);
+    const supabase = getSupabase();
+    if (configured && supabase) {
+      const { error } = await supabase.auth.updateUser({
+        data: { full_name: name },
+      });
+      setSaving(false);
+      if (error) {
+        toast.error("Couldn't save profile", { description: error.message });
+        return;
+      }
+      toast.success("Profile saved");
+      return;
+    }
+    setSaving(false);
+    toast.success("Profile saved");
+  };
+
+  const handleLogout = async () => {
+    await signOut();
+    if (configured) router.replace("/login");
+  };
+
   return (
     <div className="space-y-4">
       <Card>
@@ -91,10 +129,20 @@ function AccountTab() {
           </div>
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
-            <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+            <Input id="email" type="email" value={email} disabled readOnly />
+            {configured && (
+              <p className="text-xs text-muted-foreground">
+                Your email comes from your Google account and can&apos;t be changed here.
+              </p>
+            )}
           </div>
-          <div className="flex justify-end">
-            <Button onClick={() => toast.success("Profile saved")}>Save changes</Button>
+          <div className="flex items-center justify-between gap-3">
+            <Button variant="ghost" onClick={handleLogout} className="gap-2">
+              <LogOut className="size-4" /> Log out
+            </Button>
+            <Button onClick={save} disabled={saving}>
+              {saving ? "Saving…" : "Save changes"}
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -106,7 +154,7 @@ function AccountTab() {
         </CardHeader>
         <CardContent className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">Delete your account and all data.</p>
-          <Button variant="destructive" onClick={() => toast("This is a demo — nothing deleted")}>
+          <Button variant="destructive" onClick={() => toast("Contact support to delete your account")}>
             Delete account
           </Button>
         </CardContent>
@@ -296,7 +344,7 @@ function BillingTab() {
         </CardHeader>
         <CardContent>
           <p className="text-3xl font-semibold">
-            $20<span className="text-base font-normal text-muted-foreground">/mo</span>
+            $10<span className="text-base font-normal text-muted-foreground">/mo</span>
           </p>
           <ul className="mt-4 space-y-2 text-sm text-muted-foreground">
             {["Everything in Free", "Aof Code Pro & Titan", "Unlimited projects", "Priority compute"].map(

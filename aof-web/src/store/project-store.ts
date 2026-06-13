@@ -1,11 +1,14 @@
 import { create } from "zustand";
 import { uid } from "@/lib/utils";
-import type { Project, ProjectStatus, ProjectType } from "@/lib/types";
+import { getSupabase, isSupabaseConfigured } from "@/lib/supabase/client";
+import type { CodeMode, Project, ProjectStatus, ProjectType } from "@/lib/types";
 
 function daysAgo(n: number): string {
   return new Date(Date.now() - n * 86_400_000).toISOString();
 }
 
+// Seed data — only used in demo mode (no Supabase configured) so the offline
+// experience still feels alive. In live mode projects come from the database.
 const SEED: Project[] = [
   {
     id: uid("proj"),
@@ -69,42 +72,169 @@ const SEED: Project[] = [
     type: "research",
     status: "archived",
     pinned: false,
-    mode: "normal" as never,
     createdAt: daysAgo(60),
     updatedAt: daysAgo(21),
   },
 ];
 
+// ── Database row ↔ domain mapping ─────────────────────────────────────────────
+interface ProjectRow {
+  id: string;
+  name: string;
+  description: string;
+  type: string;
+  status: string;
+  pinned: boolean;
+  mode: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+function rowToProject(r: ProjectRow): Project {
+  return {
+    id: r.id,
+    name: r.name,
+    description: r.description,
+    type: r.type as ProjectType,
+    status: r.status as ProjectStatus,
+    pinned: r.pinned,
+    mode: (r.mode as CodeMode) ?? undefined,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
+}
+
+interface CreateInput {
+  name: string;
+  description: string;
+  type: ProjectType;
+  status?: ProjectStatus;
+}
+
 interface ProjectState {
   projects: Project[];
   query: string;
+  loading: boolean;
+  loaded: boolean;
   setQuery: (q: string) => void;
-  togglePin: (id: string) => void;
-  createProject: (input: {
-    name: string;
-    description: string;
-    type: ProjectType;
-    status?: ProjectStatus;
-  }) => Project;
-  deleteProject: (id: string) => void;
+  /** Load projects for the current user (or seed data in demo mode). */
+  load: () => Promise<void>;
+  togglePin: (id: string) => Promise<void>;
+  createProject: (input: CreateInput) => Promise<Project | null>;
+  deleteProject: (id: string) => Promise<void>;
 }
 
-export const useProjectStore = create<ProjectState>((set) => ({
-  projects: SEED,
+export const useProjectStore = create<ProjectState>((set, get) => ({
+  projects: [],
   query: "",
+  loading: false,
+  loaded: false,
+
   setQuery: (query) => set({ query }),
 
-  togglePin: (id) =>
-    set((s) => ({
-      projects: s.projects.map((p) => (p.id === id ? { ...p, pinned: !p.pinned } : p)),
-    })),
+  load: async () => {
+    // Demo mode — no backend, just show the seed projects.
+    if (!isSupabaseConfigured()) {
+      set({ projects: SEED, loading: false, loaded: true });
+      return;
+    }
 
-  createProject: ({ name, description, type, status = "active" }) => {
+    const supabase = getSupabase();
+    if (!supabase) {
+      set({ projects: SEED, loading: false, loaded: true });
+      return;
+    }
+
+    set({ loading: true });
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      set({ projects: [], loading: false, loaded: true });
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("projects")
+      .select("*")
+      .order("updated_at", { ascending: false });
+
+    if (error) {
+      set({ loading: false, loaded: true });
+      return;
+    }
+
+    set({
+      projects: (data as ProjectRow[]).map(rowToProject),
+      loading: false,
+      loaded: true,
+    });
+  },
+
+  togglePin: async (id) => {
+    const current = get().projects.find((p) => p.id === id);
+    if (!current) return;
+    const pinned = !current.pinned;
+
+    // Optimistic update.
+    set((s) => ({
+      projects: s.projects.map((p) => (p.id === id ? { ...p, pinned } : p)),
+    }));
+
+    const supabase = getSupabase();
+    if (isSupabaseConfigured() && supabase) {
+      const { error } = await supabase
+        .from("projects")
+        .update({ pinned })
+        .eq("id", id);
+      if (error) {
+        // Roll back on failure.
+        set((s) => ({
+          projects: s.projects.map((p) =>
+            p.id === id ? { ...p, pinned: current.pinned } : p,
+          ),
+        }));
+      }
+    }
+  },
+
+  createProject: async ({ name, description, type, status = "active" }) => {
+    const trimmedName = name.trim() || "Untitled project";
+    const desc = description.trim();
+
+    if (isSupabaseConfigured()) {
+      const supabase = getSupabase();
+      if (!supabase) return null;
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return null;
+
+      const { data, error } = await supabase
+        .from("projects")
+        .insert({
+          user_id: user.id,
+          name: trimmedName,
+          description: desc,
+          type,
+          status,
+        })
+        .select("*")
+        .single();
+
+      if (error || !data) return null;
+      const project = rowToProject(data as ProjectRow);
+      set((s) => ({ projects: [project, ...s.projects] }));
+      return project;
+    }
+
+    // Demo mode — in-memory only.
     const now = new Date().toISOString();
     const project: Project = {
       id: uid("proj"),
-      name: name.trim() || "Untitled project",
-      description: description.trim(),
+      name: trimmedName,
+      description: desc,
       type,
       status,
       pinned: false,
@@ -115,6 +245,15 @@ export const useProjectStore = create<ProjectState>((set) => ({
     return project;
   },
 
-  deleteProject: (id) =>
-    set((s) => ({ projects: s.projects.filter((p) => p.id !== id) })),
+  deleteProject: async (id) => {
+    const previous = get().projects;
+    // Optimistic removal.
+    set((s) => ({ projects: s.projects.filter((p) => p.id !== id) }));
+
+    const supabase = getSupabase();
+    if (isSupabaseConfigured() && supabase) {
+      const { error } = await supabase.from("projects").delete().eq("id", id);
+      if (error) set({ projects: previous });
+    }
+  },
 }));
