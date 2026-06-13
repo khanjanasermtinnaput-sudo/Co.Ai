@@ -1,0 +1,50 @@
+name: Deploy aof-web to Vercel
+
+# Auto-deploys the Next.js frontend (aof-web) to Vercel on every push.
+# ONE-TIME SETUP: add a repo secret named VERCEL_TOKEN
+#   GitHub → repo → Settings → Secrets and variables → Actions → New repository secret
+#   Create the token at https://vercel.com/account/tokens
+# Without the secret this workflow is a no-op (stays green), so it never blocks pushes.
+
+on:
+  push:
+    branches:
+      - main
+      - claude/trusting-wright-zj93vo
+    paths:
+      - 'aof-web/**'
+      - '.github/workflows/vercel-deploy.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: aof-web
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Deploy to Vercel
+        if: ${{ secrets.VERCEL_TOKEN != '' }}
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          npm i -g vercel@latest
+          # --yes auto-creates & links the project under the token's team on first run.
+          url=$(vercel deploy --prod --yes --token="$VERCEL_TOKEN")
+          echo "Deployed: $url"
+          echo "### ✅ aof-web deployed" >> "$GITHUB_STEP_SUMMARY"
+          echo "$url" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Setup notice (no token yet)
+        if: ${{ secrets.VERCEL_TOKEN == '' }}
+        run: |
+          echo "VERCEL_TOKEN secret not set — skipping deploy."
+          echo "Add it at: Settings → Secrets and variables → Actions → VERCEL_TOKEN"
