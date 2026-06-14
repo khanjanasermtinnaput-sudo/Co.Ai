@@ -250,7 +250,7 @@ export async function streamCodeChat(
     if ((e as Error)?.name === "AbortError") return;
     // No key or network error → mock
   }
-  await mockCodeChat(message, handlers);
+  await mockCodeChat(message, handlers, history);
 }
 
 // ── Aof Code requirements conversation (RAA) ──────────────────────────────────

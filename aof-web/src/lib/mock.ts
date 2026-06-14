@@ -377,42 +377,74 @@ export async function mockCodeRun(
 // ── Mock Aof Code NORMAL_CHAT replies ────────────────────────────────────────
 
 /** Mock reply for NORMAL_CHAT state in Aof Code: greetings, tech Q&A, discussion.
- *  Returns the full reply text (same pattern as mockRequirements/mockPlan). */
-export async function mockCodeChat(message: string, h: StreamHandlers): Promise<string> {
+ *  History-aware so follow-up messages get context-relevant replies, not repeated
+ *  generic fallbacks. Returns the full reply text. */
+export async function mockCodeChat(
+  message: string,
+  h: StreamHandlers,
+  history: { role: string; content: string }[] = [],
+): Promise<string> {
   await sleep(180 + Math.random() * 160);
   const th = isThai(message);
   const m = message.toLowerCase().trim();
+  const isFollowUp = history.filter((x) => x.role === "user").length > 0;
 
   let text: string;
 
   // Greetings
   if (/^(hi|hello|hey|yo|sup|howdy|หวัดดี|สวัสดี|ไง|เฮ้)[\s!.?]*$/.test(m)) {
     text = th
-      ? pick(["สวัสดีครับ! กำลังทำอะไรอยู่ครับ?", "หวัดดีครับ — มีโปรเจกต์อะไรในหัวอยู่ไหมครับ?", "เฮ้! วันนี้จะสร้างอะไรกันดีครับ?"])
-      : pick(["Hey! What are you working on today?", "Hi! Got something in mind to build?", "Hey there — what project are we tackling?"]);
+      ? pick(["สวัสดีครับ! อยากสร้างอะไรวันนี้ครับ?", "หวัดดีครับ — มีโปรเจกต์อะไรในหัวอยู่ไหมครับ?", "เฮ้! วันนี้จะลงมือทำอะไรกันดีครับ?"])
+      : pick(["Hey! What are you building today?", "Hi! Got a project in mind?", "Hey — what are we working on?"]);
   }
-  // Thanks / acknowledgements
-  else if (/^(thanks|thank you|thx|ty|ขอบคุณ|ขอบใจ|โอเค|ok|cool|nice|great|awesome)[\s!.?]*$/.test(m)) {
-    text = th ? "ยินดีครับ! มีอะไรอื่นไหม?" : "Anytime! Anything else?";
+  // Thanks / short acks
+  else if (/^(thanks|thank you|thx|ty|ขอบคุณ|ขอบใจ|โอเค|ok|cool|nice|great|ดีมาก|เยี่ยม)[\s!.?]*$/.test(m)) {
+    text = th ? "ยินดีครับ! มีอะไรอยากทำต่อไหม?" : "Glad to help! Anything else on your mind?";
+  }
+  // "Continue / go on" follow-ups — guide toward describing a project
+  else if (/^(ต่อ|ต่อเลย|ต่อได้เลย|continue|go on|go ahead|proceed|next)[\s!.?]*$/i.test(m)) {
+    text = th
+      ? "บอกผมได้เลยครับว่าอยากทำอะไร — เช่น เว็บ, แอป, เกม หรือ API แล้วผมจะช่วยวางแผนให้"
+      : "Go ahead — tell me what you'd like to build and I'll help you plan it out.";
+  }
+  // "I have this much info" / vague context messages
+  else if (/(ข้อมูล|ประมาณนี้|แค่นี้|เท่านี้|this much|that's it|that's all)/.test(m)) {
+    text = th
+      ? "โอเคครับ — จากที่บอกมา ขอให้ผมเข้าใจเป้าหมายหลักก่อน คุณอยากให้ผลลัพธ์สุดท้ายออกมาเป็นอะไรครับ?"
+      : "Got it — based on what you've shared, what's the main outcome you're going for?";
   }
   // Tech comparison questions
-  else if (/vs|versus|compared|difference|better|หรือ|ต่างกัน|ดีกว่า/.test(m)) {
+  else if (/\bvs\b|versus|compared|difference|better|\bหรือ\b|ต่างกัน|ดีกว่า/.test(m)) {
     text = th
-      ? `ขึ้นอยู่กับ use case ครับ — แต่ละตัวมีจุดเด่นต่างกัน ลองเล่าว่าจะใช้ทำอะไร แล้วผมจะแนะนำให้ตรงกับสิ่งที่ต้องการมากขึ้น`
-      : `Depends on the use case — each has its strengths. Tell me what you're trying to build and I can give you a more targeted recommendation.`;
+      ? "ขึ้นอยู่กับ use case ครับ เล่าให้ฟังหน่อยว่าจะเอาไปใช้ทำอะไร แล้วผมจะแนะนำให้ตรงจุดขึ้น"
+      : "Depends on the use case. Tell me what you're trying to accomplish and I'll give you a more targeted take.";
   }
-  // General tech question
+  // Follow-up (has prior history) — avoid repeating the same generic line
+  else if (isFollowUp) {
+    text = th
+      ? pick([
+          "เข้าใจครับ — ถ้ามีโปรเจกต์ที่อยากลงมือทำ เล่าให้ฟังได้เลย แล้วผมจะช่วยคิดด้วย",
+          "โอเคครับ มีอะไรที่อยากสร้างหรืออยากแก้ไขอยู่ไหม? ผมพร้อมช่วยคิดด้วยครับ",
+          "รับทราบครับ — ถ้าอยากทำโปรเจกต์อะไร บอกผมได้เลย เราวางแผนด้วยกันได้",
+        ])
+      : pick([
+          "Got it — if you have a project in mind, describe it and I'll think through it with you.",
+          "Sure — what are you looking to build or fix? I'm ready to dig in.",
+          "Understood. Got a project you'd like to start? Tell me about it.",
+        ]);
+  }
+  // First-turn general question
   else {
     text = th
       ? pick([
-          "นั่นเป็นคำถามที่น่าสนใจครับ ขึ้นอยู่กับบริบทของโปรเจกต์ อธิบายเพิ่มเติมได้ไหมครับ?",
-          "ดีครับ — ตอบสั้น ๆ ก่อนเลย แล้วถ้าอยากลงลึกบอกได้เลย",
-          "มีหลายวิธีครับ วิธีที่เหมาะสุดขึ้นอยู่กับว่าต้องการอะไร บอกบริบทเพิ่มได้ไหมครับ?",
+          "น่าสนใจครับ ขึ้นอยู่กับบริบท — เล่าให้ฟังเพิ่มหน่อยได้ไหม?",
+          "ดีครับ คำตอบสั้น ๆ คือขึ้นอยู่กับว่าต้องการอะไร — บอกบริบทเพิ่มได้ไหมครับ?",
+          "มีหลายแนวทางครับ แต่ละแบบมีข้อดีต่างกัน ต้องการ optimize อะไรเป็นหลักครับ?",
         ])
       : pick([
-          "Good question — the short answer depends on context. Can you tell me more about what you're trying to do?",
-          "There are a few ways to approach this. What's the broader goal?",
-          "Happy to dig into that. What's the context — what are you building?",
+          "Interesting — depends on the context. Tell me a bit more?",
+          "Good question. Short answer: it depends on your priorities. What matters most to you here?",
+          "A few approaches work well here, each with different trade-offs. What are you optimizing for?",
         ]);
   }
 
