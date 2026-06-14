@@ -396,11 +396,11 @@ export async function mockRequirements(
     message.trim().length > 80 ||
     /\b(stack|next\.?js|react|vue|svelte|node|python|go|api|auth|database|postgres|mongo)\b/i.test(message);
 
-  // First, vague turn → gather requirements like a senior engineer would.
+  // First, vague turn → ONE question, natural senior-engineer tone.
   if (priorUserTurns === 0 && !detailed) {
     const text = th
-      ? `เข้าใจแล้วครับ ก่อนจะลงมือ ขอเก็บรายละเอียดสัก 2–3 ข้อ:\n\n1. แพลตฟอร์มไหน — เว็บ, มือถือ หรือเดสก์ท็อป?\n2. กลุ่มผู้ใช้หลักคือใคร และฟีเจอร์ที่ขาดไม่ได้มีอะไรบ้าง?\n3. มี tech stack หรือข้อจำกัดที่อยากให้ใช้ไหม (ถ้าไม่มี เดี๋ยวผมแนะนำให้)?`
-      : `Got it. Before we build, let me gather a few things:\n\n1. Which platform — web, mobile, or desktop?\n2. Who are the main users, and what are the must-have features?\n3. Any preferred tech stack or constraints (I'll suggest one if not)?`;
+      ? `สนใจครับ — ทำเป็น web app หรือ mobile app ครับ?`
+      : `Interesting — is this a web app or a mobile app?`;
     await streamText(text, h);
     return text;
   }
