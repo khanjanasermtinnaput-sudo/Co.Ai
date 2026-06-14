@@ -101,14 +101,28 @@ export interface ChatRequest {
   history: ChatHistoryItem[];
 }
 
-/** Stream a Chat-with-Aof reply (live `/v1/chat`, else mock). */
+/** Stream a Chat-with-Aof reply (live `/v1/chat`, else real `/api/chat`, else mock). */
 export async function streamChat(
   message: string,
   req: ChatRequest,
   handlers: StreamHandlers,
 ): Promise<void> {
   const mockOpts = { style: req.style, route: req.route };
-  if (!isLive()) return mockChat(message, mockOpts, handlers);
+
+  // No tmap-v2 backend configured → try the same-origin real LLM route first
+  // (Aof's own /api/chat, powered by a server-side key). It falls back to the
+  // offline mock when no key is set or the call fails.
+  if (!isLive()) {
+    try {
+      const handled = await streamLocalChat(message, req, handlers);
+      if (handled) return;
+    } catch (e) {
+      if ((e as Error)?.name === "AbortError") return; // user stopped — no fallback
+      // Any other failure → keep the UX flowing with the mock below.
+    }
+    return mockChat(message, mockOpts, handlers);
+  }
+
   try {
     await postSSE(
       "/v1/chat",
@@ -127,6 +141,41 @@ export async function streamChat(
     // Backend unreachable / unauthorised → keep the UX flowing with the mock.
     await mockChat(message, mockOpts, handlers);
   }
+}
+
+/**
+ * Call Aof's own server-side chat route (`/api/chat`) and stream the plain-text
+ * reply token by token. Returns `true` when the route handled the request, or
+ * `false` when no provider key is configured (503) so the caller uses the mock.
+ */
+async function streamLocalChat(
+  message: string,
+  req: ChatRequest,
+  handlers: StreamHandlers,
+): Promise<boolean> {
+  const res = await fetch("/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      message,
+      style: req.style,
+      route: req.route,
+      history: req.history.map((h) => ({ role: h.role, content: h.content })),
+    }),
+    signal: handlers.signal,
+  });
+
+  if (res.status === 503) return false; // no key → fall back to mock
+  if (!res.ok || !res.body) throw new Error(`chat failed (${res.status})`);
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    handlers.onToken(decoder.decode(value, { stream: true }));
+  }
+  return true;
 }
 
 /** Stream an Aof Code build (live `/v1/run`, else mock). */
