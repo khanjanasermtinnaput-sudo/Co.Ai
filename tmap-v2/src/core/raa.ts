@@ -129,14 +129,20 @@ function parseSummary(text: string): RequirementSummary {
     block.match(new RegExp(`^${key}:\\s*(.+)`, 'm'))?.[1]?.trim() ?? '';
 
   const list = (key: string): string[] => {
-    // capture from "Key:\n- item\n- item" until next key or end
-    const m = block.match(new RegExp(`^${key}:[\\s\\S]*?(?=^[A-Za-zก-๙]+:|$)`, 'm'));
-    if (!m) return [];
-    return m[0]
-      .split('\n')
-      .slice(1)
-      .map((l) => l.replace(/^\s*[-•*]\s*/, '').trim())
-      .filter(Boolean);
+    // Walk line-by-line: collect bullet items under "Key:" until the next section header.
+    // Regex-based lookahead with multiline `$` stops at every line end — use this instead.
+    const lines = block.split('\n');
+    const start = lines.findIndex((l) => l.trimStart().startsWith(`${key}:`));
+    if (start === -1) return [];
+    const items: string[] = [];
+    for (let i = start + 1; i < lines.length; i++) {
+      const l = lines[i];
+      // A section header: starts with a letter/Thai char and has a colon (e.g. "Complexity:" or "Tech Stack:")
+      if (/^[A-Za-zก-๙][A-Za-zก-๙\s]*:/.test(l)) break;
+      const item = l.replace(/^\s*[-•*]\s*/, '').trim();
+      if (item) items.push(item);
+    }
+    return items;
   };
 
   const openQRaw = list('Open Questions');
