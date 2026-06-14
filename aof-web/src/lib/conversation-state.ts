@@ -1,15 +1,24 @@
-// ── Aof Code V3 — Conversation State Machine ─────────────────────────────────
-// Implements the five-state model from the AOF CODE V3 master prompt.
+// ── Aof Code V4 — Conversation State Machine ─────────────────────────────────
+// Implements the six-state model from the AOF CODE V4 collaborative prompt.
 // All functions are pure so they are trivially testable without mocks.
 //
 // States:
-//   NORMAL_CHAT  — casual conversation, tech Q&A, greetings (no project context)
-//   DISCOVERY    — gathering requirements (RAA running)
-//   PLANNING     — architecture discussion (future gate)
-//   CODING       — TMAP generation in progress
-//   DEBUGGING    — diagnosing errors / bugs
+//   NORMAL_CHAT    — casual conversation, tech Q&A, greetings (no project context)
+//   DISCOVERY      — understanding the user's goal (entry point for new projects)
+//   BRAINSTORMING  — thinking TOGETHER: Aof contributes ideas, directions, trade-offs
+//                    (behavioural mode WITHIN discovery — classifyTurn never returns
+//                    this; the persona handles the collaborative 50/50 behaviour)
+//   PLANNING       — designing architecture, components, structure
+//   CODING         — TMAP generation (only on explicit trigger)
+//   DEBUGGING      — diagnosing errors / root cause / patch
 
-export type ConvState = "NORMAL_CHAT" | "DISCOVERY" | "PLANNING" | "CODING" | "DEBUGGING";
+export type ConvState =
+  | "NORMAL_CHAT"
+  | "DISCOVERY"
+  | "BRAINSTORMING"
+  | "PLANNING"
+  | "CODING"
+  | "DEBUGGING";
 
 // Greetings: exact-match (after trim) so "hi, I want to build an app" is NOT a greeting.
 const GREETING_EXACT = new Set([

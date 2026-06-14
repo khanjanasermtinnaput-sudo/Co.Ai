@@ -442,11 +442,34 @@ export async function mockRequirements(
     message.trim().length > 80 ||
     /\b(stack|next\.?js|react|vue|svelte|node|python|go|api|auth|database|postgres|mongo)\b/i.test(message);
 
-  // First, vague turn → ONE question, natural senior-engineer tone.
+  // First, vague turn → 50/50 collaborative: show understanding, contribute
+  // directions, recommend one, ask the one most strategically important question.
   if (priorUserTurns === 0 && !detailed) {
-    const text = th
-      ? `สนใจครับ — ทำเป็น web app หรือ mobile app ครับ?`
-      : `Interesting — is this a web app or a mobile app?`;
+    const lc = message.toLowerCase();
+    const isGame = /game|เกม/.test(lc);
+    const isChat = /chat|messaging|แชท|คุย/.test(lc);
+    const isTodo = /todo|task|tasks/.test(lc);
+    const isSaaS = /saas|subscription|b2b/.test(lc);
+
+    let text: string;
+    if (isGame && th) {
+      text = `น่าสนใจมากครับ — เกมประเภทนี้มีหลายทิศทาง: Casual Mode (เล่นสนุก เหมาะ viral growth), Competitive Mode (leaderboard + จับเวลา สำหรับคนชอบแข่ง), หรือ Educational Mode (สอนเด็กฝึกคิดเลข) ผมว่าเริ่ม Casual Mode ก่อนน่าจะ validate ง่ายสุด — ความเสี่ยงหลักคือ puzzle generation algorithm ที่ต้องแน่ใจว่าทุก set มีคำตอบ คุณสนใจทิศทางไหนครับ?`;
+    } else if (isGame) {
+      text = `Nice idea — games like this can go a few directions: Casual Mode (quick fun, great for viral growth), Competitive Mode (leaderboards and time pressure), or Educational Mode (teaching concepts through play). I'd start with Casual Mode — fastest path to your first players. The key technical risk is making sure the puzzle generator always produces solvable sets. Which direction interests you most?`;
+    } else if (isChat && th) {
+      text = `แชทแอปเป็นโปรเจกต์ที่น่าสนใจครับ มีหลาย angle: realtime chat ธรรมดา (ง่าย validate เร็ว), team messaging แบบ Slack (ซับซ้อนขึ้นมีช่อง/thread), หรือ AI-powered chat ผมว่าเริ่ม core realtime messaging ก่อนแล้วค่อย layer feature — ส่วนที่ยากที่สุดคือ realtime infra ถ้าเลือก WebSocket vs SSE ผิดจะแก้ทีหลังลำบาก ผู้ใช้กลุ่มหลักคือใครครับ?`;
+    } else if (isChat) {
+      text = `Chat apps have a few clear angles: simple realtime chat (easy to validate fast), team messaging like Slack (channels, threads, more complex), or AI-powered conversations. I'd start with core realtime messaging and layer on features — the hardest part is picking the right realtime infrastructure early (WebSocket vs SSE vs a managed service), since it's costly to change later. Who's the primary audience?`;
+    } else if (isTodo && th) {
+      text = `Todo app ดูง่ายแต่มี scope ได้กว้างมากครับ ทำเป็น personal task manager (ง่าย launch เร็ว), team collaboration tool (ซับซ้อน มี assignment/deadline), หรือ Notion-style workspace ผมแนะนำ personal + local-first ก่อน — validate ง่าย และ offline support ช่วยให้ UX ดีขึ้นมาก เป้าหมายหลักทำให้ตัวเองใช้หรือจะ launch ให้คนอื่นใช้ครับ?`;
+    } else if (isTodo) {
+      text = `Todo apps can range widely in scope: a personal task manager (simple, fast to launch), a team collaboration tool (assignments, deadlines, more complex), or a Notion-style workspace. I'd start personal and local-first — easiest to validate, and offline support makes the UX dramatically better. Is this for your own use or are you building for others?`;
+    } else if (th) {
+      text = `สนใจครับ — โปรเจกต์แบบนี้มีหลายทิศทาง เริ่ม MVP แบบ focused ก่อน หรือสร้างให้ครบฟีเจอร์ตั้งแต่ต้น ผมมักแนะนำ vertical slice ที่ demo ได้ก่อนเสมอ — ship เร็ว เรียนรู้จาก real user เร็ว ความเสี่ยงที่มักมาช้าคือ auth และ data model ถ้าวางทีหลังแก้ยากมาก ผู้ใช้กลุ่มหลักในใจคือใครครับ?`;
+    } else {
+      text = `Interesting project — a few directions worth considering: a tight MVP to validate fast, or a more complete v1 with the full feature set. I almost always recommend starting with a demoable vertical slice — ship fast, learn from real users. The risk that often surprises people is auth and data modelling: if you defer those, they're painful to retrofit. Who's the primary audience you're building for?`;
+    }
+
     await streamText(text, h);
     return text;
   }
