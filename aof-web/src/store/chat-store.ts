@@ -34,6 +34,8 @@ interface ChatState {
   queueFirstMessage: (text: string, attachments?: Attachment[]) => void;
   consumePending: () => PendingMessage | null;
   send: (text: string, attachments?: Attachment[]) => Promise<void>;
+  /** Re-answer one assistant message at a new verbosity, in place. */
+  regenerateAt: (messageId: string, style: ResponseStyle) => Promise<void>;
   stop: () => void;
 }
 
@@ -196,6 +198,102 @@ export const useChatStore = create<ChatState>()(
         try {
           await streamChat(
             content,
+            { style, route, history },
+            { onToken: appendToken, signal: controller.signal },
+          );
+        } finally {
+          finish();
+        }
+      },
+
+      regenerateAt: async (messageId, style) => {
+        if (get().streaming) return;
+
+        const conv = get().conversations.find((c) =>
+          c.messages.some((m) => m.id === messageId),
+        );
+        if (!conv) return;
+        const idx = conv.messages.findIndex((m) => m.id === messageId);
+        const target = conv.messages[idx];
+        if (!target || target.role !== "assistant") return;
+
+        // Find the user turn this assistant message was replying to.
+        let userIdx = idx - 1;
+        while (userIdx >= 0 && conv.messages[userIdx].role !== "user") userIdx--;
+        if (userIdx < 0) return;
+        const userMsg = conv.messages[userIdx];
+
+        const activeId = conv.id;
+        const route = routeRequest(userMsg.content, userMsg.attachments ?? []);
+
+        // Reset the target reply and re-stream it at the new verbosity in place.
+        set((s) => ({
+          streaming: true,
+          style,
+          conversations: s.conversations.map((c) =>
+            c.id === activeId
+              ? {
+                  ...c,
+                  messages: c.messages.map((m) =>
+                    m.id === messageId
+                      ? {
+                          ...m,
+                          content: "",
+                          streaming: true,
+                          style,
+                          model: modelForStyle(style),
+                          route,
+                          learning: undefined,
+                        }
+                      : m,
+                  ),
+                }
+              : c,
+          ),
+        }));
+
+        const history: ChatHistoryItem[] = conv.messages
+          .slice(0, userIdx)
+          .filter((m) => m.role !== "system")
+          .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
+
+        const finish = () =>
+          set((s) => ({
+            streaming: false,
+            abort: null,
+            conversations: s.conversations.map((c) =>
+              c.id === activeId
+                ? {
+                    ...c,
+                    updatedAt: new Date().toISOString(),
+                    messages: c.messages.map((m) =>
+                      m.id === messageId ? { ...m, streaming: false } : m,
+                    ),
+                  }
+                : c,
+            ),
+          }));
+
+        const controller = new AbortController();
+        set({ abort: controller });
+
+        const appendToken = (chunk: string) =>
+          set((s) => ({
+            conversations: s.conversations.map((c) =>
+              c.id === activeId
+                ? {
+                    ...c,
+                    messages: c.messages.map((m) =>
+                      m.id === messageId ? { ...m, content: m.content + chunk } : m,
+                    ),
+                  }
+                : c,
+            ),
+          }));
+
+        try {
+          await streamChat(
+            userMsg.content,
             { style, route, history },
             { onToken: appendToken, signal: controller.signal },
           );
