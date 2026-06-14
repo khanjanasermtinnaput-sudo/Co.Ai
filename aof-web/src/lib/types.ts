@@ -1,5 +1,7 @@
 // ── Domain types shared across the Aof frontend ───────────────────────────────
 
+import type { AofProviderError, FailoverNotice } from "./errors";
+
 /** Top-level products surfaced in the sidebar. Titan is intentionally absent —
  *  it is a mode *inside* Aof Code, never a product on the homepage. */
 export type ProductKey = "chat" | "code" | "projects" | "settings";
@@ -65,6 +67,10 @@ export interface ChatMessageT {
   style?: ResponseStyle;
   /** structured Math/Learning payload — when present, rendered with a toggle */
   learning?: LearningAnswer;
+  /** present when the AI provider failed — rendered as an error panel, never a reply */
+  error?: AofProviderError;
+  /** present when the route failed over to a different provider mid-request */
+  failover?: FailoverNotice;
 }
 
 export interface Conversation {

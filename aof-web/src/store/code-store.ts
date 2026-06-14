@@ -24,6 +24,7 @@ import {
 } from "@/lib/raa";
 import { TITAN_PHASES } from "@/lib/constants";
 import { uid } from "@/lib/utils";
+import { formatErrorBlock, type AofProviderError, type FailoverNotice } from "@/lib/errors";
 import type {
   ChatMessageT,
   ClarifyQuestion,
@@ -101,6 +102,8 @@ interface CodeState {
 
   // ── Standard build (lite / 1.0 / pro) ─────────────────────────────────────
   buildLog: string;
+  /** provider failure for the current build/plan/analyze/debug action */
+  buildError: AofProviderError | null;
   building: boolean;
   abort: AbortController | null;
   runBuild: (task: string) => Promise<void>;
@@ -218,11 +221,23 @@ export const useCodeStore = create<CodeState>()(
           m.id === assistantId ? { ...m, content: m.content + chunk } : m,
         ),
       }));
+    const patch = (p: Partial<ChatMessageT>) =>
+      set((s) => ({
+        convo: s.convo.map((m) => (m.id === assistantId ? { ...m, ...p } : m)),
+      }));
+    // A provider failure must surface as an error panel — never a fabricated reply.
+    const onError = (error: AofProviderError) => patch({ error, streaming: false });
+    const onFailover = (failover: FailoverNotice) => patch({ failover });
 
     try {
       if (convState === "NORMAL_CHAT") {
         // ── NORMAL_CHAT: casual reply, no RAA, no brief update ────────────────
-        await streamCodeChat(content, history, { onToken: append, signal: controller.signal });
+        await streamCodeChat(content, history, {
+          onToken: append,
+          signal: controller.signal,
+          onError,
+          onFailover,
+        });
       } else {
         // ── DISCOVERY: RAA gathers requirements, brief may be emitted ─────────
         // Mark the project active so all subsequent turns stay in DISCOVERY
@@ -232,6 +247,8 @@ export const useCodeStore = create<CodeState>()(
         const { brief } = await streamRequirements(content, history, {
           onToken: append,
           signal: controller.signal,
+          onError,
+          onFailover,
         });
         // On a fresh brief, capture it and strip the summary block from the bubble
         // (the structured brief is shown in its own panel).
@@ -269,7 +286,7 @@ export const useCodeStore = create<CodeState>()(
 
     const { task, context } = deriveBuildInput(convo, brief);
     const controller = new AbortController();
-    set({ phase: "generating", building: true, buildLog: "", abort: controller, outputKind: "build" });
+    set({ phase: "generating", building: true, buildLog: "", buildError: null, abort: controller, outputKind: "build" });
     try {
       // `mode` is narrowed to non-titan by the guard above.
       await streamCodeRun(
@@ -278,6 +295,7 @@ export const useCodeStore = create<CodeState>()(
         {
           onToken: (chunk) => set((s) => ({ buildLog: s.buildLog + chunk })),
           signal: controller.signal,
+          onError: (error) => set({ buildError: error }),
         },
         context,
       );
@@ -291,7 +309,7 @@ export const useCodeStore = create<CodeState>()(
     if (building || mode === "titan") return;
     const { task, context } = deriveBuildInput(convo, brief);
     const controller = new AbortController();
-    set({ building: true, buildLog: "", abort: controller, outputKind: "plan" });
+    set({ building: true, buildLog: "", buildError: null, abort: controller, outputKind: "plan" });
     try {
       await streamPlan(
         task,
@@ -299,6 +317,7 @@ export const useCodeStore = create<CodeState>()(
         {
           onToken: (chunk) => set((s) => ({ buildLog: s.buildLog + chunk })),
           signal: controller.signal,
+          onError: (error) => set({ buildError: error }),
         },
         context,
       );
@@ -312,11 +331,12 @@ export const useCodeStore = create<CodeState>()(
     if (building) return;
     const { briefText } = deriveBuildInput(convo, brief);
     const controller = new AbortController();
-    set({ building: true, buildLog: "", abort: controller, outputKind: "analyze" });
+    set({ building: true, buildLog: "", buildError: null, abort: controller, outputKind: "analyze" });
     try {
       await streamAnalyze(briefText, {
         onToken: (chunk) => set((s) => ({ buildLog: s.buildLog + chunk })),
         signal: controller.signal,
+        onError: (error) => set({ buildError: error }),
       });
     } finally {
       set({ building: false, abort: null });
@@ -328,13 +348,14 @@ export const useCodeStore = create<CodeState>()(
     if (!content || get().building) return;
     const { briefText } = deriveBuildInput(get().convo, get().brief);
     const controller = new AbortController();
-    set({ building: true, buildLog: "", abort: controller, outputKind: "debug" });
+    set({ building: true, buildLog: "", buildError: null, abort: controller, outputKind: "debug" });
     try {
       await streamDebug(
         { error: content, context: briefText },
         {
           onToken: (chunk) => set((s) => ({ buildLog: s.buildLog + chunk })),
           signal: controller.signal,
+          onError: (error) => set({ buildError: error }),
         },
       );
     } finally {
@@ -349,6 +370,7 @@ export const useCodeStore = create<CodeState>()(
       phase: "conversation",
       projectActive: false,
       buildLog: "",
+      buildError: null,
       chatting: false,
       building: false,
       debugMode: false,
@@ -356,6 +378,7 @@ export const useCodeStore = create<CodeState>()(
     }),
 
   buildLog: "",
+  buildError: null,
   building: false,
   abort: null,
 
@@ -364,11 +387,12 @@ export const useCodeStore = create<CodeState>()(
     const mode = get().mode;
     if (!t || get().building || mode === "titan") return;
     const controller = new AbortController();
-    set({ building: true, buildLog: "", abort: controller });
+    set({ building: true, buildLog: "", buildError: null, abort: controller });
     try {
       await streamCodeRun(t, mode as "lite" | "1.0" | "pro", {
         onToken: (chunk) => set((s) => ({ buildLog: s.buildLog + chunk })),
         signal: controller.signal,
+        onError: (error) => set({ buildError: error }),
       });
     } finally {
       set({ building: false, abort: null });
@@ -379,7 +403,7 @@ export const useCodeStore = create<CodeState>()(
     get().abort?.abort();
     set({ abort: null, building: false });
   },
-  clearBuild: () => set({ buildLog: "" }),
+  clearBuild: () => set({ buildLog: "", buildError: null }),
 
   // ── Titan ──────────────────────────────────────────────────────────────────
   titan: emptyTitan,
@@ -444,6 +468,14 @@ export const useCodeStore = create<CodeState>()(
     await streamCodeRun(prompt, "pro", {
       onToken: (chunk) =>
         set((s) => ({ titan: { ...s.titan, buildLog: s.titan.buildLog + chunk } })),
+      // Surface a provider failure inline in the Titan build log — no fake output.
+      onError: (error) =>
+        set((s) => ({
+          titan: {
+            ...s.titan,
+            buildLog: `${s.titan.buildLog}\n\n\`\`\`\n${formatErrorBlock(error)}\n\`\`\`\n`,
+          },
+        })),
     });
   },
 

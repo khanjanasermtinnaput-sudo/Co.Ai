@@ -1,7 +1,10 @@
 // ── Aof API client ────────────────────────────────────────────────────────────
-// Thin, typed layer over the tmap-v2 backend (/v1/*). Designed to degrade
-// gracefully: when no backend is configured (or a call fails), the UI transparently
-// falls back to the offline mock engine so the homepage experience always works.
+// Thin, typed layer over the AI providers. Transparency is the rule: when a
+// provider fails, the failure is surfaced to the UI as a structured
+// `AofProviderError` (via `handlers.onError`) — it is NEVER hidden behind a fake
+// "mock" reply. The offline mock engine still exists, but only runs when the app
+// is *explicitly* put in demo mode (`NEXT_PUBLIC_AOF_DEMO=1`); it is off by
+// default so the UI never appears to work when AI is actually down.
 
 import type { ProjectBrief, ResponseStyle, RouteDecision } from "./types";
 import {
@@ -14,6 +17,13 @@ import {
   mockDebug,
   type StreamHandlers,
 } from "./mock";
+import {
+  classifyProviderError,
+  decodeFrames,
+  emptyResponseError,
+  isAofProviderError,
+  type AofProviderError,
+} from "./errors";
 import { parseBrief, summaryToBrief } from "./raa";
 
 /** Resolve the API base. Empty string means "same origin" (Next rewrite proxy). */
@@ -27,6 +37,11 @@ export function getApiBase(): string | null {
 
 export function isLive(): boolean {
   return getApiBase() !== null;
+}
+
+/** Explicit, opt-in offline demo — simulated responses, clearly not real AI. */
+export function isDemoMode(): boolean {
+  return process.env.NEXT_PUBLIC_AOF_DEMO === "1";
 }
 
 const TOKEN_KEY = "aof.token";
@@ -44,6 +59,38 @@ export function setToken(token: string | null) {
 function authHeaders(): Record<string, string> {
   const t = getToken();
   return t ? { Authorization: `Bearer ${t}` } : {};
+}
+
+// ── Error helpers ─────────────────────────────────────────────────────────────
+
+function isAbortError(e: unknown): boolean {
+  return (e as { name?: string } | null)?.name === "AbortError";
+}
+
+/** Same-origin/network failure (the Aof server itself is unreachable). */
+function networkError(e: unknown): AofProviderError {
+  return classifyProviderError({
+    provider: "Aof",
+    hint: "network",
+    message: (e as Error)?.message ?? "request failed",
+  });
+}
+
+/** The optional tmap-v2 backend is configured but unreachable / erroring. */
+function backendUnavailableError(detail: string, e?: unknown): AofProviderError {
+  const suffix = e ? ` (${(e as Error)?.message ?? String(e)})` : "";
+  return classifyProviderError({ provider: "Aof Backend", status: 502, message: `${detail}${suffix}` });
+}
+
+/** Build pipeline (Generate/Plan/Analyze/Debug) needs the tmap-v2 backend. */
+function buildPipelineError(): AofProviderError {
+  return classifyProviderError({
+    provider: "Aof Code build pipeline",
+    hint: "config",
+    message:
+      "The Aof Code build pipeline (Generate / Plan / Analyze / Debug) requires the tmap-v2 " +
+      "backend. Set NEXT_PUBLIC_AOF_API_BASE (or AOF_API_PROXY) to enable it.",
+  });
 }
 
 export interface SSEEvent {
@@ -98,6 +145,76 @@ export async function postSSE(
   }
 }
 
+/**
+ * Read Aof's own `/api/chat` response: a JSON error envelope when the request
+ * failed before streaming, otherwise a plain-text token stream that may carry
+ * in-band error / failover control frames. Routes everything to the handlers and
+ * returns the accumulated text (used by RAA to parse a brief).
+ */
+async function readAofStream(
+  res: Response,
+  handlers: StreamHandlers,
+): Promise<{ errored: boolean; text: string }> {
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    const err = isAofProviderError(body)
+      ? body
+      : classifyProviderError({ provider: "Aof", status: res.status, message: `Request failed (${res.status})` });
+    handlers.onError?.(err);
+    return { errored: true, text: "" };
+  }
+  if (!res.body) {
+    handlers.onError?.(emptyResponseError("Aof"));
+    return { errored: true, text: "" };
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let full = "";
+  let errored = false;
+
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const decoded = decodeFrames(buffer);
+      buffer = decoded.remainder;
+      if (decoded.text) {
+        full += decoded.text;
+        handlers.onToken(decoded.text);
+      }
+      for (const fo of decoded.failovers) handlers.onFailover?.(fo);
+      if (decoded.errors.length) {
+        for (const e of decoded.errors) handlers.onError?.(e);
+        errored = true;
+        break;
+      }
+    }
+  } catch (e) {
+    if (isAbortError(e)) return { errored, text: full };
+    handlers.onError?.(networkError(e));
+    return { errored: true, text: full };
+  }
+
+  // Flush any complete trailing frame/text.
+  if (!errored && buffer) {
+    const decoded = decodeFrames(buffer);
+    if (decoded.text) {
+      full += decoded.text;
+      handlers.onToken(decoded.text);
+    }
+    for (const fo of decoded.failovers) handlers.onFailover?.(fo);
+    if (decoded.errors.length) {
+      for (const e of decoded.errors) handlers.onError?.(e);
+      errored = true;
+    }
+  }
+
+  return { errored, text: full };
+}
+
 // ── High-level helpers used by the stores ─────────────────────────────────────
 
 export interface ChatHistoryItem {
@@ -111,125 +228,102 @@ export interface ChatRequest {
   history: ChatHistoryItem[];
 }
 
-/** Stream a Chat-with-Aof reply (live `/v1/chat`, else real `/api/chat`, else mock). */
+/** Stream a Chat-with-Aof reply. Live `/v1/chat` → real `/api/chat`; failures
+ *  surface as structured errors. Mock only in explicit demo mode. */
 export async function streamChat(
   message: string,
   req: ChatRequest,
   handlers: StreamHandlers,
 ): Promise<void> {
-  const mockOpts = { style: req.style, route: req.route };
-
-  // No tmap-v2 backend configured → try the same-origin real LLM route first
-  // (Aof's own /api/chat, powered by a server-side key). It falls back to the
-  // offline mock when no key is set or the call fails.
-  if (!isLive()) {
-    try {
-      const handled = await streamLocalChat(message, req, handlers);
-      if (handled) return;
-    } catch (e) {
-      if ((e as Error)?.name === "AbortError") return; // user stopped — no fallback
-      // Any other failure → keep the UX flowing with the mock below.
-    }
-    return mockChat(message, mockOpts, handlers);
+  if (isDemoMode() && !isLive()) {
+    return mockChat(message, { style: req.style, route: req.route }, handlers);
   }
 
+  if (isLive()) {
+    try {
+      await postSSE(
+        "/v1/chat",
+        {
+          message,
+          style: req.style,
+          route: req.route.target,
+          history: req.history.map((h) => ({ role: h.role, content: h.content })),
+        },
+        (e) => {
+          if (e.kind === "output" && typeof e.text === "string") handlers.onToken(e.text);
+        },
+        handlers.signal,
+      );
+    } catch (e) {
+      if (isAbortError(e)) return;
+      handlers.onError?.(backendUnavailableError("Chat backend (/v1/chat) is unreachable.", e));
+    }
+    return;
+  }
+
+  // Default: Aof's own provider route.
   try {
-    await postSSE(
-      "/v1/chat",
-      {
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
         message,
         style: req.style,
-        route: req.route.target,
+        route: req.route,
         history: req.history.map((h) => ({ role: h.role, content: h.content })),
-      },
-      (e) => {
-        if (e.kind === "output" && typeof e.text === "string") handlers.onToken(e.text);
-      },
-      handlers.signal,
-    );
-  } catch {
-    // Backend unreachable / unauthorised → keep the UX flowing with the mock.
-    await mockChat(message, mockOpts, handlers);
+      }),
+      signal: handlers.signal,
+    });
+    await readAofStream(res, handlers);
+  } catch (e) {
+    if (isAbortError(e)) return;
+    handlers.onError?.(networkError(e));
   }
 }
 
-/**
- * Call Aof's own server-side chat route (`/api/chat`) and stream the plain-text
- * reply token by token. Returns `true` when the route handled the request, or
- * `false` when no provider key is configured (503) so the caller uses the mock.
- */
-async function streamLocalChat(
-  message: string,
-  req: ChatRequest,
-  handlers: StreamHandlers,
-): Promise<boolean> {
-  const res = await fetch("/api/chat", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      message,
-      style: req.style,
-      route: req.route,
-      history: req.history.map((h) => ({ role: h.role, content: h.content })),
-    }),
-    signal: handlers.signal,
-  });
-
-  if (res.status === 503) return false; // no key → fall back to mock
-  if (!res.ok || !res.body) throw new Error(`chat failed (${res.status})`);
-
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    handlers.onToken(decoder.decode(value, { stream: true }));
-  }
-  return true;
-}
-
-/** Stream an Aof Code build (live `/v1/run`, else mock). The optional `context`
- *  carries the approved project brief so TMAP generates against real requirements. */
+/** Stream an Aof Code build (live `/v1/run`). Requires the tmap-v2 backend. */
 export async function streamCodeRun(
   task: string,
   mode: "lite" | "1.0" | "pro",
   handlers: StreamHandlers,
   context?: string,
 ): Promise<void> {
-  if (!isLive()) return mockCodeRun(task, mode, handlers);
-  // Backend modes are lite | normal | pro — map 1.0 → normal.
+  if (isDemoMode()) {
+    await mockCodeRun(task, mode, handlers);
+    return;
+  }
+  if (!isLive()) {
+    handlers.onError?.(buildPipelineError());
+    return;
+  }
   const backendMode = mode === "1.0" ? "normal" : mode;
   try {
     await postSSE(
       "/v1/run",
       { task, mode: backendMode, context: context ?? "" },
       (e) => {
-        if (typeof e.text === "string" && e.kind !== "done") {
-          handlers.onToken(`${e.text}\n`);
-        }
+        if (typeof e.text === "string" && e.kind !== "done") handlers.onToken(`${e.text}\n`);
       },
       handlers.signal,
     );
-  } catch {
-    await mockCodeRun(task, mode, handlers);
+  } catch (e) {
+    if (isAbortError(e)) return;
+    handlers.onError?.(backendUnavailableError("Build backend (/v1/run) is unreachable.", e));
   }
 }
 
 // ── Aof Code NORMAL_CHAT (no project active) ─────────────────────────────────
 
-/**
- * Stream a NORMAL_CHAT reply within Aof Code. Used when no project is active —
- * greetings, tech Q&A, casual discussion. Falls back: same-origin /api/chat
- * (agent=code-chat) → offline mock.
- */
+/** Stream a NORMAL_CHAT reply within Aof Code (same-origin `/api/chat`). */
 export async function streamCodeChat(
   message: string,
   history: ChatHistoryItem[],
   handlers: StreamHandlers,
 ): Promise<void> {
-  // No backend needed for this path — it always goes through the same-origin
-  // LLM route or the mock. The live tmap-v2 backend doesn't have a "chat" endpoint
-  // for NORMAL_CHAT within Aof Code; we use the Next.js /api/chat route directly.
+  if (isDemoMode()) {
+    await mockCodeChat(message, handlers, history);
+    return;
+  }
   try {
     const res = await fetch("/api/chat", {
       method: "POST",
@@ -237,20 +331,11 @@ export async function streamCodeChat(
       body: JSON.stringify({ message, agent: "code-chat", history: history.slice(-20) }),
       signal: handlers.signal,
     });
-    if (res.status === 503 || !res.ok || !res.body) throw new Error("no-key");
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      handlers.onToken(decoder.decode(value, { stream: true }));
-    }
-    return;
+    await readAofStream(res, handlers);
   } catch (e) {
-    if ((e as Error)?.name === "AbortError") return;
-    // No key or network error → mock
+    if (isAbortError(e)) return;
+    handlers.onError?.(networkError(e));
   }
-  await mockCodeChat(message, handlers, history);
 }
 
 // ── Aof Code requirements conversation (RAA) ──────────────────────────────────
@@ -261,18 +346,21 @@ export interface RequirementsResult {
   hasBrief: boolean;
 }
 
-/**
- * Stream a Requirements-Architect reply for the Aof Code conversation. Mirrors the
- * `streamChat` fallback chain: live tmap-v2 RAA (`/v1/chat`) → same-origin RAA
- * persona (`/api/chat?agent=requirements`) → offline mock. Returns any brief the
- * assistant emitted so the caller can update its project context.
- */
+/** Stream a Requirements-Architect reply. Live tmap-v2 RAA → same-origin RAA;
+ *  failures surface as structured errors. Mock only in explicit demo mode. */
 export async function streamRequirements(
   message: string,
   history: ChatHistoryItem[],
   handlers: StreamHandlers,
 ): Promise<RequirementsResult> {
   const hist = history.map((h) => ({ role: h.role, content: h.content }));
+  const none: RequirementsResult = { brief: null, hasBrief: false };
+
+  if (isDemoMode() && !isLive()) {
+    const text = await mockRequirements(message, hist, handlers);
+    const brief = parseBrief(text);
+    return { brief, hasBrief: brief !== null };
+  }
 
   // 1) Live tmap-v2 RAA — the backend parses and returns the summary for us.
   if (isLive()) {
@@ -294,39 +382,44 @@ export async function streamRequirements(
       );
       return { brief, hasBrief: hasBriefFlag };
     } catch (e) {
-      if ((e as Error)?.name === "AbortError") return { brief: null, hasBrief: false };
-      // Backend unreachable → fall through to the same-origin route / mock.
+      if (isAbortError(e)) return none;
+      handlers.onError?.(backendUnavailableError("Requirements backend (/v1/chat) is unreachable.", e));
+      return none;
     }
   }
 
   // 2) Same-origin RAA persona (real LLM via /api/chat) — parse the brief client-side.
   try {
-    const text = await streamLocalRequirements(message, hist, handlers);
-    if (text !== null) {
-      const brief = parseBrief(text);
-      return { brief, hasBrief: brief !== null };
-    }
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message, agent: "requirements", history: hist }),
+      signal: handlers.signal,
+    });
+    const { errored, text } = await readAofStream(res, handlers);
+    if (errored) return none;
+    const brief = parseBrief(text);
+    return { brief, hasBrief: brief !== null };
   } catch (e) {
-    if ((e as Error)?.name === "AbortError") return { brief: null, hasBrief: false };
-    // any other failure → keep the UX flowing with the mock below
+    if (isAbortError(e)) return none;
+    handlers.onError?.(networkError(e));
+    return none;
   }
-
-  // 3) Offline mock.
-  const text = await mockRequirements(message, hist, handlers);
-  const brief = parseBrief(text);
-  return { brief, hasBrief: brief !== null };
 }
 
-/** Stream a plan-only build (Aof Code "Create Plan"): Architect + Planner, no code.
- *  Live `/v1/run` with planOnly, else mock. */
+/** Stream a plan-only build (Aof Code "Create Plan"). Requires the tmap-v2 backend. */
 export async function streamPlan(
   task: string,
   mode: "lite" | "1.0" | "pro",
   handlers: StreamHandlers,
   context?: string,
 ): Promise<void> {
-  if (!isLive()) {
+  if (isDemoMode()) {
     await mockPlan(task, handlers);
+    return;
+  }
+  if (!isLive()) {
+    handlers.onError?.(buildPipelineError());
     return;
   }
   const backendMode = mode === "1.0" ? "normal" : mode;
@@ -339,15 +432,20 @@ export async function streamPlan(
       },
       handlers.signal,
     );
-  } catch {
-    await mockPlan(task, handlers);
+  } catch (e) {
+    if (isAbortError(e)) return;
+    handlers.onError?.(backendUnavailableError("Plan backend (/v1/run) is unreachable.", e));
   }
 }
 
-/** Stream a project analysis (Aof Code "Analyze Project"). Live `/v1/analyze`, else mock. */
+/** Stream a project analysis (Aof Code "Analyze Project"). Requires the tmap-v2 backend. */
 export async function streamAnalyze(brief: string, handlers: StreamHandlers): Promise<void> {
-  if (!isLive()) {
+  if (isDemoMode()) {
     await mockAnalyze(brief, handlers);
+    return;
+  }
+  if (!isLive()) {
+    handlers.onError?.(buildPipelineError());
     return;
   }
   try {
@@ -359,8 +457,9 @@ export async function streamAnalyze(brief: string, handlers: StreamHandlers): Pr
       },
       handlers.signal,
     );
-  } catch {
-    await mockAnalyze(brief, handlers);
+  } catch (e) {
+    if (isAbortError(e)) return;
+    handlers.onError?.(backendUnavailableError("Analyze backend (/v1/analyze) is unreachable.", e));
   }
 }
 
@@ -370,11 +469,14 @@ export interface DebugInput {
   context?: string;
 }
 
-/** Stream a senior-engineer debug pass (analyze → root cause → fix → patch).
- *  Live `/v1/debug`, else mock. */
+/** Stream a senior-engineer debug pass. Requires the tmap-v2 backend. */
 export async function streamDebug(input: DebugInput, handlers: StreamHandlers): Promise<void> {
-  if (!isLive()) {
+  if (isDemoMode()) {
     await mockDebug(input.error, handlers);
+    return;
+  }
+  if (!isLive()) {
+    handlers.onError?.(buildPipelineError());
     return;
   }
   try {
@@ -386,37 +488,19 @@ export async function streamDebug(input: DebugInput, handlers: StreamHandlers): 
       },
       handlers.signal,
     );
-  } catch {
-    await mockDebug(input.error, handlers);
+  } catch (e) {
+    if (isAbortError(e)) return;
+    handlers.onError?.(backendUnavailableError("Debug backend (/v1/debug) is unreachable.", e));
   }
 }
 
-/** Call the same-origin RAA persona route. Returns the full reply, or null on 503
- *  (no provider key configured) so the caller falls back to the mock. */
-async function streamLocalRequirements(
-  message: string,
-  history: ChatHistoryItem[],
-  handlers: StreamHandlers,
-): Promise<string | null> {
-  const res = await fetch("/api/chat", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message, agent: "requirements", history }),
-    signal: handlers.signal,
-  });
+// ── Health ────────────────────────────────────────────────────────────────────
 
-  if (res.status === 503) return null; // no key → mock
-  if (!res.ok || !res.body) throw new Error(`requirements failed (${res.status})`);
+import type { SystemHealth } from "./health";
 
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let full = "";
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    const chunk = decoder.decode(value, { stream: true });
-    full += chunk;
-    handlers.onToken(chunk);
-  }
-  return full;
+/** Fetch the live provider health snapshot from `/api/health`. */
+export async function fetchHealth(signal?: AbortSignal): Promise<SystemHealth> {
+  const res = await fetch("/api/health", { signal, cache: "no-store" });
+  if (!res.ok) throw new Error(`health failed (${res.status})`);
+  return (await res.json()) as SystemHealth;
 }

@@ -16,11 +16,14 @@ shadcn-style **Radix** primitives, **Lucide** icons, **Framer Motion**, and
 ```bash
 cd aof-web
 npm install
-npm run dev          # http://localhost:3000
+cp .env.example .env.local   # add ANTHROPIC_API_KEY or OPENROUTER_API_KEY
+npm run dev                  # http://localhost:3000
 ```
 
-The app runs **fully standalone in mock mode** — no backend or API keys needed.
-Responses stream from a local mock engine so every surface is interactive.
+Set at least one AI provider key (`ANTHROPIC_API_KEY` or `OPENROUTER_API_KEY`).
+**Aof never fakes AI** — with no key it surfaces a clear `AOF_ERROR_001` panel
+telling you exactly what to add. For a keyless local UI demo, opt in explicitly
+with `NEXT_PUBLIC_AOF_DEMO=1` (clearly-labelled simulated responses).
 
 ### Connect the real backend (tmap-v2)
 
@@ -37,8 +40,33 @@ NEXT_PUBLIC_AOF_API_BASE=http://localhost:8787
 ```
 
 When a backend is reachable, Chat → `/v1/chat`, Aof Code → `/v1/run`, and Titan
-maps onto `/v1/titan`. If a call fails, the UI gracefully falls back to mock so
-the experience never breaks.
+maps onto `/v1/titan`. If a call fails, the UI surfaces a structured error (see
+below) — it never fabricates a reply.
+
+## AI provider error handling
+
+Aof prioritises **transparency over appearance**: it never pretends AI is working
+when it isn't. Every provider failure is detected, classified, logged server-side
+and shown to the user as a structured panel — never a fake answer, never a silent
+fallback.
+
+- **Error model** — `src/lib/errors.ts` classifies any failure into one of 13
+  codes (`AOF_ERROR_001`–`AOF_ERROR_013`: missing/invalid/expired key, quota,
+  rate-limit, provider-unavailable, network, timeout, invalid-model, auth, empty
+  response, unknown, configuration). Each carries **Provider · Problem · Details ·
+  Solution · Timestamp**.
+- **Server route** — `src/app/api/chat/route.ts` "primes" the provider (pulls the
+  first token) before committing to a 200 stream, so an auth/quota/model/network
+  failure becomes a clean error envelope instead of a half-rendered fake. Failures
+  are logged as `[AOF ERROR]` blocks with request id, status, stack and body.
+- **Failover** — if the primary provider fails and a backup key is configured, the
+  route fails over **and announces it**: the reply is prefixed with a "Primary
+  provider failed — switched to …" notice. Failovers are never hidden.
+- **Health + diagnostics** — `GET /api/health` runs a cheap auth check per provider
+  and reports `CONNECTED / DEGRADED / DISCONNECTED / UNKNOWN` plus an aggregate
+  system status. **Settings → Diagnostics** renders the live Provider Status panel
+  and a **Developer Mode** toggle that reveals raw status, response body, stack
+  trace and request metadata on error panels (secrets always redacted).
 
 ## Scripts
 
@@ -75,7 +103,8 @@ Chat with Aof is now a multimodal, auto-routed surface — users never pick a mo
     runs Discovery → Clarify → Requirements → Analysis → Plans → Risk →
     Architecture → **Approval gate** → Generate, and writes no code until approved.
 - **Projects** (`/projects`) — recent, pinned, search, status, type, last edited.
-- **Settings** (`/settings`) — account, appearance, API keys, billing.
+- **Settings** (`/settings`) — account, appearance, API keys, **diagnostics**
+  (live provider status + Developer Mode), billing.
 
 See [`ARCHITECTURE.md`](./ARCHITECTURE.md) for folder structure, component and
 routing architecture, state management, and database schema recommendations.

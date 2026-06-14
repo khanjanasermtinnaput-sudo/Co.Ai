@@ -7,6 +7,7 @@ import { CODE_MODES } from "@/lib/constants";
 import type { CodeMode } from "@/lib/types";
 import { Composer } from "@/components/composer/composer";
 import { Markdown } from "@/components/chat/markdown";
+import { ErrorPanel } from "@/components/diagnostics/error-panel";
 
 const EXAMPLES = [
   "A responsive pricing page with a monthly/yearly toggle",
@@ -17,12 +18,13 @@ const EXAMPLES = [
 
 export function CodeBuild({ mode }: { mode: Exclude<CodeMode, "titan"> }) {
   const buildLog = useCodeStore((s) => s.buildLog);
+  const buildError = useCodeStore((s) => s.buildError);
   const building = useCodeStore((s) => s.building);
   const runBuild = useCodeStore((s) => s.runBuild);
   const stopBuild = useCodeStore((s) => s.stopBuild);
   const info = CODE_MODES.find((m) => m.id === mode)!;
 
-  const hasOutput = building || buildLog.length > 0;
+  const hasOutput = building || buildLog.length > 0 || buildError !== null;
 
   return (
     <div className="flex h-full flex-col">
@@ -57,20 +59,25 @@ export function CodeBuild({ mode }: { mode: Exclude<CodeMode, "titan"> }) {
               </div>
             </div>
           ) : (
-            <div className="rounded-2xl border border-white/[0.07] bg-card/60">
-              <div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
-                <Terminal className="size-4 text-primary" />
-                <span className="text-sm font-medium">Build output</span>
-                {building && (
-                  <span className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <span className="size-1.5 animate-pulse rounded-full bg-primary" />
-                    working…
-                  </span>
-                )}
-              </div>
-              <div className="p-5">
-                <Markdown content={buildLog || "Starting…"} />
-              </div>
+            <div className="space-y-3">
+              {(buildLog || building) && (
+                <div className="rounded-2xl border border-white/[0.07] bg-card/60">
+                  <div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
+                    <Terminal className="size-4 text-primary" />
+                    <span className="text-sm font-medium">Build output</span>
+                    {building && (
+                      <span className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <span className="size-1.5 animate-pulse rounded-full bg-primary" />
+                        working…
+                      </span>
+                    )}
+                  </div>
+                  <div className="p-5">
+                    <Markdown content={buildLog || "Starting…"} />
+                  </div>
+                </div>
+              )}
+              {buildError && <ErrorPanel error={buildError} />}
             </div>
           )}
         </div>

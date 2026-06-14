@@ -10,6 +10,7 @@ import type {
   ResponseStyle,
   RouteDecision,
 } from "./types";
+import type { AofProviderError, FailoverNotice } from "./errors";
 import { GENCODE_HINT } from "./raa";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -22,6 +23,10 @@ function tokenize(text: string): string[] {
 export interface StreamHandlers {
   onToken: (chunk: string) => void;
   signal?: AbortSignal;
+  /** Called when a provider fails — the caller must show an error, not fake a reply. */
+  onError?: (error: AofProviderError) => void;
+  /** Called when the route falls over from one provider to another. */
+  onFailover?: (notice: FailoverNotice) => void;
 }
 
 /** Stream an arbitrary string token-by-token with human-ish pacing. */

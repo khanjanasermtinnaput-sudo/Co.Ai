@@ -18,6 +18,7 @@ import { Composer } from "@/components/composer/composer";
 import { ChatThread } from "@/components/chat/chat-thread";
 import { Markdown } from "@/components/chat/markdown";
 import { Button } from "@/components/ui/button";
+import { ErrorPanel } from "@/components/diagnostics/error-panel";
 import { ProjectBriefPanel } from "./project-brief";
 
 // Conversation-first starters — framed as projects to discuss, not commands.
@@ -41,6 +42,7 @@ export function CodeConversation({ mode }: { mode: Exclude<CodeMode, "titan"> })
   const chatting = useCodeStore((s) => s.chatting);
   const building = useCodeStore((s) => s.building);
   const buildLog = useCodeStore((s) => s.buildLog);
+  const buildError = useCodeStore((s) => s.buildError);
   const send = useCodeStore((s) => s.sendMessage);
   const stopChat = useCodeStore((s) => s.stopChat);
   const generate = useCodeStore((s) => s.generate);
@@ -94,23 +96,26 @@ export function CodeConversation({ mode }: { mode: Exclude<CodeMode, "titan"> })
           ) : (
             <>
               <ChatThread messages={convo} streaming={chatting} />
-              {buildLog && (
-                <div className="mx-auto w-full max-w-3xl px-4 pb-6 sm:px-6">
-                  <div className="rounded-2xl border border-white/[0.07] bg-card/60">
-                    <div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
-                      <Terminal className="size-4 text-primary" />
-                      <span className="text-sm font-medium">{outputTitle}</span>
-                      {building && (
-                        <span className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
-                          <span className="size-1.5 animate-pulse rounded-full bg-primary" />
-                          working…
-                        </span>
-                      )}
+              {(buildLog || building || buildError) && (
+                <div className="mx-auto w-full max-w-3xl space-y-3 px-4 pb-6 sm:px-6">
+                  {(buildLog || building) && (
+                    <div className="rounded-2xl border border-white/[0.07] bg-card/60">
+                      <div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
+                        <Terminal className="size-4 text-primary" />
+                        <span className="text-sm font-medium">{outputTitle}</span>
+                        {building && (
+                          <span className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <span className="size-1.5 animate-pulse rounded-full bg-primary" />
+                            working…
+                          </span>
+                        )}
+                      </div>
+                      <div className="p-5">
+                        <Markdown content={buildLog || "Starting…"} />
+                      </div>
                     </div>
-                    <div className="p-5">
-                      <Markdown content={buildLog || "Starting…"} />
-                    </div>
-                  </div>
+                  )}
+                  {buildError && <ErrorPanel error={buildError} />}
                 </div>
               )}
             </>

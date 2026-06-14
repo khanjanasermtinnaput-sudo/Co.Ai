@@ -1,12 +1,30 @@
 // ── Aof Chat — real LLM endpoint (server-side) ───────────────────────────────
-// Provider priority:
-//   1. ANTHROPIC_API_KEY  → Anthropic SDK (claude-haiku-4-5 by default)
-//   2. OPENROUTER_API_KEY → OpenRouter (google/gemini-2.0-flash-exp:free by default)
-//   3. Neither key        → 503, client falls back to offline mock
-//
-// Keeps all secrets server-side. Browser never sees the API key.
+// Provider priority: Anthropic (Claude) → OpenRouter. Every failure is detected,
+// classified into an AOF_ERROR_xxx, logged server-side, and surfaced to the user
+// — pre-stream failures as a JSON error envelope, mid-stream failures and
+// failover notices as in-band control frames. The route NEVER fabricates an
+// answer and NEVER silently swallows a provider failure.
 
-import Anthropic from "@anthropic-ai/sdk";
+import {
+  classifyProviderError,
+  makeFailoverNotice,
+  missingKeyError,
+  newRequestId,
+  ERROR_CATALOG,
+  type AofErrorCode,
+  type AofProviderError,
+} from "@/lib/errors";
+import {
+  adapterFor,
+  allProviders,
+  configuredProviders,
+  failoverFrame,
+  isConfigured,
+  modelFor,
+  primeAndStream,
+  type ProviderMeta,
+} from "@/lib/server/ai-providers";
+import { logAofError, logAofInfo, runStartupCheckOnce } from "@/lib/server/ai-log";
 import type { ResponseStyle, RouteDecision } from "@/lib/types";
 import { RAA_SYSTEM, AOF_CODE_CHAT_SYSTEM } from "@/lib/raa";
 
@@ -27,11 +45,6 @@ interface ChatBody {
    *  "code-chat" = Aof Code NORMAL_CHAT */
   agent?: "chat" | "requirements" | "code-chat";
 }
-
-const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const DEFAULT_OR_MODEL = "google/gemini-2.0-flash-exp:free";
-// claude-haiku is fast and cheap — ideal for conversational chat
-const DEFAULT_ANTHROPIC_MODEL = "claude-haiku-4-5-20251001";
 
 function buildSystem(style: ResponseStyle | undefined, route: RouteDecision | undefined): string {
   const persona =
@@ -62,170 +75,92 @@ function maxTokensFor(style: ResponseStyle | undefined): number {
   return 1000;
 }
 
-// ── Anthropic streaming ───────────────────────────────────────────────────────
+/** Map an AOF error code onto a representative HTTP status for the JSON envelope. */
+function httpStatusFor(code: AofErrorCode): number {
+  switch (code) {
+    case "AOF_ERROR_001": // missing key
+    case "AOF_ERROR_013": // misconfiguration
+      return 503;
+    case "AOF_ERROR_002":
+    case "AOF_ERROR_003":
+    case "AOF_ERROR_010":
+      return 401;
+    case "AOF_ERROR_004":
+      return 402;
+    case "AOF_ERROR_005":
+      return 429;
+    case "AOF_ERROR_008":
+      return 504;
+    case "AOF_ERROR_009":
+      return 400;
+    default: // 006/007/011/012 — upstream/provider problems
+      return 502;
+  }
+}
 
-async function streamAnthropic(
-  system: string,
-  history: ChatHistoryItem[],
-  message: string,
-  maxTokens: number,
-  temperature: number,
-  signal: AbortSignal,
-): Promise<Response> {
-  const anthropic = new Anthropic({
-    apiKey: process.env.ANTHROPIC_API_KEY!,
-  });
-  const model = process.env.ANTHROPIC_MODEL?.trim() || DEFAULT_ANTHROPIC_MODEL;
+const TEXT_HEADERS = {
+  "Content-Type": "text/plain; charset=utf-8",
+  "Cache-Control": "no-cache, no-transform",
+} as const;
 
-  const messages: Anthropic.MessageParam[] = [
-    ...history
-      .filter((h) => h.role === "user" || h.role === "assistant")
-      .map((h) => ({ role: h.role as "user" | "assistant", content: h.content })),
-    { role: "user", content: message },
-  ];
-
-  const stream = new ReadableStream<Uint8Array>({
-    async start(controller) {
-      const encoder = new TextEncoder();
-      try {
-        const anthropicStream = await anthropic.messages.stream(
-          {
-            model,
-            max_tokens: maxTokens,
-            temperature,
-            system,
-            messages,
-          },
-          { signal },
-        );
-        for await (const event of anthropicStream) {
-          if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
-            controller.enqueue(encoder.encode(event.delta.text));
-          }
-        }
-      } catch (e) {
-        if ((e as Error)?.name !== "AbortError") {
-          // surface error as text so the client sees something
-          controller.enqueue(encoder.encode(`\n[error: ${(e as Error).message}]`));
-        }
-      } finally {
-        controller.close();
-      }
-    },
-  });
-
-  return new Response(stream, {
-    headers: {
-      "Content-Type": "text/plain; charset=utf-8",
-      "Cache-Control": "no-cache, no-transform",
-    },
+/** Return a structured error as a JSON response the client decodes into a panel. */
+function errorResponse(error: AofProviderError): Response {
+  return new Response(JSON.stringify(error), {
+    status: httpStatusFor(error.code),
+    headers: { "Content-Type": "application/json; charset=utf-8", "X-Aof-Error": error.code },
   });
 }
 
-// ── OpenRouter streaming ──────────────────────────────────────────────────────
-
-async function streamOpenRouter(
-  system: string,
-  history: ChatHistoryItem[],
-  message: string,
-  maxTokens: number,
-  temperature: number,
-  signal: AbortSignal,
-): Promise<Response> {
-  const key = process.env.OPENROUTER_API_KEY!;
-  const model = process.env.OPENROUTER_MODEL?.trim() || DEFAULT_OR_MODEL;
-
-  const messages = [
-    { role: "system", content: system },
-    ...history
-      .filter((h) => h.role === "user" || h.role === "assistant")
-      .map((h) => ({ role: h.role, content: h.content })),
-    { role: "user", content: message },
-  ];
-
-  let upstream: Response;
-  try {
-    upstream = await fetch(OPENROUTER_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${key}`,
-        "HTTP-Referer": "https://aof-web.vercel.app",
-        "X-Title": "Aof",
-      },
-      body: JSON.stringify({ model, messages, temperature, max_tokens: maxTokens, stream: true }),
-      signal,
-    });
-  } catch (e) {
-    return Response.json({ error: "network", detail: (e as Error).message }, { status: 502 });
-  }
-
-  if (!upstream.ok || !upstream.body) {
-    const detail = await upstream.text().catch(() => "");
-    return Response.json(
-      { error: "upstream", status: upstream.status, detail: detail.slice(0, 300) },
-      { status: 502 },
-    );
-  }
-
-  const stream = new ReadableStream<Uint8Array>({
-    async start(controller) {
-      const reader = upstream.body!.getReader();
-      const decoder = new TextDecoder();
-      const encoder = new TextEncoder();
-      let buffer = "";
-      try {
-        while (true) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() ?? "";
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed.startsWith("data:")) continue;
-            const data = trimmed.slice(5).trim();
-            if (data === "[DONE]") { controller.close(); return; }
-            try {
-              const json = JSON.parse(data);
-              const delta: string = json?.choices?.[0]?.delta?.content ?? "";
-              if (delta) controller.enqueue(encoder.encode(delta));
-            } catch { /* ignore malformed frames */ }
-          }
-        }
-      } catch { /* upstream aborted */ } finally { controller.close(); }
-    },
-  });
-
-  return new Response(stream, {
-    headers: {
-      "Content-Type": "text/plain; charset=utf-8",
-      "Cache-Control": "no-cache, no-transform",
-    },
-  });
+/** Log + emit the startup checklist (once per process). Status is derived from
+ *  key presence so it is cheap and runs without any network round-trip. */
+function logStartup(): void {
+  const providers = allProviders();
+  const items = providers.map((p) => ({
+    label: `${p.label} API Key ${isConfigured(p) ? "Loaded" : "Missing"}`,
+    ok: isConfigured(p),
+  }));
+  const configured = providers.filter(isConfigured).length;
+  const status = configured === 0 ? "DOWN" : configured === providers.length ? "OPERATIONAL" : "DEGRADED";
+  runStartupCheckOnce(items, status);
 }
-
-// ── Route handler ─────────────────────────────────────────────────────────────
 
 export async function POST(req: Request): Promise<Response> {
-  const anthropicKey = process.env.ANTHROPIC_API_KEY?.trim();
-  const openrouterKey = process.env.OPENROUTER_API_KEY?.trim();
+  logStartup();
 
-  if (!anthropicKey && !openrouterKey) {
-    return Response.json({ error: "no-key" }, { status: 503 });
+  const providers = configuredProviders();
+
+  // No provider has a key → the user must know immediately (AOF_ERROR_001).
+  if (providers.length === 0) {
+    const primary = allProviders()[0];
+    const error = missingKeyError(primary.label, primary.envVar, modelFor(primary));
+    error.details =
+      `No AI provider is configured. Set ${allProviders()
+        .map((p) => p.envVar)
+        .join(" or ")} so Aof can reach a provider.`;
+    logAofError(error);
+    return errorResponse(error);
   }
 
   let body: ChatBody;
   try {
     body = (await req.json()) as ChatBody;
   } catch {
-    return Response.json({ error: "invalid json" }, { status: 400 });
+    const error = classifyProviderError({
+      provider: "Aof",
+      message: "Request body was not valid JSON.",
+      hint: "config",
+    });
+    return errorResponse(error);
   }
 
   const message = String(body.message ?? "").trim();
-  if (!message) return Response.json({ error: "message required" }, { status: 400 });
+  if (!message) {
+    return Response.json({ error: "message required" }, { status: 400 });
+  }
 
-  const history = Array.isArray(body.history) ? body.history.slice(-20) : [];
+  const history = (Array.isArray(body.history) ? body.history.slice(-20) : []).filter(
+    (h) => h && (h.role === "user" || h.role === "assistant") && typeof h.content === "string",
+  );
 
   const isRequirements = body.agent === "requirements";
   const isCodeChat = body.agent === "code-chat";
@@ -238,9 +173,47 @@ export async function POST(req: Request): Promise<Response> {
   const temperature = isRequirements ? 0.5 : 0.7;
   const maxTokens = isRequirements ? 1200 : isCodeChat ? 800 : maxTokensFor(body.style);
 
-  // Anthropic first (best quality), OpenRouter as fallback
-  if (anthropicKey) {
-    return streamAnthropic(system, history, message, maxTokens, temperature, req.signal);
+  // ── Try each configured provider in priority order, announcing any failover. ──
+  let pendingFailover: ReturnType<typeof makeFailoverNotice> | undefined;
+  let lastError: AofProviderError | undefined;
+
+  for (let i = 0; i < providers.length; i++) {
+    const p: ProviderMeta = providers[i];
+    const model = modelFor(p);
+    const requestId = newRequestId();
+    const ctx = { provider: p, model, requestId };
+
+    const gen = adapterFor(p.id)({ system, history, message, maxTokens, temperature, signal: req.signal });
+    const prefixFrame = pendingFailover ? failoverFrame(pendingFailover) : undefined;
+
+    const result = await primeAndStream({ ctx, gen, prefixFrame });
+
+    if (result.aborted) {
+      // User pressed Stop during priming — return an empty 200 stream.
+      return new Response(new ReadableStream({ start: (c) => c.close() }), { headers: TEXT_HEADERS });
+    }
+
+    if (result.ok && result.stream) {
+      if (pendingFailover) {
+        logAofInfo(
+          `Failover: ${pendingFailover.from} → ${pendingFailover.to} (${pendingFailover.reason})`,
+        );
+      }
+      return new Response(result.stream, { headers: TEXT_HEADERS });
+    }
+
+    // This provider failed before producing a token.
+    lastError = result.error!;
+    logAofError(lastError);
+
+    const next = providers[i + 1];
+    if (next && ERROR_CATALOG[lastError.code].failoverWorthy) {
+      pendingFailover = makeFailoverNotice(p.label, next.label, `${lastError.code} · ${lastError.problem}`);
+      continue;
+    }
+    break;
   }
-  return streamOpenRouter(system, history, message, maxTokens, temperature, req.signal);
+
+  // Every configured provider failed.
+  return errorResponse(lastError!);
 }

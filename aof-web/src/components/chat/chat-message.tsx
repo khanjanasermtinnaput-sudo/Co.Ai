@@ -11,6 +11,8 @@ import { Markdown } from "./markdown";
 import { AttachmentList } from "./attachment-list";
 import { RouteBadge } from "./route-badge";
 import { LearningAnswerView } from "./learning-answer";
+import { ErrorPanel } from "@/components/diagnostics/error-panel";
+import { FailoverNotice } from "@/components/diagnostics/failover-notice";
 
 export function ChatMessage({ message }: { message: ChatMessageT }) {
   const isUser = message.role === "user";
@@ -45,45 +47,63 @@ export function ChatMessage({ message }: { message: ChatMessageT }) {
       </div>
 
       {/* bubble */}
-      <div className={cn("flex min-w-0 max-w-[min(680px,85%)] flex-col gap-1", isUser && "items-end")}>
-        {!isUser && message.route && (
-          <RouteBadge route={message.route} />
-        )}
-        <div
-          className={cn(
-            "rounded-2xl px-4 py-3",
-            isUser
-              ? "rounded-tr-md bg-primary/12 text-foreground"
-              : "rounded-tl-md border border-white/[0.06] bg-card/70",
-          )}
-        >
-          {message.attachments && message.attachments.length > 0 && (
-            <AttachmentList
-              attachments={message.attachments}
-              className={cn(message.content && "mb-2.5")}
-            />
-          )}
-          {message.learning ? (
-            <LearningAnswerView data={message.learning} />
-          ) : message.content ? (
-            <Markdown content={message.content} />
-          ) : message.attachments && message.attachments.length > 0 ? null : (
-            <TypingDots />
-          )}
-          {message.streaming && message.content && (
-            <span className="ml-0.5 inline-block h-4 w-[2px] translate-y-0.5 animate-pulse bg-primary" />
-          )}
-        </div>
+      <div className={cn("flex min-w-0 max-w-[min(680px,85%)] flex-col gap-1.5", isUser && "items-end")}>
+        {/* A failover, when it happened, is always announced above the reply. */}
+        {!isUser && message.failover && <FailoverNotice notice={message.failover} />}
 
-        {!isUser && message.content && !message.streaming && (
-          <button
-            type="button"
-            onClick={copy}
-            className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
-          >
-            {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
-            {copied ? "Copied" : "Copy"}
-          </button>
+        {!isUser && message.error ? (
+          // ── Provider failed: show an error panel, never a fabricated reply. ──
+          <>
+            {message.content && (
+              <div className="rounded-2xl rounded-tl-md border border-white/[0.06] bg-card/50 px-4 py-3 opacity-70">
+                <Markdown content={message.content} />
+                <p className="mt-2 text-xs text-muted-foreground">
+                  ⚠ Partial response — generation stopped due to a provider error.
+                </p>
+              </div>
+            )}
+            <ErrorPanel error={message.error} />
+          </>
+        ) : (
+          <>
+            {!isUser && message.route && <RouteBadge route={message.route} />}
+            <div
+              className={cn(
+                "rounded-2xl px-4 py-3",
+                isUser
+                  ? "rounded-tr-md bg-primary/12 text-foreground"
+                  : "rounded-tl-md border border-white/[0.06] bg-card/70",
+              )}
+            >
+              {message.attachments && message.attachments.length > 0 && (
+                <AttachmentList
+                  attachments={message.attachments}
+                  className={cn(message.content && "mb-2.5")}
+                />
+              )}
+              {message.learning ? (
+                <LearningAnswerView data={message.learning} />
+              ) : message.content ? (
+                <Markdown content={message.content} />
+              ) : message.attachments && message.attachments.length > 0 ? null : (
+                <TypingDots />
+              )}
+              {message.streaming && message.content && (
+                <span className="ml-0.5 inline-block h-4 w-[2px] translate-y-0.5 animate-pulse bg-primary" />
+              )}
+            </div>
+
+            {!isUser && message.content && !message.streaming && (
+              <button
+                type="button"
+                onClick={copy}
+                className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
+              >
+                {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
+                {copied ? "Copied" : "Copy"}
+              </button>
+            )}
+          </>
         )}
       </div>
     </motion.div>

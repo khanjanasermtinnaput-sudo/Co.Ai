@@ -179,6 +179,18 @@ export const useChatStore = create<ChatState>()(
         const controller = new AbortController();
         set({ abort: controller });
 
+        const patchAssistant = (patch: Partial<ChatMessageT>) =>
+          set((s) => ({
+            conversations: s.conversations.map((c) =>
+              c.id === activeId
+                ? {
+                    ...c,
+                    messages: c.messages.map((m) => (m.id === assistantId ? { ...m, ...patch } : m)),
+                  }
+                : c,
+            ),
+          }));
+
         const appendToken = (chunk: string) =>
           set((s) => ({
             conversations: s.conversations.map((c) =>
@@ -197,7 +209,14 @@ export const useChatStore = create<ChatState>()(
           await streamChat(
             content,
             { style, route, history },
-            { onToken: appendToken, signal: controller.signal },
+            {
+              onToken: appendToken,
+              signal: controller.signal,
+              // A provider failed — show the error panel, never a fabricated reply.
+              onError: (error) => patchAssistant({ error, streaming: false }),
+              // A failover occurred — the user must know we switched providers.
+              onFailover: (failover) => patchAssistant({ failover }),
+            },
           );
         } finally {
           finish();

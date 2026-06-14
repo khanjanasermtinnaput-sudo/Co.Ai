@@ -15,12 +15,15 @@ import {
   Sparkles,
   ShieldCheck,
   LogOut,
+  Activity,
+  TerminalSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/providers/auth-provider";
 import { getSupabase } from "@/lib/supabase/client";
 import { keysEnabled, loadKeys, saveKey, deleteKey } from "@/lib/keys";
 import { useMounted } from "@/hooks/use-mounted";
+import { useDiagnosticsStore } from "@/store/diagnostics-store";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -29,6 +32,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { ProviderStatusPanel } from "@/components/diagnostics/provider-status-panel";
 
 const PROVIDERS = [
   { id: "openrouter", label: "OpenRouter", hint: "One key powers every agent (recommended)" },
@@ -57,6 +61,9 @@ export function SettingsView({ defaultTab = "account" }: { defaultTab?: string }
           <TabsTrigger value="keys">
             <KeyRound className="size-4" /> API Keys
           </TabsTrigger>
+          <TabsTrigger value="diagnostics">
+            <Activity className="size-4" /> Diagnostics
+          </TabsTrigger>
           <TabsTrigger value="billing">
             <CreditCard className="size-4" /> Billing
           </TabsTrigger>
@@ -70,6 +77,9 @@ export function SettingsView({ defaultTab = "account" }: { defaultTab?: string }
         </TabsContent>
         <TabsContent value="keys">
           <KeysTab />
+        </TabsContent>
+        <TabsContent value="diagnostics">
+          <DiagnosticsTab />
         </TabsContent>
         <TabsContent value="billing">
           <BillingTab />
@@ -393,6 +403,38 @@ function KeysTab() {
               </div>
             );
           })}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function DiagnosticsTab() {
+  const developerMode = useDiagnosticsStore((s) => s.developerMode);
+  const setDeveloperMode = useDiagnosticsStore((s) => s.setDeveloperMode);
+
+  return (
+    <div className="space-y-4">
+      <ProviderStatusPanel />
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <TerminalSquare className="size-4 text-primary" /> Developer Mode
+          </CardTitle>
+          <CardDescription>
+            Reveal raw diagnostics on error panels — HTTP status, provider response, stack trace
+            and request metadata. Helpful when debugging a provider failure.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium">Show raw error diagnostics</p>
+            <p className="text-xs text-muted-foreground">
+              Secrets are always redacted before display.
+            </p>
+          </div>
+          <Switch checked={developerMode} onCheckedChange={setDeveloperMode} />
         </CardContent>
       </Card>
     </div>
