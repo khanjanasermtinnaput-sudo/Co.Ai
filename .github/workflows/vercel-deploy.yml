@@ -11,6 +11,7 @@ on:
     branches:
       - main
       - claude/trusting-wright-zj93vo
+      - claude/trusting-mayer-oua7s2
     paths:
       - 'aof-web/**'
       - '.github/workflows/vercel-deploy.yml'
