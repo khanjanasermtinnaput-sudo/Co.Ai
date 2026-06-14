@@ -6,10 +6,14 @@ import {
   riskReview,
   architectureSketch,
 } from "@/lib/titan";
+import { codeDiscoveryQuestions, buildCodePlan, composeDebug } from "@/lib/code-flow";
 import { TITAN_PHASES } from "@/lib/constants";
 import type {
   ClarifyQuestion,
   CodeMode,
+  CodePlan,
+  CodeStage,
+  DebugAnswer,
   TitanPhaseKey,
   TitanPlanOption,
   TitanRisk,
@@ -49,7 +53,24 @@ interface CodeState {
   mode: CodeMode;
   setMode: (m: CodeMode) => void;
 
-  // ── Standard build (lite / 1.0 / pro) ─────────────────────────────────────
+  // ── Staged flow (Discover → Plan → Build → Debug) for lite / 1.0 / pro ─────
+  stage: CodeStage;
+  draftPrompt: string;
+  questions: ClarifyQuestion[];
+  answers: Record<string, string>;
+  plan: CodePlan | null;
+  debug: DebugAnswer | null;
+  debugging: boolean;
+
+  startDiscover: (prompt: string) => void;
+  answerDiscover: (questionId: string, value: string) => void;
+  toPlan: () => void;
+  backToDiscover: () => void;
+  confirmBuild: () => Promise<void>;
+  runDebug: (error: string) => Promise<void>;
+  resetFlow: () => void;
+
+  // ── Standard build stream (shared by the flow) ────────────────────────────
   buildLog: string;
   building: boolean;
   abort: AbortController | null;
@@ -80,6 +101,76 @@ export const useCodeStore = create<CodeState>((set, get) => ({
   mode: "1.0",
   setMode: (mode) => set({ mode }),
 
+  // ── Staged flow ─────────────────────────────────────────────────────────────
+  stage: "idle",
+  draftPrompt: "",
+  questions: [],
+  answers: {},
+  plan: null,
+  debug: null,
+  debugging: false,
+
+  startDiscover: (prompt) => {
+    const p = prompt.trim();
+    if (!p || get().building) return;
+    set({
+      stage: "discover",
+      draftPrompt: p,
+      questions: codeDiscoveryQuestions(p),
+      answers: {},
+      plan: null,
+      debug: null,
+      buildLog: "",
+    });
+  },
+
+  answerDiscover: (questionId, value) =>
+    set((s) => ({ answers: { ...s.answers, [questionId]: value } })),
+
+  toPlan: () => {
+    const { draftPrompt, answers } = get();
+    if (!draftPrompt) return;
+    set({ plan: buildCodePlan(draftPrompt, answers), stage: "plan" });
+  },
+
+  backToDiscover: () => set({ stage: "discover" }),
+
+  confirmBuild: async () => {
+    const { draftPrompt, plan, mode, building } = get();
+    if (!plan || building || mode === "titan") return;
+    const task = `${draftPrompt}\n\nStack: ${plan.stack}\nFeatures: ${plan.features.join(", ")}`;
+    const controller = new AbortController();
+    set({ stage: "building", building: true, buildLog: "", abort: controller });
+    try {
+      await streamCodeRun(task, mode as "lite" | "1.0" | "pro", {
+        onToken: (chunk) => set((s) => ({ buildLog: s.buildLog + chunk })),
+        signal: controller.signal,
+      });
+    } finally {
+      set({ building: false, abort: null, stage: "done" });
+    }
+  },
+
+  runDebug: async (error) => {
+    const e = error.trim();
+    if (!e || get().debugging) return;
+    set({ debugging: true, debug: null });
+    await new Promise((r) => setTimeout(r, 480));
+    set({ debug: composeDebug(e), debugging: false });
+  },
+
+  resetFlow: () =>
+    set({
+      stage: "idle",
+      draftPrompt: "",
+      questions: [],
+      answers: {},
+      plan: null,
+      debug: null,
+      buildLog: "",
+    }),
+
+  // ── Standard build stream ───────────────────────────────────────────────────
   buildLog: "",
   building: false,
   abort: null,
@@ -102,7 +193,7 @@ export const useCodeStore = create<CodeState>((set, get) => ({
 
   stopBuild: () => {
     get().abort?.abort();
-    set({ abort: null, building: false });
+    set({ abort: null, building: false, stage: get().stage === "building" ? "done" : get().stage });
   },
   clearBuild: () => set({ buildLog: "" }),
 

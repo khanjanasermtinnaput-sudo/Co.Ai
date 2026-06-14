@@ -17,7 +17,7 @@ export type Role = "user" | "assistant" | "system";
 export type ResponseStyle = "short" | "normal" | "detailed";
 
 /** Where the router sends a request. Users never choose this directly. */
-export type RouteTarget = "chat" | "code" | "search";
+export type RouteTarget = "chat" | "code" | "search" | "titan";
 
 export interface RouteDecision {
   target: RouteTarget;
@@ -96,6 +96,33 @@ export interface Project {
   createdAt: string;
   /** how it was started — which Aof Code mode produced it */
   mode?: CodeMode;
+}
+
+// ── Aof Code staged flow ──────────────────────────────────────────────────────
+// Aof Code behaves like a senior engineer, never a code generator. Every request
+// walks four stages — Discover → Plan → Build → Debug — and never writes code
+// until the user has confirmed a plan.
+
+export type CodeStage = "idle" | "discover" | "plan" | "building" | "done";
+
+/** A described project architecture, shown in the Plan stage before any code. */
+export interface CodePlan {
+  summary: string;
+  /** Top-level folders / files with a one-line purpose each. */
+  structure: string[];
+  /** Concrete features the build will deliver. */
+  features: string[];
+  /** Chosen technology stack (one human-readable line). */
+  stack: string;
+}
+
+/** Structured Debug answer — issue · cause · solution · fixed code (Stage 4). */
+export interface DebugAnswer {
+  issue: string;
+  cause: string;
+  solution: string;
+  /** Optional corrected snippet. */
+  fix?: string;
 }
 
 // ── Titan workflow ────────────────────────────────────────────────────────────

@@ -5,16 +5,20 @@ import { Copy, Check } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import type { ChatMessageT } from "@/lib/types";
+import { useChatStore } from "@/store/chat-store";
 import { LogoMark } from "@/components/brand/logo";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Markdown } from "./markdown";
 import { AttachmentList } from "./attachment-list";
 import { RouteBadge } from "./route-badge";
 import { LearningAnswerView } from "./learning-answer";
+import { RESPONSE_STYLES } from "./response-style-selector";
 
 export function ChatMessage({ message }: { message: ChatMessageT }) {
   const isUser = message.role === "user";
   const [copied, setCopied] = useState(false);
+  const streaming = useChatStore((s) => s.streaming);
+  const regenerateAt = useChatStore((s) => s.regenerateAt);
 
   const copy = async () => {
     await navigator.clipboard.writeText(message.content);
@@ -75,15 +79,48 @@ export function ChatMessage({ message }: { message: ChatMessageT }) {
           )}
         </div>
 
-        {!isUser && message.content && !message.streaming && (
-          <button
-            type="button"
-            onClick={copy}
-            className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
-          >
-            {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
-            {copied ? "Copied" : "Copy"}
-          </button>
+        {!isUser && !message.learning && message.content && !message.streaming && (
+          <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+            {/* Per-message length controls — regenerate this reply instantly. */}
+            <div
+              role="radiogroup"
+              aria-label="Regenerate at a different length"
+              className="inline-flex items-center gap-0.5 rounded-lg border border-border bg-secondary/40 p-0.5"
+            >
+              {RESPONSE_STYLES.map((opt) => {
+                const Icon = opt.icon;
+                const active = (message.style ?? "normal") === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    disabled={streaming}
+                    title={`Regenerate — ${opt.hint}`}
+                    onClick={() => void regenerateAt(message.id, opt.id)}
+                    className={cn(
+                      "inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40",
+                      active
+                        ? "bg-primary/15 text-foreground"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    <Icon className="size-3" />
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              type="button"
+              onClick={copy}
+              className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+            >
+              {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
+              {copied ? "Copied" : "Copy"}
+            </button>
+          </div>
         )}
       </div>
     </motion.div>

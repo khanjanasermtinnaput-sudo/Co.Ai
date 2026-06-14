@@ -154,9 +154,9 @@ export const CODE_MODES: CodeModeInfo[] = [
   {
     id: "titan",
     name: "Titan",
-    tagline: "Architect mode",
+    tagline: "Reasoning engine",
     description:
-      "Think first, build later. Discovery, planning & approval gate before any code.",
+      "Advanced reasoning & research — deep analysis, architecture and planning before any code.",
     badge: "Highest",
     titan: true,
   },

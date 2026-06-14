@@ -15,7 +15,7 @@ export function CodeWorkspace() {
         <CodeModeSelector value={mode} onChange={setMode} />
         {mode === "titan" && (
           <span className="hidden text-xs text-muted-foreground sm:inline">
-            Titan never writes code before approval
+            Reasoning first — Titan thinks before it builds
           </span>
         )}
       </div>

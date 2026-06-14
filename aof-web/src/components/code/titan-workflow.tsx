@@ -15,7 +15,6 @@ import {
   Gauge,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { TITAN_PHASES } from "@/lib/constants";
 import { useCodeStore } from "@/store/code-store";
 import type { TitanPlanOption, TitanRisk } from "@/lib/types";
 import { Composer } from "@/components/composer/composer";
@@ -132,52 +131,62 @@ function Panel({ children, className }: { children: React.ReactNode; className?:
 
 // ── Phase 1 — Discovery ─────────────────────────────────────────────────────────
 
+const TITAN_CAPABILITIES = [
+  {
+    label: "Deep reasoning",
+    description: "Break hard problems apart, weigh trade-offs, decide with confidence.",
+  },
+  {
+    label: "Research & analysis",
+    description: "Feasibility, performance, security and cost — examined, not guessed.",
+  },
+  {
+    label: "Architecture & planning",
+    description: "System design, product strategy and a plan you can act on.",
+  },
+];
+
 function DiscoveryPhase() {
   const start = useCodeStore((s) => s.titanStart);
   return (
-    <div className="flex flex-col items-center text-center">
+    <div className="flex flex-col items-center pt-2 text-center sm:pt-6">
       <motion.span
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1.5 text-xs font-medium text-gradient-gold"
       >
-        <Hexagon className="size-3.5 text-primary" /> Titan · Architect mode
+        <Hexagon className="size-3.5 text-primary" /> Highest intelligence mode
       </motion.span>
-      <h1 className="mt-5 text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
-        Think first, <span className="text-gradient-gold">build later</span>
+      <h1 className="mt-5 text-balance text-4xl font-semibold tracking-tight sm:text-5xl">
+        <span className="text-gradient-gold">Titan</span>
       </h1>
-      <p className="mt-3 max-w-lg text-balance text-muted-foreground">
-        Titan won&apos;t write a single line of code until the plan is right. It runs
-        discovery, deep analysis, multiple plans, a risk review and an architecture
-        design — then waits for your approval.
+      <p className="mt-3 text-balance text-lg font-medium text-foreground sm:text-xl">
+        Advanced Reasoning &amp; Research Engine
+      </p>
+      <p className="mt-2 max-w-lg text-balance text-muted-foreground">
+        Built for complex thinking, research, architecture, planning and problem
+        solving. Describe the problem — Titan reasons through it before it answers.
       </p>
 
       <div className="mt-7 w-full max-w-2xl text-left">
         <Composer
           size="lg"
           autoFocus
-          placeholder="Describe what you want to build…"
+          placeholder="What would you like Titan to analyze?"
           onSubmit={start}
         />
         <p className="mt-3 px-1 text-xs text-muted-foreground">
-          e.g. “A booking system for a barbershop with reminders and an admin dashboard.”
+          e.g. “Design a scalable architecture for a real-time chat platform.”
         </p>
       </div>
 
-      <div className="mt-8 grid w-full max-w-2xl grid-cols-3 gap-2">
-        {TITAN_PHASES.slice(0, 9)
-          .filter((_, i) => [0, 4, 7].includes(i))
-          .map((p) => (
-            <div
-              key={p.key}
-              className="rounded-xl border border-border bg-card/40 p-3 text-left"
-            >
-              <p className="text-xs font-semibold text-foreground">{p.label}</p>
-              <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
-                {p.description}
-              </p>
-            </div>
-          ))}
+      <div className="mt-8 grid w-full max-w-2xl gap-2 sm:grid-cols-3">
+        {TITAN_CAPABILITIES.map((c) => (
+          <div key={c.label} className="rounded-xl border border-border bg-card/40 p-3 text-left">
+            <p className="text-xs font-semibold text-foreground">{c.label}</p>
+            <p className="mt-1 text-[11px] leading-snug text-muted-foreground">{c.description}</p>
+          </div>
+        ))}
       </div>
     </div>
   );

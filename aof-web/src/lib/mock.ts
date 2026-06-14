@@ -182,139 +182,80 @@ function composeChatReply(
   }
 
   if (route.target === "code") {
+    const topic = message.trim().replace(/\s+/g, " ").slice(0, 70);
     if (th) {
-      const baseTh = `งานนี้เป็นงานวิศวกรรม ผมจะส่งต่อให้ **Aof Code**`;
-      if (style === "short") return `${pre}${baseTh} เปิด **Aof Code** แล้วผมจะวางแผน สร้าง และรีวิวไฟล์ให้ครับ`;
-      return `${pre}${baseTh}
-
-1. **เป้าหมาย** — ระบุผลลัพธ์สำคัญที่สุดเพียงหนึ่งอย่าง
-2. **ขอบเขต** — อะไรอยู่ใน v1 และอะไรไว้ทีหลัง
-3. **เทคโนโลยี** — เลือกสิ่งที่ส่งมอบได้เร็วและดูแลต่อได้
-4. **หมุดหมาย** — ขั้นเล็ก ๆ ที่เดโมได้
-
-อยากให้ผมสร้างเลยไหมครับ? เปิด **Aof Code** แล้วผมจะพาจากไอเดียไปเป็นโค้ดที่ใช้งานได้`;
+      if (style === "short")
+        return `${pre}ได้เลยครับ — เรื่อง “${topic}” ตอบสั้น ๆ ได้ที่นี่ ถ้าอยากให้สร้างเป็นโปรเจกต์จริงพร้อมไฟล์ บอกได้ ผมเปิด **Aof Code** ให้ครับ`;
+      return `${pre}ได้เลยครับ ผมช่วยเรื่อง “${topic}” ได้ทันที บอกบริบทนิดนึงจะตรงจุดขึ้น เช่น ใช้ภาษา/เฟรมเวิร์กอะไร และผลลัพธ์ที่อยากได้หน้าตาเป็นยังไง\n\nถ้าเป็นงานสร้างทั้งระบบ (เว็บ/แอป/API) แนะนำเปิด **Aof Code** ครับ — มันจะถามให้ครบ วางสถาปัตยกรรม แล้วค่อยลงมือเขียน ไม่รีบ generate ทันที`;
     }
-    const base = `This is an engineering task, so I'd hand it to **Aof Code**.`;
-    if (style === "short") return `${pre}${base} Open **Aof Code** and I'll plan, generate and review the files.`;
-    return `${pre}${base}
+    if (style === "short")
+      return `${pre}Sure — happy to answer “${topic}” right here. If you'd rather I scaffold it into a real project with files, say the word and I'll open **Aof Code**.`;
+    return `${pre}Happy to help with “${topic}”. Tell me a little context so I hit the mark — which language/framework you're on and what the result should look like — and I'll give you the actual code.\n\nIf this is a whole build (a site, app or API), **Aof Code** is the better room for it: it asks the right questions and designs the architecture before writing a line, instead of generating blindly.`;
+  }
 
-1. **Goal** — nail the single most important outcome.
-2. **Scope** — what's in v1 vs. later.
-3. **Stack** — something you can ship fast and maintain.
-4. **Milestones** — small, demoable steps.
-
-Want me to build it? Open **Aof Code** and I'll take it from idea to working code.`;
+  if (route.target === "titan") {
+    const topic = message.trim().replace(/\s+/g, " ").slice(0, 70);
+    if (th) {
+      if (style === "short")
+        return `${pre}คำถามนี้ลึกพอจะใช้การคิดเป็นระบบครับ สั้น ๆ: แยกเป็นส่วนย่อย ชั่งน้ำหนักข้อดีข้อเสียของแต่ละทาง แล้วค่อยเลือก เปิด **Titan** เพื่อให้ผมวิเคราะห์เต็มรูปแบบได้`;
+      return `${pre}เรื่อง “${topic}” เป็นโจทย์ที่ควรคิดให้รอบด้านก่อนสรุป แนวทางที่ผมจะทำ: แตกปัญหาออกเป็นส่วน ๆ, เทียบทางเลือกพร้อมข้อแลกเปลี่ยน, ชี้ความเสี่ยง, แล้วให้คำแนะนำที่ชัดเจน\n\nนี่คือสิ่งที่ **Titan** ถนัดโดยเฉพาะ — โหมดให้เหตุผลและวิจัยเชิงลึก เปิด Titan แล้วผมจะลงรายละเอียดให้ครับ`;
+    }
+    if (style === "short")
+      return `${pre}This one deserves real reasoning. In short: break it into parts, weigh the trade-offs of each option, then commit to one. Open **Titan** and I'll do the full analysis.`;
+    return `${pre}“${topic}” is worth thinking through properly before answering. Here's how I'd approach it: break the problem into its parts, compare the realistic options with their trade-offs, flag the risks, and land on a clear recommendation.\n\nThat's exactly what **Titan** is built for — its deep reasoning and research mode. Open Titan and I'll take it all the way.`;
   }
 
   if (/(hello|hi|hey|สวัสดี|หวัดดี)/.test(m) && attachments.length === 0) {
     if (th) {
-      return `สวัสดีครับ! ผมคือ **Aof** — เวิร์กสเปซ AI ของคุณ ผมช่วยระดมไอเดีย ช่วยเรียนรู้ อ่านรูปภาพและ PDF หรือกระโดดเข้า **Aof Code** เพื่อสร้างซอฟต์แวร์จริงได้ วันนี้อยากทำอะไรดีครับ?`;
+      return `สวัสดีครับ! ผมคือ **Aof** วันนี้อยากให้ช่วยเรื่องอะไรดีครับ? ถามได้ทุกเรื่อง อยากให้สร้างซอฟต์แวร์ก็มี **Aof Code** หรือถ้าเป็นโจทย์คิดลึก ๆ ก็มี **Titan** ครับ`;
     }
-    return `Hi! I'm **Aof** — your AI workspace. I can chat through ideas, help you learn, read images & PDFs, or jump into **Aof Code** to build real software. What are we working on today?`;
+    return `Hey! I'm **Aof**. What can I help you with today? Ask me anything — and if you want to build software there's **Aof Code**, or **Titan** for the deeper thinking.`;
   }
 
+  // ── General chat ────────────────────────────────────────────────────────────
+  // The offline engine has no live knowledge, so instead of inventing facts (or
+  // padding with a robotic TL;DR/Why template) it answers conversationally and asks
+  // a focused follow-up — which is also how the real Aof behaves when intent is thin.
   if (th) {
-    const openerTh = pick([
-      "นี่คือแนวทางที่ผมจะทำครับ",
-      "ยินดีช่วยเรื่องนี้ครับ",
-      "มาแยกเรื่องนี้กันทีละส่วนครับ",
-    ]);
-
     if (style === "short") {
-      return `${pre}${pick(["สรุปสั้น ๆ:", "พูดให้กระชับ:"])} ${pick([
-        "พอเห็นแก่นหลักแล้วเรื่องนี้ก็ตรงไปตรงมาครับ",
-        "มันสรุปลงที่หลักการสำคัญหนึ่งหรือสองข้อ",
-      ])} ถ้าอยากได้เพิ่มบอกได้เลย เดี๋ยวผมขยายความให้`;
+      return `${pre}${pick([
+        "ได้เลยครับ ขอถามนิดเดียวให้ตอบได้ตรงจุด:",
+        "ยินดีช่วยครับ ขอรายละเอียดเพิ่มอีกนิด:",
+      ])} คุณอยากโฟกัสที่ส่วนไหนของเรื่องนี้มากที่สุด?`;
     }
-
     if (style === "detailed") {
-      return `${pre}${openerTh}
+      return `${pre}${pick([
+        "ยินดีช่วยเต็มที่ครับ",
+        "เรื่องนี้น่าสนใจครับ",
+      ])} เพื่อให้คำตอบลงลึกและตรงกับสิ่งที่คุณต้องการจริง ๆ ขอเข้าใจบริบทอีกนิด — คุณกำลังพยายามทำอะไรให้สำเร็จ และตอนนี้ติดตรงไหนอยู่?
 
-**ภาพรวม**
-ก่อนอื่นมองภาพใหญ่: ${pick([
-        "แก่นของเรื่องง่ายกว่าที่คิดเมื่อเราจับองค์ประกอบที่เกี่ยวข้องได้ครบ",
-        "ทั้งหมดวางอยู่บนหลักการไม่กี่ข้อที่นำไปใช้ซ้ำได้ทุกที่",
-      ])}
-
-**ทีละขั้น**
-1. เริ่มจากปัญหาที่มันแก้ ไม่ใช่ศัพท์เทคนิค
-2. สร้างแบบจำลองความคิดเล็ก ๆ ที่ทดสอบได้
-3. ลองทำตัวอย่างให้ครบตั้งแต่ต้นจนจบ
-4. แล้วค่อยเพิ่มกรณีขอบเข้าไป
-
-**ตัวอย่าง**
-ตัวอย่างจริงจะทำให้แต่ละขั้นชัดขึ้น บอกเคสของคุณมา เดี๋ยวผมใส่ให้
-
-อยากให้เจาะลึกส่วนไหนเพิ่มอีกไหมครับ?`;
+พอผมเห็นภาพแล้ว ผมจะอธิบายแบบทีละขั้น พร้อมตัวอย่างจริงให้ครับ`;
     }
-
-    // normal
-    return `${pre}${openerTh}
-
-**สรุป** — ${pick([
-      "แก่นของเรื่องง่ายกว่าที่คิดเมื่อเห็นองค์ประกอบที่ขยับ",
-      "มันสรุปลงที่หลักการไม่กี่ข้อที่นำไปใช้ซ้ำได้ทุกที่",
-    ])}
-
-**ทำไม**
-- เริ่มจากปัญหาที่มันแก้ ไม่ใช่ศัพท์เทคนิค
-- สร้างแบบจำลองความคิดเล็ก ๆ ที่ทดสอบได้
-- แล้วค่อยเพิ่มกรณีขอบเข้าไป
-
-บอกให้ผมเจาะลึกเพิ่ม หรือสลับเป็นโหมด **Detailed** เพื่อดูแบบเต็มได้ครับ`;
+    return `${pre}${pick([
+      "ยินดีช่วยครับ",
+      "ได้เลยครับ",
+    ])} เล่าบริบทเพิ่มอีกนิดได้ไหม — คุณอยากได้คำตอบไปใช้ทำอะไร? ผมจะได้ตอบให้ตรงจุดแทนที่จะเดาครับ`;
   }
-
-  const opener = pick([
-    "Here's how I'd approach it.",
-    "Happy to help with that.",
-    "Let's break this down.",
-  ]);
 
   if (style === "short") {
     return `${pre}${pick([
-      "Short version:",
-      "In brief:",
-    ])} ${pick([
-      "the essentials are straightforward once you see the core idea.",
-      "it comes down to one or two key principles.",
-    ])} Ask for more and I'll expand.`;
+      "Happy to help — one quick thing so I nail it:",
+      "Sure thing. To point this the right way:",
+    ])} what part of this matters most to you?`;
   }
-
   if (style === "detailed") {
-    return `${pre}${opener}
+    return `${pre}${pick([
+      "Glad to dig into this.",
+      "Good question.",
+    ])} To give you a genuinely useful, in-depth answer rather than a generic one, tell me a bit about your context — what are you trying to accomplish, and where are you stuck right now?
 
-**Overview**
-First, the big picture: ${pick([
-      "the core idea is simpler than it looks once you map the moving parts.",
-      "this rests on a few principles you can reuse everywhere.",
-    ])}
-
-**Step by step**
-1. Start from the problem it solves, not the jargon.
-2. Build a small mental model you can test.
-3. Work an example end to end.
-4. Then layer in the edge cases.
-
-**Example**
-A worked example here would make each step concrete — tell me your exact case and I'll plug it in.
-
-Want me to go even deeper on any part?`;
+Once I have that, I'll walk you through it step by step with concrete examples.`;
   }
-
   // normal
-  return `${pre}${opener}
-
-**TL;DR** — ${pick([
-    "the core idea is simpler than it looks once you see the moving parts.",
-    "it comes down to a few principles you can reuse everywhere.",
-  ])}
-
-**Why**
-- Start from the problem it solves, not the jargon.
-- Build a small mental model you can test.
-- Then layer in the edge cases.
-
-Ask me to go deeper or switch to **Detailed** for a full walkthrough.`;
+  return `${pre}${pick([
+    "Happy to help with this.",
+    "Sure — let's get into it.",
+  ])} Can you give me a little more context on what you're trying to do with the answer? That way I can be specific instead of guessing.`;
 }
 
 export interface ChatReplyOptions {
