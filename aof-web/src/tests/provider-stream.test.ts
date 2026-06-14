@@ -4,6 +4,7 @@ import {
   primeAndStream,
   toAofError,
   isAbort,
+  openrouterTextStream,
   ProviderHttpError,
   PROVIDER_REGISTRY,
 } from "@/lib/server/ai-providers.js";
@@ -110,4 +111,84 @@ test("isAbort detects user/SDK aborts only", () => {
   assert.equal(isAbort({ name: "AbortError" }), true);
   assert.equal(isAbort({ name: "APIUserAbortError" }), true);
   assert.equal(isAbort(new Error("nope")), false);
+});
+
+// ── OpenRouter transient-error retry ────────────────────────────────────────
+
+function sseResponse(tokens: string[]): Response {
+  const body = new ReadableStream<Uint8Array>({
+    start(c) {
+      const enc = new TextEncoder();
+      for (const t of tokens) {
+        c.enqueue(enc.encode(`data: ${JSON.stringify({ choices: [{ delta: { content: t } }] })}\n\n`));
+      }
+      c.enqueue(enc.encode("data: [DONE]\n\n"));
+      c.close();
+    },
+  });
+  return new Response(body, { status: 200, headers: { "content-type": "text/event-stream" } });
+}
+
+test("openrouter retries a transient 503, then streams the recovered response", async () => {
+  const prevKey = process.env.OPENROUTER_API_KEY;
+  const realFetch = globalThis.fetch;
+  process.env.OPENROUTER_API_KEY = "test-key";
+  let calls = 0;
+  globalThis.fetch = (async () => {
+    calls += 1;
+    if (calls < 3) return new Response(JSON.stringify({ error: { message: "overloaded" } }), { status: 503 });
+    return sseResponse(["hello", " world"]);
+  }) as typeof fetch;
+
+  try {
+    const input = {
+      system: "s",
+      history: [],
+      message: "hi",
+      maxTokens: 16,
+      temperature: 0.5,
+      signal: new AbortController().signal,
+    };
+    let out = "";
+    for await (const chunk of openrouterTextStream(input)) out += chunk;
+    assert.equal(out, "hello world");
+    assert.equal(calls, 3); // two transient failures + one success
+  } finally {
+    globalThis.fetch = realFetch;
+    if (prevKey === undefined) delete process.env.OPENROUTER_API_KEY;
+    else process.env.OPENROUTER_API_KEY = prevKey;
+  }
+});
+
+test("openrouter gives up after exhausting retries and throws the upstream status", async () => {
+  const prevKey = process.env.OPENROUTER_API_KEY;
+  const realFetch = globalThis.fetch;
+  process.env.OPENROUTER_API_KEY = "test-key";
+  let calls = 0;
+  globalThis.fetch = (async () => {
+    calls += 1;
+    return new Response(JSON.stringify({ error: { message: "still down" } }), { status: 502 });
+  }) as typeof fetch;
+
+  try {
+    const input = {
+      system: "s",
+      history: [],
+      message: "hi",
+      maxTokens: 16,
+      temperature: 0.5,
+      signal: new AbortController().signal,
+    };
+    await assert.rejects(
+      (async () => {
+        for await (const _ of openrouterTextStream(input)) void _;
+      })(),
+      (err: unknown) => err instanceof ProviderHttpError && err.status === 502,
+    );
+    assert.equal(calls, 3); // capped at OPENROUTER_MAX_ATTEMPTS
+  } finally {
+    globalThis.fetch = realFetch;
+    if (prevKey === undefined) delete process.env.OPENROUTER_API_KEY;
+    else process.env.OPENROUTER_API_KEY = prevKey;
+  }
 });

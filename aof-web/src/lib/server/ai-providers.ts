@@ -47,7 +47,10 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
     label: "OpenRouter",
     envVar: "OPENROUTER_API_KEY",
     modelEnv: "OPENROUTER_MODEL",
-    defaultModel: "google/gemini-2.0-flash-exp:free",
+    // A stable, widely-available free model. The experimental `:free` endpoints
+    // (e.g. gemini-2.0-flash-exp:free) frequently 5xx under load → AOF_ERROR_006.
+    // Override with OPENROUTER_MODEL for a paid/more capable model.
+    defaultModel: "meta-llama/llama-3.3-70b-instruct:free",
     priority: 2,
   },
 };
@@ -201,6 +204,62 @@ export async function* anthropicTextStream(input: AdapterInput): AsyncGenerator<
 
 const OPENROUTER_CHAT_URL = "https://openrouter.ai/api/v1/chat/completions";
 
+// Free/community models occasionally return a transient upstream error (overloaded
+// or briefly rate-limited) that clears on a quick retry. We retry ONLY the initial
+// connection — before any token has streamed — so there is no risk of duplicating
+// content. Backoff is short and abort-aware so the Stop button still works.
+const TRANSIENT_STATUSES = new Set([408, 425, 429, 500, 502, 503, 504]);
+const OPENROUTER_MAX_ATTEMPTS = 3;
+const OPENROUTER_BACKOFF_MS = [300, 800];
+
+function abortableDelay(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) return reject(new DOMException("Aborted", "AbortError"));
+    const timer = setTimeout(resolve, ms);
+    signal.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(timer);
+        reject(new DOMException("Aborted", "AbortError"));
+      },
+      { once: true },
+    );
+  });
+}
+
+/** Open the streaming connection, retrying transient upstream failures. */
+async function openrouterConnect(meta: ProviderMeta, body: string, signal: AbortSignal): Promise<Response> {
+  let lastTransient: ProviderHttpError | undefined;
+  for (let attempt = 1; attempt <= OPENROUTER_MAX_ATTEMPTS; attempt++) {
+    const res = await fetch(OPENROUTER_CHAT_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKeyFor(meta)!}`,
+        "HTTP-Referer": "https://aof-web.vercel.app",
+        "X-Title": "Aof",
+      },
+      body,
+      signal,
+    });
+
+    if (res.ok && res.body) return res;
+
+    const text = await res.text().catch(() => "");
+    const { type, message } = parseUpstreamError(text);
+    const err = new ProviderHttpError(res.status, text, type, message);
+
+    if (TRANSIENT_STATUSES.has(res.status) && attempt < OPENROUTER_MAX_ATTEMPTS) {
+      lastTransient = err;
+      await abortableDelay(OPENROUTER_BACKOFF_MS[attempt - 1] ?? 800, signal);
+      continue;
+    }
+    throw err;
+  }
+  // Exhausted all attempts on transient errors — surface the last one.
+  throw lastTransient ?? new ProviderHttpError(502, "", undefined, "Provider unavailable");
+}
+
 export async function* openrouterTextStream(input: AdapterInput): AsyncGenerator<string> {
   const meta = PROVIDER_REGISTRY.openrouter;
   const model = modelFor(meta);
@@ -211,31 +270,19 @@ export async function* openrouterTextStream(input: AdapterInput): AsyncGenerator
     { role: "user", content: input.message },
   ];
 
-  const res = await fetch(OPENROUTER_CHAT_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKeyFor(meta)!}`,
-      "HTTP-Referer": "https://aof-web.vercel.app",
-      "X-Title": "Aof",
-    },
-    body: JSON.stringify({
+  const res = await openrouterConnect(
+    meta,
+    JSON.stringify({
       model,
       messages,
       temperature: input.temperature,
       max_tokens: input.maxTokens,
       stream: true,
     }),
-    signal: input.signal,
-  });
+    input.signal,
+  );
 
-  if (!res.ok || !res.body) {
-    const body = await res.text().catch(() => "");
-    const { type, message } = parseUpstreamError(body);
-    throw new ProviderHttpError(res.status, body, type, message);
-  }
-
-  const reader = res.body.getReader();
+  const reader = res.body!.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
   while (true) {
