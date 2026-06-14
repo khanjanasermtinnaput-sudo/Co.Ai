@@ -12,6 +12,7 @@ on:
       - main
       - claude/trusting-wright-zj93vo
       - claude/trusting-mayer-oua7s2
+      - claude/sleepy-shannon-0l1wuj
     paths:
       - 'aof-web/**'
       - '.github/workflows/vercel-deploy.yml'
@@ -20,6 +21,11 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # Lift the secret into env at the job level. The `secrets` context is NOT
+    # allowed inside step `if:` expressions (it makes the run fail at startup),
+    # so the steps below gate on `env.VERCEL_TOKEN` instead.
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
     defaults:
       run:
         working-directory: aof-web
@@ -33,9 +39,7 @@ jobs:
           node-version: 20
 
       - name: Deploy to Vercel
-        if: ${{ secrets.VERCEL_TOKEN != '' }}
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        if: ${{ env.VERCEL_TOKEN != '' }}
         run: |
           npm i -g vercel@latest
           # --yes auto-creates & links the project under the token's team on first run.
@@ -45,7 +49,7 @@ jobs:
           echo "$url" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Setup notice (no token yet)
-        if: ${{ secrets.VERCEL_TOKEN == '' }}
+        if: ${{ env.VERCEL_TOKEN == '' }}
         run: |
           echo "VERCEL_TOKEN secret not set — skipping deploy."
           echo "Add it at: Settings → Secrets and variables → Actions → VERCEL_TOKEN"
