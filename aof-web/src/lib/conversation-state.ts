@@ -32,17 +32,26 @@ const GREETING_EXACT = new Set([
   "เข้าใจแล้ว", "รับทราบ", "โอเค้", "ok ครับ", "ok ค่ะ",
 ]);
 
+// Software artifact nouns — shared across patterns.
+const ARTIFACTS =
+  "app|application|website|web\\s*app|web\\s*site|game|api|tool|saas|platform|system|bot|service|cli|dashboard|landing\\s*page|portfolio|backend|frontend";
+
 // Build intent: software-artifact verbs paired with software artifact nouns.
 // Patterns test against the RAW message (not lowercased) so Thai chars are preserved.
 const BUILD_INTENT_PATTERNS: RegExp[] = [
-  // "build/make/create/develop/write/implement X" where X is a software artifact
-  /\b(build|make|create|develop|write|implement|code|design|start)\b.{0,40}\b(app|application|website|web\s*app|web\s*site|game|api|tool|saas|platform|system|bot|service|cli|dashboard|landing\s*page|portfolio|backend|frontend)\b/i,
-  // "app/website/etc X (I want to build)"
-  /\b(app|application|website|web\s*app|game|api|saas|platform|system|bot|service|cli|dashboard)\b.{0,30}\b(build|make|create|develop|write|implement)\b/i,
-  // "I want/need to build/make/create/develop ..."
+  // Verb-first: "build/make/create X" where X is a software artifact
+  new RegExp(`\\b(build|make|create|develop|write|implement|code|design|start)\\b.{0,50}\\b(${ARTIFACTS})\\b`, "i"),
+  // Artifact-first descriptions (common when pasting project ideas):
+  // "A snake game that…", "A REST API for…", "A landing page with…"
+  new RegExp(`^(a|an)\\s+.{0,50}\\b(${ARTIFACTS})\\b`, "i"),
+  // "[Name] clone" pattern — "discord clone", "twitter clone"
+  /\b\w[\w-]+\s+(clone|alternative|replica)\b/i,
+  // "I want/need to build/make/create/develop …"
   /\b(i\s+(want|need|wanna|would\s+like)\s+to|help\s+me|can\s+you\s+help)\b.{0,30}\b(build|make|create|develop|code|write|implement)\b/i,
-  // "I'm building/creating/developing ..."
+  // "I'm building/creating/developing …"
   /\bi'?m\s+(building|creating|making|developing|working\s+on)\b/i,
+  // Artifact noun appears BEFORE a build verb: "an app I want to build"
+  new RegExp(`\\b(${ARTIFACTS})\\b.{0,30}\\b(build|make|create|develop|write|implement)\\b`, "i"),
   // Thai: ทำ/สร้าง + software artifact
   /ทำ(เว็บ|แอป|เกม|ระบบ|api|เครื่องมือ|บอท|แพลตฟอร์ม|แดชบอร์ด|เว็บแอป|เซอร์วิส|เซิร์ฟเวอร์|โปรแกรม)/,
   /สร้าง(เว็บ|แอป|เกม|ระบบ|api|เครื่องมือ|บอท|แพลตฟอร์ม|แดชบอร์ด|เว็บแอป|เซอร์วิส|โปรแกรม)/,
