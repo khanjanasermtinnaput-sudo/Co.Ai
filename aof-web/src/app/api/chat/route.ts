@@ -23,7 +23,9 @@ interface ChatBody {
 }
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const DEFAULT_MODEL = "google/gemini-2.0-flash-001";
+// Free-by-default: a no-cost OpenRouter model (rate-limited). Override with the
+// OPENROUTER_MODEL env var to use a paid/higher-quality model.
+const DEFAULT_MODEL = "google/gemini-2.0-flash-exp:free";
 
 /** Build the system prompt: persona + same-language rule + verbosity + intent. */
 function buildSystem(style: ResponseStyle | undefined, route: RouteDecision | undefined): string {
