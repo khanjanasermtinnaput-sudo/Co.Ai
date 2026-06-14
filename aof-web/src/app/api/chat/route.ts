@@ -1,10 +1,14 @@
 // ── Aof Chat — real LLM endpoint (server-side) ───────────────────────────────
-// Provider priority:
+// Provider priority (first key found wins):
 //   1. ANTHROPIC_API_KEY  → Anthropic SDK (claude-haiku-4-5 by default)
-//   2. OPENROUTER_API_KEY → OpenRouter (google/gemini-2.0-flash-exp:free by default)
-//   3. Neither key        → 503, client falls back to offline mock
+//   2. GROQ_API_KEY       → Groq / Llama 3.3-70B (free, very fast)
+//   3. GEMINI_API_KEY     → Google Gemini 2.0 Flash
+//   4. DEEPSEEK_API_KEY   → DeepSeek Chat
+//   5. DASHSCOPE_API_KEY  → Qwen via DashScope
+//   6. OPENROUTER_API_KEY → OpenRouter (google/gemini-2.0-flash-exp:free)
+//   7. No key found       → 503, client falls back to offline mock
 //
-// Keeps all secrets server-side. Browser never sees the API key.
+// Keeps all secrets server-side. Browser never sees any API key.
 
 import Anthropic from "@anthropic-ai/sdk";
 import type { ResponseStyle, RouteDecision } from "@/lib/types";
@@ -28,10 +32,22 @@ interface ChatBody {
   agent?: "chat" | "requirements" | "code-chat";
 }
 
-const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const DEFAULT_OR_MODEL = "google/gemini-2.0-flash-exp:free";
-// claude-haiku is fast and cheap — ideal for conversational chat
+// ── Provider defaults ─────────────────────────────────────────────────────────
 const DEFAULT_ANTHROPIC_MODEL = "claude-haiku-4-5-20251001";
+const DEFAULT_GROQ_MODEL      = "llama-3.3-70b-versatile";
+const DEFAULT_GEMINI_MODEL    = "gemini-2.0-flash";
+const DEFAULT_DEEPSEEK_MODEL  = "deepseek-chat";
+const DEFAULT_QWEN_MODEL      = "qwen-plus";
+const DEFAULT_OR_MODEL        = "google/gemini-2.0-flash-exp:free";
+
+// OpenAI-compatible base URLs
+const GROQ_URL       = "https://api.groq.com/openai/v1/chat/completions";
+const GEMINI_URL     = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
+const DEEPSEEK_URL   = "https://api.deepseek.com/chat/completions";
+const DASHSCOPE_URL  = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions";
+const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+
+// ── System prompt builder (Aof Chat) ─────────────────────────────────────────
 
 function buildSystem(style: ResponseStyle | undefined, route: RouteDecision | undefined): string {
   const persona =
@@ -72,9 +88,7 @@ async function streamAnthropic(
   temperature: number,
   signal: AbortSignal,
 ): Promise<Response> {
-  const anthropic = new Anthropic({
-    apiKey: process.env.ANTHROPIC_API_KEY!,
-  });
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
   const model = process.env.ANTHROPIC_MODEL?.trim() || DEFAULT_ANTHROPIC_MODEL;
 
   const messages: Anthropic.MessageParam[] = [
@@ -89,13 +103,7 @@ async function streamAnthropic(
       const encoder = new TextEncoder();
       try {
         const anthropicStream = await anthropic.messages.stream(
-          {
-            model,
-            max_tokens: maxTokens,
-            temperature,
-            system,
-            messages,
-          },
+          { model, max_tokens: maxTokens, temperature, system, messages },
           { signal },
         );
         for await (const event of anthropicStream) {
@@ -105,7 +113,6 @@ async function streamAnthropic(
         }
       } catch (e) {
         if ((e as Error)?.name !== "AbortError") {
-          // surface error as text so the client sees something
           controller.enqueue(encoder.encode(`\n[error: ${(e as Error).message}]`));
         }
       } finally {
@@ -115,26 +122,24 @@ async function streamAnthropic(
   });
 
   return new Response(stream, {
-    headers: {
-      "Content-Type": "text/plain; charset=utf-8",
-      "Cache-Control": "no-cache, no-transform",
-    },
+    headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-cache, no-transform" },
   });
 }
 
-// ── OpenRouter streaming ──────────────────────────────────────────────────────
+// ── Generic OpenAI-compatible streaming ──────────────────────────────────────
 
-async function streamOpenRouter(
+async function streamOpenAICompat(
+  url: string,
+  apiKey: string,
+  model: string,
   system: string,
   history: ChatHistoryItem[],
   message: string,
   maxTokens: number,
   temperature: number,
   signal: AbortSignal,
+  extraHeaders?: Record<string, string>,
 ): Promise<Response> {
-  const key = process.env.OPENROUTER_API_KEY!;
-  const model = process.env.OPENROUTER_MODEL?.trim() || DEFAULT_OR_MODEL;
-
   const messages = [
     { role: "system", content: system },
     ...history
@@ -145,13 +150,12 @@ async function streamOpenRouter(
 
   let upstream: Response;
   try {
-    upstream = await fetch(OPENROUTER_URL, {
+    upstream = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${key}`,
-        "HTTP-Referer": "https://aof-web.vercel.app",
-        "X-Title": "Aof",
+        Authorization: `Bearer ${apiKey}`,
+        ...extraHeaders,
       },
       body: JSON.stringify({ model, messages, temperature, max_tokens: maxTokens, stream: true }),
       signal,
@@ -198,20 +202,21 @@ async function streamOpenRouter(
   });
 
   return new Response(stream, {
-    headers: {
-      "Content-Type": "text/plain; charset=utf-8",
-      "Cache-Control": "no-cache, no-transform",
-    },
+    headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-cache, no-transform" },
   });
 }
 
 // ── Route handler ─────────────────────────────────────────────────────────────
 
 export async function POST(req: Request): Promise<Response> {
-  const anthropicKey = process.env.ANTHROPIC_API_KEY?.trim();
+  const anthropicKey  = process.env.ANTHROPIC_API_KEY?.trim();
+  const groqKey       = process.env.GROQ_API_KEY?.trim();
+  const geminiKey     = process.env.GEMINI_API_KEY?.trim();
+  const deepseekKey   = process.env.DEEPSEEK_API_KEY?.trim();
+  const dashscopeKey  = process.env.DASHSCOPE_API_KEY?.trim();
   const openrouterKey = process.env.OPENROUTER_API_KEY?.trim();
 
-  if (!anthropicKey && !openrouterKey) {
+  if (!anthropicKey && !groqKey && !geminiKey && !deepseekKey && !dashscopeKey && !openrouterKey) {
     return Response.json({ error: "no-key" }, { status: 503 });
   }
 
@@ -228,7 +233,7 @@ export async function POST(req: Request): Promise<Response> {
   const history = Array.isArray(body.history) ? body.history.slice(-20) : [];
 
   const isRequirements = body.agent === "requirements";
-  const isCodeChat = body.agent === "code-chat";
+  const isCodeChat     = body.agent === "code-chat";
   const system = isRequirements
     ? RAA_SYSTEM
     : isCodeChat
@@ -236,11 +241,36 @@ export async function POST(req: Request): Promise<Response> {
       : buildSystem(body.style, body.route);
 
   const temperature = isRequirements ? 0.5 : 0.7;
-  const maxTokens = isRequirements ? 1200 : isCodeChat ? 800 : maxTokensFor(body.style);
+  const maxTokens   = isRequirements ? 1200 : isCodeChat ? 800 : maxTokensFor(body.style);
 
-  // Anthropic first (best quality), OpenRouter as fallback
-  if (anthropicKey) {
-    return streamAnthropic(system, history, message, maxTokens, temperature, req.signal);
+  const args = [system, history, message, maxTokens, temperature, req.signal] as const;
+
+  if (anthropicKey) return streamAnthropic(...args);
+
+  if (groqKey) {
+    const model = process.env.GROQ_MODEL?.trim() || process.env.LLAMA_MODEL?.trim() || DEFAULT_GROQ_MODEL;
+    return streamOpenAICompat(GROQ_URL, groqKey, model, ...args);
   }
-  return streamOpenRouter(system, history, message, maxTokens, temperature, req.signal);
+
+  if (geminiKey) {
+    const model = process.env.GEMINI_MODEL?.trim() || DEFAULT_GEMINI_MODEL;
+    return streamOpenAICompat(GEMINI_URL, geminiKey, model, ...args);
+  }
+
+  if (deepseekKey) {
+    const model = process.env.DEEPSEEK_MODEL?.trim() || DEFAULT_DEEPSEEK_MODEL;
+    return streamOpenAICompat(DEEPSEEK_URL, deepseekKey, model, ...args);
+  }
+
+  if (dashscopeKey) {
+    const model = process.env.QWEN_MODEL?.trim() || DEFAULT_QWEN_MODEL;
+    return streamOpenAICompat(DASHSCOPE_URL, dashscopeKey, model, ...args);
+  }
+
+  // OpenRouter as final fallback
+  const model = process.env.OPENROUTER_MODEL?.trim() || DEFAULT_OR_MODEL;
+  return streamOpenAICompat(OPENROUTER_URL, openrouterKey!, model, ...args, {
+    "HTTP-Referer": "https://aof-web.vercel.app",
+    "X-Title": "Aof",
+  });
 }
