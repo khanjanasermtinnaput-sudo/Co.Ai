@@ -6,7 +6,7 @@
 // client transparently falls back to the offline mock engine.
 
 import type { ResponseStyle, RouteDecision } from "@/lib/types";
-import { RAA_SYSTEM } from "@/lib/raa";
+import { RAA_SYSTEM, AOF_CODE_CHAT_SYSTEM } from "@/lib/raa";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,8 +21,9 @@ interface ChatBody {
   style?: ResponseStyle;
   route?: RouteDecision;
   history?: ChatHistoryItem[];
-  /** "chat" = general assistant (default); "requirements" = Aof Code RAA persona. */
-  agent?: "chat" | "requirements";
+  /** "chat" = general assistant (default); "requirements" = Aof Code RAA (DISCOVERY);
+   *  "code-chat" = Aof Code NORMAL_CHAT (no project active). */
+  agent?: "chat" | "requirements" | "code-chat";
 }
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -84,10 +85,16 @@ export async function POST(req: Request): Promise<Response> {
   const history = Array.isArray(body.history) ? body.history.slice(-20) : [];
   const model = process.env.OPENROUTER_MODEL?.trim() || DEFAULT_MODEL;
 
-  // The Aof Code conversation uses the Requirements Architect (RAA) persona, which
-  // gathers requirements and emits a structured brief — it never writes code.
+  // Aof Code has two non-chat personas:
+  //   "requirements" = RAA (DISCOVERY) — gathers requirements, emits brief, never writes code.
+  //   "code-chat"    = NORMAL_CHAT — answers questions naturally, no project context.
   const isRequirements = body.agent === "requirements";
-  const system = isRequirements ? RAA_SYSTEM : buildSystem(body.style, body.route);
+  const isCodeChat = body.agent === "code-chat";
+  const system = isRequirements
+    ? RAA_SYSTEM
+    : isCodeChat
+      ? AOF_CODE_CHAT_SYSTEM
+      : buildSystem(body.style, body.route);
 
   const messages = [
     { role: "system", content: system },
@@ -111,9 +118,8 @@ export async function POST(req: Request): Promise<Response> {
       body: JSON.stringify({
         model,
         messages,
-        // Requirements gathering wants a touch less randomness and more room.
-        temperature: isRequirements ? 0.5 : 0.7,
-        max_tokens: isRequirements ? 1200 : maxTokensFor(body.style),
+        temperature: isRequirements ? 0.5 : isCodeChat ? 0.7 : 0.7,
+        max_tokens: isRequirements ? 1200 : isCodeChat ? 800 : maxTokensFor(body.style),
         stream: true,
       }),
       signal: req.signal,

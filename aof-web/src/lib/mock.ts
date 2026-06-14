@@ -374,6 +374,52 @@ export async function mockCodeRun(
   }
 }
 
+// ── Mock Aof Code NORMAL_CHAT replies ────────────────────────────────────────
+
+/** Mock reply for NORMAL_CHAT state in Aof Code: greetings, tech Q&A, discussion.
+ *  Returns the full reply text (same pattern as mockRequirements/mockPlan). */
+export async function mockCodeChat(message: string, h: StreamHandlers): Promise<string> {
+  await sleep(180 + Math.random() * 160);
+  const th = isThai(message);
+  const m = message.toLowerCase().trim();
+
+  let text: string;
+
+  // Greetings
+  if (/^(hi|hello|hey|yo|sup|howdy|หวัดดี|สวัสดี|ไง|เฮ้)[\s!.?]*$/.test(m)) {
+    text = th
+      ? pick(["สวัสดีครับ! กำลังทำอะไรอยู่ครับ?", "หวัดดีครับ — มีโปรเจกต์อะไรในหัวอยู่ไหมครับ?", "เฮ้! วันนี้จะสร้างอะไรกันดีครับ?"])
+      : pick(["Hey! What are you working on today?", "Hi! Got something in mind to build?", "Hey there — what project are we tackling?"]);
+  }
+  // Thanks / acknowledgements
+  else if (/^(thanks|thank you|thx|ty|ขอบคุณ|ขอบใจ|โอเค|ok|cool|nice|great|awesome)[\s!.?]*$/.test(m)) {
+    text = th ? "ยินดีครับ! มีอะไรอื่นไหม?" : "Anytime! Anything else?";
+  }
+  // Tech comparison questions
+  else if (/vs|versus|compared|difference|better|หรือ|ต่างกัน|ดีกว่า/.test(m)) {
+    text = th
+      ? `ขึ้นอยู่กับ use case ครับ — แต่ละตัวมีจุดเด่นต่างกัน ลองเล่าว่าจะใช้ทำอะไร แล้วผมจะแนะนำให้ตรงกับสิ่งที่ต้องการมากขึ้น`
+      : `Depends on the use case — each has its strengths. Tell me what you're trying to build and I can give you a more targeted recommendation.`;
+  }
+  // General tech question
+  else {
+    text = th
+      ? pick([
+          "นั่นเป็นคำถามที่น่าสนใจครับ ขึ้นอยู่กับบริบทของโปรเจกต์ อธิบายเพิ่มเติมได้ไหมครับ?",
+          "ดีครับ — ตอบสั้น ๆ ก่อนเลย แล้วถ้าอยากลงลึกบอกได้เลย",
+          "มีหลายวิธีครับ วิธีที่เหมาะสุดขึ้นอยู่กับว่าต้องการอะไร บอกบริบทเพิ่มได้ไหมครับ?",
+        ])
+      : pick([
+          "Good question — the short answer depends on context. Can you tell me more about what you're trying to do?",
+          "There are a few ways to approach this. What's the broader goal?",
+          "Happy to dig into that. What's the context — what are you building?",
+        ]);
+  }
+
+  await streamText(text, h);
+  return text;
+}
+
 // ── Mock Requirements Architect (RAA) ─────────────────────────────────────────
 // Keeps Aof Code's conversation-first flow working with zero backend. It asks a
 // couple of clarifying questions, then emits a brief in the exact RAA summary

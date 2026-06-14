@@ -1,12 +1,14 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import {
+  streamCodeChat,
   streamCodeRun,
   streamRequirements,
   streamPlan,
   streamAnalyze,
   streamDebug,
 } from "@/lib/api";
+import { classifyTurn } from "@/lib/conversation-state";
 import {
   discoveryQuestions,
   planOptions,
@@ -73,6 +75,10 @@ interface CodeState {
   convo: ChatMessageT[];
   brief: ProjectBrief | null;
   phase: CodePhase;
+  /** True once the user has described a project (DISCOVERY state entered).
+   *  Stays true until "New" is pressed — ensures subsequent messages keep
+   *  going to RAA rather than falling back to NORMAL_CHAT. */
+  projectActive: boolean;
   chatting: boolean;
   convoAbort: AbortController | null;
   sendMessage: (text: string) => Promise<void>;
@@ -150,6 +156,7 @@ export const useCodeStore = create<CodeState>()(
   convo: [],
   brief: null,
   phase: "conversation",
+  projectActive: false,
   chatting: false,
   convoAbort: null,
   outputKind: null,
@@ -178,7 +185,15 @@ export const useCodeStore = create<CodeState>()(
       return;
     }
 
-    // Prior turns become history; then append the new user + a streaming reply.
+    // ── V3 State Machine ───────────────────────────────────────────────────────
+    // Classify before touching state so the decision is based on the CURRENT turn.
+    const convState = classifyTurn({
+      message: content,
+      projectActive: get().projectActive,
+      debugMode: false, // already handled above
+    });
+
+    // Prior turns as flat history for both paths.
     const history = get()
       .convo.filter((m) => m.role === "user" || m.role === "assistant")
       .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
@@ -205,20 +220,30 @@ export const useCodeStore = create<CodeState>()(
       }));
 
     try {
-      const { brief } = await streamRequirements(content, history, {
-        onToken: append,
-        signal: controller.signal,
-      });
-      // On a fresh brief, capture it and tidy the bubble (the structured brief is
-      // shown in its own panel, so strip the raw summary block from the message).
-      set((s) => ({
-        brief: brief ?? s.brief,
-        convo: s.convo.map((m) => {
-          if (m.id !== assistantId) return m;
-          const cleaned = brief ? stripBriefBlock(m.content) || m.content : m.content;
-          return { ...m, content: cleaned, streaming: false };
-        }),
-      }));
+      if (convState === "NORMAL_CHAT") {
+        // ── NORMAL_CHAT: casual reply, no RAA, no brief update ────────────────
+        await streamCodeChat(content, history, { onToken: append, signal: controller.signal });
+      } else {
+        // ── DISCOVERY: RAA gathers requirements, brief may be emitted ─────────
+        // Mark the project active so all subsequent turns stay in DISCOVERY
+        // until the user explicitly hits "New".
+        if (!get().projectActive) set({ projectActive: true });
+
+        const { brief } = await streamRequirements(content, history, {
+          onToken: append,
+          signal: controller.signal,
+        });
+        // On a fresh brief, capture it and strip the summary block from the bubble
+        // (the structured brief is shown in its own panel).
+        set((s) => ({
+          brief: brief ?? s.brief,
+          convo: s.convo.map((m) => {
+            if (m.id !== assistantId) return m;
+            const cleaned = brief ? stripBriefBlock(m.content) || m.content : m.content;
+            return { ...m, content: cleaned, streaming: false };
+          }),
+        }));
+      }
     } finally {
       set((s) => ({
         chatting: false,
@@ -322,6 +347,7 @@ export const useCodeStore = create<CodeState>()(
       convo: [],
       brief: null,
       phase: "conversation",
+      projectActive: false,
       buildLog: "",
       chatting: false,
       building: false,
@@ -427,7 +453,7 @@ export const useCodeStore = create<CodeState>()(
       // Project session memory — remember the conversation, brief and mode across
       // reloads so Aof Code doesn't re-ask what's already been decided.
       name: "aof.code",
-      partialize: (s) => ({ convo: s.convo, brief: s.brief, mode: s.mode }),
+      partialize: (s) => ({ convo: s.convo, brief: s.brief, mode: s.mode, projectActive: s.projectActive }),
     },
   ),
 );

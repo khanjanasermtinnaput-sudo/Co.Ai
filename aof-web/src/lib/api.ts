@@ -6,6 +6,7 @@
 import type { ProjectBrief, ResponseStyle, RouteDecision } from "./types";
 import {
   mockChat,
+  mockCodeChat,
   mockCodeRun,
   mockRequirements,
   mockPlan,
@@ -212,6 +213,44 @@ export async function streamCodeRun(
   } catch {
     await mockCodeRun(task, mode, handlers);
   }
+}
+
+// ── Aof Code NORMAL_CHAT (no project active) ─────────────────────────────────
+
+/**
+ * Stream a NORMAL_CHAT reply within Aof Code. Used when no project is active —
+ * greetings, tech Q&A, casual discussion. Falls back: same-origin /api/chat
+ * (agent=code-chat) → offline mock.
+ */
+export async function streamCodeChat(
+  message: string,
+  history: ChatHistoryItem[],
+  handlers: StreamHandlers,
+): Promise<void> {
+  // No backend needed for this path — it always goes through the same-origin
+  // LLM route or the mock. The live tmap-v2 backend doesn't have a "chat" endpoint
+  // for NORMAL_CHAT within Aof Code; we use the Next.js /api/chat route directly.
+  try {
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message, agent: "code-chat", history: history.slice(-20) }),
+      signal: handlers.signal,
+    });
+    if (res.status === 503 || !res.ok || !res.body) throw new Error("no-key");
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      handlers.onToken(decoder.decode(value, { stream: true }));
+    }
+    return;
+  } catch (e) {
+    if ((e as Error)?.name === "AbortError") return;
+    // No key or network error → mock
+  }
+  await mockCodeChat(message, handlers);
 }
 
 // ── Aof Code requirements conversation (RAA) ──────────────────────────────────
