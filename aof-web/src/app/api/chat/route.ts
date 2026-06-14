@@ -64,7 +64,19 @@ function maxTokensFor(style: ResponseStyle | undefined): number {
 export async function POST(req: Request): Promise<Response> {
   const key = process.env.OPENROUTER_API_KEY?.trim();
   // No key configured → tell the client to use its offline mock fallback.
-  if (!key) return Response.json({ error: "no-key" }, { status: 503 });
+  if (!key) {
+    // Diagnostic (names only, never values): helps spot a misnamed var or one
+    // set for the wrong environment. Safe to log — no secrets are exposed.
+    const related = Object.keys(process.env).filter((k) =>
+      /openrouter|openai|api[_-]?key|aof|gemini|groq|model/i.test(k),
+    );
+    console.error(
+      `[api/chat] OPENROUTER_API_KEY missing. Related env var NAMES present: ${
+        related.length ? related.join(", ") : "(none)"
+      }`,
+    );
+    return Response.json({ error: "no-key" }, { status: 503 });
+  }
 
   let body: ChatBody;
   try {
