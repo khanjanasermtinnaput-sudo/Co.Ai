@@ -75,7 +75,7 @@ export async function POST(req: Request): Promise<Response> {
         related.length ? related.join(", ") : "(none)"
       }`,
     );
-    return Response.json({ error: "no-key" }, { status: 503 });
+    return Response.json({ error: "no-key", envNames: related }, { status: 503 });
   }
 
   let body: ChatBody;
