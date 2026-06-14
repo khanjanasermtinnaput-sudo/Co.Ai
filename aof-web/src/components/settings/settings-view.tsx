@@ -19,6 +19,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/providers/auth-provider";
 import { getSupabase } from "@/lib/supabase/client";
+import { keysEnabled, loadKeys, saveKey, deleteKey } from "@/lib/keys";
 import { useMounted } from "@/hooks/use-mounted";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -258,13 +259,76 @@ function ThemeOption({
 }
 
 function KeysTab() {
-  const [keys, setKeys] = useState<Record<string, string>>({});
-  const save = (id: string) => {
-    if (!keys[id] || keys[id].length < 8) {
+  const { configured } = useAuth();
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [previews, setPreviews] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState<Record<string, boolean>>({});
+  const [loading, setLoading] = useState(true);
+
+  // Load the masked previews of any keys already saved for this account.
+  useEffect(() => {
+    if (!keysEnabled()) {
+      setLoading(false);
+      return;
+    }
+    let active = true;
+    loadKeys()
+      .then((keys) => {
+        if (!active) return;
+        setPreviews(Object.fromEntries(keys.map((k) => [k.provider, k.preview])));
+      })
+      .catch(() => {
+        /* not signed in yet / backend offline — just show empty inputs */
+      })
+      .finally(() => active && setLoading(false));
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const save = async (id: string) => {
+    const value = drafts[id] ?? "";
+    if (value.length < 8) {
       toast.error("That key looks too short");
       return;
     }
-    toast.success(`${id} key saved`, { description: "Stored securely (demo)" });
+    if (!keysEnabled()) {
+      toast.error("Sign in to save your keys", {
+        description: "Key storage needs a Supabase-backed account.",
+      });
+      return;
+    }
+    setBusy((b) => ({ ...b, [id]: true }));
+    try {
+      const preview = await saveKey(id, value.trim());
+      setPreviews((p) => ({ ...p, [id]: preview }));
+      setDrafts((d) => ({ ...d, [id]: "" }));
+      toast.success(`${id} key saved`, { description: "Encrypted at rest — tied to your account." });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "unknown";
+      toast.error("Couldn't save key", {
+        description: msg === "not-signed-in" ? "Please sign in first." : msg,
+      });
+    } finally {
+      setBusy((b) => ({ ...b, [id]: false }));
+    }
+  };
+
+  const remove = async (id: string) => {
+    setBusy((b) => ({ ...b, [id]: true }));
+    try {
+      await deleteKey(id);
+      setPreviews((p) => {
+        const next = { ...p };
+        delete next[id];
+        return next;
+      });
+      toast.success(`${id} key removed`);
+    } catch {
+      toast.error("Couldn't remove key");
+    } finally {
+      setBusy((b) => ({ ...b, [id]: false }));
+    }
   };
 
   return (
@@ -275,34 +339,60 @@ function KeysTab() {
             <ShieldCheck className="size-4 text-primary" /> AI provider keys
           </CardTitle>
           <CardDescription>
-            Bring your own keys. They&apos;re encrypted at rest and never leave your account.
-            Leave everything blank to run Aof in mock mode.
+            Bring your own keys. They&apos;re encrypted at rest and tied to your account —
+            we never show them again or send them back to the browser. Leave everything blank
+            to run Aof in mock mode.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {PROVIDERS.map((p, i) => (
-            <div key={p.id}>
-              {i > 0 && <Separator className="mb-4" />}
-              <div className="flex items-center justify-between">
-                <Label htmlFor={p.id} className="text-sm">
-                  {p.label}
-                </Label>
-                <span className="text-xs text-muted-foreground">{p.hint}</span>
+          {!configured && (
+            <p className="rounded-lg border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
+              You&apos;re in offline demo mode — keys won&apos;t persist. Configure Supabase
+              and sign in to securely store them against your account.
+            </p>
+          )}
+          {PROVIDERS.map((p, i) => {
+            const saved = previews[p.id];
+            return (
+              <div key={p.id}>
+                {i > 0 && <Separator className="mb-4" />}
+                <div className="flex items-center justify-between">
+                  <Label htmlFor={p.id} className="text-sm">
+                    {p.label}
+                  </Label>
+                  <span className="text-xs text-muted-foreground">{p.hint}</span>
+                </div>
+                {saved && (
+                  <p className="mt-1.5 flex items-center gap-1.5 text-xs text-success">
+                    <Check className="size-3.5" /> Saved · {saved}
+                  </p>
+                )}
+                <div className="mt-2 flex gap-2">
+                  <Input
+                    id={p.id}
+                    type="password"
+                    placeholder={saved ? "Enter a new key to replace…" : "sk-…"}
+                    value={drafts[p.id] ?? ""}
+                    onChange={(e) => setDrafts((k) => ({ ...k, [p.id]: e.target.value }))}
+                    disabled={loading || busy[p.id]}
+                  />
+                  <Button variant="secondary" onClick={() => save(p.id)} disabled={loading || busy[p.id]}>
+                    {busy[p.id] ? "…" : saved ? "Replace" : "Save"}
+                  </Button>
+                  {saved && (
+                    <Button
+                      variant="ghost"
+                      onClick={() => remove(p.id)}
+                      disabled={busy[p.id]}
+                      className="text-destructive hover:text-destructive"
+                    >
+                      Remove
+                    </Button>
+                  )}
+                </div>
               </div>
-              <div className="mt-2 flex gap-2">
-                <Input
-                  id={p.id}
-                  type="password"
-                  placeholder="sk-…"
-                  value={keys[p.id] ?? ""}
-                  onChange={(e) => setKeys((k) => ({ ...k, [p.id]: e.target.value }))}
-                />
-                <Button variant="secondary" onClick={() => save(p.id)}>
-                  Save
-                </Button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </CardContent>
       </Card>
     </div>
