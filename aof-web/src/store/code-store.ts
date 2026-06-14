@@ -1,5 +1,12 @@
 import { create } from "zustand";
-import { streamCodeRun, streamRequirements } from "@/lib/api";
+import { persist } from "zustand/middleware";
+import {
+  streamCodeRun,
+  streamRequirements,
+  streamPlan,
+  streamAnalyze,
+  streamDebug,
+} from "@/lib/api";
 import {
   discoveryQuestions,
   planOptions,
@@ -74,6 +81,18 @@ interface CodeState {
   canGenerate: () => boolean;
   resetConversation: () => void;
 
+  // ── Action buttons (trigger existing systems) ─────────────────────────────
+  /** which action produced the current output panel */
+  outputKind: "build" | "plan" | "analyze" | "debug" | null;
+  /** when true, the next composer submit is treated as an error to debug */
+  debugMode: boolean;
+  setDebugMode: (v: boolean) => void;
+  createPlan: () => Promise<void>;
+  analyzeProject: () => Promise<void>;
+  runDebug: (errorText: string) => Promise<void>;
+  /** enough context to plan / analyze (a brief, or at least a conversation) */
+  canAct: () => boolean;
+
   // ── Standard build (lite / 1.0 / pro) ─────────────────────────────────────
   buildLog: string;
   building: boolean;
@@ -101,7 +120,29 @@ function nextPhase(key: TitanPhaseKey): TitanPhaseKey {
   return TITAN_PHASES[Math.min(i + 1, TITAN_PHASES.length - 1)].key;
 }
 
-export const useCodeStore = create<CodeState>((set, get) => ({
+/** Derive a TMAP task + grounding context from the approved brief, falling back
+ *  to the raw conversation when no brief is ready yet. Shared by Generate / Plan /
+ *  Analyze / Debug so every action builds on the same project context. */
+function deriveBuildInput(
+  convo: ChatMessageT[],
+  brief: ProjectBrief | null,
+): { task: string; context: string; briefText: string } {
+  if (brief && briefReadiness(brief)) {
+    const context = briefToContext(brief);
+    return { task: briefToTask(brief), context, briefText: context };
+  }
+  const transcript = convo
+    .filter((m) => m.role === "user" || m.role === "assistant")
+    .map((m) => `${m.role}: ${m.content}`)
+    .join("\n");
+  const firstUser = convo.find((m) => m.role === "user")?.content ?? "";
+  const task = firstUser.trim().slice(0, 120) || "project from Aof Code";
+  return { task, context: conversationToContext(transcript), briefText: transcript };
+}
+
+export const useCodeStore = create<CodeState>()(
+  persist(
+    (set, get) => ({
   mode: "1.0",
   setMode: (mode) => set({ mode }),
 
@@ -111,14 +152,29 @@ export const useCodeStore = create<CodeState>((set, get) => ({
   phase: "conversation",
   chatting: false,
   convoAbort: null,
+  outputKind: null,
+  debugMode: false,
+
+  setDebugMode: (v) => set({ debugMode: v }),
 
   sendMessage: async (text) => {
     const content = text.trim();
     if (!content || get().chatting || get().building) return;
 
-    // /gencode triggers generation directly — no model round-trip.
+    // Debug mode: route this message to the debugger instead of the conversation.
+    if (get().debugMode) {
+      set({ debugMode: false });
+      await get().runDebug(content);
+      return;
+    }
+
+    // Slash commands trigger systems directly — no model round-trip.
     if (/^\/gencode\b/i.test(content)) {
       await get().generate();
+      return;
+    }
+    if (/^\/plan\b/i.test(content)) {
+      await get().createPlan();
       return;
     }
 
@@ -179,29 +235,16 @@ export const useCodeStore = create<CodeState>((set, get) => ({
 
   canGenerate: () => !get().building && !get().chatting && briefReadiness(get().brief),
 
+  canAct: () =>
+    !get().building && !get().chatting && (get().convo.length > 0 || briefReadiness(get().brief)),
+
   generate: async () => {
-    const { brief, mode, building } = get();
+    const { brief, mode, building, convo } = get();
     if (building || mode === "titan") return;
 
-    // Ground generation in the approved brief; fall back to the raw conversation
-    // when the user forces /gencode before a brief is ready.
-    let task: string;
-    let context: string;
-    if (briefReadiness(brief) && brief) {
-      task = briefToTask(brief);
-      context = briefToContext(brief);
-    } else {
-      const transcript = get()
-        .convo.filter((m) => m.role === "user" || m.role === "assistant")
-        .map((m) => `${m.role}: ${m.content}`)
-        .join("\n");
-      const firstUser = get().convo.find((m) => m.role === "user")?.content ?? "";
-      task = firstUser.trim().slice(0, 120) || "project from Aof Code";
-      context = conversationToContext(transcript);
-    }
-
+    const { task, context } = deriveBuildInput(convo, brief);
     const controller = new AbortController();
-    set({ phase: "generating", building: true, buildLog: "", abort: controller });
+    set({ phase: "generating", building: true, buildLog: "", abort: controller, outputKind: "build" });
     try {
       // `mode` is narrowed to non-titan by the guard above.
       await streamCodeRun(
@@ -218,6 +261,62 @@ export const useCodeStore = create<CodeState>((set, get) => ({
     }
   },
 
+  createPlan: async () => {
+    const { mode, building, convo, brief } = get();
+    if (building || mode === "titan") return;
+    const { task, context } = deriveBuildInput(convo, brief);
+    const controller = new AbortController();
+    set({ building: true, buildLog: "", abort: controller, outputKind: "plan" });
+    try {
+      await streamPlan(
+        task,
+        mode as "lite" | "1.0" | "pro",
+        {
+          onToken: (chunk) => set((s) => ({ buildLog: s.buildLog + chunk })),
+          signal: controller.signal,
+        },
+        context,
+      );
+    } finally {
+      set({ building: false, abort: null });
+    }
+  },
+
+  analyzeProject: async () => {
+    const { building, convo, brief } = get();
+    if (building) return;
+    const { briefText } = deriveBuildInput(convo, brief);
+    const controller = new AbortController();
+    set({ building: true, buildLog: "", abort: controller, outputKind: "analyze" });
+    try {
+      await streamAnalyze(briefText, {
+        onToken: (chunk) => set((s) => ({ buildLog: s.buildLog + chunk })),
+        signal: controller.signal,
+      });
+    } finally {
+      set({ building: false, abort: null });
+    }
+  },
+
+  runDebug: async (errorText) => {
+    const content = errorText.trim();
+    if (!content || get().building) return;
+    const { briefText } = deriveBuildInput(get().convo, get().brief);
+    const controller = new AbortController();
+    set({ building: true, buildLog: "", abort: controller, outputKind: "debug" });
+    try {
+      await streamDebug(
+        { error: content, context: briefText },
+        {
+          onToken: (chunk) => set((s) => ({ buildLog: s.buildLog + chunk })),
+          signal: controller.signal,
+        },
+      );
+    } finally {
+      set({ building: false, abort: null });
+    }
+  },
+
   resetConversation: () =>
     set({
       convo: [],
@@ -226,6 +325,8 @@ export const useCodeStore = create<CodeState>((set, get) => ({
       buildLog: "",
       chatting: false,
       building: false,
+      debugMode: false,
+      outputKind: null,
     }),
 
   buildLog: "",
@@ -321,4 +422,12 @@ export const useCodeStore = create<CodeState>((set, get) => ({
   },
 
   titanReset: () => set({ titan: emptyTitan }),
-}));
+    }),
+    {
+      // Project session memory — remember the conversation, brief and mode across
+      // reloads so Aof Code doesn't re-ask what's already been decided.
+      name: "aof.code",
+      partialize: (s) => ({ convo: s.convo, brief: s.brief, mode: s.mode }),
+    },
+  ),
+);

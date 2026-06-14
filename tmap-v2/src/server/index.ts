@@ -19,6 +19,8 @@ import { createBlackboard } from '../core/blackboard.js';
 import { runTMAP } from '../core/orchestrator.js';
 import { runRAA } from '../core/raa.js';
 import { runTitan } from '../core/titan.js';
+import { runDebugger } from '../core/debugger.js';
+import { runAnalyzer } from '../core/analyze.js';
 import { loadMemory, memoryToContext, recordSessionMemory, recordDecision, clearMemory } from '../core/memory.js';
 import { currentMode } from '../config.js';
 import type { Mode, ChatMessage } from '../types.js';
@@ -207,6 +209,87 @@ app.post('/v1/chat', requireAuth, async (req: AuthedRequest, res) => {
   res.end();
 });
 
+// ── DEBUG — senior-engineer debugging (SSE stream) ───────────────────────────
+app.post('/v1/debug', requireAuth, async (req: AuthedRequest, res) => {
+  const error = String(req.body?.error ?? '').trim();
+  const code = String(req.body?.code ?? '');
+  const context = String(req.body?.context ?? '');
+  if (!error) return res.status(400).json({ error: 'error description required' });
+
+  const u = req.user!;
+  const creds: CredentialBag = {};
+  for (const p of PROVIDERS) {
+    if (u.encryptedKeys[p]) (creds as Record<string, string>)[p] = decryptSecret(u.encryptedKeys[p]!);
+  }
+
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive',
+  });
+  const send = (event: object) => res.write(`data: ${JSON.stringify(event)}\n\n`);
+  const emit = (_role: string, text: string, kind = 'status') => send({ role: 'debugger', kind, text });
+
+  const call = async (messages: ChatMessage[], opts = {}) => {
+    const r = await chatWithDARS('reviewer', messages, opts, {
+      creds, health: globalHealth, emit, sessionId: 'debug-' + u.id,
+    });
+    return r.text;
+  };
+
+  try {
+    const result = await runDebugger(call, { error, code, context });
+    send({ role: 'debugger', kind: 'output', text: result.raw });
+    send({
+      role: 'debugger', kind: 'done',
+      rootCause: result.rootCause, analysis: result.analysis,
+      solution: result.solution, patch: result.patch,
+    });
+  } catch (e) {
+    send({ role: 'debugger', kind: 'error', text: (e as Error).message });
+  }
+  res.end();
+});
+
+// ── ANALYZE — assess a brief before building (SSE stream) ────────────────────
+app.post('/v1/analyze', requireAuth, async (req: AuthedRequest, res) => {
+  const brief = String(req.body?.brief ?? req.body?.context ?? '').trim();
+  if (!brief) return res.status(400).json({ error: 'brief required' });
+
+  const u = req.user!;
+  const creds: CredentialBag = {};
+  for (const p of PROVIDERS) {
+    if (u.encryptedKeys[p]) (creds as Record<string, string>)[p] = decryptSecret(u.encryptedKeys[p]!);
+  }
+
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive',
+  });
+  const send = (event: object) => res.write(`data: ${JSON.stringify(event)}\n\n`);
+  const emit = (_role: string, text: string, kind = 'status') => send({ role: 'analyst', kind, text });
+
+  const call = async (messages: ChatMessage[], opts = {}) => {
+    const r = await chatWithDARS('planner', messages, opts, {
+      creds, health: globalHealth, emit, sessionId: 'analyze-' + u.id,
+    });
+    return r.text;
+  };
+
+  try {
+    const result = await runAnalyzer(call, brief);
+    send({ role: 'analyst', kind: 'output', text: result.raw });
+    send({
+      role: 'analyst', kind: 'done',
+      feasibility: result.feasibility, risks: result.risks, recommendations: result.recommendations,
+    });
+  } catch (e) {
+    send({ role: 'analyst', kind: 'error', text: (e as Error).message });
+  }
+  res.end();
+});
+
 // ── TITAN MODE — AI System Architect (SSE stream) ────────────────────────────
 app.post('/v1/titan', requireAuth, async (req: AuthedRequest, res) => {
   const message = String(req.body?.message ?? '').trim();
@@ -272,6 +355,7 @@ app.post('/v1/run', requireAuth, async (req: AuthedRequest, res) => {
   const task = String(req.body?.task ?? '').trim();
   const mode = (['lite', 'normal', 'pro'].includes(req.body?.mode) ? req.body.mode : currentMode()) as Mode;
   const context = String(req.body?.context ?? '').trim();
+  const planOnly = req.body?.planOnly === true; // "Create Plan": plan, don't generate
   if (!task) return res.status(400).json({ error: 'task required' });
 
   const u = req.user!;
@@ -315,6 +399,7 @@ app.post('/v1/run', requireAuth, async (req: AuthedRequest, res) => {
   try {
     await runTMAP(bb, (role, text, kind = 'status') => send({ role, text, kind }), {
       creds,
+      planOnly,
       onSessionStart: async () => { /* already created */ },
       onSessionEnd: async (_sid, result) => {
         await updateSession(sessionRec.id, {

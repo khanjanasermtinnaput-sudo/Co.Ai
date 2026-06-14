@@ -27,6 +27,9 @@ export interface RunOpts {
   projectRoot?: string;
   // Skip context scan (e.g. when task is self-contained)
   skipContext?: boolean;
+  // Plan-only mode (Aof Code "Create Plan"): run Architect + Planner, then stop
+  // before any code generation.
+  planOnly?: boolean;
 }
 
 export interface AgentCallLog {
@@ -192,6 +195,12 @@ export async function runTMAP(
     bb.planText = plan.raw;
     logEvent(bb, { role: 'planner', type: 'output', text: plan.raw });
     emit('planner', plan.raw, 'output');
+
+    // Plan-only mode: stop here, before any code generation.
+    if (runOpts.planOnly) {
+      emit('system', 'plan ready — generation skipped (plan-only)', 'status');
+      return bb;
+    }
 
     let critique: string | undefined;
 

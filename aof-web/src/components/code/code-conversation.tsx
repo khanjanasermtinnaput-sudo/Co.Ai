@@ -1,11 +1,19 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Boxes, FileCode2, Hammer, RotateCcw, Terminal } from "lucide-react";
+import {
+  Boxes,
+  Bug,
+  FileCode2,
+  Hammer,
+  ListChecks,
+  RotateCcw,
+  ScanSearch,
+  Terminal,
+} from "lucide-react";
 import { useCodeStore } from "@/store/code-store";
 import { CODE_MODES } from "@/lib/constants";
 import type { CodeMode } from "@/lib/types";
-import { cn } from "@/lib/utils";
 import { Composer } from "@/components/composer/composer";
 import { ChatThread } from "@/components/chat/chat-thread";
 import { Markdown } from "@/components/chat/markdown";
@@ -20,6 +28,13 @@ const STARTERS = [
   "A snake game that runs in the browser",
 ];
 
+const OUTPUT_TITLES: Record<"build" | "plan" | "analyze" | "debug", string> = {
+  build: "Build output",
+  plan: "Plan",
+  analyze: "Project analysis",
+  debug: "Debug",
+};
+
 export function CodeConversation({ mode }: { mode: Exclude<CodeMode, "titan"> }) {
   const convo = useCodeStore((s) => s.convo);
   const brief = useCodeStore((s) => s.brief);
@@ -29,11 +44,18 @@ export function CodeConversation({ mode }: { mode: Exclude<CodeMode, "titan"> })
   const send = useCodeStore((s) => s.sendMessage);
   const stopChat = useCodeStore((s) => s.stopChat);
   const generate = useCodeStore((s) => s.generate);
+  const createPlan = useCodeStore((s) => s.createPlan);
+  const analyzeProject = useCodeStore((s) => s.analyzeProject);
   const canGenerate = useCodeStore((s) => s.canGenerate());
+  const canAct = useCodeStore((s) => s.canAct());
+  const debugMode = useCodeStore((s) => s.debugMode);
+  const setDebugMode = useCodeStore((s) => s.setDebugMode);
+  const outputKind = useCodeStore((s) => s.outputKind);
   const reset = useCodeStore((s) => s.resetConversation);
 
   const info = CODE_MODES.find((m) => m.id === mode)!;
   const empty = convo.length === 0;
+  const outputTitle = outputKind ? OUTPUT_TITLES[outputKind] : "Output";
 
   return (
     <div className="flex h-full">
@@ -77,7 +99,7 @@ export function CodeConversation({ mode }: { mode: Exclude<CodeMode, "titan"> })
                   <div className="rounded-2xl border border-white/[0.07] bg-card/60">
                     <div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
                       <Terminal className="size-4 text-primary" />
-                      <span className="text-sm font-medium">Build output</span>
+                      <span className="text-sm font-medium">{outputTitle}</span>
                       {building && (
                         <span className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
                           <span className="size-1.5 animate-pulse rounded-full bg-primary" />
@@ -95,41 +117,62 @@ export function CodeConversation({ mode }: { mode: Exclude<CodeMode, "titan"> })
           )}
         </div>
 
-        {/* composer */}
+        {/* action bar + composer */}
         <div className="border-t border-border/70 bg-background/60 px-3 py-3 backdrop-blur-xl sm:px-5 sm:py-4">
           <div className="mx-auto w-full max-w-3xl">
+            {/* action buttons — trigger the existing systems */}
+            {!empty && (
+              <div className="mb-2.5 flex flex-wrap items-center gap-2">
+                <Button size="sm" onClick={() => void generate()} disabled={!canGenerate}>
+                  <Hammer className="size-3.5" /> Generate Code
+                </Button>
+                <Button size="sm" variant="secondary" onClick={() => void createPlan()} disabled={!canAct}>
+                  <ListChecks className="size-3.5" /> Create Plan
+                </Button>
+                <Button size="sm" variant="secondary" onClick={() => void analyzeProject()} disabled={!canAct}>
+                  <ScanSearch className="size-3.5" /> Analyze
+                </Button>
+                <Button
+                  size="sm"
+                  variant={debugMode ? "default" : "outline"}
+                  onClick={() => setDebugMode(!debugMode)}
+                  disabled={building}
+                >
+                  <Bug className="size-3.5" /> Debug
+                </Button>
+                <button
+                  type="button"
+                  onClick={reset}
+                  className="ml-auto inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  <RotateCcw className="size-3" /> New
+                </button>
+              </div>
+            )}
+
+            {debugMode && (
+              <div className="mb-2 flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+                <Bug className="size-3.5 shrink-0" />
+                Debug mode — paste your error or stack trace and Aof will diagnose the root cause
+                before proposing a fix.
+              </div>
+            )}
+
             <Composer
-              placeholder="Describe your project, or answer Aof's questions…"
+              placeholder={
+                debugMode
+                  ? "Paste the error message or stack trace…"
+                  : "Describe your project, or answer Aof's questions…"
+              }
               onSubmit={(v) => void send(v)}
               streaming={chatting}
               onStop={stopChat}
               autoFocus={!empty}
               toolbar={
-                <div className="flex w-full items-center gap-2">
-                  <span className="text-xs text-muted-foreground">
-                    Mode: <span className="text-foreground">{info.name}</span> · discusses first,
-                    then plans &amp; generates
-                  </span>
-                  {!empty && (
-                    <button
-                      type="button"
-                      onClick={reset}
-                      className="ml-auto inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
-                    >
-                      <RotateCcw className="size-3" /> New
-                    </button>
-                  )}
-                  {/* compact generate button for small screens (panel is hidden there) */}
-                  <Button
-                    size="sm"
-                    onClick={() => void generate()}
-                    disabled={!canGenerate}
-                    className={cn("shrink-0 lg:hidden", empty && "ml-auto")}
-                  >
-                    <Hammer className="size-3.5" />
-                    Generate
-                  </Button>
-                </div>
+                <span className="text-xs text-muted-foreground">
+                  Mode: <span className="text-foreground">{info.name}</span> · discusses first,
+                  then plans &amp; generates
+                </span>
               }
             />
           </div>

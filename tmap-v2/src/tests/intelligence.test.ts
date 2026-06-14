@@ -82,6 +82,26 @@ test('parseArchitect treats "- none" as empty', () => {
   assert.ok(architectToContext(d).includes('Create these files: index.html'));
 });
 
+test('parseArchitect captures MULTIPLE items per section (regression: $-multiline)', () => {
+  const raw = [
+    'APPROACH: layered',
+    'TECH_STACK: Node.js',
+    'NEW_FILES:',
+    '- src/a.ts — one',
+    '- src/b.ts — two',
+    '- src/c.ts — three',
+    'MODIFY_FILES:',
+    '- src/server.ts — mount',
+    'RISKS:',
+    '- risk one',
+    '- risk two',
+  ].join('\n');
+  const d = parseArchitect(raw);
+  assert.deepEqual(d.newFiles, ['src/a.ts', 'src/b.ts', 'src/c.ts']);
+  assert.deepEqual(d.modifyFiles, ['src/server.ts']);
+  assert.equal(d.risks.length, 2);
+});
+
 // ── impact analysis ───────────────────────────────────────────────────────────
 
 const graph = {

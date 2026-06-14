@@ -4,7 +4,15 @@
 // falls back to the offline mock engine so the homepage experience always works.
 
 import type { ProjectBrief, ResponseStyle, RouteDecision } from "./types";
-import { mockChat, mockCodeRun, mockRequirements, type StreamHandlers } from "./mock";
+import {
+  mockChat,
+  mockCodeRun,
+  mockRequirements,
+  mockPlan,
+  mockAnalyze,
+  mockDebug,
+  type StreamHandlers,
+} from "./mock";
 import { parseBrief, summaryToBrief } from "./raa";
 
 /** Resolve the API base. Empty string means "same origin" (Next rewrite proxy). */
@@ -268,6 +276,80 @@ export async function streamRequirements(
   const text = await mockRequirements(message, hist, handlers);
   const brief = parseBrief(text);
   return { brief, hasBrief: brief !== null };
+}
+
+/** Stream a plan-only build (Aof Code "Create Plan"): Architect + Planner, no code.
+ *  Live `/v1/run` with planOnly, else mock. */
+export async function streamPlan(
+  task: string,
+  mode: "lite" | "1.0" | "pro",
+  handlers: StreamHandlers,
+  context?: string,
+): Promise<void> {
+  if (!isLive()) {
+    await mockPlan(task, handlers);
+    return;
+  }
+  const backendMode = mode === "1.0" ? "normal" : mode;
+  try {
+    await postSSE(
+      "/v1/run",
+      { task, mode: backendMode, context: context ?? "", planOnly: true },
+      (e) => {
+        if (typeof e.text === "string" && e.kind !== "done") handlers.onToken(`${e.text}\n`);
+      },
+      handlers.signal,
+    );
+  } catch {
+    await mockPlan(task, handlers);
+  }
+}
+
+/** Stream a project analysis (Aof Code "Analyze Project"). Live `/v1/analyze`, else mock. */
+export async function streamAnalyze(brief: string, handlers: StreamHandlers): Promise<void> {
+  if (!isLive()) {
+    await mockAnalyze(brief, handlers);
+    return;
+  }
+  try {
+    await postSSE(
+      "/v1/analyze",
+      { brief },
+      (e) => {
+        if (e.kind === "output" && typeof e.text === "string") handlers.onToken(e.text);
+      },
+      handlers.signal,
+    );
+  } catch {
+    await mockAnalyze(brief, handlers);
+  }
+}
+
+export interface DebugInput {
+  error: string;
+  code?: string;
+  context?: string;
+}
+
+/** Stream a senior-engineer debug pass (analyze → root cause → fix → patch).
+ *  Live `/v1/debug`, else mock. */
+export async function streamDebug(input: DebugInput, handlers: StreamHandlers): Promise<void> {
+  if (!isLive()) {
+    await mockDebug(input.error, handlers);
+    return;
+  }
+  try {
+    await postSSE(
+      "/v1/debug",
+      input,
+      (e) => {
+        if (e.kind === "output" && typeof e.text === "string") handlers.onToken(e.text);
+      },
+      handlers.signal,
+    );
+  } catch {
+    await mockDebug(input.error, handlers);
+  }
 }
 
 /** Call the same-origin RAA persona route. Returns the full reply, or null on 503

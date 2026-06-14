@@ -411,6 +411,42 @@ export async function mockRequirements(
   return text;
 }
 
+// ── Mock Create Plan / Analyze / Debug (offline) ──────────────────────────────
+
+/** Mock "Create Plan" — a build plan, no code. Returns the full text. */
+export async function mockPlan(task: string, h: StreamHandlers): Promise<string> {
+  await sleep(200);
+  const th = isThai(task);
+  const text = th
+    ? `## แผนการสร้าง — _${task.slice(0, 70)}_\n\n1. **โครงสร้างโปรเจกต์** — วางโฟลเดอร์ \`src/\` และไฟล์ตั้งต้น\n2. **โมเดลข้อมูล** — กำหนดชนิดข้อมูลหลักและ state\n3. **ฟีเจอร์หลัก** — สร้างทีละฟีเจอร์แบบ vertical slice\n4. **จัดการ error & ขอบเขต** — validation และสถานะ loading/error\n5. **เก็บงาน** — รีวิว, เอกสาร, และเตรียม deploy\n\n_นี่คือแผน ยังไม่สร้างโค้ด — กด **Generate Code** เมื่อพร้อม_`
+    : `## Build plan — _${task.slice(0, 70)}_\n\n1. **Project structure** — lay out \`src/\` and entry files.\n2. **Data model** — define the core types and state.\n3. **Core features** — build one vertical slice at a time.\n4. **Error handling & edges** — validation and loading/error states.\n5. **Wrap up** — review, docs, and deploy prep.\n\n_This is the plan — no code yet. Hit **Generate Code** when ready._`;
+  await streamText(text, h);
+  return text;
+}
+
+/** Mock "Analyze Project" — feasibility, risks, recommendations. Returns the full text. */
+export async function mockAnalyze(brief: string, h: StreamHandlers): Promise<string> {
+  await sleep(220);
+  const th = isThai(brief);
+  const text = th
+    ? `## วิเคราะห์โปรเจกต์\n\n**ความเป็นไปได้** — ทำได้จริงในระดับ MVP ถ้าล็อกขอบเขตให้แคบก่อน\n\n**ความเสี่ยง**\n- ขอบเขตบานปลายก่อนปล่อย v1\n- ฟีเจอร์ที่ซับซ้อนที่สุดอาจดันไทม์ไลน์\n- การจัดการ auth/ข้อมูลถ้าวางทีหลังจะแก้ยาก\n\n**ข้อแนะนำ**\n- เริ่มจาก vertical slice ที่เดโมได้\n- เลือก stack ที่ส่งมอบเร็วและดูแลต่อได้\n- ใส่ validation และ error handling ตั้งแต่ต้น`
+    : `## Project analysis\n\n**Feasibility** — Realistic at MVP scope if you lock a thin slice first.\n\n**Risks**\n- Scope creep before v1 ships\n- The hardest feature can blow the timeline\n- Auth/data is costly to retrofit if deferred\n\n**Recommendations**\n- Start with a demoable vertical slice\n- Pick a stack you can ship fast and maintain\n- Bake in validation and error handling from day one`;
+  await streamText(text, h);
+  return text;
+}
+
+/** Mock "Debug" — diagnose first, then a targeted fix (never blind regeneration). */
+export async function mockDebug(error: string, h: StreamHandlers): Promise<string> {
+  await sleep(220);
+  const th = isThai(error);
+  const snippet = error.trim().split("\n")[0].slice(0, 80);
+  const text = th
+    ? `## ผลวิเคราะห์ข้อผิดพลาด\n\n**Root cause** — \`${snippet}\` มักเกิดจากค่าที่เป็น undefined/null ถูกใช้งานก่อนถูกกำหนด หรือ promise ที่ไม่ได้ดักจับ\n\n**วิเคราะห์**\n- ไล่จากบรรทัดที่ error ชี้ ไปยังต้นทางของค่า\n- ตรวจว่าค่าถูกกำหนดครบทุกเส้นทางหรือไม่\n\n**วิธีแก้**\n- เพิ่มการตรวจค่า (guard) ก่อนใช้งาน และครอบ async ด้วย try/catch\n- คืน error ที่สื่อความหมายแทนปล่อยให้ crash\n\n_ในเวิร์กสเปซจริง Aof จะแนบ **patch** เป็นไฟล์ที่แก้ให้พร้อมนำไปใช้_`
+    : `## Debug analysis\n\n**Root cause** — \`${snippet}\` usually means a value is undefined/null when used, or a promise was left unhandled.\n\n**Analysis**\n- Trace from the line the error points to back to where the value originates.\n- Check the value is set on every code path.\n\n**Solution**\n- Add a guard before use and wrap async calls in try/catch.\n- Return a meaningful error instead of letting it crash.\n\n_In a live workspace Aof attaches a ready-to-apply **patch** with the corrected files._`;
+  await streamText(text, h);
+  return text;
+}
+
 function buildMockBrief(message: string, history: MockHistoryItem[], th: boolean): string {
   const convo = [...history.map((m) => m.content), message].join(" \n ");
   const firstUser = history.find((m) => m.role === "user")?.content ?? message;

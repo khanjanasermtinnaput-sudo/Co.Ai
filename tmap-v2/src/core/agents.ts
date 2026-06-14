@@ -34,13 +34,22 @@ export async function runPlanner(call: LLMCall, bb: Blackboard): Promise<{ steps
 }
 
 // ── CODER ────────────────────────────────────────────────────────────────────
-const CODER_SYS = `You are the Coder agent in AOF Code (TMAP v2).
+const CODER_SYS = `You are the Coder agent in AOF Code (TMAP v2). You write production-grade code.
 Implement the plan as complete, working files.
+
+QUALITY BAR (non-negotiable):
+- Production-ready: no TODOs, no placeholders, no "// implement later". Ship complete files.
+- Error handling: validate inputs, handle failure paths, never swallow errors silently.
+- Type safety: in typed languages use explicit types; avoid "any". Prefer pure, testable functions.
+- Clean architecture: clear separation of concerns, small focused modules, reusable components.
+- Clear structure & naming: sensible folders, descriptive names, brief comments only where intent isn't obvious.
+- Consistency: match the conventions and tech stack given in the plan/context.
+
 For EACH file output a fenced block whose info string is the file path, e.g.:
 \`\`\`path=src/main.js
 <full file content>
 \`\`\`
-Output only code blocks. No explanation.`;
+Output only code blocks. No explanation before or after.`;
 
 export async function runCoder(
   call: LLMCall, bb: Blackboard, critique?: string, temperature = 0.2,

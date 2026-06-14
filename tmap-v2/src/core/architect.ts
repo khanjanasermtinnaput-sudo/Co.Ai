@@ -89,14 +89,18 @@ function section1(raw: string, label: string): string {
 }
 
 function sectionList(raw: string, label: string): string[] {
-  // capture everything under "LABEL:" until the next known label or end
-  const others = LABELS.filter((l) => l !== label).join('|');
-  const re = new RegExp(`^${label}:\\s*([\\s\\S]*?)(?=^(?:${others}):|$)`, 'mi');
-  const block = raw.match(re)?.[1] ?? '';
-  return block
-    .split('\n')
-    .map((l) => l.replace(/^\s*[-•*]\s*/, '').trim())
-    .filter((l) => l && l.toLowerCase() !== 'none');
+  // Walk line-by-line under "LABEL:" until the next known label. A multiline regex
+  // with `$` would stop at the first line break and capture only one item.
+  const lines = raw.split('\n');
+  const start = lines.findIndex((l) => new RegExp(`^${label}:`, 'i').test(l.trim()));
+  if (start === -1) return [];
+  const items: string[] = [];
+  for (let i = start + 1; i < lines.length; i++) {
+    if (LABELS.some((l) => new RegExp(`^${l}:`, 'i').test(lines[i].trim()))) break;
+    const item = lines[i].replace(/^\s*[-•*]\s*/, '').trim();
+    if (item && item.toLowerCase() !== 'none') items.push(item);
+  }
+  return items;
 }
 
 function firstPath(line: string): string {

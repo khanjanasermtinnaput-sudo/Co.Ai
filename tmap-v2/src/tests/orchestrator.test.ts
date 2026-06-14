@@ -114,8 +114,8 @@ test('session hooks are called: onSessionStart before onSessionEnd', async () =>
 
   await runTMAP(board, noop, {
     skipContext: true,
-    onSessionStart: async (id) => calls.push(`start:${id}`),
-    onSessionEnd: async (id, res) => calls.push(`end:${id}:${res.status}`),
+    onSessionStart: async (id) => { calls.push(`start:${id}`); },
+    onSessionEnd: async (id, res) => { calls.push(`end:${id}:${res.status}`); },
   });
 
   assert.equal(calls.length, 2);
@@ -156,4 +156,31 @@ test('all three modes populate planText', async () => {
     const result = await runTMAP(createBlackboard(TASK, mode), noop, { skipContext: true });
     assert.ok(result.planText.length > 0, `mode ${mode} should produce a plan`);
   }
+});
+
+// ── plan-only mode (Aof Code "Create Plan") ───────────────────────────────────
+
+test('planOnly produces a plan but generates no code', async () => {
+  const result = await runTMAP(bb('normal'), noop, { skipContext: true, planOnly: true });
+  assert.ok(result.planText.length > 0, 'plan should be produced');
+  assert.equal(result.files.length, 0, 'no files should be generated in plan-only mode');
+});
+
+test('planOnly skips the coder, validator and documenter stages', async () => {
+  const roles: string[] = [];
+  const emit = (role: string) => roles.push(role);
+  await runTMAP(bb('normal'), emit, { skipContext: true, planOnly: true });
+  assert.ok(roles.includes('planner'), 'planner should run');
+  assert.ok(!roles.includes('coder'), 'coder should NOT run');
+  assert.ok(!roles.includes('documenter'), 'documenter should NOT run');
+});
+
+test('planOnly still calls onSessionEnd with zero files', async () => {
+  let filesCount = -1;
+  await runTMAP(bb('lite'), noop, {
+    skipContext: true,
+    planOnly: true,
+    onSessionEnd: async (_id, res) => { filesCount = res.filesCount; },
+  });
+  assert.equal(filesCount, 0);
 });
