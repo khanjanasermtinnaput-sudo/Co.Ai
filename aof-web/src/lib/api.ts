@@ -3,8 +3,9 @@
 // gracefully: when no backend is configured (or a call fails), the UI transparently
 // falls back to the offline mock engine so the homepage experience always works.
 
-import type { ResponseStyle, RouteDecision } from "./types";
-import { mockChat, mockCodeRun, type StreamHandlers } from "./mock";
+import type { ProjectBrief, ResponseStyle, RouteDecision } from "./types";
+import { mockChat, mockCodeRun, mockRequirements, type StreamHandlers } from "./mock";
+import { parseBrief, summaryToBrief } from "./raa";
 
 /** Resolve the API base. Empty string means "same origin" (Next rewrite proxy). */
 export function getApiBase(): string | null {
@@ -178,11 +179,13 @@ async function streamLocalChat(
   return true;
 }
 
-/** Stream an Aof Code build (live `/v1/run`, else mock). */
+/** Stream an Aof Code build (live `/v1/run`, else mock). The optional `context`
+ *  carries the approved project brief so TMAP generates against real requirements. */
 export async function streamCodeRun(
   task: string,
   mode: "lite" | "1.0" | "pro",
   handlers: StreamHandlers,
+  context?: string,
 ): Promise<void> {
   if (!isLive()) return mockCodeRun(task, mode, handlers);
   // Backend modes are lite | normal | pro — map 1.0 → normal.
@@ -190,7 +193,7 @@ export async function streamCodeRun(
   try {
     await postSSE(
       "/v1/run",
-      { task, mode: backendMode },
+      { task, mode: backendMode, context: context ?? "" },
       (e) => {
         if (typeof e.text === "string" && e.kind !== "done") {
           handlers.onToken(`${e.text}\n`);
@@ -201,4 +204,98 @@ export async function streamCodeRun(
   } catch {
     await mockCodeRun(task, mode, handlers);
   }
+}
+
+// ── Aof Code requirements conversation (RAA) ──────────────────────────────────
+
+export interface RequirementsResult {
+  /** structured brief, when the assistant produced one this turn */
+  brief: ProjectBrief | null;
+  hasBrief: boolean;
+}
+
+/**
+ * Stream a Requirements-Architect reply for the Aof Code conversation. Mirrors the
+ * `streamChat` fallback chain: live tmap-v2 RAA (`/v1/chat`) → same-origin RAA
+ * persona (`/api/chat?agent=requirements`) → offline mock. Returns any brief the
+ * assistant emitted so the caller can update its project context.
+ */
+export async function streamRequirements(
+  message: string,
+  history: ChatHistoryItem[],
+  handlers: StreamHandlers,
+): Promise<RequirementsResult> {
+  const hist = history.map((h) => ({ role: h.role, content: h.content }));
+
+  // 1) Live tmap-v2 RAA — the backend parses and returns the summary for us.
+  if (isLive()) {
+    try {
+      let brief: ProjectBrief | null = null;
+      let hasBriefFlag = false;
+      await postSSE(
+        "/v1/chat",
+        { message, history: hist },
+        (e) => {
+          if (e.kind === "output" && typeof e.text === "string") handlers.onToken(e.text);
+          else if (e.kind === "done") {
+            hasBriefFlag = Boolean((e as { hasSummary?: unknown }).hasSummary);
+            const s = (e as { summary?: unknown }).summary;
+            if (s && typeof s === "object") brief = summaryToBrief(s as Record<string, unknown>);
+          }
+        },
+        handlers.signal,
+      );
+      return { brief, hasBrief: hasBriefFlag };
+    } catch (e) {
+      if ((e as Error)?.name === "AbortError") return { brief: null, hasBrief: false };
+      // Backend unreachable → fall through to the same-origin route / mock.
+    }
+  }
+
+  // 2) Same-origin RAA persona (real LLM via /api/chat) — parse the brief client-side.
+  try {
+    const text = await streamLocalRequirements(message, hist, handlers);
+    if (text !== null) {
+      const brief = parseBrief(text);
+      return { brief, hasBrief: brief !== null };
+    }
+  } catch (e) {
+    if ((e as Error)?.name === "AbortError") return { brief: null, hasBrief: false };
+    // any other failure → keep the UX flowing with the mock below
+  }
+
+  // 3) Offline mock.
+  const text = await mockRequirements(message, hist, handlers);
+  const brief = parseBrief(text);
+  return { brief, hasBrief: brief !== null };
+}
+
+/** Call the same-origin RAA persona route. Returns the full reply, or null on 503
+ *  (no provider key configured) so the caller falls back to the mock. */
+async function streamLocalRequirements(
+  message: string,
+  history: ChatHistoryItem[],
+  handlers: StreamHandlers,
+): Promise<string | null> {
+  const res = await fetch("/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message, agent: "requirements", history }),
+    signal: handlers.signal,
+  });
+
+  if (res.status === 503) return null; // no key → mock
+  if (!res.ok || !res.body) throw new Error(`requirements failed (${res.status})`);
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let full = "";
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    const chunk = decoder.decode(value, { stream: true });
+    full += chunk;
+    handlers.onToken(chunk);
+  }
+  return full;
 }

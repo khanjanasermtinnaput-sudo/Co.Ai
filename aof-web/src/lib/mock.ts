@@ -10,6 +10,7 @@ import type {
   ResponseStyle,
   RouteDecision,
 } from "./types";
+import { GENCODE_HINT } from "./raa";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -371,4 +372,100 @@ export async function mockCodeRun(
     await streamText(l, h);
     await sleep(160);
   }
+}
+
+// ── Mock Requirements Architect (RAA) ─────────────────────────────────────────
+// Keeps Aof Code's conversation-first flow working with zero backend. It asks a
+// couple of clarifying questions, then emits a brief in the exact RAA summary
+// format so lib/raa.ts parseBrief() can read it. Returns the full reply text.
+
+interface MockHistoryItem {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export async function mockRequirements(
+  message: string,
+  history: MockHistoryItem[],
+  h: StreamHandlers,
+): Promise<string> {
+  await sleep(200 + Math.random() * 200);
+  const th = isThai(message);
+  const priorUserTurns = history.filter((m) => m.role === "user").length;
+  const detailed =
+    message.trim().length > 80 ||
+    /\b(stack|next\.?js|react|vue|svelte|node|python|go|api|auth|database|postgres|mongo)\b/i.test(message);
+
+  // First, vague turn → gather requirements like a senior engineer would.
+  if (priorUserTurns === 0 && !detailed) {
+    const text = th
+      ? `เข้าใจแล้วครับ ก่อนจะลงมือ ขอเก็บรายละเอียดสัก 2–3 ข้อ:\n\n1. แพลตฟอร์มไหน — เว็บ, มือถือ หรือเดสก์ท็อป?\n2. กลุ่มผู้ใช้หลักคือใคร และฟีเจอร์ที่ขาดไม่ได้มีอะไรบ้าง?\n3. มี tech stack หรือข้อจำกัดที่อยากให้ใช้ไหม (ถ้าไม่มี เดี๋ยวผมแนะนำให้)?`
+      : `Got it. Before we build, let me gather a few things:\n\n1. Which platform — web, mobile, or desktop?\n2. Who are the main users, and what are the must-have features?\n3. Any preferred tech stack or constraints (I'll suggest one if not)?`;
+    await streamText(text, h);
+    return text;
+  }
+
+  // Enough signal → synthesise a structured brief.
+  const text = buildMockBrief(message, history, th);
+  await streamText(text, h);
+  return text;
+}
+
+function buildMockBrief(message: string, history: MockHistoryItem[], th: boolean): string {
+  const convo = [...history.map((m) => m.content), message].join(" \n ");
+  const firstUser = history.find((m) => m.role === "user")?.content ?? message;
+  const goal = firstUser.trim().replace(/\s+/g, " ").slice(0, 70) || (th ? "โปรเจกต์ใหม่" : "New project");
+
+  const lc = convo.toLowerCase();
+  const isApi = /\bapi\b|backend|rest|graphql/.test(lc);
+  const isGame = /game|เกม/.test(lc);
+  const isMobile = /mobile|ios|android|มือถือ|แอป/.test(lc);
+  const appType = isApi ? "REST API" : isGame ? "browser game" : isMobile ? "mobile app" : "web app";
+
+  const features: string[] = [];
+  if (/auth|login|sign|บัญชี|เข้าสู่ระบบ/.test(lc)) features.push(th ? "ระบบล็อกอิน / สมัครสมาชิก" : "Authentication");
+  if (/chat|message|แชท/.test(lc)) features.push(th ? "แชทแบบเรียลไทม์" : "Realtime chat");
+  if (/dashboard|admin|แดชบอร์ด/.test(lc)) features.push(th ? "แดชบอร์ดผู้ดูแล" : "Admin dashboard");
+  if (/pay|checkout|จ่าย|ชำระ/.test(lc)) features.push(th ? "ระบบชำระเงิน" : "Payments");
+  while (features.length < 3) {
+    const fill = th
+      ? ["หน้าหลักที่ใช้งานได้จริง", "จัดการข้อมูลหลัก (CRUD)", "สถานะ loading / error ที่เรียบร้อย"]
+      : ["A working main screen", "Core data management (CRUD)", "Clean loading / error states"];
+    features.push(fill[features.length] ?? fill[0]);
+  }
+
+  const stack = isApi
+    ? "Node.js + Express + PostgreSQL"
+    : isMobile
+      ? "React Native + Expo"
+      : "Next.js + TypeScript + Tailwind";
+  const architecture = isApi ? "API-only service" : "SSR + client components";
+  const complexity = features.length >= 4 ? "Complex" : features.length >= 3 ? "Medium" : "Simple";
+
+  return [
+    th ? "เข้าใจครบแล้วครับ สรุป requirement ให้ดังนี้" : "Got it — here's the requirement summary:",
+    "",
+    "===REQUIREMENT SUMMARY===",
+    `Project: ${goal}`,
+    "Task Type: feature",
+    `Type: ${appType}`,
+    `Users: ${th ? "ผู้ใช้ทั่วไป" : "end users"}`,
+    "Features:",
+    ...features.map((f) => `- ${f}`),
+    "Confirmed Scope:",
+    "- src/app — UI and routes",
+    "- src/lib — core logic",
+    "Expected Behavior:",
+    `- ${th ? "ผู้ใช้เปิดแอป → เห็นหน้าหลักที่ใช้งานได้" : "User opens the app → sees a working main screen"}`,
+    `Tech Stack: ${stack}`,
+    `Architecture: ${architecture}`,
+    "Files to Create:",
+    "- src/app/page.tsx — main screen",
+    "- src/lib/store.ts — application state",
+    `Complexity: ${complexity}`,
+    "Open Questions:",
+    "- None",
+    "===END SUMMARY===",
+    GENCODE_HINT,
+  ].join("\n");
 }

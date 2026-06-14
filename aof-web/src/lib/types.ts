@@ -76,6 +76,37 @@ export interface Conversation {
   updatedAt: string;
 }
 
+// ── Aof Code — conversation-first workflow ────────────────────────────────────
+// Aof Code discusses a project (via the Requirements Architect / RAA) and builds
+// a structured brief BEFORE any code is generated. Generation (TMAP) only runs on
+// an explicit trigger (the Generate Code button or the /gencode command).
+
+/** Where the Aof Code workspace is in its lifecycle. */
+export type CodePhase = "conversation" | "generating" | "done";
+
+/** Structured project brief, accumulated from the RAA conversation. Mirrors the
+ *  RequirementSummary contract in tmap-v2/src/core/raa.ts so it parses identically
+ *  whether produced by the live backend, the same-origin LLM route, or the mock. */
+export interface ProjectBrief {
+  /** clear project name / one-line description */
+  project: string;
+  /** feature / bug fix / refactor / UI improvement / architecture / … */
+  taskType: string;
+  /** web app / REST API / CLI / library / … (the summary's "Type" field) */
+  appType: string;
+  users: string;
+  features: string[];
+  scope: string[];
+  expectedBehavior: string[];
+  techStack: string;
+  architecture: string;
+  files: string[];
+  complexity: "Simple" | "Medium" | "Complex" | "";
+  openQuestions: string[];
+  /** the raw summary block, markers stripped */
+  raw: string;
+}
+
 export type ProjectStatus = "active" | "building" | "review" | "archived";
 export type ProjectType =
   | "web-app"

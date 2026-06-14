@@ -2,7 +2,7 @@
 
 import { useCodeStore } from "@/store/code-store";
 import { CodeModeSelector } from "./code-mode-selector";
-import { CodeBuild } from "./code-build";
+import { CodeConversation } from "./code-conversation";
 import { TitanWorkflow } from "./titan-workflow";
 
 export function CodeWorkspace() {
@@ -26,7 +26,7 @@ export function CodeWorkspace() {
             <TitanWorkflow />
           </div>
         ) : (
-          <CodeBuild mode={mode} />
+          <CodeConversation mode={mode} />
         )}
       </div>
     </div>

@@ -1,15 +1,26 @@
 import { create } from "zustand";
-import { streamCodeRun } from "@/lib/api";
+import { streamCodeRun, streamRequirements } from "@/lib/api";
 import {
   discoveryQuestions,
   planOptions,
   riskReview,
   architectureSketch,
 } from "@/lib/titan";
+import {
+  briefReadiness,
+  briefToContext,
+  briefToTask,
+  conversationToContext,
+  stripBriefBlock,
+} from "@/lib/raa";
 import { TITAN_PHASES } from "@/lib/constants";
+import { uid } from "@/lib/utils";
 import type {
+  ChatMessageT,
   ClarifyQuestion,
   CodeMode,
+  CodePhase,
+  ProjectBrief,
   TitanPhaseKey,
   TitanPlanOption,
   TitanRisk,
@@ -49,6 +60,20 @@ interface CodeState {
   mode: CodeMode;
   setMode: (m: CodeMode) => void;
 
+  // ── Conversation-first workflow (RAA → brief → generate) ──────────────────
+  // Aof Code discusses the project first; TMAP only runs on an explicit trigger
+  // (the Generate Code button or the /gencode command).
+  convo: ChatMessageT[];
+  brief: ProjectBrief | null;
+  phase: CodePhase;
+  chatting: boolean;
+  convoAbort: AbortController | null;
+  sendMessage: (text: string) => Promise<void>;
+  stopChat: () => void;
+  generate: () => Promise<void>;
+  canGenerate: () => boolean;
+  resetConversation: () => void;
+
   // ── Standard build (lite / 1.0 / pro) ─────────────────────────────────────
   buildLog: string;
   building: boolean;
@@ -79,6 +104,129 @@ function nextPhase(key: TitanPhaseKey): TitanPhaseKey {
 export const useCodeStore = create<CodeState>((set, get) => ({
   mode: "1.0",
   setMode: (mode) => set({ mode }),
+
+  // ── Conversation-first workflow ────────────────────────────────────────────
+  convo: [],
+  brief: null,
+  phase: "conversation",
+  chatting: false,
+  convoAbort: null,
+
+  sendMessage: async (text) => {
+    const content = text.trim();
+    if (!content || get().chatting || get().building) return;
+
+    // /gencode triggers generation directly — no model round-trip.
+    if (/^\/gencode\b/i.test(content)) {
+      await get().generate();
+      return;
+    }
+
+    // Prior turns become history; then append the new user + a streaming reply.
+    const history = get()
+      .convo.filter((m) => m.role === "user" || m.role === "assistant")
+      .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
+
+    const now = new Date().toISOString();
+    const userMsg: ChatMessageT = { id: uid("m"), role: "user", content, createdAt: now };
+    const assistantId = uid("m");
+    const assistantMsg: ChatMessageT = {
+      id: assistantId,
+      role: "assistant",
+      content: "",
+      createdAt: now,
+      streaming: true,
+    };
+    set((s) => ({ chatting: true, convo: [...s.convo, userMsg, assistantMsg] }));
+
+    const controller = new AbortController();
+    set({ convoAbort: controller });
+    const append = (chunk: string) =>
+      set((s) => ({
+        convo: s.convo.map((m) =>
+          m.id === assistantId ? { ...m, content: m.content + chunk } : m,
+        ),
+      }));
+
+    try {
+      const { brief } = await streamRequirements(content, history, {
+        onToken: append,
+        signal: controller.signal,
+      });
+      // On a fresh brief, capture it and tidy the bubble (the structured brief is
+      // shown in its own panel, so strip the raw summary block from the message).
+      set((s) => ({
+        brief: brief ?? s.brief,
+        convo: s.convo.map((m) => {
+          if (m.id !== assistantId) return m;
+          const cleaned = brief ? stripBriefBlock(m.content) || m.content : m.content;
+          return { ...m, content: cleaned, streaming: false };
+        }),
+      }));
+    } finally {
+      set((s) => ({
+        chatting: false,
+        convoAbort: null,
+        convo: s.convo.map((m) => (m.id === assistantId ? { ...m, streaming: false } : m)),
+      }));
+    }
+  },
+
+  stopChat: () => {
+    get().convoAbort?.abort();
+    set({ convoAbort: null, chatting: false });
+  },
+
+  canGenerate: () => !get().building && !get().chatting && briefReadiness(get().brief),
+
+  generate: async () => {
+    const { brief, mode, building } = get();
+    if (building || mode === "titan") return;
+
+    // Ground generation in the approved brief; fall back to the raw conversation
+    // when the user forces /gencode before a brief is ready.
+    let task: string;
+    let context: string;
+    if (briefReadiness(brief) && brief) {
+      task = briefToTask(brief);
+      context = briefToContext(brief);
+    } else {
+      const transcript = get()
+        .convo.filter((m) => m.role === "user" || m.role === "assistant")
+        .map((m) => `${m.role}: ${m.content}`)
+        .join("\n");
+      const firstUser = get().convo.find((m) => m.role === "user")?.content ?? "";
+      task = firstUser.trim().slice(0, 120) || "project from Aof Code";
+      context = conversationToContext(transcript);
+    }
+
+    const controller = new AbortController();
+    set({ phase: "generating", building: true, buildLog: "", abort: controller });
+    try {
+      // `mode` is narrowed to non-titan by the guard above.
+      await streamCodeRun(
+        task,
+        mode as "lite" | "1.0" | "pro",
+        {
+          onToken: (chunk) => set((s) => ({ buildLog: s.buildLog + chunk })),
+          signal: controller.signal,
+        },
+        context,
+      );
+    } finally {
+      set({ building: false, abort: null, phase: "done" });
+    }
+  },
+
+  resetConversation: () =>
+    set({
+      convo: [],
+      brief: null,
+      phase: "conversation",
+      buildLog: "",
+      chatting: false,
+      building: false,
+    }),
 
   buildLog: "",
   building: false,

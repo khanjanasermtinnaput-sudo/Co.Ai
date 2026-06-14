@@ -6,6 +6,7 @@
 // client transparently falls back to the offline mock engine.
 
 import type { ResponseStyle, RouteDecision } from "@/lib/types";
+import { RAA_SYSTEM } from "@/lib/raa";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,6 +21,8 @@ interface ChatBody {
   style?: ResponseStyle;
   route?: RouteDecision;
   history?: ChatHistoryItem[];
+  /** "chat" = general assistant (default); "requirements" = Aof Code RAA persona. */
+  agent?: "chat" | "requirements";
 }
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -81,8 +84,13 @@ export async function POST(req: Request): Promise<Response> {
   const history = Array.isArray(body.history) ? body.history.slice(-20) : [];
   const model = process.env.OPENROUTER_MODEL?.trim() || DEFAULT_MODEL;
 
+  // The Aof Code conversation uses the Requirements Architect (RAA) persona, which
+  // gathers requirements and emits a structured brief — it never writes code.
+  const isRequirements = body.agent === "requirements";
+  const system = isRequirements ? RAA_SYSTEM : buildSystem(body.style, body.route);
+
   const messages = [
-    { role: "system", content: buildSystem(body.style, body.route) },
+    { role: "system", content: system },
     ...history
       .filter((h) => h && (h.role === "user" || h.role === "assistant") && h.content)
       .map((h) => ({ role: h.role, content: h.content })),
@@ -103,8 +111,9 @@ export async function POST(req: Request): Promise<Response> {
       body: JSON.stringify({
         model,
         messages,
-        temperature: 0.7,
-        max_tokens: maxTokensFor(body.style),
+        // Requirements gathering wants a touch less randomness and more room.
+        temperature: isRequirements ? 0.5 : 0.7,
+        max_tokens: isRequirements ? 1200 : maxTokensFor(body.style),
         stream: true,
       }),
       signal: req.signal,
