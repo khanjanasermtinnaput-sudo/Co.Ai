@@ -1,10 +1,12 @@
 // ── Aof Chat — real LLM endpoint (server-side) ───────────────────────────────
-// Streams a general-assistant reply from an OpenAI-compatible provider
-// (OpenRouter by default) so "Chat with Aof" can hold a normal conversation and
-// answer knowledge questions for real. Keeps secrets server-side: the browser
-// never sees the API key. When no key is configured the route returns 503 and the
-// client transparently falls back to the offline mock engine.
+// Provider priority:
+//   1. ANTHROPIC_API_KEY  → Anthropic SDK (claude-haiku-4-5 by default)
+//   2. OPENROUTER_API_KEY → OpenRouter (google/gemini-2.0-flash-exp:free by default)
+//   3. Neither key        → 503, client falls back to offline mock
+//
+// Keeps all secrets server-side. Browser never sees the API key.
 
+import Anthropic from "@anthropic-ai/sdk";
 import type { ResponseStyle, RouteDecision } from "@/lib/types";
 import { RAA_SYSTEM, AOF_CODE_CHAT_SYSTEM } from "@/lib/raa";
 
@@ -21,41 +23,36 @@ interface ChatBody {
   style?: ResponseStyle;
   route?: RouteDecision;
   history?: ChatHistoryItem[];
-  /** "chat" = general assistant (default); "requirements" = Aof Code RAA (DISCOVERY);
-   *  "code-chat" = Aof Code NORMAL_CHAT (no project active). */
+  /** "chat" = general assistant; "requirements" = RAA (DISCOVERY);
+   *  "code-chat" = Aof Code NORMAL_CHAT */
   agent?: "chat" | "requirements" | "code-chat";
 }
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-// Free-by-default: a no-cost OpenRouter model (rate-limited). Override with the
-// OPENROUTER_MODEL env var to use a paid/higher-quality model.
-const DEFAULT_MODEL = "google/gemini-2.0-flash-exp:free";
+const DEFAULT_OR_MODEL = "google/gemini-2.0-flash-exp:free";
+// claude-haiku is fast and cheap — ideal for conversational chat
+const DEFAULT_ANTHROPIC_MODEL = "claude-haiku-4-5-20251001";
 
-/** Build the system prompt: persona + same-language rule + verbosity + intent. */
 function buildSystem(style: ResponseStyle | undefined, route: RouteDecision | undefined): string {
   const persona =
     "You are Aof, a friendly, knowledgeable AI assistant. Have natural conversations, " +
     "answer general questions, explain ideas clearly, and help the user think things through. " +
     "You can use Markdown when it helps readability.";
-
   const language =
     "RESPONSE LANGUAGE: Always reply in the SAME LANGUAGE the user writes in. " +
     "Thai input → Thai reply. English input → English reply.";
-
   const verbosity =
     style === "short"
       ? "Keep your answer brief and to the point — a few sentences at most."
       : style === "detailed"
         ? "Give a thorough, well-structured answer with helpful detail and examples where useful."
         : "Answer clearly and helpfully at a natural length.";
-
   const search =
     route?.target === "search"
       ? "The user is looking for information. Answer from your knowledge. If the answer depends on " +
         "very recent or live data (today's news, current prices, live events) that you may not have, " +
         "say so briefly and still give your best general answer."
       : "";
-
   return [persona, language, verbosity, search].filter(Boolean).join("\n\n");
 }
 
@@ -65,41 +62,83 @@ function maxTokensFor(style: ResponseStyle | undefined): number {
   return 1000;
 }
 
-export async function POST(req: Request): Promise<Response> {
-  const key = process.env.OPENROUTER_API_KEY?.trim();
-  // No key configured → tell the client to use its offline mock fallback.
-  if (!key) {
-    return Response.json({ error: "no-key" }, { status: 503 });
-  }
+// ── Anthropic streaming ───────────────────────────────────────────────────────
 
-  let body: ChatBody;
-  try {
-    body = (await req.json()) as ChatBody;
-  } catch {
-    return Response.json({ error: "invalid json" }, { status: 400 });
-  }
+async function streamAnthropic(
+  system: string,
+  history: ChatHistoryItem[],
+  message: string,
+  maxTokens: number,
+  temperature: number,
+  signal: AbortSignal,
+): Promise<Response> {
+  const anthropic = new Anthropic({
+    apiKey: process.env.ANTHROPIC_API_KEY!,
+  });
+  const model = process.env.ANTHROPIC_MODEL?.trim() || DEFAULT_ANTHROPIC_MODEL;
 
-  const message = String(body.message ?? "").trim();
-  if (!message) return Response.json({ error: "message required" }, { status: 400 });
+  const messages: Anthropic.MessageParam[] = [
+    ...history
+      .filter((h) => h.role === "user" || h.role === "assistant")
+      .map((h) => ({ role: h.role as "user" | "assistant", content: h.content })),
+    { role: "user", content: message },
+  ];
 
-  const history = Array.isArray(body.history) ? body.history.slice(-20) : [];
-  const model = process.env.OPENROUTER_MODEL?.trim() || DEFAULT_MODEL;
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const encoder = new TextEncoder();
+      try {
+        const anthropicStream = await anthropic.messages.stream(
+          {
+            model,
+            max_tokens: maxTokens,
+            temperature,
+            system,
+            messages,
+          },
+          { signal },
+        );
+        for await (const event of anthropicStream) {
+          if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+            controller.enqueue(encoder.encode(event.delta.text));
+          }
+        }
+      } catch (e) {
+        if ((e as Error)?.name !== "AbortError") {
+          // surface error as text so the client sees something
+          controller.enqueue(encoder.encode(`\n[error: ${(e as Error).message}]`));
+        }
+      } finally {
+        controller.close();
+      }
+    },
+  });
 
-  // Aof Code has two non-chat personas:
-  //   "requirements" = RAA (DISCOVERY) — gathers requirements, emits brief, never writes code.
-  //   "code-chat"    = NORMAL_CHAT — answers questions naturally, no project context.
-  const isRequirements = body.agent === "requirements";
-  const isCodeChat = body.agent === "code-chat";
-  const system = isRequirements
-    ? RAA_SYSTEM
-    : isCodeChat
-      ? AOF_CODE_CHAT_SYSTEM
-      : buildSystem(body.style, body.route);
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+    },
+  });
+}
+
+// ── OpenRouter streaming ──────────────────────────────────────────────────────
+
+async function streamOpenRouter(
+  system: string,
+  history: ChatHistoryItem[],
+  message: string,
+  maxTokens: number,
+  temperature: number,
+  signal: AbortSignal,
+): Promise<Response> {
+  const key = process.env.OPENROUTER_API_KEY!;
+  const model = process.env.OPENROUTER_MODEL?.trim() || DEFAULT_OR_MODEL;
 
   const messages = [
     { role: "system", content: system },
     ...history
-      .filter((h) => h && (h.role === "user" || h.role === "assistant") && h.content)
+      .filter((h) => h.role === "user" || h.role === "assistant")
       .map((h) => ({ role: h.role, content: h.content })),
     { role: "user", content: message },
   ];
@@ -111,24 +150,14 @@ export async function POST(req: Request): Promise<Response> {
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${key}`,
-        // OpenRouter attribution headers (optional but recommended).
         "HTTP-Referer": "https://aof-web.vercel.app",
         "X-Title": "Aof",
       },
-      body: JSON.stringify({
-        model,
-        messages,
-        temperature: isRequirements ? 0.5 : isCodeChat ? 0.7 : 0.7,
-        max_tokens: isRequirements ? 1200 : isCodeChat ? 800 : maxTokensFor(body.style),
-        stream: true,
-      }),
-      signal: req.signal,
+      body: JSON.stringify({ model, messages, temperature, max_tokens: maxTokens, stream: true }),
+      signal,
     });
   } catch (e) {
-    return Response.json(
-      { error: "network", detail: (e as Error).message },
-      { status: 502 },
-    );
+    return Response.json({ error: "network", detail: (e as Error).message }, { status: 502 });
   }
 
   if (!upstream.ok || !upstream.body) {
@@ -139,8 +168,6 @@ export async function POST(req: Request): Promise<Response> {
     );
   }
 
-  // Re-stream just the delta text (OpenAI SSE → plain UTF-8 chunks) so the client
-  // can append tokens directly without parsing provider-specific frames.
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       const reader = upstream.body!.getReader();
@@ -158,24 +185,15 @@ export async function POST(req: Request): Promise<Response> {
             const trimmed = line.trim();
             if (!trimmed.startsWith("data:")) continue;
             const data = trimmed.slice(5).trim();
-            if (data === "[DONE]") {
-              controller.close();
-              return;
-            }
+            if (data === "[DONE]") { controller.close(); return; }
             try {
               const json = JSON.parse(data);
               const delta: string = json?.choices?.[0]?.delta?.content ?? "";
               if (delta) controller.enqueue(encoder.encode(delta));
-            } catch {
-              /* ignore keep-alive / malformed frame */
-            }
+            } catch { /* ignore malformed frames */ }
           }
         }
-      } catch {
-        /* upstream aborted or closed — end the stream gracefully */
-      } finally {
-        controller.close();
-      }
+      } catch { /* upstream aborted */ } finally { controller.close(); }
     },
   });
 
@@ -185,4 +203,44 @@ export async function POST(req: Request): Promise<Response> {
       "Cache-Control": "no-cache, no-transform",
     },
   });
+}
+
+// ── Route handler ─────────────────────────────────────────────────────────────
+
+export async function POST(req: Request): Promise<Response> {
+  const anthropicKey = process.env.ANTHROPIC_API_KEY?.trim();
+  const openrouterKey = process.env.OPENROUTER_API_KEY?.trim();
+
+  if (!anthropicKey && !openrouterKey) {
+    return Response.json({ error: "no-key" }, { status: 503 });
+  }
+
+  let body: ChatBody;
+  try {
+    body = (await req.json()) as ChatBody;
+  } catch {
+    return Response.json({ error: "invalid json" }, { status: 400 });
+  }
+
+  const message = String(body.message ?? "").trim();
+  if (!message) return Response.json({ error: "message required" }, { status: 400 });
+
+  const history = Array.isArray(body.history) ? body.history.slice(-20) : [];
+
+  const isRequirements = body.agent === "requirements";
+  const isCodeChat = body.agent === "code-chat";
+  const system = isRequirements
+    ? RAA_SYSTEM
+    : isCodeChat
+      ? AOF_CODE_CHAT_SYSTEM
+      : buildSystem(body.style, body.route);
+
+  const temperature = isRequirements ? 0.5 : 0.7;
+  const maxTokens = isRequirements ? 1200 : isCodeChat ? 800 : maxTokensFor(body.style);
+
+  // Anthropic first (best quality), OpenRouter as fallback
+  if (anthropicKey) {
+    return streamAnthropic(system, history, message, maxTokens, temperature, req.signal);
+  }
+  return streamOpenRouter(system, history, message, maxTokens, temperature, req.signal);
 }
