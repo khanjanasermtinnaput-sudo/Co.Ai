@@ -7,7 +7,9 @@ const PLANNER_SYS = `You are the Planner agent in AOF Code (TMAP v2).
 Break the user's task into a concrete build plan.
 Output ONLY a numbered list, max 7 lines, each line:
 "N. <path/filename> — <action: create|modify> — <short intent>"
-No prose before or after. Plain text.`;
+No prose before or after. Plain text.
+Write the <short intent> text in the SAME LANGUAGE the user wrote the task in
+(Thai task → Thai intent). Keep file paths and the create/modify keywords as-is.`;
 
 export async function runPlanner(call: LLMCall, bb: Blackboard): Promise<{ steps: PlanStep[]; raw: string }> {
   const raw = await call([
@@ -106,7 +108,10 @@ const REVIEWER_SYS = `You are the Reviewer agent in AOF Code (TMAP v2).
 Review the generated files for correctness, security and quality.
 Output ONLY issues, one per line, format:
 "<HIGH|MED|LOW> | <file> | <concrete problem and fix>"
-If there are no blocking problems, output exactly: "OK | - | no blocking issues".`;
+If there are no blocking problems, output exactly: "OK | - | no blocking issues".
+Write the <concrete problem and fix> text in the SAME LANGUAGE the user wrote the
+task in (Thai task → Thai description). Keep the severity tags, separators, file
+paths and the literal "OK | - | no blocking issues" line exactly as specified.`;
 
 export async function runReviewer(
   call: LLMCall, bb: Blackboard,

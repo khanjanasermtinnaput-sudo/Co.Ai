@@ -1289,41 +1289,72 @@ async function callClaude(systemPrompt, userMessage, onChunk) {
   return fullText;
 }
 
+// Detect whether the user wrote in Thai so simulated agents can reply in the
+// same language they were asked in (Thai input → Thai reply, otherwise English).
+function isThai(text) {
+  return /[฀-๿]/.test(String(text || ''));
+}
+
 function simulateLocalAgent(systemPrompt, userMessage) {
-  const agent = systemPrompt.split(',')[0].trim().split(' ')[2] || 'Agent';
+  const th = isThai(userMessage);
+
+  if (systemPrompt.includes('Answer the user directly')) {
+    return th
+      ? `รับทราบครับ ลองบอกรายละเอียดที่อยากให้สร้างเพิ่มเติม หรือพิมพ์ /plan หรือ /gencode เพื่อเริ่มได้เลยครับ`
+      : `Got it. Tell me a bit more about what you'd like to build, or run /plan or /gencode to start.`;
+  }
+
   if (systemPrompt.includes('analyze user requirements')) {
-    return `I understand this is a request to build ${projectNameFrom(userMessage)}. Run /plan or /gencode to continue.`;
+    return th
+      ? `เข้าใจแล้วครับว่านี่คือคำขอสร้าง ${projectNameFrom(userMessage)} — พิมพ์ /plan หรือ /gencode เพื่อดำเนินการต่อ`
+      : `I understand this is a request to build ${projectNameFrom(userMessage)}. Run /plan or /gencode to continue.`;
   }
 
   if (systemPrompt.includes('create a clear, structured project plan')) {
-    return buildPlan(userMessage);
+    return buildPlan(userMessage, th);
   }
 
   if (systemPrompt.includes('Generate a concise architecture brief')) {
-    return buildArchitecture(userMessage);
+    return buildArchitecture(userMessage, th);
   }
 
   if (systemPrompt.includes('assign tasks to DeepSeek and Qwen')) {
-    return `DeepSeek: implement core features and generate code.\nQwen: review output and spot issues.`;
+    return th
+      ? `DeepSeek: พัฒนาฟีเจอร์หลักและสร้างโค้ด\nQwen: ตรวจสอบผลลัพธ์และหาจุดบกพร่อง`
+      : `DeepSeek: implement core features and generate code.\nQwen: review output and spot issues.`;
   }
 
   if (systemPrompt.includes('Generate the most important code file')) {
-    return generateCodeFile(userMessage);
-  }
-
-  if (systemPrompt.includes('Do a thorough code review')) {
-    return `✓ Architecture is coherent and streamlined.\n✓ Generated code is readable.\n⚠ Add error handling for API calls.\n⚠ Confirm dependencies and env details.\n✗ No tests were generated.\nFinal score: 87/100`;
-  }
-
-  if (systemPrompt.includes('Identify likely bugs')) {
-    return `Memory leak risk — missing cleanup after async tasks — MED\nUnhandled input errors — user data not validated — HIGH\nResponse formatting mismatch — output may break UI — LOW`;
+    return generateCodeFile(userMessage, th);
   }
 
   if (systemPrompt.includes('provide the fix for the most critical one')) {
-    return `// Example fix for unhandled async error\nasync function runTask() {\n  try {\n    const result = await fetchData();\n    process(result);\n  } catch (err) {\n    console.error('Task failed', err);\n  }\n}`;
+    return th
+      ? `// ตัวอย่างการแก้ไขข้อผิดพลาด async ที่ยังไม่ได้จัดการ\nasync function runTask() {\n  try {\n    const result = await fetchData();\n    process(result);\n  } catch (err) {\n    console.error('Task failed', err);\n  }\n}`
+      : `// Example fix for unhandled async error\nasync function runTask() {\n  try {\n    const result = await fetchData();\n    process(result);\n  } catch (err) {\n    console.error('Task failed', err);\n  }\n}`;
   }
 
-  return `I have received your request. Please run /plan or /gencode to continue.`;
+  if (systemPrompt.includes('Identify likely bugs')) {
+    return th
+      ? `เสี่ยงหน่วยความจำรั่ว — ไม่ได้ล้างทรัพยากรหลังงาน async — MED\nไม่ได้จัดการข้อผิดพลาดของอินพุต — ไม่ได้ตรวจสอบข้อมูลผู้ใช้ — HIGH\nรูปแบบผลลัพธ์ไม่ตรงกัน — อาจทำให้ UI พัง — LOW`
+      : `Memory leak risk — missing cleanup after async tasks — MED\nUnhandled input errors — user data not validated — HIGH\nResponse formatting mismatch — output may break UI — LOW`;
+  }
+
+  if (systemPrompt.includes('architectural assessment')) {
+    return th
+      ? `ภาพรวมสถาปัตยกรรมมั่นคงและขยายต่อได้\nควรเพิ่มการจัดการข้อผิดพลาดและเทสต์ก่อนนำไปใช้งานจริง`
+      : `Overall architecture is solid and extensible.\nAdd error handling and tests before production use.`;
+  }
+
+  if (systemPrompt.includes('code review')) {
+    return th
+      ? `✓ สถาปัตยกรรมสอดคล้องและกระชับ\n✓ โค้ดที่สร้างอ่านง่าย\n⚠ ควรเพิ่มการจัดการข้อผิดพลาดสำหรับการเรียก API\n⚠ ตรวจสอบ dependencies และค่า env ให้ครบ\n✗ ยังไม่ได้สร้างเทสต์\nReview score: 87/100`
+      : `✓ Architecture is coherent and streamlined.\n✓ Generated code is readable.\n⚠ Add error handling for API calls.\n⚠ Confirm dependencies and env details.\n✗ No tests were generated.\nReview score: 87/100`;
+  }
+
+  return th
+    ? `รับคำขอของคุณแล้วครับ พิมพ์ /plan หรือ /gencode เพื่อดำเนินการต่อ`
+    : `I have received your request. Please run /plan or /gencode to continue.`;
 }
 
 function projectNameFrom(message) {
@@ -1331,17 +1362,23 @@ function projectNameFrom(message) {
   return match ? match[1] : message.split(' ').slice(0, 4).join(' ');
 }
 
-function buildPlan(message) {
-  const project = projectNameFrom(message);
+function buildPlan(message, th) {
+  if (th) {
+    return `1. ส่วนติดต่อผู้ใช้ — หน้าจอเบราว์เซอร์แบบ responsive\n2. เอนจินเอเจนต์ — จำลองการประสานงาน AI หลายตัว\n3. ตัวแยกคำสั่ง — รองรับ /plan /gencode /review /fix\n4. ที่เก็บข้อมูล — สถานะเซสชันใน localStorage\n5. ตัวแสดงผล — UI สไตล์เทอร์มินัล\n6. ระบบรีวิว — ฟีดแบ็กตรวจสอบจากเอเจนต์\nวางแผนเสร็จแล้ว พิมพ์ /gencode เพื่อสร้างโค้ด`;
+  }
   return `1. UI layer — lightweight responsive browser interface\n2. Agent engine — simulate multi-AI coordination\n3. Command parser — support /plan /gencode /review /fix\n4. Data storage — localStorage session state\n5. Output renderer — terminal-style UI\n6. Review system — agent QA feedback\nPlan complete. Run /gencode to generate code.`;
 }
 
-function buildArchitecture(message) {
+function buildArchitecture(message, th) {
+  if (th) {
+    return `app.js — อินเทอร์เฟซหลักและตัวจัดการคำสั่ง\nui.css — ธีมเทอร์มินัลโทนมืด\nagents.js — เวิร์กโฟลว์เอเจนต์ AI จำลอง\nstorage.js — จัดเก็บโปรเจกต์และเซสชัน\nreview.js — สรุปการตรวจสอบและแก้ไข\nREADME.md — เอกสารและวิธีใช้งาน`;
+  }
   return `app.js — main interface and command handler\nui.css — dark terminal-style theme\nagents.js — simulated AI agent workflow\nstorage.js — project and session persistence\nreview.js — QA and fix summaries\nREADME.md — documentation and usage guide`;
 }
 
-function generateCodeFile(message) {
-  return `// app.js\nconst state = { mode: 'NORMAL', sessions: 0, projects: [] };\n\nfunction initApp() {\n  renderPrompt();\n}\n\nfunction renderPrompt() {\n  console.log('AOF Code demo running');\n}\n\ninitApp();`;
+function generateCodeFile(message, th) {
+  const comment = th ? '// app.js — โครงหลักของแอป' : '// app.js';
+  return `${comment}\nconst state = { mode: 'NORMAL', sessions: 0, projects: [] };\n\nfunction initApp() {\n  renderPrompt();\n}\n\nfunction renderPrompt() {\n  console.log('AOF Code demo running');\n}\n\ninitApp();`;
 }
 
 // Stream text into terminal line by line as it arrives

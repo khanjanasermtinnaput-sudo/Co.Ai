@@ -29,7 +29,10 @@ Rules:
 - If the project already exists, reuse its stack and conventions.
 - If a file already exists for a concern, put it under MODIFY_FILES, not NEW_FILES.
 - If a section has no items, write "- none".
-- No code, no prose outside these sections.`;
+- No code, no prose outside these sections.
+- Write the descriptive text (after APPROACH/RISKS and after each "— " in the file
+  lists) in the SAME LANGUAGE the user wrote the task in (Thai task → Thai text).
+  Keep the section labels, file paths and "- none" markers exactly as specified.`;
 
 export async function runArchitect(
   call: LLMCall, bb: Blackboard,

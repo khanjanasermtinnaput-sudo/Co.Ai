@@ -24,7 +24,11 @@ The README must include, only where relevant:
 - Notes on tech stack
 
 Be accurate to the provided files. Do NOT invent commands or dependencies that
-aren't implied by the files. Keep it tight — no filler. No text outside the block.`;
+aren't implied by the files. Keep it tight — no filler. No text outside the block.
+
+Write the README prose in the SAME LANGUAGE the user wrote the task in
+(Thai task → Thai README). Keep file paths, code, commands and the "path=README.md"
+info string exactly as-is.`;
 
 export async function runDocumenter(
   call: LLMCall, bb: Blackboard,
