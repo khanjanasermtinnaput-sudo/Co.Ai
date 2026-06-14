@@ -3,7 +3,7 @@
 // gracefully: when no backend is configured (or a call fails), the UI transparently
 // falls back to the offline mock engine so the homepage experience always works.
 
-import type { ChatModel } from "./types";
+import type { ResponseStyle, RouteDecision } from "./types";
 import { mockChat, mockCodeRun, type StreamHandlers } from "./mock";
 
 /** Resolve the API base. Empty string means "same origin" (Next rewrite proxy). */
@@ -95,18 +95,29 @@ export interface ChatHistoryItem {
   content: string;
 }
 
+export interface ChatRequest {
+  style: ResponseStyle;
+  route: RouteDecision;
+  history: ChatHistoryItem[];
+}
+
 /** Stream a Chat-with-Aof reply (live `/v1/chat`, else mock). */
 export async function streamChat(
   message: string,
-  model: ChatModel,
-  history: ChatHistoryItem[],
+  req: ChatRequest,
   handlers: StreamHandlers,
 ): Promise<void> {
-  if (!isLive()) return mockChat(message, model, handlers);
+  const mockOpts = { style: req.style, route: req.route };
+  if (!isLive()) return mockChat(message, mockOpts, handlers);
   try {
     await postSSE(
       "/v1/chat",
-      { message, history: history.map((h) => ({ role: h.role, content: h.content })) },
+      {
+        message,
+        style: req.style,
+        route: req.route.target,
+        history: req.history.map((h) => ({ role: h.role, content: h.content })),
+      },
       (e) => {
         if (e.kind === "output" && typeof e.text === "string") handlers.onToken(e.text);
       },
@@ -114,7 +125,7 @@ export async function streamChat(
     );
   } catch {
     // Backend unreachable / unauthorised → keep the UX flowing with the mock.
-    await mockChat(message, model, handlers);
+    await mockChat(message, mockOpts, handlers);
   }
 }
 

@@ -2,25 +2,25 @@
 
 import { useEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import { MessageSquarePlus } from "lucide-react";
+import { Sparkles, Wand2 } from "lucide-react";
 import { useChatStore } from "@/store/chat-store";
 import { Composer } from "@/components/composer/composer";
-import { ModelSelector } from "./model-selector";
+import { ResponseStyleSelector } from "./response-style-selector";
 import { ChatThread } from "./chat-thread";
 import { LogoMark } from "@/components/brand/logo";
 
 const STARTERS = [
   "Summarize this article for me",
-  "Help me plan my week",
-  "Write a polite follow-up email",
-  "Explain quantum computing simply",
+  "Solve 12 × (3 + 4) step by step",
+  "Build a landing page in React",
+  "Search the web for the latest AI news",
 ];
 
 export function ChatView() {
   const conversations = useChatStore((s) => s.conversations);
   const activeId = useChatStore((s) => s.activeId);
-  const model = useChatStore((s) => s.model);
-  const setModel = useChatStore((s) => s.setModel);
+  const style = useChatStore((s) => s.style);
+  const setStyle = useChatStore((s) => s.setStyle);
   const streaming = useChatStore((s) => s.streaming);
   const send = useChatStore((s) => s.send);
   const stop = useChatStore((s) => s.stop);
@@ -35,7 +35,7 @@ export function ChatView() {
     if (started.current) return;
     started.current = true;
     const pending = consumePending();
-    if (pending) void send(pending);
+    if (pending) void send(pending.text, pending.attachments);
   }, [consumePending, send]);
 
   const empty = messages.length === 0;
@@ -43,8 +43,14 @@ export function ChatView() {
   return (
     <div className="flex h-full flex-col">
       {/* header */}
-      <div className="sticky top-0 z-10 flex h-14 items-center justify-between border-b border-border/70 bg-background/70 px-3 backdrop-blur-xl sm:px-5">
-        <ModelSelector value={model} onChange={setModel} variant="header" />
+      <div className="sticky top-0 z-10 flex h-14 items-center justify-between gap-3 border-b border-border/70 bg-background/70 px-3 backdrop-blur-xl sm:px-5">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="font-semibold text-foreground">Chat with Aof</span>
+          <span className="hidden items-center gap-1 rounded-full border border-border bg-secondary/60 px-2 py-0.5 text-[11px] text-muted-foreground sm:inline-flex">
+            <Wand2 className="size-3 text-primary" /> Auto-routed
+          </span>
+        </div>
+        <ResponseStyleSelector value={style} onChange={setStyle} size="compact" />
       </div>
 
       {/* body */}
@@ -61,9 +67,8 @@ export function ChatView() {
             </motion.div>
             <h2 className="mt-5 text-xl font-semibold">Chat with Aof</h2>
             <p className="mt-2 max-w-sm text-sm text-muted-foreground">
-              Ask anything — from quick questions to deep dives. Pick{" "}
-              <span className="text-foreground">Lite</span> for speed or{" "}
-              <span className="text-foreground">Normal</span> for richer reasoning.
+              Ask anything, attach images, PDFs or code — Aof picks the right agent
+              automatically. Choose how detailed the answer should be above.
             </p>
             <div className="mt-6 flex flex-wrap justify-center gap-2">
               {STARTERS.map((s) => (
@@ -87,14 +92,14 @@ export function ChatView() {
       <div className="border-t border-border/70 bg-background/60 px-3 py-3 backdrop-blur-xl sm:px-5 sm:py-4">
         <div className="mx-auto w-full max-w-3xl">
           <Composer
-            placeholder="Message Aof…"
-            onSubmit={(v) => void send(v)}
+            placeholder="Message Aof — or attach an image, PDF or code file…"
+            onSubmit={(v, atts) => void send(v, atts)}
             streaming={streaming}
             onStop={stop}
             autoFocus={!empty}
             toolbar={
               <div className="flex items-center gap-2">
-                <MessageSquarePlus className="size-3.5 text-muted-foreground" />
+                <Sparkles className="size-3.5 text-primary/70" />
                 <span className="text-xs text-muted-foreground">
                   Aof can make mistakes. Verify important info.
                 </span>

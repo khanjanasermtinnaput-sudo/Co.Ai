@@ -12,6 +12,43 @@ export type CodeMode = "lite" | "1.0" | "pro" | "titan";
 
 export type Role = "user" | "assistant" | "system";
 
+/** How verbose the assistant should be. The user picks this; the model that
+ *  actually answers is chosen automatically by the router. */
+export type ResponseStyle = "short" | "normal" | "detailed";
+
+/** Where the router sends a request. Users never choose this directly. */
+export type RouteTarget = "chat" | "code" | "search";
+
+export interface RouteDecision {
+  target: RouteTarget;
+  /** Human label shown on the routed reply, e.g. "Aof Code". */
+  label: string;
+  /** Short why-this-route explanation surfaced in the UI. */
+  reason: string;
+}
+
+/** Kinds of files the multimodal composer accepts. */
+export type AttachmentKind = "image" | "pdf" | "code" | "document";
+
+export interface Attachment {
+  id: string;
+  kind: AttachmentKind;
+  name: string;
+  mime: string;
+  size: number;
+  /** data: URL — only kept for images so they can be previewed inline. */
+  dataUrl?: string;
+  /** decoded text for code / document files, used for analysis previews. */
+  text?: string;
+}
+
+/** Structured answer for Math & Learning mode — toggled inline, no re-send. */
+export interface LearningAnswer {
+  answer: string;
+  steps: string[];
+  concept: string;
+}
+
 export interface ChatMessageT {
   id: string;
   role: Role;
@@ -20,6 +57,14 @@ export interface ChatMessageT {
   /** true while tokens are still streaming into this message */
   streaming?: boolean;
   model?: ChatModel | CodeMode;
+  /** files the user attached to this (user) message */
+  attachments?: Attachment[];
+  /** which agent the router picked for this (assistant) reply */
+  route?: RouteDecision;
+  /** verbosity this (assistant) reply was generated at */
+  style?: ResponseStyle;
+  /** structured Math/Learning payload — when present, rendered with a toggle */
+  learning?: LearningAnswer;
 }
 
 export interface Conversation {

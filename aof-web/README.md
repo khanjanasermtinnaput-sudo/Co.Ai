@@ -50,9 +50,26 @@ the experience never breaks.
 | `npm run lint`      | ESLint (next/core-web-vitals)        |
 | `npm run typecheck` | `tsc --noEmit`                       |
 
+## Multimodal chat
+
+Chat with Aof is now a multimodal, auto-routed surface — users never pick a model.
+
+- **Attachments** — upload **images**, **PDFs** and **code files** straight from
+  the composer (`+` menu). Images preview inline; code/text is decoded for
+  analysis. See `src/lib/attachments.ts`.
+- **Auto-router** — every request is classified by `src/lib/router.ts` and sent to
+  the right system: general questions → **Aof Chat**, engineering/file analysis →
+  **Aof Code**, live look-ups → **Search Agent**. Each reply shows a "Routed to …"
+  badge.
+- **Response style** — a **Short / Normal / Detailed** selector controls verbosity
+  (persisted in `localStorage`). Verbosity, not the model, is the user-facing dial.
+- **Math & Learning mode** — math/science/step problems render a structured
+  **Answer · Steps · Concept** card you can toggle inline without re-asking.
+
 ## Product map
 
-- **Chat with Aof** (`/`, `/chat`) — models **Lite** / **Normal**.
+- **Chat with Aof** (`/`, `/chat`) — multimodal & auto-routed; **Short / Normal /
+  Detailed** response styles.
 - **Aof Code** (`/code`) — modes **Lite**, **1.0**, **Pro**, **Titan**.
   - **Titan** is the highest mode *inside* Aof Code (never on the homepage). It
     runs Discovery → Clarify → Requirements → Analysis → Plans → Risk →

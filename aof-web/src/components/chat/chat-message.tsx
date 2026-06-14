@@ -8,6 +8,9 @@ import type { ChatMessageT } from "@/lib/types";
 import { LogoMark } from "@/components/brand/logo";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Markdown } from "./markdown";
+import { AttachmentList } from "./attachment-list";
+import { RouteBadge } from "./route-badge";
+import { LearningAnswerView } from "./learning-answer";
 
 export function ChatMessage({ message }: { message: ChatMessageT }) {
   const isUser = message.role === "user";
@@ -43,6 +46,9 @@ export function ChatMessage({ message }: { message: ChatMessageT }) {
 
       {/* bubble */}
       <div className={cn("flex min-w-0 max-w-[min(680px,85%)] flex-col gap-1", isUser && "items-end")}>
+        {!isUser && message.route && (
+          <RouteBadge route={message.route} />
+        )}
         <div
           className={cn(
             "rounded-2xl px-4 py-3",
@@ -51,9 +57,17 @@ export function ChatMessage({ message }: { message: ChatMessageT }) {
               : "rounded-tl-md border border-white/[0.06] bg-card/70",
           )}
         >
-          {message.content ? (
+          {message.attachments && message.attachments.length > 0 && (
+            <AttachmentList
+              attachments={message.attachments}
+              className={cn(message.content && "mb-2.5")}
+            />
+          )}
+          {message.learning ? (
+            <LearningAnswerView data={message.learning} />
+          ) : message.content ? (
             <Markdown content={message.content} />
-          ) : (
+          ) : message.attachments && message.attachments.length > 0 ? null : (
             <TypingDots />
           )}
           {message.streaming && message.content && (

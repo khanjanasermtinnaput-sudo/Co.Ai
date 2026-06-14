@@ -1,13 +1,21 @@
 "use client";
 
 import * as React from "react";
-import { ArrowUp, Paperclip, Square } from "lucide-react";
+import { ArrowUp, ImageIcon, FileText, FileCode2, Plus, Square } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { ACCEPT, fileToAttachment } from "@/lib/attachments";
+import type { Attachment } from "@/lib/types";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { AttachmentList } from "@/components/chat/attachment-list";
 
 interface ComposerProps {
   placeholder?: string;
-  onSubmit: (value: string) => void;
+  onSubmit: (value: string, attachments: Attachment[]) => void;
   disabled?: boolean;
   streaming?: boolean;
   onStop?: () => void;
@@ -18,7 +26,10 @@ interface ComposerProps {
   size?: "lg" | "md";
 }
 
-/** Premium auto-growing composer with Enter-to-send and Shift+Enter for newline. */
+type UploadKind = keyof typeof ACCEPT;
+
+/** Premium auto-growing composer with multimodal uploads (image / PDF / file),
+ *  Enter-to-send and Shift+Enter for newline. */
 export function Composer({
   placeholder = "Ask anything…",
   onSubmit,
@@ -31,7 +42,10 @@ export function Composer({
   size = "md",
 }: ComposerProps) {
   const [value, setValue] = React.useState("");
+  const [attachments, setAttachments] = React.useState<Attachment[]>([]);
   const ref = React.useRef<HTMLTextAreaElement>(null);
+  const fileRef = React.useRef<HTMLInputElement>(null);
+  const acceptRef = React.useRef<string>(ACCEPT.file);
   const maxHeight = size === "lg" ? 240 : 200;
 
   const resize = React.useCallback(() => {
@@ -45,12 +59,14 @@ export function Composer({
     resize();
   }, [value, resize]);
 
-  const canSend = value.trim().length > 0 && !disabled && !streaming;
+  const canSend =
+    (value.trim().length > 0 || attachments.length > 0) && !disabled && !streaming;
 
   const submit = () => {
     if (!canSend) return;
-    onSubmit(value.trim());
+    onSubmit(value.trim(), attachments);
     setValue("");
+    setAttachments([]);
     requestAnimationFrame(resize);
   };
 
@@ -61,6 +77,25 @@ export function Composer({
     }
   };
 
+  const openPicker = (kind: UploadKind) => {
+    acceptRef.current = ACCEPT[kind];
+    if (fileRef.current) {
+      fileRef.current.accept = ACCEPT[kind];
+      fileRef.current.click();
+    }
+  };
+
+  const onFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = ""; // allow re-selecting the same file
+    if (files.length === 0) return;
+    const added = await Promise.all(files.map(fileToAttachment));
+    setAttachments((prev) => [...prev, ...added]);
+  };
+
+  const removeAttachment = (id: string) =>
+    setAttachments((prev) => prev.filter((a) => a.id !== id));
+
   return (
     <div
       className={cn(
@@ -70,20 +105,46 @@ export function Composer({
         className,
       )}
     >
+      <input
+        ref={fileRef}
+        type="file"
+        multiple
+        accept={acceptRef.current}
+        onChange={onFiles}
+        className="hidden"
+      />
+
+      {attachments.length > 0 && (
+        <AttachmentList
+          attachments={attachments}
+          onRemove={removeAttachment}
+          className="mb-2 px-1"
+        />
+      )}
+
       <div className="flex items-end gap-2">
-        <Tooltip>
-          <TooltipTrigger asChild>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
             <button
               type="button"
-              tabIndex={-1}
               className="mb-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
-              aria-label="Attach"
+              aria-label="Attach files"
             >
-              <Paperclip className="size-[18px]" />
+              <Plus className="size-[18px]" />
             </button>
-          </TooltipTrigger>
-          <TooltipContent>Attach files</TooltipContent>
-        </Tooltip>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" side="top" className="w-52">
+            <DropdownMenuItem onClick={() => openPicker("image")} className="gap-2.5">
+              <ImageIcon className="size-4 text-primary" /> Upload image
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => openPicker("pdf")} className="gap-2.5">
+              <FileText className="size-4 text-primary" /> Upload PDF
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => openPicker("file")} className="gap-2.5">
+              <FileCode2 className="size-4 text-primary" /> Upload file
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         <textarea
           ref={ref}

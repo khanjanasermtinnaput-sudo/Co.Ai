@@ -6,25 +6,26 @@ import { Code2, Sparkles } from "lucide-react";
 import { BRAND } from "@/lib/constants";
 import { useChatStore } from "@/store/chat-store";
 import { Composer } from "@/components/composer/composer";
-import { ModelSelector } from "@/components/chat/model-selector";
+import { ResponseStyleSelector } from "@/components/chat/response-style-selector";
+import type { Attachment } from "@/lib/types";
 
 const SUGGESTIONS = [
   "Explain a concept simply",
-  "Draft a product plan",
+  "Solve a math problem step by step",
   "Build a landing page",
   "Debug my code",
 ];
 
 export function HomePrompt() {
   const router = useRouter();
-  const model = useChatStore((s) => s.model);
-  const setModel = useChatStore((s) => s.setModel);
+  const style = useChatStore((s) => s.style);
+  const setStyle = useChatStore((s) => s.setStyle);
   const queueFirstMessage = useChatStore((s) => s.queueFirstMessage);
   const selectConversation = useChatStore((s) => s.selectConversation);
 
-  const startChat = (value: string) => {
+  const startChat = (value: string, attachments: Attachment[] = []) => {
     selectConversation(null);
-    queueFirstMessage(value);
+    queueFirstMessage(value, attachments);
     router.push("/chat");
   };
 
@@ -42,7 +43,7 @@ export function HomePrompt() {
         onSubmit={startChat}
         toolbar={
           <div className="flex w-full items-center justify-between">
-            <ModelSelector value={model} onChange={setModel} variant="pill" />
+            <ResponseStyleSelector value={style} onChange={setStyle} size="compact" />
             <button
               type="button"
               onClick={() => router.push("/code")}
