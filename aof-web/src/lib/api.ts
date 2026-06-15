@@ -251,6 +251,11 @@ export async function streamChat(
   }
 
   // Default: Aof's own provider route.
+  const agentForTarget: Record<string, string> = {
+    tutor: "tutor",
+    research: "research",
+    reasoning: "reasoning",
+  };
   try {
     const res = await fetch("/api/chat", {
       method: "POST",
@@ -260,6 +265,7 @@ export async function streamChat(
         style: req.style,
         route: req.route,
         history: req.history.map((h) => ({ role: h.role, content: h.content })),
+        agent: agentForTarget[req.route.target],
       }),
       signal: handlers.signal,
     });

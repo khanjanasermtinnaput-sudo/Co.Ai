@@ -1,10 +1,14 @@
 // ── Aof Router ─────────────────────────────────────────────────────────────────
-// Inspects each request (text + attachments) and decides which system handles it,
-// so the user never has to pick a model. Mirrors the routing rules in the product
-// spec:
-//   • General questions / knowledge / summaries → Aof Chat
-//   • Programming / debug / architecture / web & app dev / GitHub / file analysis → Aof Code
-//   • Explicit web-search requests → Search Agent
+// Inspects each request (text + attachments) and decides which agent handles it,
+// so the user never has to pick manually. Agent priority order:
+//   1. code file attachment            → Aof Code
+//   2. explicit web-search intent      → Search Agent
+//   3. deep analysis / strategy        → Aof Reasoning
+//   4. research / fact-finding         → Aof Research
+//   5. teaching / learning intent      → Aof Tutor
+//   6. engineering / programming       → Aof Code
+//   7. image / PDF (no coding ask)     → Aof Chat
+//   8. default                         → Aof Chat
 
 import type { Attachment, RouteDecision, RouteTarget } from "./types";
 
@@ -12,9 +16,12 @@ const LABEL: Record<RouteTarget, string> = {
   chat: "Aof Chat",
   code: "Aof Code",
   search: "Search Agent",
+  tutor: "Aof Tutor",
+  reasoning: "Aof Reasoning",
+  research: "Aof Research",
 };
 
-// Keyword sets (English + a little Thai, matching the rest of the product copy).
+// Keyword sets (English + Thai).
 const SEARCH = [
   /\bsearch\b/,
   /\bweb\s*search\b/,
@@ -30,6 +37,42 @@ const SEARCH = [
   /ข่าว/,
   /ล่าสุด/,
   /ราคา.*(วันนี้|ตอนนี้)/,
+];
+
+const REASONING = [
+  /\btradeoff\b|\btrade[- ]off\b/,
+  /\bstrategic\b|\bstrategy\b/,
+  /\broot cause\b/,
+  /\bdecision\b/,
+  /\bpros?\s+and\s+cons?\b/,
+  /\bcompare\b.*\bvs\b|\bvs\b.*\bcompare\b/,
+  /\banalyz(e|is)\b.*\b(system|product|business|design|project)\b/,
+  /\bshould\s+i\s+(choose|use|pick|go with)\b/,
+  /วิเคราะห์|เปรียบเทียบ|ตัดสินใจ|กลยุทธ์|ข้อดีข้อเสีย/,
+];
+
+const RESEARCH = [
+  /\bresearch\b/,
+  /\binvestigate\b/,
+  /\bfind\s+out\b/,
+  /\bhistory\s+of\b/,
+  /\bwho\s+(is|was|invented|created|made|founded)\b/,
+  /\bwhen\s+(was|did|were)\b/,
+  /\bwhy\s+(did|does|is|are|was|were)\b/,
+  /วิจัย|ค้นคว้า|ประวัติ|ใครคือ|ทำไม.*ถึง/,
+];
+
+const TUTOR = [
+  /\bteach\s*me\b/,
+  /\bexplain\b/,
+  /\btutorial\b/,
+  /\bhow\s+to\s+learn\b/,
+  /\bi\s+(want|need)\s+to\s+(learn|understand|know)\b/,
+  /\bwhat\s+is\s+(a\s+)?\b/,
+  /\bwhat\s+are\s+(the\s+)?\b/,
+  /\bhow\s+does\b/,
+  /\bconcept\s+of\b/,
+  /สอน|อธิบาย|เรียนรู้|ทำความเข้าใจ|คืออะไร|ทำงานยังไง/,
 ];
 
 const CODE = [
@@ -58,7 +101,7 @@ function anyMatch(text: string, patterns: RegExp[]): boolean {
 export function routeRequest(text: string, attachments: Attachment[] = []): RouteDecision {
   const t = text.toLowerCase();
 
-  // 1. Code / document files are file-analysis → Aof Code.
+  // 1. Code / document files → Aof Code.
   const codeFile = attachments.find((a) => a.kind === "code");
   if (codeFile) {
     return {
@@ -77,7 +120,34 @@ export function routeRequest(text: string, attachments: Attachment[] = []): Rout
     };
   }
 
-  // 3. Engineering intent → Aof Code.
+  // 3. Deep analysis / strategy / decisions → Aof Reasoning.
+  if (anyMatch(t, REASONING)) {
+    return {
+      target: "reasoning",
+      label: LABEL.reasoning,
+      reason: "Complex analytical task — routed to Aof Reasoning.",
+    };
+  }
+
+  // 4. Research / fact-finding → Aof Research.
+  if (anyMatch(t, RESEARCH)) {
+    return {
+      target: "research",
+      label: LABEL.research,
+      reason: "Research or fact-finding request — routed to Aof Research.",
+    };
+  }
+
+  // 5. Teaching / learning → Aof Tutor.
+  if (anyMatch(t, TUTOR)) {
+    return {
+      target: "tutor",
+      label: LABEL.tutor,
+      reason: "Learning or explanation request — routed to Aof Tutor.",
+    };
+  }
+
+  // 6. Engineering intent → Aof Code.
   if (anyMatch(t, CODE)) {
     return {
       target: "code",
@@ -86,7 +156,7 @@ export function routeRequest(text: string, attachments: Attachment[] = []): Rout
     };
   }
 
-  // 4. Images & PDFs without a coding ask → Aof Chat (image & PDF understanding).
+  // 7. Images & PDFs without a coding ask → Aof Chat.
   const visual = attachments.find((a) => a.kind === "image" || a.kind === "pdf");
   if (visual) {
     return {
@@ -99,7 +169,7 @@ export function routeRequest(text: string, attachments: Attachment[] = []): Rout
     };
   }
 
-  // 5. Default — general questions, knowledge, summaries → Aof Chat.
+  // 8. Default — general questions, knowledge, summaries → Aof Chat.
   return {
     target: "chat",
     label: LABEL.chat,
