@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import { AppProviders } from "@/components/providers/app-providers";
+import { PwaInstaller } from "@/components/pwa/pwa-installer";
 import "./globals.css";
 
 const inter = Inter({
@@ -25,8 +26,19 @@ export const metadata: Metadata = {
   applicationName: "Aof",
   keywords: ["Aof", "AI platform", "Aof Code", "AI assistant", "AI coding"],
   authors: [{ name: "Aof" }],
+  manifest: "/manifest.webmanifest",
   icons: {
-    icon: [{ url: "/favicon.svg", type: "image/svg+xml" }],
+    icon: [
+      { url: "/favicon-48.png", sizes: "48x48", type: "image/png" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Aof",
   },
 };
 
@@ -44,6 +56,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning className={`${inter.variable} ${jetbrains.variable}`}>
       <body className="min-h-dvh bg-background font-sans">
         <AppProviders>{children}</AppProviders>
+        <PwaInstaller />
       </body>
     </html>
   );
