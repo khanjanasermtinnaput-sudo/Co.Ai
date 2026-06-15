@@ -93,7 +93,9 @@ function checkPython(f: CodeFile): ValidationResult {
   // Use python3 -m py_compile if available
   const python = findPython();
   if (!python) {
-    return { kind: 'skipped', passed: true, logs: `${f.path}: python3 not found, skipped` };
+    // Report skipped as not-passed so callers don't treat an unchecked file as
+    // syntactically valid (the file might still contain errors).
+    return { kind: 'skipped', passed: false, logs: `${f.path}: python3 not found — syntax not verified` };
   }
   let dir: string | undefined;
   try {

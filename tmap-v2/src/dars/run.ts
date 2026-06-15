@@ -56,6 +56,12 @@ export async function chatWithDARS(
   let lastErr: Error | undefined;
 
   for (let attempt = 0; attempt < MAX_FAILOVER; attempt++) {
+    // Brief exponential backoff between failover attempts so a flaky provider
+    // isn't hammered immediately. First attempt has no delay.
+    if (attempt > 0) {
+      await new Promise((r) => setTimeout(r, Math.min(100 * 2 ** (attempt - 1), 800)));
+    }
+
     const cand = pickHealthy(role, candidates, tried, ctx.health);
     if (!cand) break;
     tried.add(cand.healthKey);
