@@ -197,7 +197,9 @@ export interface ClassifyInput {
   responseBody?: string;
 }
 
-const hay = (s?: string) => (s ?? "").toLowerCase();
+// Coerce defensively: providers sometimes send a numeric `code` where a string
+// error-type is expected, and `(429).toLowerCase()` would throw mid-classification.
+const hay = (s?: unknown) => String(s ?? "").toLowerCase();
 
 /** Build a finished `AofProviderError` from a code + the input context. */
 function build(code: AofErrorCode, input: ClassifyInput, details: string, solution?: string): AofProviderError {

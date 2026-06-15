@@ -414,7 +414,12 @@ function parseUpstreamError(body: string): { type?: string; message?: string } {
   try {
     const json = JSON.parse(body);
     const err = json?.error ?? json;
-    return { type: err?.type ?? err?.code, message: err?.message };
+    // `code` is often numeric (e.g. 429) — always hand back strings.
+    const rawType = err?.type ?? err?.code;
+    return {
+      type: rawType == null ? undefined : String(rawType),
+      message: err?.message == null ? undefined : String(err.message),
+    };
   } catch {
     return { message: body.slice(0, 300) };
   }

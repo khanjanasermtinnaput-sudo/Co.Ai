@@ -106,6 +106,20 @@ test("unrecognized failure → 012", () => {
   assert.equal(classifyProviderError({ provider: P, message: "??? something weird" }).code, "AOF_ERROR_012");
 });
 
+test("non-string error fields (numeric code) classify without throwing", () => {
+  // OpenRouter sometimes sends a numeric `code` where a string error-type is
+  // expected; classification must coerce instead of crashing on .toLowerCase().
+  const numeric = { provider: P, status: 429, errorType: 429, message: 0 } as unknown as Parameters<
+    typeof classifyProviderError
+  >[0];
+  const e = classifyProviderError(numeric);
+  assert.ok(isAofProviderError(e));
+  assert.equal(e.code, "AOF_ERROR_005"); // 429 → rate limit, no crash
+
+  const typeOnly = { provider: P, errorType: 503 } as unknown as Parameters<typeof classifyProviderError>[0];
+  assert.ok(isAofProviderError(classifyProviderError(typeOnly)));
+});
+
 // ── Shape + catalog ─────────────────────────────────────────────────────────
 
 test("every classified error carries the canonical fields", () => {
