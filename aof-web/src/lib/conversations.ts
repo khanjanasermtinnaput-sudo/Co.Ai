@@ -64,6 +64,29 @@ export async function deleteConversationRemote(id: string): Promise<void> {
   await authedFetch(`/api/conversations/${id}`, { method: "DELETE" });
 }
 
+export interface SearchHit {
+  conversationId: string;
+  conversationTitle: string;
+  conversationUpdatedAt: string;
+  messageId: string;
+  role: "user" | "assistant";
+  excerpt: string;
+  createdAt: string;
+}
+
+/** Full-text search across all saved messages on the server. Returns [] when not available. */
+export async function searchMessages(q: string, limit = 10): Promise<SearchHit[]> {
+  if (!q.trim() || q.length < 2) return [];
+  try {
+    const res = await authedFetch(`/api/search?q=${encodeURIComponent(q)}&limit=${limit}`);
+    if (!res.ok) return [];
+    const json = (await res.json()) as { hits: SearchHit[] };
+    return json.hits ?? [];
+  } catch {
+    return [];
+  }
+}
+
 /** Persist a batch of messages for a conversation. Fire-and-forget safe. */
 export async function saveMessages(conversationId: string, msgs: ChatMessageT[]): Promise<void> {
   const payload = msgs

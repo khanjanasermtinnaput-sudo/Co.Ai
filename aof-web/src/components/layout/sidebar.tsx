@@ -23,7 +23,8 @@ import { ThemeToggle } from "./theme-toggle";
 import { UserMenu } from "./user-menu";
 import { Settings } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
+import { conversationsEnabled, searchMessages, type SearchHit } from "@/lib/conversations";
 
 export function Sidebar() {
   const expanded = useUIStore((s) => s.sidebarExpanded);
@@ -38,13 +39,32 @@ export function Sidebar() {
   const pathname = usePathname();
 
   const [search, setSearch] = useState("");
+  const [serverHits, setServerHits] = useState<SearchHit[]>([]);
+  const [serverLoading, setServerLoading] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isInChat = pathname === "/chat" || pathname?.startsWith("/chat");
 
   useEffect(() => {
     loadRemoteConversations();
   }, [loadRemoteConversations]);
+
+  // Debounced server-side FTS — fires 400ms after the user stops typing
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (!search || search.length < 2 || !conversationsEnabled()) {
+      setServerHits([]);
+      return;
+    }
+    setServerLoading(true);
+    debounceRef.current = setTimeout(async () => {
+      const hits = await searchMessages(search, 15);
+      setServerHits(hits);
+      setServerLoading(false);
+    }, 400);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [search]);
 
   const startNewChat = useCallback(() => {
     selectConversation(null);
@@ -59,7 +79,7 @@ export function Sidebar() {
     [selectConversation, router],
   );
 
-  const filtered = conversations
+  const localFiltered = conversations
     .slice(0, 60)
     .filter((c) =>
       search
@@ -69,6 +89,17 @@ export function Sidebar() {
           )
         : true,
     );
+
+  // Merge server hits: add conversations from server results not already in local
+  const filtered = useMemo(() => {
+    if (!search) return localFiltered;
+    const localIds = new Set(localFiltered.map((c) => c.id));
+    const serverConvIds = [...new Set(serverHits.map((h) => h.conversationId))].filter(
+      (id) => !localIds.has(id),
+    );
+    const serverExtras = conversations.filter((c) => serverConvIds.includes(c.id));
+    return [...localFiltered, ...serverExtras];
+  }, [localFiltered, serverHits, conversations, search]);
 
   return (
     <motion.aside
@@ -150,24 +181,34 @@ export function Sidebar() {
               )}
             </div>
 
-            {filtered.length === 0 ? (
+            {serverLoading && search.length >= 2 && (
+              <p className="px-2 py-1 text-[11px] text-muted-foreground/40">Searching…</p>
+            )}
+
+            {filtered.length === 0 && !serverLoading ? (
               <p className="px-2 py-3 text-center text-[12px] text-muted-foreground/50">
                 No chats match "{search}"
               </p>
             ) : (
-              filtered.map((conv) => (
-                <ConversationItem
-                  key={conv.id}
-                  id={conv.id}
-                  title={conv.title}
-                  updatedAt={conv.updatedAt}
-                  active={conv.id === activeId && isInChat}
-                  searchQuery={search}
-                  onSelect={() => openConversation(conv.id)}
-                  onDelete={() => deleteConversation(conv.id)}
-                  onRename={(t) => renameConversation(conv.id, t)}
-                />
-              ))
+              filtered.map((conv) => {
+                const hitExcerpt = search
+                  ? serverHits.find((h) => h.conversationId === conv.id)?.excerpt
+                  : undefined;
+                return (
+                  <ConversationItem
+                    key={conv.id}
+                    id={conv.id}
+                    title={conv.title}
+                    updatedAt={conv.updatedAt}
+                    active={conv.id === activeId && isInChat}
+                    searchQuery={search}
+                    excerpt={hitExcerpt}
+                    onSelect={() => openConversation(conv.id)}
+                    onDelete={() => deleteConversation(conv.id)}
+                    onRename={(t) => renameConversation(conv.id, t)}
+                  />
+                );
+              })
             )}
           </div>
         )}
@@ -210,6 +251,7 @@ function ConversationItem({
   updatedAt,
   active,
   searchQuery,
+  excerpt,
   onSelect,
   onDelete,
   onRename,
@@ -219,6 +261,7 @@ function ConversationItem({
   updatedAt: string;
   active: boolean;
   searchQuery: string;
+  excerpt?: string;
   onSelect: () => void;
   onDelete: () => void;
   onRename: (t: string) => void;
@@ -294,7 +337,11 @@ function ConversationItem({
                   )
                 : title}
             </p>
-            <p className="text-[11px] text-muted-foreground/60">{timeAgo(updatedAt)}</p>
+            {excerpt ? (
+              <p className="truncate text-[11px] text-muted-foreground/50 italic">{excerpt}</p>
+            ) : (
+              <p className="text-[11px] text-muted-foreground/60">{timeAgo(updatedAt)}</p>
+            )}
           </div>
         </button>
       )}
