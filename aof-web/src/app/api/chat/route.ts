@@ -25,6 +25,8 @@ import {
   type ProviderMeta,
 } from "@/lib/server/ai-providers";
 import { logAofError, logAofInfo, runStartupCheckOnce } from "@/lib/server/ai-log";
+import { checkRateLimit, applyRateLimitHeaders } from "@/lib/server/rate-limit";
+import { getUserFromRequest } from "@/lib/server/supabase-admin";
 import type { ResponseStyle, RouteDecision } from "@/lib/types";
 import {
   RAA_SYSTEM,
@@ -183,6 +185,24 @@ export async function POST(req: Request): Promise<Response> {
 
 async function handleChat(req: Request): Promise<Response> {
   logStartup();
+
+  // ── Rate limiting ──────────────────────────────────────────────────────────
+  // Identify caller: prefer authenticated user ID, fall back to forwarded IP.
+  const user = await getUserFromRequest(req).catch(() => null);
+  const rateLimitKey =
+    user?.id ??
+    (req.headers.get("x-forwarded-for") ?? req.headers.get("x-real-ip") ?? "anon").split(",")[0].trim();
+  const rl = await checkRateLimit(rateLimitKey, "chat");
+  if (!rl.allowed) {
+    const headers = new Headers({ "Content-Type": "application/json; charset=utf-8" });
+    applyRateLimitHeaders(headers, rl);
+    const error = classifyProviderError({
+      provider: "Aof",
+      message: `Rate limit exceeded. Try again in ${rl.retryAfterSec}s.`,
+      status: 429,
+    });
+    return new Response(JSON.stringify(error), { status: 429, headers });
+  }
 
   const providers = configuredProviders();
 
