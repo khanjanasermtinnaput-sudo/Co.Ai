@@ -22,6 +22,11 @@ function tokenize(text: string): string[] {
 export interface StreamHandlers {
   onToken: (chunk: string) => void;
   signal?: AbortSignal;
+  /** Called when a provider fails. When present, callers surface the structured
+   *  error instead of silently falling back to a mock (transparency-first). */
+  onError?: (err: import("./provider-errors").AofProviderError) => void;
+  /** Called when the primary provider failed and a fallback took over. */
+  onFailover?: (info: import("./provider-errors").FailoverInfo) => void;
 }
 
 /** Stream an arbitrary string token-by-token with human-ish pacing. */

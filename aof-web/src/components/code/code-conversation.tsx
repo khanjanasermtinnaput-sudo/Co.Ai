@@ -1,7 +1,9 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { useState } from "react";
 import {
+  Activity,
   Boxes,
   Bug,
   FileCode2,
@@ -19,6 +21,9 @@ import { ChatThread } from "@/components/chat/chat-thread";
 import { Markdown } from "@/components/chat/markdown";
 import { Button } from "@/components/ui/button";
 import { ProjectBriefPanel } from "./project-brief";
+import { ProviderErrorPanel } from "./provider-error-panel";
+import { ProviderStatusPanel } from "./provider-status-panel";
+import { FailoverNotice } from "./failover-notice";
 
 // Conversation-first starters — framed as projects to discuss, not commands.
 const STARTERS = [
@@ -52,9 +57,17 @@ export function CodeConversation({ mode }: { mode: Exclude<CodeMode, "titan"> })
   const setDebugMode = useCodeStore((s) => s.setDebugMode);
   const outputKind = useCodeStore((s) => s.outputKind);
   const reset = useCodeStore((s) => s.resetConversation);
+  const providerError = useCodeStore((s) => s.providerError);
+  const failover = useCodeStore((s) => s.failover);
+  const devMode = useCodeStore((s) => s.devMode);
+  const setDevMode = useCodeStore((s) => s.setDevMode);
+  const dismissError = useCodeStore((s) => s.dismissError);
+  const retryLast = useCodeStore((s) => s.retryLast);
+
+  const [showStatus, setShowStatus] = useState(false);
 
   const info = CODE_MODES.find((m) => m.id === mode)!;
-  const empty = convo.length === 0;
+  const empty = convo.length === 0 && !providerError;
   const outputTitle = outputKind ? OUTPUT_TITLES[outputKind] : "Output";
 
   return (
@@ -93,7 +106,7 @@ export function CodeConversation({ mode }: { mode: Exclude<CodeMode, "titan"> })
             </div>
           ) : (
             <>
-              <ChatThread messages={convo} streaming={chatting} />
+              {convo.length > 0 && <ChatThread messages={convo} streaming={chatting} />}
               {buildLog && (
                 <div className="mx-auto w-full max-w-3xl px-4 pb-6 sm:px-6">
                   <div className="rounded-2xl border border-white/[0.07] bg-card/60">
@@ -112,6 +125,16 @@ export function CodeConversation({ mode }: { mode: Exclude<CodeMode, "titan"> })
                     </div>
                   </div>
                 </div>
+              )}
+              {failover && <FailoverNotice info={failover} />}
+              {providerError && (
+                <ProviderErrorPanel
+                  error={providerError}
+                  devMode={devMode}
+                  onToggleDev={setDevMode}
+                  onDismiss={dismissError}
+                  onRetry={() => void retryLast()}
+                />
               )}
             </>
           )}
@@ -142,13 +165,22 @@ export function CodeConversation({ mode }: { mode: Exclude<CodeMode, "titan"> })
                 </Button>
                 <button
                   type="button"
-                  onClick={reset}
+                  onClick={() => setShowStatus((v) => !v)}
                   className="ml-auto inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  <Activity className="size-3" /> AI status
+                </button>
+                <button
+                  type="button"
+                  onClick={reset}
+                  className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
                 >
                   <RotateCcw className="size-3" /> New
                 </button>
               </div>
             )}
+
+            {showStatus && <ProviderStatusPanel className="mb-2.5" />}
 
             {debugMode && (
               <div className="mb-2 flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">

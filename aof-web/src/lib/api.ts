@@ -15,6 +15,93 @@ import {
   type StreamHandlers,
 } from "./mock";
 import { parseBrief, summaryToBrief } from "./raa";
+import {
+  type AofProviderError,
+  type FailoverInfo,
+  ERROR_SENTINEL_OPEN,
+  buildProviderError,
+  classifyException,
+  extractErrorSentinel,
+} from "./provider-errors";
+
+/** When true, Aof Code falls back to the offline mock if NO provider key is set
+ *  (AOF_ERROR_001). Real provider FAILURES are always surfaced regardless. */
+function demoModeForMissingKey(): boolean {
+  return process.env.NEXT_PUBLIC_AOF_DEMO_MODE === "1";
+}
+
+/** Header asking the server to include developer diagnostics in errors. */
+function devHeaders(): Record<string, string> {
+  const on =
+    typeof window !== "undefined" && window.localStorage.getItem("aof.devMode") === "1";
+  return on ? { "x-aof-dev": "1" } : {};
+}
+
+/**
+ * Read a `/api/chat` response. Distinguishes three outcomes:
+ *  - JSON error body (`{ aofError }`)  → returns the structured error (no tokens).
+ *  - plain-text stream                 → emits tokens, filtering out any trailing
+ *                                        in-band error sentinel.
+ *  - in-band sentinel at stream end    → returns the structured error.
+ * Tokens are withheld by one marker-length tail so a partial sentinel never shows.
+ */
+async function consumeChatResponse(
+  res: Response,
+  handlers: StreamHandlers,
+): Promise<{ error: AofProviderError | null; text: string }> {
+  const onToken = handlers.onToken;
+
+  // A fallback provider took over — surface it before streaming the reply.
+  const failoverHeader = res.headers.get("x-aof-failover");
+  if (failoverHeader && handlers.onFailover) {
+    try {
+      handlers.onFailover(JSON.parse(failoverHeader) as FailoverInfo);
+    } catch {
+      /* ignore malformed header */
+    }
+  }
+
+  const contentType = res.headers.get("content-type") ?? "";
+  if (contentType.includes("application/json")) {
+    const json = (await res.json().catch(() => null)) as { aofError?: AofProviderError } | null;
+    return { error: json?.aofError ?? null, text: "" };
+  }
+  if (!res.body) return { error: null, text: "" };
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let full = "";
+  let shown = 0;
+  const flush = (final: boolean) => {
+    const from = Math.max(0, shown - ERROR_SENTINEL_OPEN.length);
+    const openIdx = full.indexOf(ERROR_SENTINEL_OPEN, from);
+    const safeEnd =
+      openIdx !== -1
+        ? openIdx
+        : final
+          ? full.length
+          : Math.max(shown, full.length - ERROR_SENTINEL_OPEN.length);
+    if (safeEnd > shown) {
+      onToken(full.slice(shown, safeEnd));
+      shown = safeEnd;
+    }
+  };
+
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      full += decoder.decode(value, { stream: true });
+      flush(false);
+    }
+  } catch {
+    /* aborted or connection dropped mid-stream — keep what we have */
+  }
+  flush(true);
+
+  const { clean, error } = extractErrorSentinel(full);
+  return { error, text: clean };
+}
 
 /** Resolve the API base. Empty string means "same origin" (Next rewrite proxy). */
 export function getApiBase(): string | null {
@@ -219,38 +306,59 @@ export async function streamCodeRun(
 
 /**
  * Stream a NORMAL_CHAT reply within Aof Code. Used when no project is active —
- * greetings, tech Q&A, casual discussion. Falls back: same-origin /api/chat
- * (agent=code-chat) → offline mock.
+ * greetings, tech Q&A, casual discussion.
+ *
+ * Transparency-first: a real provider FAILURE is surfaced via `onError` and the
+ * UI shows the error panel — never a faked mock reply. Only a fully-unconfigured
+ * setup (AOF_ERROR_001) falls back to the offline mock, and only when explicit
+ * demo mode is enabled.
  */
 export async function streamCodeChat(
   message: string,
   history: ChatHistoryItem[],
   handlers: StreamHandlers,
 ): Promise<void> {
-  // No backend needed for this path — it always goes through the same-origin
-  // LLM route or the mock. The live tmap-v2 backend doesn't have a "chat" endpoint
-  // for NORMAL_CHAT within Aof Code; we use the Next.js /api/chat route directly.
+  let res: Response;
   try {
-    const res = await fetch("/api/chat", {
+    res = await fetch("/api/chat", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...devHeaders() },
       body: JSON.stringify({ message, agent: "code-chat", history: history.slice(-20) }),
       signal: handlers.signal,
     });
-    if (res.status === 503 || !res.ok || !res.body) throw new Error("no-key");
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      handlers.onToken(decoder.decode(value, { stream: true }));
-    }
-    return;
   } catch (e) {
     if ((e as Error)?.name === "AbortError") return;
-    // No key or network error → mock
+    // Could not reach our own route → classify as a network failure and surface it.
+    return surfaceOrMock(classifyClientException(e), message, history, handlers);
   }
-  await mockCodeChat(message, handlers, history);
+
+  const { error } = await consumeChatResponse(res, handlers);
+  if (error) return surfaceOrMock(error, message, history, handlers);
+}
+
+/** Map a client-side fetch exception to a structured provider error. */
+function classifyClientException(e: unknown): AofProviderError {
+  return buildProviderError({
+    code: classifyException(e),
+    provider: "Aof AI",
+    rawError: (e as Error)?.message,
+  });
+}
+
+/** Surface a provider error (transparency-first), or fall back to the offline
+ *  mock only for a missing-key error when demo mode is explicitly enabled. */
+async function surfaceOrMock(
+  error: AofProviderError,
+  message: string,
+  history: ChatHistoryItem[],
+  handlers: StreamHandlers,
+): Promise<void> {
+  if (error.code === "AOF_ERROR_001" && demoModeForMissingKey()) {
+    await mockCodeChat(message, handlers, history);
+    return;
+  }
+  if (handlers.onError) handlers.onError(error);
+  else handlers.onToken(`\n\n[${error.code}] ${error.problem} — ${error.solution}`);
 }
 
 // ── Aof Code requirements conversation (RAA) ──────────────────────────────────
@@ -300,20 +408,23 @@ export async function streamRequirements(
   }
 
   // 2) Same-origin RAA persona (real LLM via /api/chat) — parse the brief client-side.
-  try {
-    const text = await streamLocalRequirements(message, hist, handlers);
-    if (text !== null) {
-      const brief = parseBrief(text);
-      return { brief, hasBrief: brief !== null };
+  const { text, error } = await streamLocalRequirements(message, hist, handlers);
+  if (error) {
+    // Transparency-first: surface a real provider failure. Only fall back to the
+    // mock for a missing key (AOF_ERROR_001) when demo mode is explicitly enabled.
+    if (!(error.code === "AOF_ERROR_001" && demoModeForMissingKey())) {
+      if (handlers.onError) handlers.onError(error);
+      else handlers.onToken(`\n\n[${error.code}] ${error.problem} — ${error.solution}`);
+      return { brief: null, hasBrief: false };
     }
-  } catch (e) {
-    if ((e as Error)?.name === "AbortError") return { brief: null, hasBrief: false };
-    // any other failure → keep the UX flowing with the mock below
+  } else if (text !== null) {
+    const brief = parseBrief(text);
+    return { brief, hasBrief: brief !== null };
   }
 
-  // 3) Offline mock.
-  const text = await mockRequirements(message, hist, handlers);
-  const brief = parseBrief(text);
+  // 3) Offline mock (demo mode, no key).
+  const mockText = await mockRequirements(message, hist, handlers);
+  const brief = parseBrief(mockText);
   return { brief, hasBrief: brief !== null };
 }
 
@@ -391,32 +502,26 @@ export async function streamDebug(input: DebugInput, handlers: StreamHandlers): 
   }
 }
 
-/** Call the same-origin RAA persona route. Returns the full reply, or null on 503
- *  (no provider key configured) so the caller falls back to the mock. */
+/** Call the same-origin RAA persona route. Returns the streamed reply text and any
+ *  structured provider error (transparency-first — failures are never hidden). */
 async function streamLocalRequirements(
   message: string,
   history: ChatHistoryItem[],
   handlers: StreamHandlers,
-): Promise<string | null> {
-  const res = await fetch("/api/chat", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message, agent: "requirements", history }),
-    signal: handlers.signal,
-  });
-
-  if (res.status === 503) return null; // no key → mock
-  if (!res.ok || !res.body) throw new Error(`requirements failed (${res.status})`);
-
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let full = "";
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    const chunk = decoder.decode(value, { stream: true });
-    full += chunk;
-    handlers.onToken(chunk);
+): Promise<{ text: string | null; error: AofProviderError | null }> {
+  let res: Response;
+  try {
+    res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...devHeaders() },
+      body: JSON.stringify({ message, agent: "requirements", history }),
+      signal: handlers.signal,
+    });
+  } catch (e) {
+    if ((e as Error)?.name === "AbortError") return { text: null, error: null };
+    return { text: null, error: classifyClientException(e) };
   }
-  return full;
+
+  const { error, text } = await consumeChatResponse(res, handlers);
+  return { text: error ? null : text, error };
 }

@@ -9,6 +9,7 @@ import {
   streamDebug,
 } from "@/lib/api";
 import { classifyTurn } from "@/lib/conversation-state";
+import type { AofProviderError, FailoverInfo } from "@/lib/provider-errors";
 import {
   discoveryQuestions,
   planOptions,
@@ -87,6 +88,18 @@ interface CodeState {
   canGenerate: () => boolean;
   resetConversation: () => void;
 
+  // ── AI provider error handling (transparency-first) ───────────────────────
+  /** The current critical provider error, shown in the error panel. Null = healthy. */
+  providerError: AofProviderError | null;
+  /** Set when a fallback provider took over the last request. */
+  failover: FailoverInfo | null;
+  /** Developer mode — surface raw error/status/stack in the error panel. */
+  devMode: boolean;
+  setDevMode: (v: boolean) => void;
+  dismissError: () => void;
+  /** Re-send the last user message (used by the error panel's Retry button). */
+  retryLast: () => Promise<void>;
+
   // ── Action buttons (trigger existing systems) ─────────────────────────────
   /** which action produced the current output panel */
   outputKind: "build" | "plan" | "analyze" | "debug" | null;
@@ -162,6 +175,29 @@ export const useCodeStore = create<CodeState>()(
   outputKind: null,
   debugMode: false,
 
+  providerError: null,
+  failover: null,
+  devMode: false,
+  setDevMode: (v) => {
+    set({ devMode: v });
+    if (typeof window !== "undefined") {
+      if (v) window.localStorage.setItem("aof.devMode", "1");
+      else window.localStorage.removeItem("aof.devMode");
+    }
+  },
+  dismissError: () => set({ providerError: null }),
+
+  retryLast: async () => {
+    if (get().chatting || get().building) return;
+    const convo = get().convo;
+    const idx = convo.map((m) => m.role).lastIndexOf("user");
+    if (idx === -1) return;
+    const lastUser = convo[idx];
+    // Drop the previous attempt (the user msg + any failed remnant); sendMessage re-adds it.
+    set({ convo: convo.slice(0, idx), providerError: null });
+    await get().sendMessage(lastUser.content);
+  },
+
   setDebugMode: (v) => set({ debugMode: v }),
 
   sendMessage: async (text) => {
@@ -208,7 +244,8 @@ export const useCodeStore = create<CodeState>()(
       createdAt: now,
       streaming: true,
     };
-    set((s) => ({ chatting: true, convo: [...s.convo, userMsg, assistantMsg] }));
+    // New attempt → clear any prior error/failover notice.
+    set((s) => ({ chatting: true, providerError: null, failover: null, convo: [...s.convo, userMsg, assistantMsg] }));
 
     const controller = new AbortController();
     set({ convoAbort: controller });
@@ -219,20 +256,27 @@ export const useCodeStore = create<CodeState>()(
         ),
       }));
 
+    // Transparency-first error handling: surface the structured provider error in
+    // the error panel and drop the empty assistant bubble (never fake a reply).
+    const onError = (err: AofProviderError) =>
+      set((s) => ({
+        providerError: err,
+        convo: s.convo.filter((m) => !(m.id === assistantId && m.content.trim() === "")),
+      }));
+    const onFailover = (info: FailoverInfo) => set({ failover: info });
+    const handlers = { onToken: append, onError, onFailover, signal: controller.signal };
+
     try {
       if (convState === "NORMAL_CHAT") {
         // ── NORMAL_CHAT: casual reply, no RAA, no brief update ────────────────
-        await streamCodeChat(content, history, { onToken: append, signal: controller.signal });
+        await streamCodeChat(content, history, handlers);
       } else {
         // ── DISCOVERY: RAA gathers requirements, brief may be emitted ─────────
         // Mark the project active so all subsequent turns stay in DISCOVERY
         // until the user explicitly hits "New".
         if (!get().projectActive) set({ projectActive: true });
 
-        const { brief } = await streamRequirements(content, history, {
-          onToken: append,
-          signal: controller.signal,
-        });
+        const { brief } = await streamRequirements(content, history, handlers);
         // On a fresh brief, capture it and strip the summary block from the bubble
         // (the structured brief is shown in its own panel).
         set((s) => ({
@@ -353,6 +397,8 @@ export const useCodeStore = create<CodeState>()(
       building: false,
       debugMode: false,
       outputKind: null,
+      providerError: null,
+      failover: null,
     }),
 
   buildLog: "",
@@ -453,7 +499,13 @@ export const useCodeStore = create<CodeState>()(
       // Project session memory — remember the conversation, brief and mode across
       // reloads so Aof Code doesn't re-ask what's already been decided.
       name: "aof.code",
-      partialize: (s) => ({ convo: s.convo, brief: s.brief, mode: s.mode, projectActive: s.projectActive }),
+      partialize: (s) => ({
+        convo: s.convo,
+        brief: s.brief,
+        mode: s.mode,
+        projectActive: s.projectActive,
+        devMode: s.devMode,
+      }),
     },
   ),
 );
