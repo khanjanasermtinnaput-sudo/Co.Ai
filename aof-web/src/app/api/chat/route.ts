@@ -26,7 +26,41 @@ import {
 } from "@/lib/server/ai-providers";
 import { logAofError, logAofInfo, runStartupCheckOnce } from "@/lib/server/ai-log";
 import type { ResponseStyle, RouteDecision } from "@/lib/types";
-import { RAA_SYSTEM, AOF_CODE_CHAT_SYSTEM } from "@/lib/raa";
+import {
+  RAA_SYSTEM,
+  AOF_CODE_CHAT_SYSTEM,
+  AOF_CODE_GEN_SYSTEM,
+  AOF_PLAN_SYSTEM,
+  AOF_ANALYZE_SYSTEM,
+  AOF_DEBUG_SYSTEM,
+} from "@/lib/raa";
+
+/** Agents that do not need the tmap-v2 backend: a single-pass LLM call via the
+ *  same provider chain. Each carries its own persona, temperature and budget. */
+type Agent = "chat" | "requirements" | "code-chat" | "code-gen" | "plan" | "analyze" | "debug";
+
+function agentConfig(
+  agent: Agent | undefined,
+  style: ResponseStyle | undefined,
+  route: RouteDecision | undefined,
+): { system: string; temperature: number; maxTokens: number } {
+  switch (agent) {
+    case "requirements":
+      return { system: RAA_SYSTEM, temperature: 0.5, maxTokens: 1200 };
+    case "code-chat":
+      return { system: AOF_CODE_CHAT_SYSTEM, temperature: 0.7, maxTokens: 800 };
+    case "code-gen":
+      return { system: AOF_CODE_GEN_SYSTEM, temperature: 0.4, maxTokens: 4000 };
+    case "plan":
+      return { system: AOF_PLAN_SYSTEM, temperature: 0.5, maxTokens: 2000 };
+    case "analyze":
+      return { system: AOF_ANALYZE_SYSTEM, temperature: 0.5, maxTokens: 2000 };
+    case "debug":
+      return { system: AOF_DEBUG_SYSTEM, temperature: 0.4, maxTokens: 2500 };
+    default:
+      return { system: buildSystem(style, route), temperature: 0.7, maxTokens: maxTokensFor(style) };
+  }
+}
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -44,9 +78,10 @@ interface ChatBody {
   style?: ResponseStyle;
   route?: RouteDecision;
   history?: ChatHistoryItem[];
-  /** "chat" = general assistant; "requirements" = RAA (DISCOVERY);
-   *  "code-chat" = Aof Code NORMAL_CHAT */
-  agent?: "chat" | "requirements" | "code-chat";
+  /** "chat" = general assistant; "requirements" = RAA (DISCOVERY); "code-chat" =
+   *  Aof Code NORMAL_CHAT; "code-gen"/"plan"/"analyze"/"debug" = serverless build
+   *  pipeline (used when the tmap-v2 backend is not configured). */
+  agent?: Agent;
 }
 
 function buildSystem(style: ResponseStyle | undefined, route: RouteDecision | undefined): string {
@@ -184,16 +219,7 @@ async function handleChat(req: Request): Promise<Response> {
     (h) => h && (h.role === "user" || h.role === "assistant") && typeof h.content === "string",
   );
 
-  const isRequirements = body.agent === "requirements";
-  const isCodeChat = body.agent === "code-chat";
-  const system = isRequirements
-    ? RAA_SYSTEM
-    : isCodeChat
-      ? AOF_CODE_CHAT_SYSTEM
-      : buildSystem(body.style, body.route);
-
-  const temperature = isRequirements ? 0.5 : 0.7;
-  const maxTokens = isRequirements ? 1200 : isCodeChat ? 800 : maxTokensFor(body.style);
+  const { system, temperature, maxTokens } = agentConfig(body.agent, body.style, body.route);
 
   // ── Try each configured provider in priority order, announcing any failover. ──
   let pendingFailover: ReturnType<typeof makeFailoverNotice> | undefined;

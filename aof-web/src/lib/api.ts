@@ -82,17 +82,6 @@ function backendUnavailableError(detail: string, e?: unknown): AofProviderError 
   return classifyProviderError({ provider: "Aof Backend", status: 502, message: `${detail}${suffix}` });
 }
 
-/** Build pipeline (Generate/Plan/Analyze/Debug) needs the tmap-v2 backend. */
-function buildPipelineError(): AofProviderError {
-  return classifyProviderError({
-    provider: "Aof Code build pipeline",
-    hint: "config",
-    message:
-      "The Aof Code build pipeline (Generate / Plan / Analyze / Debug) requires the tmap-v2 " +
-      "backend. Set NEXT_PUBLIC_AOF_API_BASE (or AOF_API_PROXY) to enable it.",
-  });
-}
-
 export interface SSEEvent {
   role?: string;
   kind?: string;
@@ -281,7 +270,30 @@ export async function streamChat(
   }
 }
 
-/** Stream an Aof Code build (live `/v1/run`). Requires the tmap-v2 backend. */
+/** Serverless build fallback: run a build action as a single-pass LLM call through
+ *  /api/chat (same provider chain + model fallback + structured errors) when the
+ *  tmap-v2 backend is not configured. Never fakes output — failures hit onError. */
+async function streamViaChat(
+  agent: "code-gen" | "plan" | "analyze" | "debug",
+  message: string,
+  handlers: StreamHandlers,
+): Promise<void> {
+  try {
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message, agent }),
+      signal: handlers.signal,
+    });
+    await readAofStream(res, handlers);
+  } catch (e) {
+    if (isAbortError(e)) return;
+    handlers.onError?.(networkError(e));
+  }
+}
+
+/** Stream an Aof Code build. Live `/v1/run` (tmap-v2) when configured, otherwise a
+ *  serverless single-pass generation via `/api/chat`. */
 export async function streamCodeRun(
   task: string,
   mode: "lite" | "1.0" | "pro",
@@ -293,7 +305,7 @@ export async function streamCodeRun(
     return;
   }
   if (!isLive()) {
-    handlers.onError?.(buildPipelineError());
+    await streamViaChat("code-gen", context ? `${task}\n\nProject context:\n${context}` : task, handlers);
     return;
   }
   const backendMode = mode === "1.0" ? "normal" : mode;
@@ -407,7 +419,8 @@ export async function streamRequirements(
   }
 }
 
-/** Stream a plan-only build (Aof Code "Create Plan"). Requires the tmap-v2 backend. */
+/** Stream a plan-only build ("Create Plan"). tmap-v2 `/v1/run` planOnly when
+ *  configured, otherwise a serverless plan via `/api/chat`. */
 export async function streamPlan(
   task: string,
   mode: "lite" | "1.0" | "pro",
@@ -419,7 +432,7 @@ export async function streamPlan(
     return;
   }
   if (!isLive()) {
-    handlers.onError?.(buildPipelineError());
+    await streamViaChat("plan", context ? `${task}\n\nProject context:\n${context}` : task, handlers);
     return;
   }
   const backendMode = mode === "1.0" ? "normal" : mode;
@@ -438,14 +451,15 @@ export async function streamPlan(
   }
 }
 
-/** Stream a project analysis (Aof Code "Analyze Project"). Requires the tmap-v2 backend. */
+/** Stream a project analysis ("Analyze"). tmap-v2 `/v1/analyze` when configured,
+ *  otherwise a serverless analysis via `/api/chat`. */
 export async function streamAnalyze(brief: string, handlers: StreamHandlers): Promise<void> {
   if (isDemoMode()) {
     await mockAnalyze(brief, handlers);
     return;
   }
   if (!isLive()) {
-    handlers.onError?.(buildPipelineError());
+    await streamViaChat("analyze", brief, handlers);
     return;
   }
   try {
@@ -469,14 +483,18 @@ export interface DebugInput {
   context?: string;
 }
 
-/** Stream a senior-engineer debug pass. Requires the tmap-v2 backend. */
+/** Stream a senior-engineer debug pass. tmap-v2 `/v1/debug` when configured,
+ *  otherwise a serverless debug via `/api/chat`. */
 export async function streamDebug(input: DebugInput, handlers: StreamHandlers): Promise<void> {
   if (isDemoMode()) {
     await mockDebug(input.error, handlers);
     return;
   }
   if (!isLive()) {
-    handlers.onError?.(buildPipelineError());
+    const parts = [`Error:\n${input.error}`];
+    if (input.code) parts.push(`Code:\n${input.code}`);
+    if (input.context) parts.push(`Context:\n${input.context}`);
+    await streamViaChat("debug", parts.join("\n\n"), handlers);
     return;
   }
   try {
