@@ -187,7 +187,7 @@ export function Sidebar() {
 
             {filtered.length === 0 && !serverLoading ? (
               <p className="px-2 py-3 text-center text-[12px] text-muted-foreground/50">
-                No chats match "{search}"
+                No chats match &ldquo;{search}&rdquo;
               </p>
             ) : (
               filtered.map((conv) => {
