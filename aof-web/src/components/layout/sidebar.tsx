@@ -41,6 +41,7 @@ export function Sidebar() {
   const [search, setSearch] = useState("");
   const [serverHits, setServerHits] = useState<SearchHit[]>([]);
   const [serverLoading, setServerLoading] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(60);
   const searchRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -49,6 +50,9 @@ export function Sidebar() {
   useEffect(() => {
     loadRemoteConversations();
   }, [loadRemoteConversations]);
+
+  // Reset pagination when search changes
+  useEffect(() => { setVisibleCount(60); }, [search]);
 
   // Debounced server-side FTS — fires 400ms after the user stops typing
   useEffect(() => {
@@ -80,7 +84,7 @@ export function Sidebar() {
   );
 
   const localFiltered = conversations
-    .slice(0, 60)
+    .slice(0, search ? conversations.length : visibleCount)
     .filter((c) =>
       search
         ? c.title.toLowerCase().includes(search.toLowerCase()) ||
@@ -190,25 +194,36 @@ export function Sidebar() {
                 No chats match &ldquo;{search}&rdquo;
               </p>
             ) : (
-              filtered.map((conv) => {
-                const hitExcerpt = search
-                  ? serverHits.find((h) => h.conversationId === conv.id)?.excerpt
-                  : undefined;
-                return (
-                  <ConversationItem
-                    key={conv.id}
-                    id={conv.id}
-                    title={conv.title}
-                    updatedAt={conv.updatedAt}
-                    active={conv.id === activeId && isInChat}
-                    searchQuery={search}
-                    excerpt={hitExcerpt}
-                    onSelect={() => openConversation(conv.id)}
-                    onDelete={() => deleteConversation(conv.id)}
-                    onRename={(t) => renameConversation(conv.id, t)}
-                  />
-                );
-              })
+              <>
+                {filtered.map((conv) => {
+                  const hitExcerpt = search
+                    ? serverHits.find((h) => h.conversationId === conv.id)?.excerpt
+                    : undefined;
+                  return (
+                    <ConversationItem
+                      key={conv.id}
+                      id={conv.id}
+                      title={conv.title}
+                      updatedAt={conv.updatedAt}
+                      active={conv.id === activeId && isInChat}
+                      searchQuery={search}
+                      excerpt={hitExcerpt}
+                      onSelect={() => openConversation(conv.id)}
+                      onDelete={() => deleteConversation(conv.id)}
+                      onRename={(t) => renameConversation(conv.id, t)}
+                    />
+                  );
+                })}
+                {!search && conversations.length > visibleCount && (
+                  <button
+                    type="button"
+                    onClick={() => setVisibleCount((n) => n + 60)}
+                    className="w-full rounded-lg px-2 py-1.5 text-center text-[12px] text-muted-foreground/60 transition-colors hover:bg-white/5 hover:text-muted-foreground"
+                  >
+                    Load more ({conversations.length - visibleCount} remaining)
+                  </button>
+                )}
+              </>
             )}
           </div>
         )}
