@@ -111,6 +111,13 @@ app.post('/v1/auth/login', async (req, res) => {
   }
 });
 
+// Exchange a still-valid token for a fresh one (sliding session). Keeps the
+// short 7-day TTL from forcing a re-login while the user is active.
+app.post('/v1/auth/refresh', requireAuth, (req: AuthedRequest, res) => {
+  const u = req.user!;
+  res.json({ token: signToken(u.id), username: u.username });
+});
+
 // ── ACCOUNT + KEYS ────────────────────────────────────────────────────────────
 app.get('/v1/me', requireAuth, (req: AuthedRequest, res) => {
   const u = req.user!;
