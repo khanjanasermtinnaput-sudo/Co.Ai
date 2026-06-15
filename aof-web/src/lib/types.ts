@@ -19,7 +19,7 @@ export type Role = "user" | "assistant" | "system";
 export type ResponseStyle = "short" | "normal" | "detailed";
 
 /** Where the router sends a request. Users never choose this directly. */
-export type RouteTarget = "chat" | "code" | "search";
+export type RouteTarget = "chat" | "code" | "search" | "tutor" | "reasoning" | "research";
 
 export interface RouteDecision {
   target: RouteTarget;

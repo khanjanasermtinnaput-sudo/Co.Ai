@@ -33,11 +33,25 @@ import {
   AOF_PLAN_SYSTEM,
   AOF_ANALYZE_SYSTEM,
   AOF_DEBUG_SYSTEM,
+  AOF_TUTOR_SYSTEM,
+  AOF_RESEARCH_SYSTEM,
+  AOF_REASONING_SYSTEM,
+  AOF_SYSTEM_CORE,
 } from "@/lib/raa";
 
 /** Agents that do not need the tmap-v2 backend: a single-pass LLM call via the
  *  same provider chain. Each carries its own persona, temperature and budget. */
-type Agent = "chat" | "requirements" | "code-chat" | "code-gen" | "plan" | "analyze" | "debug";
+type Agent =
+  | "chat"
+  | "requirements"
+  | "code-chat"
+  | "code-gen"
+  | "plan"
+  | "analyze"
+  | "debug"
+  | "tutor"
+  | "research"
+  | "reasoning";
 
 function agentConfig(
   agent: Agent | undefined,
@@ -57,6 +71,12 @@ function agentConfig(
       return { system: AOF_ANALYZE_SYSTEM, temperature: 0.5, maxTokens: 2000 };
     case "debug":
       return { system: AOF_DEBUG_SYSTEM, temperature: 0.4, maxTokens: 2500 };
+    case "tutor":
+      return { system: AOF_TUTOR_SYSTEM, temperature: 0.7, maxTokens: 1500 };
+    case "research":
+      return { system: AOF_RESEARCH_SYSTEM, temperature: 0.3, maxTokens: 2000 };
+    case "reasoning":
+      return { system: AOF_REASONING_SYSTEM, temperature: 0.5, maxTokens: 2500 };
     default:
       return { system: buildSystem(style, route), temperature: 0.7, maxTokens: maxTokensFor(style) };
   }
@@ -85,10 +105,7 @@ interface ChatBody {
 }
 
 function buildSystem(style: ResponseStyle | undefined, route: RouteDecision | undefined): string {
-  const persona =
-    "You are Aof, a friendly, knowledgeable AI assistant. Have natural conversations, " +
-    "answer general questions, explain ideas clearly, and help the user think things through. " +
-    "You can use Markdown when it helps readability.";
+  const persona = AOF_SYSTEM_CORE;
   const language =
     "RESPONSE LANGUAGE: Always reply in the SAME LANGUAGE the user writes in. " +
     "Thai input → Thai reply. English input → English reply.";

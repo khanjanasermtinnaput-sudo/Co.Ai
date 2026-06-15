@@ -1,6 +1,6 @@
 "use client";
 
-import { MessageSquare, Code2, Globe, type LucideIcon } from "lucide-react";
+import { MessageSquare, Code2, Globe, GraduationCap, Brain, BookOpen, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { RouteDecision, RouteTarget } from "@/lib/types";
 
@@ -8,6 +8,9 @@ const ICON: Record<RouteTarget, LucideIcon> = {
   chat: MessageSquare,
   code: Code2,
   search: Globe,
+  tutor: GraduationCap,
+  reasoning: Brain,
+  research: BookOpen,
 };
 
 /** Tiny indicator showing which agent the router auto-selected for a reply. */
