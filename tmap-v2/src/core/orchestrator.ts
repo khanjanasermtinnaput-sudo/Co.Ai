@@ -45,19 +45,40 @@ export interface AgentCallLog {
 
 const MAX_ITERATIONS: Record<Blackboard['mode'], number> = { lite: 0, normal: 1, pro: 3 };
 
-// Rough cost estimates per 1M tokens (output = 3x input weight)
+// Cost estimates per 1M tokens. OpenRouter-routed models share the same rate as
+// their direct counterpart — the overhead is minimal and the mapping simplifies
+// the lookup (use the bare model name, strip " (via OpenRouter)" suffix).
 const COST_PER_1M: Record<string, { input: number; output: number }> = {
-  'gemini-2.0-flash': { input: 0.10, output: 0.40 },
-  'deepseek-chat':    { input: 0.14, output: 0.28 },
-  'qwen-plus':        { input: 0.40, output: 1.20 },
-  'llama-3.3-70b-versatile': { input: 0.59, output: 0.79 },
-  default:            { input: 0.50, output: 1.50 },
+  'gemini-2.0-flash':         { input: 0.10, output: 0.40 },
+  'gemini-2.5-flash':         { input: 0.15, output: 0.60 },
+  'deepseek-chat':            { input: 0.14, output: 0.28 },
+  'deepseek-v3':              { input: 0.14, output: 0.28 },
+  'qwen-plus':                { input: 0.40, output: 1.20 },
+  'qwen-turbo':               { input: 0.05, output: 0.15 },
+  'llama-3.3-70b-versatile':  { input: 0.59, output: 0.79 },
+  'llama-3.1-70b-versatile':  { input: 0.59, output: 0.79 },
+  default:                    { input: 0.50, output: 1.50 },
 };
 
 function estimateCost(model: string, inputTokens: number, outputTokens: number): number {
-  const rates = COST_PER_1M[model] ?? COST_PER_1M.default;
+  // Strip " (via OpenRouter)" / " -> Fallback" suffixes if present.
+  const baseModel = model.replace(/\s*\(.*?\)\s*$/, '').replace(/\s*->.*$/, '').trim();
+  const rates = COST_PER_1M[baseModel] ?? COST_PER_1M.default;
   return (inputTokens * rates.input + outputTokens * rates.output) / 1_000_000;
 }
+
+// Token estimate from text length. The average English token is ~4 chars; the
+// 4-char divisor is the industry-standard approximation when provider headers
+// are unavailable.  It's rough (±30%) but far better than nothing for budget
+// tracking; replace with provider-returned usage counts when available.
+function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 4);
+}
+
+// Hard ceiling on the context summary string. Above this size the LLM's useful
+// context window starts to fill up with project boilerplate rather than the
+// actual task, degrading output quality.
+const CONTEXT_SUMMARY_CEILING = 64_000; // bytes
 
 /**
  * TMAP v2 loop (TDD §4): Plan -> Code -> Validate -> Review -> Critique loop.
@@ -89,7 +110,14 @@ export async function runTMAP(
       projGraph = v2.graph;
       projType = v2.projectType;
       if (!bb.context && v2.summary) {
-        bb.context = v2.summary;
+        // Enforce context ceiling — very large projects (monorepos) produce enormous
+        // summaries that crowd out the actual task and exhaust the model's context window.
+        if (Buffer.byteLength(v2.summary, 'utf8') > CONTEXT_SUMMARY_CEILING) {
+          bb.context = v2.summary.slice(0, CONTEXT_SUMMARY_CEILING) + '\n… [context truncated — project too large]';
+          emit('system', `context engine: summary truncated to ${CONTEXT_SUMMARY_CEILING / 1000}KB ceiling`, 'status');
+        } else {
+          bb.context = v2.summary;
+        }
         emit('system', `context engine: ${v2.projectType} · ${v2.tree.length} files scanned · ${v2.relevantFiles.length} relevant`, 'status');
       }
       // Keep structured meta even when context came from RAA/memory
@@ -118,9 +146,8 @@ export async function runTMAP(
     const r = await chatWithDARS(role, messages, opts, ctx);
     const durationMs = Date.now() - startMs;
 
-    // Estimate token counts from message lengths (rough; real counts need provider headers)
-    const inputTokens = Math.ceil(messages.reduce((s, m) => s + m.content.length, 0) / 4);
-    const outputTokens = Math.ceil(r.text.length / 4);
+    const inputTokens = estimateTokens(messages.reduce((s, m) => s + m.content, ''));
+    const outputTokens = estimateTokens(r.text);
     const costUsd = estimateCost(r.provider.model, inputTokens, outputTokens);
 
     totalCostUsd += costUsd;

@@ -8,24 +8,37 @@ function jwtSecret(): string {
   return s;
 }
 
+// Session tokens are short-lived; clients refresh via POST /v1/auth/refresh (a
+// valid, non-expired token is exchanged for a fresh one — sliding session). This
+// limits the blast radius of a leaked token to ~7 days instead of a month.
+const TOKEN_TTL = '7d';
+
 export function signToken(userId: string): string {
-  return jwt.sign({ sub: userId }, jwtSecret(), { expiresIn: '30d' });
+  return jwt.sign({ sub: userId }, jwtSecret(), { expiresIn: TOKEN_TTL });
 }
 
 export interface AuthedRequest extends Request {
   user?: UserRecord;
 }
 
-export function requireAuth(req: AuthedRequest, res: Response, next: NextFunction): void {
+export async function requireAuth(req: AuthedRequest, res: Response, next: NextFunction): Promise<void> {
   const token = (req.headers.authorization || '').replace('Bearer ', '');
   if (!token) { res.status(401).json({ error: 'missing token' }); return; }
+
+  let payload: { sub: string };
   try {
-    const payload = jwt.verify(token, jwtSecret()) as { sub: string };
-    findUserById(payload.sub).then((user) => {
-      if (!user) { res.status(401).json({ error: 'user not found' }); return; }
-      req.user = user; next();
-    }).catch(() => res.status(401).json({ error: 'auth error' }));
+    payload = jwt.verify(token, jwtSecret()) as { sub: string };
   } catch {
     res.status(401).json({ error: 'invalid token' });
+    return;
+  }
+
+  try {
+    const user = await findUserById(payload.sub);
+    if (!user) { res.status(401).json({ error: 'user not found' }); return; }
+    req.user = user;
+    next();
+  } catch {
+    res.status(401).json({ error: 'auth error' });
   }
 }

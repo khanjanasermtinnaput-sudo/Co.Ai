@@ -44,8 +44,14 @@ export async function chatWithDARS(
 ): Promise<DarsResult> {
   const candidates = listProviderCandidates(role, ctx.creds);
 
-  // No keys at all → mock mode (keeps the offline demo working, like the prototype).
+  // No keys at all → mock mode (offline demo). Emit a visible warning so the
+  // user knows they're getting a simulated response, not a real model answer.
   if (!candidates.length) {
+    ctx.emit('system',
+      `[MOCK] No API keys configured for role "${role}" — response is simulated. ` +
+      'Add your provider key in Settings to get real AI responses.',
+      'status',
+    );
     const mock: ResolvedProvider = {
       role, providerName: `${role} (mock)`, baseURL: '', apiKey: '', model: 'mock', mode: 'mock',
     };
@@ -56,6 +62,12 @@ export async function chatWithDARS(
   let lastErr: Error | undefined;
 
   for (let attempt = 0; attempt < MAX_FAILOVER; attempt++) {
+    // Brief exponential backoff between failover attempts so a flaky provider
+    // isn't hammered immediately. First attempt has no delay.
+    if (attempt > 0) {
+      await new Promise((r) => setTimeout(r, Math.min(100 * 2 ** (attempt - 1), 800)));
+    }
+
     const cand = pickHealthy(role, candidates, tried, ctx.health);
     if (!cand) break;
     tried.add(cand.healthKey);

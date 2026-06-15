@@ -30,8 +30,30 @@ import { globalHealth } from '../dars/health.js';
 const PROVIDERS: ProviderKeyName[] = ['openrouter', 'gemini', 'deepseek', 'qwen', 'llama'];
 
 const app = express();
-app.use(cors());
-app.use(express.json());
+
+// ── SECURITY middleware ───────────────────────────────────────────────────────
+// Restrict CORS to known client origins; the wildcard default lets any site
+// send requests with a stolen token.
+const ALLOWED_ORIGINS = (process.env.AOF_ALLOWED_ORIGINS ?? '')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+
+app.use(cors({
+  origin: (origin, cb) => {
+    // Allow same-origin / non-browser calls (e.g. server-to-server, curl).
+    if (!origin) return cb(null, true);
+    // Allow any configured origin, or localhost in development.
+    if (
+      ALLOWED_ORIGINS.includes(origin) ||
+      process.env.NODE_ENV !== 'production' ||
+      /^https?:\/\/localhost(:\d+)?$/.test(origin)
+    ) return cb(null, true);
+    cb(new Error(`CORS: origin not allowed: ${origin}`));
+  },
+  credentials: true,
+}));
+app.use(express.json({ limit: '1mb' }));
 
 // ── REQUEST LOGGING middleware ────────────────────────────────────────────────
 app.use((req, _res, next) => {
@@ -46,6 +68,17 @@ function validUsername(u: unknown): u is string {
 }
 function validPin(p: unknown): p is string {
   return typeof p === 'string' && /^\d{4,8}$/.test(String(p).trim());
+}
+
+// Max byte lengths for free-text user inputs to prevent memory-exhaustion DoS.
+const MAX_TASK    = 10_000;
+const MAX_MESSAGE = 10_000;
+const MAX_CODE    = 50_000;  // code files are larger, keep a generous limit
+const MAX_CONTEXT = 20_000;
+const MAX_BRIEF   = 10_000;
+
+function tooLong(value: string, limit: number): boolean {
+  return Buffer.byteLength(value, 'utf8') > limit;
 }
 
 // ── AUTH ──────────────────────────────────────────────────────────────────────
@@ -109,6 +142,13 @@ app.post('/v1/auth/login', async (req, res) => {
     logger.error('login_error', { error: (e as Error).message });
     return res.status(500).json({ error: 'เกิดข้อผิดพลาด กรุณาลองใหม่' });
   }
+});
+
+// Exchange a still-valid token for a fresh one (sliding session). Keeps the
+// short 7-day TTL from forcing a re-login while the user is active.
+app.post('/v1/auth/refresh', requireAuth, (req: AuthedRequest, res) => {
+  const u = req.user!;
+  res.json({ token: signToken(u.id), username: u.username });
 });
 
 // ── ACCOUNT + KEYS ────────────────────────────────────────────────────────────
@@ -176,6 +216,7 @@ app.post('/v1/chat', requireAuth, async (req: AuthedRequest, res) => {
   const message = String(req.body?.message ?? '').trim();
   const history: ChatMessage[] = Array.isArray(req.body?.history) ? req.body.history : [];
   if (!message) return res.status(400).json({ error: 'message required' });
+  if (tooLong(message, MAX_MESSAGE)) return res.status(413).json({ error: `message too long (max ${MAX_MESSAGE} bytes)` });
 
   const u = req.user!;
   const creds: CredentialBag = {};
@@ -215,6 +256,9 @@ app.post('/v1/debug', requireAuth, async (req: AuthedRequest, res) => {
   const code = String(req.body?.code ?? '');
   const context = String(req.body?.context ?? '');
   if (!error) return res.status(400).json({ error: 'error description required' });
+  if (tooLong(error, MAX_MESSAGE)) return res.status(413).json({ error: `error description too long (max ${MAX_MESSAGE} bytes)` });
+  if (tooLong(code, MAX_CODE)) return res.status(413).json({ error: `code too long (max ${MAX_CODE} bytes)` });
+  if (tooLong(context, MAX_CONTEXT)) return res.status(413).json({ error: `context too long (max ${MAX_CONTEXT} bytes)` });
 
   const u = req.user!;
   const creds: CredentialBag = {};
@@ -255,6 +299,7 @@ app.post('/v1/debug', requireAuth, async (req: AuthedRequest, res) => {
 app.post('/v1/analyze', requireAuth, async (req: AuthedRequest, res) => {
   const brief = String(req.body?.brief ?? req.body?.context ?? '').trim();
   if (!brief) return res.status(400).json({ error: 'brief required' });
+  if (tooLong(brief, MAX_BRIEF)) return res.status(413).json({ error: `brief too long (max ${MAX_BRIEF} bytes)` });
 
   const u = req.user!;
   const creds: CredentialBag = {};
@@ -295,6 +340,7 @@ app.post('/v1/titan', requireAuth, async (req: AuthedRequest, res) => {
   const message = String(req.body?.message ?? '').trim();
   const history: ChatMessage[] = Array.isArray(req.body?.history) ? req.body.history : [];
   if (!message) return res.status(400).json({ error: 'message required' });
+  if (tooLong(message, MAX_MESSAGE)) return res.status(413).json({ error: `message too long (max ${MAX_MESSAGE} bytes)` });
 
   const u = req.user!;
   const creds: CredentialBag = {};
@@ -357,6 +403,8 @@ app.post('/v1/run', requireAuth, async (req: AuthedRequest, res) => {
   const context = String(req.body?.context ?? '').trim();
   const planOnly = req.body?.planOnly === true; // "Create Plan": plan, don't generate
   if (!task) return res.status(400).json({ error: 'task required' });
+  if (tooLong(task, MAX_TASK)) return res.status(413).json({ error: `task too long (max ${MAX_TASK} bytes)` });
+  if (tooLong(context, MAX_CONTEXT)) return res.status(413).json({ error: `context too long (max ${MAX_CONTEXT} bytes)` });
 
   const u = req.user!;
   const creds: CredentialBag = {};

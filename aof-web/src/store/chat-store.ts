@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { toast } from "sonner";
 import { uid } from "@/lib/utils";
 import { streamChat, type ChatHistoryItem } from "@/lib/api";
 import { routeRequest } from "@/lib/router";
@@ -81,7 +82,9 @@ export const useChatStore = create<ChatState>()(
         };
         set((s) => ({ conversations: [conv, ...s.conversations], activeId: id }));
         if (conversationsEnabled()) {
-          createConversation(conv).catch(() => {});
+          createConversation(conv).catch(() => {
+            toast.error("Sync failed — chat saved locally", { id: "sync-error", duration: 4000 });
+          });
         }
         return id;
       },
@@ -98,7 +101,9 @@ export const useChatStore = create<ChatState>()(
           return { conversations: remaining, activeId: nextActive };
         });
         if (conversationsEnabled()) {
-          deleteConversationRemote(id).catch(() => {});
+          deleteConversationRemote(id).catch(() => {
+            toast.error("Sync failed — deleted locally", { id: "sync-error", duration: 4000 });
+          });
         }
       },
 
@@ -218,7 +223,9 @@ export const useChatStore = create<ChatState>()(
                 const toSave = messages.filter(
                   (m) => m.id === userMsg.id || m.id === assistantId,
                 );
-                saveMessages(activeId, toSave).catch(() => {});
+                saveMessages(activeId, toSave).catch(() => {
+                  toast.error("Sync failed — messages saved locally", { id: "sync-error", duration: 4000 });
+                });
               }
               return { ...c, messages, updatedAt };
             }),

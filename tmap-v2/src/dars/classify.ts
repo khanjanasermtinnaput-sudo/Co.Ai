@@ -3,10 +3,11 @@
 // resilience layer can decide: retry, failover, or cool the provider down.
 
 export type FailureKind =
-  | 'down'         // network / DNS / 5xx — provider unreachable
+  | 'down'         // network / DNS / 5xx — provider unreachable (transient)
   | 'timeout'      // exceeded PER_CALL_TIMEOUT (AbortController)
   | 'rate_limit'   // HTTP 429
-  | 'quota'        // 402/403 billing / quota exhausted
+  | 'quota'        // 402 billing / quota exhausted
+  | 'auth'         // 401 Unauthorized / 403 Forbidden — bad key (permanent for this key)
   | 'high_latency' // slow but succeeded (recorded separately)
   | 'low_quality'; // empty / unparseable / failed quality gate
 
@@ -15,9 +16,17 @@ export function classifyError(e: Error): FailureKind {
 
   if (m.includes('abort') || m.includes('timeout') || m.includes('timed out')) return 'timeout';
   if (m.includes('429') || m.includes('rate limit') || m.includes('too many requests')) return 'rate_limit';
+  // 401/403 with auth keywords = invalid key — permanent until key changes, don't
+  // treat as transient "down" (that would retry pointlessly with the same bad key).
+  if (
+    m.includes('401') || m.includes('403') ||
+    m.includes('unauthorized') || m.includes('forbidden') ||
+    m.includes('invalid api key') || m.includes('invalid_api_key') ||
+    m.includes('authentication') || m.includes('api key')
+  ) return 'auth';
   if (
     m.includes('quota') || m.includes('insufficient') || m.includes('billing') ||
-    m.includes('payment') || m.includes(' 402') || m.includes('http 402') || m.includes(' 403') || m.includes('http 403')
+    m.includes('payment') || m.includes(' 402') || m.includes('http 402')
   ) return 'quota';
   if (m.includes('empty response')) return 'low_quality';
   if (
