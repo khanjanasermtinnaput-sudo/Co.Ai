@@ -44,8 +44,14 @@ export async function chatWithDARS(
 ): Promise<DarsResult> {
   const candidates = listProviderCandidates(role, ctx.creds);
 
-  // No keys at all → mock mode (keeps the offline demo working, like the prototype).
+  // No keys at all → mock mode (offline demo). Emit a visible warning so the
+  // user knows they're getting a simulated response, not a real model answer.
   if (!candidates.length) {
+    ctx.emit('system',
+      `[MOCK] No API keys configured for role "${role}" — response is simulated. ` +
+      'Add your provider key in Settings to get real AI responses.',
+      'status',
+    );
     const mock: ResolvedProvider = {
       role, providerName: `${role} (mock)`, baseURL: '', apiKey: '', model: 'mock', mode: 'mock',
     };
