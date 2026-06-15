@@ -209,8 +209,31 @@ const OPENROUTER_CHAT_URL = "https://openrouter.ai/api/v1/chat/completions";
 // connection — before any token has streamed — so there is no risk of duplicating
 // content. Backoff is short and abort-aware so the Stop button still works.
 const TRANSIENT_STATUSES = new Set([408, 425, 429, 500, 502, 503, 504]);
+// A bad key/permission won't be fixed by trying another model with the same key.
+const FATAL_STATUSES = new Set([401, 403]);
 const OPENROUTER_MAX_ATTEMPTS = 3;
 const OPENROUTER_BACKOFF_MS = [300, 800];
+
+// Free OpenRouter models get saturated independently, so when the configured one is
+// overloaded Aof falls through to another free model — staying answerable with no
+// paid key. The configured OPENROUTER_MODEL is always tried first; override the whole
+// chain with OPENROUTER_MODELS (comma-separated).
+const OPENROUTER_FREE_FALLBACKS = [
+  "meta-llama/llama-3.3-70b-instruct:free",
+  "meta-llama/llama-3.1-8b-instruct:free",
+  "google/gemma-2-9b-it:free",
+  "mistralai/mistral-7b-instruct:free",
+];
+
+function openrouterModelChain(): string[] {
+  const primary = modelFor(PROVIDER_REGISTRY.openrouter);
+  const fromEnv = process.env.OPENROUTER_MODELS?.split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const chain = fromEnv && fromEnv.length ? fromEnv : OPENROUTER_FREE_FALLBACKS;
+  // Primary first, then the fallbacks, de-duplicated.
+  return [...new Set([primary, ...chain])];
+}
 
 function abortableDelay(ms: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -227,10 +250,24 @@ function abortableDelay(ms: number, signal: AbortSignal): Promise<void> {
   });
 }
 
-/** Open the streaming connection, retrying transient upstream failures. */
-async function openrouterConnect(meta: ProviderMeta, body: string, signal: AbortSignal): Promise<Response> {
+/** Open the streaming connection for one model, retrying transient upstream failures. */
+async function openrouterConnect(
+  meta: ProviderMeta,
+  model: string,
+  messages: unknown[],
+  input: AdapterInput,
+  maxAttempts: number,
+): Promise<Response> {
+  const body = JSON.stringify({
+    model,
+    messages,
+    temperature: input.temperature,
+    max_tokens: input.maxTokens,
+    stream: true,
+  });
+
   let lastTransient: ProviderHttpError | undefined;
-  for (let attempt = 1; attempt <= OPENROUTER_MAX_ATTEMPTS; attempt++) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const res = await fetch(OPENROUTER_CHAT_URL, {
       method: "POST",
       headers: {
@@ -240,7 +277,7 @@ async function openrouterConnect(meta: ProviderMeta, body: string, signal: Abort
         "X-Title": "Aof",
       },
       body,
-      signal,
+      signal: input.signal,
     });
 
     if (res.ok && res.body) return res;
@@ -249,9 +286,9 @@ async function openrouterConnect(meta: ProviderMeta, body: string, signal: Abort
     const { type, message } = parseUpstreamError(text);
     const err = new ProviderHttpError(res.status, text, type, message);
 
-    if (TRANSIENT_STATUSES.has(res.status) && attempt < OPENROUTER_MAX_ATTEMPTS) {
+    if (TRANSIENT_STATUSES.has(res.status) && attempt < maxAttempts) {
       lastTransient = err;
-      await abortableDelay(OPENROUTER_BACKOFF_MS[attempt - 1] ?? 800, signal);
+      await abortableDelay(OPENROUTER_BACKOFF_MS[attempt - 1] ?? 800, input.signal);
       continue;
     }
     throw err;
@@ -262,25 +299,35 @@ async function openrouterConnect(meta: ProviderMeta, body: string, signal: Abort
 
 export async function* openrouterTextStream(input: AdapterInput): AsyncGenerator<string> {
   const meta = PROVIDER_REGISTRY.openrouter;
-  const model = modelFor(meta);
-
   const messages = [
     { role: "system", content: input.system },
     ...input.history,
     { role: "user", content: input.message },
   ];
 
-  const res = await openrouterConnect(
-    meta,
-    JSON.stringify({
-      model,
-      messages,
-      temperature: input.temperature,
-      max_tokens: input.maxTokens,
-      stream: true,
-    }),
-    input.signal,
-  );
+  // Try each model in the chain; an overloaded/rate-limited/unknown model falls
+  // through to the next free one. With multiple models we attempt each once (the
+  // chain is the resilience); a single configured model still gets retried.
+  const chain = openrouterModelChain();
+  const perModelAttempts = chain.length > 1 ? 1 : OPENROUTER_MAX_ATTEMPTS;
+
+  let res: Response | undefined;
+  let lastError: ProviderHttpError | undefined;
+  for (const model of chain) {
+    try {
+      res = await openrouterConnect(meta, model, messages, input, perModelAttempts);
+      break;
+    } catch (thrown) {
+      if (isAbort(thrown)) throw thrown;
+      if (thrown instanceof ProviderHttpError) {
+        lastError = thrown;
+        if (FATAL_STATUSES.has(thrown.status)) throw thrown; // key/permission — stop
+        continue; // overloaded / rate-limited / invalid model → next free model
+      }
+      throw thrown; // network-level failure — same host for every model
+    }
+  }
+  if (!res) throw lastError ?? new ProviderHttpError(502, "", undefined, "All models unavailable");
 
   const reader = res.body!.getReader();
   const decoder = new TextDecoder();
