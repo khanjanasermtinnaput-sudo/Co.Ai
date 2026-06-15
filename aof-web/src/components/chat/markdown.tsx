@@ -1,14 +1,10 @@
+"use client";
+
 import * as React from "react";
+import { Copy, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-/**
- * Minimal, dependency-free markdown renderer scoped to what Aof produces:
- * headings, bold, inline code, fenced code blocks, ordered/unordered lists,
- * and paragraphs. Safe by construction — we never use dangerouslySetInnerHTML.
- */
-
 function renderInline(text: string, keyBase: string): React.ReactNode[] {
-  // Split on inline code first, then handle bold inside the rest.
   const nodes: React.ReactNode[] = [];
   const parts = text.split(/(`[^`]+`)/g);
   parts.forEach((part, i) => {
@@ -39,6 +35,38 @@ function renderInline(text: string, keyBase: string): React.ReactNode[] {
   return nodes;
 }
 
+function CodeBlock({ lang, body }: { lang: string; body: string }) {
+  const [copied, setCopied] = React.useState(false);
+
+  const copy = async () => {
+    await navigator.clipboard.writeText(body);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  return (
+    <div className="group/code relative overflow-hidden rounded-xl border border-white/10 bg-black/40">
+      {/* header bar */}
+      <div className="flex h-8 items-center justify-between border-b border-white/[0.06] px-3">
+        <span className="font-mono text-[11px] text-muted-foreground/60">
+          {lang || "code"}
+        </span>
+        <button
+          type="button"
+          onClick={copy}
+          className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-muted-foreground/50 opacity-0 transition-all hover:text-foreground group-hover/code:opacity-100"
+        >
+          {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
+          {copied ? "Copied" : "Copy"}
+        </button>
+      </div>
+      <pre className="overflow-x-auto p-3 font-mono text-[13px] leading-relaxed text-foreground/90">
+        <code>{body}</code>
+      </pre>
+    </div>
+  );
+}
+
 export function Markdown({ content, className }: { content: string; className?: string }) {
   const blocks = React.useMemo(() => content.split(/\n{2,}/), [content]);
 
@@ -50,15 +78,10 @@ export function Markdown({ content, className }: { content: string; className?: 
 
         // Fenced code block
         if (trimmed.startsWith("```")) {
-          const body = trimmed.replace(/^```[a-z]*\n?/i, "").replace(/```$/, "");
-          return (
-            <pre
-              key={bi}
-              className="overflow-x-auto rounded-xl border border-white/10 bg-black/40 p-3 font-mono text-[13px] leading-relaxed text-foreground/90"
-            >
-              <code>{body}</code>
-            </pre>
-          );
+          const langMatch = /^```([a-z0-9]*)/i.exec(trimmed);
+          const lang = langMatch?.[1] ?? "";
+          const body = trimmed.replace(/^```[a-z0-9]*\n?/i, "").replace(/```$/, "");
+          return <CodeBlock key={bi} lang={lang} body={body} />;
         }
 
         // Headings
@@ -103,7 +126,7 @@ export function Markdown({ content, className }: { content: string; className?: 
           );
         }
 
-        // Paragraph (preserve single line breaks)
+        // Paragraph
         return (
           <p key={bi}>
             {lines.map((l, li) => (

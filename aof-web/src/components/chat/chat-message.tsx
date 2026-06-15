@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Copy, Check } from "lucide-react";
+import { Copy, Check, RefreshCw, ThumbsUp, ThumbsDown } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import type { ChatMessageT } from "@/lib/types";
@@ -14,9 +14,18 @@ import { LearningAnswerView } from "./learning-answer";
 import { ErrorPanel } from "@/components/diagnostics/error-panel";
 import { FailoverNotice } from "@/components/diagnostics/failover-notice";
 
-export function ChatMessage({ message }: { message: ChatMessageT }) {
+export function ChatMessage({
+  message,
+  isLast,
+  onRegenerate,
+}: {
+  message: ChatMessageT;
+  isLast?: boolean;
+  onRegenerate?: () => void;
+}) {
   const isUser = message.role === "user";
   const [copied, setCopied] = useState(false);
+  const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
 
   const copy = async () => {
     await navigator.clipboard.writeText(message.content);
@@ -48,11 +57,9 @@ export function ChatMessage({ message }: { message: ChatMessageT }) {
 
       {/* bubble */}
       <div className={cn("flex min-w-0 max-w-[min(680px,85%)] flex-col gap-1.5", isUser && "items-end")}>
-        {/* A failover, when it happened, is always announced above the reply. */}
         {!isUser && message.failover && <FailoverNotice notice={message.failover} />}
 
         {!isUser && message.error ? (
-          // ── Provider failed: show an error panel, never a fabricated reply. ──
           <>
             {message.content && (
               <div className="rounded-2xl rounded-tl-md border border-white/[0.06] bg-card/50 px-4 py-3 opacity-70">
@@ -93,20 +100,72 @@ export function ChatMessage({ message }: { message: ChatMessageT }) {
               )}
             </div>
 
+            {/* ── Action bar (assistant messages only, not streaming) ───── */}
             {!isUser && message.content && !message.streaming && (
-              <button
-                type="button"
-                onClick={copy}
-                className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
-              >
-                {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
-                {copied ? "Copied" : "Copy"}
-              </button>
+              <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                {/* Copy */}
+                <ActionButton onClick={copy} label={copied ? "Copied" : "Copy"}>
+                  {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+                </ActionButton>
+
+                {/* Thumbs up */}
+                <ActionButton
+                  onClick={() => setFeedback(feedback === "up" ? null : "up")}
+                  label="Helpful"
+                  active={feedback === "up"}
+                >
+                  <ThumbsUp className="size-3.5" />
+                </ActionButton>
+
+                {/* Thumbs down */}
+                <ActionButton
+                  onClick={() => setFeedback(feedback === "down" ? null : "down")}
+                  label="Not helpful"
+                  active={feedback === "down"}
+                >
+                  <ThumbsDown className="size-3.5" />
+                </ActionButton>
+
+                {/* Regenerate — only on the last assistant message */}
+                {isLast && onRegenerate && (
+                  <ActionButton onClick={onRegenerate} label="Regenerate">
+                    <RefreshCw className="size-3.5" />
+                  </ActionButton>
+                )}
+              </div>
             )}
           </>
         )}
       </div>
     </motion.div>
+  );
+}
+
+function ActionButton({
+  onClick,
+  label,
+  active,
+  children,
+}: {
+  onClick: () => void;
+  label: string;
+  active?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={label}
+      className={cn(
+        "inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs transition-colors",
+        active
+          ? "text-primary"
+          : "text-muted-foreground hover:text-foreground",
+      )}
+    >
+      {children}
+    </button>
   );
 }
 
