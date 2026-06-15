@@ -138,32 +138,53 @@ const ORTEST_INPUT = {
   signal: new AbortController().signal,
 };
 
+/** A 200 stream that never emits a token (and errors when its signal aborts). */
+function hangingResponse(signal?: AbortSignal): Response {
+  const body = new ReadableStream<Uint8Array>({
+    start(c) {
+      signal?.addEventListener(
+        "abort",
+        () => {
+          try {
+            c.error(new DOMException("Aborted", "AbortError"));
+          } catch {
+            /* already closed */
+          }
+        },
+        { once: true },
+      );
+    },
+  });
+  return new Response(body, { status: 200, headers: { "content-type": "text/event-stream" } });
+}
+
 /** Run `fn` with OpenRouter env + global fetch stubbed, then restore everything. */
 async function withOpenRouter(
-  env: { model?: string; models?: string },
-  fetchImpl: () => Promise<Response>,
+  env: { model?: string; models?: string; firstToken?: string },
+  fetchImpl: typeof fetch,
   fn: () => Promise<void>,
 ): Promise<void> {
   const prev = {
     key: process.env.OPENROUTER_API_KEY,
     model: process.env.OPENROUTER_MODEL,
     models: process.env.OPENROUTER_MODELS,
+    firstToken: process.env.OPENROUTER_FIRST_TOKEN_MS,
     fetch: globalThis.fetch,
   };
+  const set = (k: string, v: string | undefined) =>
+    v === undefined ? delete process.env[k] : (process.env[k] = v);
   process.env.OPENROUTER_API_KEY = "test-key";
-  if (env.model) process.env.OPENROUTER_MODEL = env.model;
-  else delete process.env.OPENROUTER_MODEL;
-  if (env.models) process.env.OPENROUTER_MODELS = env.models;
-  else delete process.env.OPENROUTER_MODELS;
-  globalThis.fetch = fetchImpl as typeof fetch;
+  set("OPENROUTER_MODEL", env.model);
+  set("OPENROUTER_MODELS", env.models);
+  set("OPENROUTER_FIRST_TOKEN_MS", env.firstToken);
+  globalThis.fetch = fetchImpl;
   try {
     await fn();
   } finally {
-    const restore = (k: string, v: string | undefined) =>
-      v === undefined ? delete process.env[k] : (process.env[k] = v);
-    restore("OPENROUTER_API_KEY", prev.key);
-    restore("OPENROUTER_MODEL", prev.model);
-    restore("OPENROUTER_MODELS", prev.models);
+    set("OPENROUTER_API_KEY", prev.key);
+    set("OPENROUTER_MODEL", prev.model);
+    set("OPENROUTER_MODELS", prev.models);
+    set("OPENROUTER_FIRST_TOKEN_MS", prev.firstToken);
     globalThis.fetch = prev.fetch;
   }
 }
@@ -210,6 +231,25 @@ test("exhausting the whole model chain throws the last upstream status", async (
     );
     assert.equal(calls, 3); // one attempt for each of the three models
   });
+});
+
+test("a model slow to send its first token times out and falls through", async () => {
+  let calls = 0;
+  await withOpenRouter(
+    { model: "test/m1", models: "test/m1,test/m2", firstToken: "40" },
+    (async (...args: Parameters<typeof fetch>) => {
+      calls += 1;
+      const init = args[1];
+      if (calls === 1) return hangingResponse(init?.signal ?? undefined); // never sends a token
+      return sseResponse(["ok"]);
+    }) as typeof fetch,
+    async () => {
+      let out = "";
+      for await (const chunk of openrouterTextStream(ORTEST_INPUT)) out += chunk;
+      assert.equal(out, "ok");
+      assert.equal(calls, 2); // m1 timed out, m2 answered
+    },
+  );
 });
 
 test("a fatal 401 stops immediately without trying other models", async () => {

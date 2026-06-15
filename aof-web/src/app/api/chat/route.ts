@@ -30,6 +30,9 @@ import { RAA_SYSTEM, AOF_CODE_CHAT_SYSTEM } from "@/lib/raa";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// Streaming + per-model fallback can need more than the default budget; request
+// the max the plan allows so a slow model fails over instead of being killed.
+export const maxDuration = 60;
 
 interface ChatHistoryItem {
   role: "user" | "assistant";
@@ -125,6 +128,25 @@ function logStartup(): void {
 }
 
 export async function POST(req: Request): Promise<Response> {
+  try {
+    return await handleChat(req);
+  } catch (err) {
+    // Last-resort guard: an unexpected throw must still become a structured error
+    // envelope — never an opaque 500 the client can only render as a generic
+    // "Aof is unavailable" panel. This also logs the real stack for diagnosis.
+    const e = err as { message?: string; status?: number; stack?: string };
+    const error = classifyProviderError({
+      provider: "Aof",
+      message: e?.message ?? "Unexpected server error",
+      status: typeof e?.status === "number" ? e.status : undefined,
+      stack: e?.stack,
+    });
+    logAofError(error);
+    return errorResponse(error);
+  }
+}
+
+async function handleChat(req: Request): Promise<Response> {
   logStartup();
 
   const providers = configuredProviders();

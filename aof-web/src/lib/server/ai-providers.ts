@@ -297,6 +297,15 @@ async function openrouterConnect(
   throw lastTransient ?? new ProviderHttpError(502, "", undefined, "Provider unavailable");
 }
 
+/** Max time to wait for a model's FIRST token before abandoning it for the next
+ *  one. Free models often accept the request (200) but are slow to start when
+ *  queued; without this the function would hang until the platform kills it (an
+ *  opaque 500). Overridable via OPENROUTER_FIRST_TOKEN_MS (used by tests). */
+function firstTokenDeadlineMs(): number {
+  const v = Number(process.env.OPENROUTER_FIRST_TOKEN_MS);
+  return Number.isFinite(v) && v > 0 ? v : 6000;
+}
+
 export async function* openrouterTextStream(input: AdapterInput): AsyncGenerator<string> {
   const meta = PROVIDER_REGISTRY.openrouter;
   const messages = [
@@ -305,59 +314,100 @@ export async function* openrouterTextStream(input: AdapterInput): AsyncGenerator
     { role: "user", content: input.message },
   ];
 
-  // Try each model in the chain; an overloaded/rate-limited/unknown model falls
+  // Try each model in the chain; an overloaded/rate-limited/unknown/slow model falls
   // through to the next free one. With multiple models we attempt each once (the
   // chain is the resilience); a single configured model still gets retried.
   const chain = openrouterModelChain();
   const perModelAttempts = chain.length > 1 ? 1 : OPENROUTER_MAX_ATTEMPTS;
 
-  let res: Response | undefined;
   let lastError: ProviderHttpError | undefined;
-  for (const model of chain) {
-    try {
-      res = await openrouterConnect(meta, model, messages, input, perModelAttempts);
-      break;
-    } catch (thrown) {
-      if (isAbort(thrown)) throw thrown;
-      if (thrown instanceof ProviderHttpError) {
-        lastError = thrown;
-        if (FATAL_STATUSES.has(thrown.status)) throw thrown; // key/permission — stop
-        continue; // overloaded / rate-limited / invalid model → next free model
-      }
-      throw thrown; // network-level failure — same host for every model
-    }
-  }
-  if (!res) throw lastError ?? new ProviderHttpError(502, "", undefined, "All models unavailable");
 
-  const reader = res.body!.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() ?? "";
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed.startsWith("data:")) continue;
-      const data = trimmed.slice(5).trim();
-      if (data === "[DONE]") return;
-      try {
-        const json = JSON.parse(data);
-        // An error can arrive mid-stream as a data frame.
-        if (json?.error) {
-          const msg = typeof json.error === "string" ? json.error : json.error?.message;
-          throw new ProviderHttpError(json.error?.code ?? 502, data, json.error?.type, msg);
-        }
-        const delta: string = json?.choices?.[0]?.delta?.content ?? "";
-        if (delta) yield delta;
-      } catch (e) {
-        if (e instanceof ProviderHttpError) throw e;
-        /* ignore malformed keep-alive frames */
+  for (const model of chain) {
+    // Per-model deadline covering connect + the FIRST token. A model that is slow
+    // to start is abandoned (timedOut) for the next one rather than hanging.
+    const ctrl = new AbortController();
+    const onUserAbort = () => ctrl.abort();
+    input.signal.addEventListener("abort", onUserAbort, { once: true });
+    let timedOut = false;
+    let timer: ReturnType<typeof setTimeout> | undefined = setTimeout(() => {
+      timedOut = true;
+      ctrl.abort();
+    }, firstTokenDeadlineMs());
+    const clearDeadline = () => {
+      if (timer) {
+        clearTimeout(timer);
+        timer = undefined;
       }
+    };
+
+    let started = false;
+    try {
+      const res = await openrouterConnect(meta, model, messages, { ...input, signal: ctrl.signal }, perModelAttempts);
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed.startsWith("data:")) continue;
+          const data = trimmed.slice(5).trim();
+          if (data === "[DONE]") {
+            clearDeadline();
+            input.signal.removeEventListener("abort", onUserAbort);
+            return;
+          }
+          let delta = "";
+          try {
+            const json = JSON.parse(data);
+            // An error can arrive mid-stream as a data frame.
+            if (json?.error) {
+              const msg = typeof json.error === "string" ? json.error : json.error?.message;
+              throw new ProviderHttpError(json.error?.code ?? 502, data, json.error?.type, msg);
+            }
+            delta = json?.choices?.[0]?.delta?.content ?? "";
+          } catch (e) {
+            if (e instanceof ProviderHttpError) throw e;
+            /* ignore malformed keep-alive frames */
+          }
+          if (delta) {
+            if (!started) {
+              started = true;
+              clearDeadline(); // model is alive — stop the first-token clock
+            }
+            yield delta;
+          }
+        }
+      }
+      // Stream ended cleanly.
+      if (started) {
+        input.signal.removeEventListener("abort", onUserAbort);
+        return; // fully streamed this model
+      }
+      lastError = new ProviderHttpError(502, "", "empty", `No content from ${model}`);
+    } catch (thrown) {
+      if (started) throw thrown; // mid-stream failure → primeAndStream emits an in-band error frame
+      if (timedOut && !input.signal.aborted) {
+        lastError = new ProviderHttpError(504, "", "timeout", `No response from ${model} in time`);
+      } else if (isAbort(thrown)) {
+        throw thrown; // genuine user abort while priming
+      } else if (thrown instanceof ProviderHttpError) {
+        if (FATAL_STATUSES.has(thrown.status)) throw thrown; // key/permission — stop
+        lastError = thrown; // overloaded / rate-limited / invalid model → next model
+      } else {
+        throw thrown; // network-level failure — same host for every model
+      }
+    } finally {
+      clearDeadline();
+      input.signal.removeEventListener("abort", onUserAbort);
     }
   }
+
+  throw lastError ?? new ProviderHttpError(502, "", undefined, "All models unavailable");
 }
 
 function parseUpstreamError(body: string): { type?: string; message?: string } {
