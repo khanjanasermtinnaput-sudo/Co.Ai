@@ -202,27 +202,67 @@ export async function deleteUserKey(userId: string, provider: ProviderKeyName): 
 
 // ── SESSIONS ─────────────────────────────────────────────────────────────────
 export async function createSession(userId: string, task: string, mode: string): Promise<SessionRecord> {
-  const db = load();
+  const now = new Date().toISOString();
   const session: SessionRecord = {
     id: randomUUID(), userId, task, mode,
     status: 'running',
     filesCount: 0, iterations: 0, costUsd: 0, tokensUsed: 0,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    createdAt: now, updatedAt: now,
   };
+
+  if (useSupabase) {
+    await sb('tmap_sessions', {
+      method: 'POST',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({
+        id: session.id, user_id: userId, task, mode,
+        status: 'running', files_count: 0, iterations: 0,
+        cost_usd: 0, tokens_used: 0,
+        created_at: now, updated_at: now,
+      }),
+    });
+    return session;
+  }
+
+  const db = load();
   db.sessions[session.id] = session;
   save(db);
   return session;
 }
 
 export async function updateSession(id: string, patch: Partial<SessionRecord>): Promise<void> {
+  const now = new Date().toISOString();
+
+  if (useSupabase) {
+    const row: Record<string, unknown> = { updated_at: now };
+    if (patch.status !== undefined) row.status = patch.status;
+    if (patch.filesCount !== undefined) row.files_count = patch.filesCount;
+    if (patch.iterations !== undefined) row.iterations = patch.iterations;
+    if (patch.costUsd !== undefined) row.cost_usd = patch.costUsd;
+    if (patch.tokensUsed !== undefined) row.tokens_used = patch.tokensUsed;
+    if (patch.summary !== undefined) row.summary = patch.summary;
+    await sb(`tmap_sessions?id=eq.${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(row),
+    });
+    return;
+  }
+
   const db = load();
   if (!db.sessions[id]) return;
-  Object.assign(db.sessions[id], patch, { updatedAt: new Date().toISOString() });
+  Object.assign(db.sessions[id], patch, { updatedAt: now });
   save(db);
 }
 
 export async function getUserSessions(userId: string, limit = 20): Promise<SessionRecord[]> {
+  if (useSupabase) {
+    const res = await sb(
+      `tmap_sessions?user_id=eq.${encodeURIComponent(userId)}&order=created_at.desc&limit=${limit}&select=*`,
+    );
+    if (!res.ok) throw new Error(`supabase getUserSessions failed: ${res.status}`);
+    const rows = (await res.json()) as Array<Record<string, unknown>>;
+    return rows.map(rowToSession);
+  }
   const db = load();
   return Object.values(db.sessions)
     .filter((s) => s.userId === userId)
@@ -231,24 +271,120 @@ export async function getUserSessions(userId: string, limit = 20): Promise<Sessi
 }
 
 export async function getSession(id: string): Promise<SessionRecord | undefined> {
+  if (useSupabase) {
+    const res = await sb(`tmap_sessions?id=eq.${encodeURIComponent(id)}&select=*&limit=1`);
+    if (!res.ok) throw new Error(`supabase getSession failed: ${res.status}`);
+    const rows = (await res.json()) as Array<Record<string, unknown>>;
+    return rows[0] ? rowToSession(rows[0]) : undefined;
+  }
   return load().sessions[id];
+}
+
+function rowToSession(row: Record<string, unknown>): SessionRecord {
+  return {
+    id: row.id as string,
+    userId: row.user_id as string,
+    task: row.task as string,
+    mode: row.mode as string,
+    status: row.status as SessionRecord['status'],
+    filesCount: (row.files_count as number) ?? 0,
+    iterations: (row.iterations as number) ?? 0,
+    costUsd: Number(row.cost_usd ?? 0),
+    tokensUsed: (row.tokens_used as number) ?? 0,
+    summary: row.summary as string | undefined,
+    createdAt: row.created_at as string,
+    updatedAt: row.updated_at as string,
+  };
 }
 
 // ── AGENT LOGS ────────────────────────────────────────────────────────────────
 export async function appendAgentLog(log: Omit<AgentLogRecord, 'id' | 'ts'>): Promise<void> {
+  const id = randomUUID();
+  const ts = new Date().toISOString();
+
+  if (useSupabase) {
+    await sb('tmap_agent_logs', {
+      method: 'POST',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({
+        id,
+        session_id: log.sessionId,
+        role: log.role,
+        provider: log.provider,
+        model: log.model,
+        attempts: log.attempts,
+        input_tokens: log.inputTokens,
+        output_tokens: log.outputTokens,
+        cost_usd: log.costUsd,
+        duration_ms: log.durationMs,
+        ts,
+      }),
+    });
+    return;
+  }
+
   const db = load();
-  db.agentLogs.push({ id: randomUUID(), ts: new Date().toISOString(), ...log });
-  // keep last 5000 entries to avoid unbounded growth
+  db.agentLogs.push({ id, ts, ...log });
   if (db.agentLogs.length > 5000) db.agentLogs = db.agentLogs.slice(-5000);
   save(db);
 }
 
 export async function getSessionLogs(sessionId: string): Promise<AgentLogRecord[]> {
+  if (useSupabase) {
+    const res = await sb(
+      `tmap_agent_logs?session_id=eq.${encodeURIComponent(sessionId)}&order=ts.asc&select=*`,
+    );
+    if (!res.ok) throw new Error(`supabase getSessionLogs failed: ${res.status}`);
+    const rows = (await res.json()) as Array<Record<string, unknown>>;
+    return rows.map((r) => ({
+      id: r.id as string,
+      sessionId: r.session_id as string,
+      role: r.role as string,
+      provider: r.provider as string,
+      model: r.model as string,
+      attempts: (r.attempts as number) ?? 0,
+      inputTokens: (r.input_tokens as number) ?? 0,
+      outputTokens: (r.output_tokens as number) ?? 0,
+      costUsd: Number(r.cost_usd ?? 0),
+      durationMs: (r.duration_ms as number) ?? 0,
+      ts: r.ts as string,
+    }));
+  }
   return load().agentLogs.filter((l) => l.sessionId === sessionId);
 }
 
 // ── COST TRACKING ─────────────────────────────────────────────────────────────
 export async function addCost(userId: string, tokens: number, costUsd: number): Promise<void> {
+  if (useSupabase) {
+    // Upsert: increment totals if row exists, insert otherwise
+    const existing = await getUserCost(userId);
+    const now = new Date().toISOString();
+    if (existing) {
+      await sb(`tmap_costs?user_id=eq.${encodeURIComponent(userId)}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          total_cost_usd: Math.round((existing.totalCostUsd + costUsd) * 1e8) / 1e8,
+          total_tokens: existing.totalTokens + tokens,
+          session_count: existing.sessionCount + 1,
+          updated_at: now,
+        }),
+      });
+    } else {
+      await sb('tmap_costs', {
+        method: 'POST',
+        headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify({
+          user_id: userId,
+          total_cost_usd: Math.round(costUsd * 1e8) / 1e8,
+          total_tokens: tokens,
+          session_count: 1,
+          updated_at: now,
+        }),
+      });
+    }
+    return;
+  }
+
   const db = load();
   const existing = db.costs[userId] ?? { userId, totalCostUsd: 0, totalTokens: 0, sessionCount: 0, updatedAt: '' };
   existing.totalCostUsd = Math.round((existing.totalCostUsd + costUsd) * 1e8) / 1e8;
@@ -260,5 +396,19 @@ export async function addCost(userId: string, tokens: number, costUsd: number): 
 }
 
 export async function getUserCost(userId: string): Promise<CostRecord | undefined> {
+  if (useSupabase) {
+    const res = await sb(`tmap_costs?user_id=eq.${encodeURIComponent(userId)}&select=*&limit=1`);
+    if (!res.ok) throw new Error(`supabase getUserCost failed: ${res.status}`);
+    const rows = (await res.json()) as Array<Record<string, unknown>>;
+    if (!rows[0]) return undefined;
+    const r = rows[0];
+    return {
+      userId: r.user_id as string,
+      totalCostUsd: Number(r.total_cost_usd ?? 0),
+      totalTokens: (r.total_tokens as number) ?? 0,
+      sessionCount: (r.session_count as number) ?? 0,
+      updatedAt: r.updated_at as string,
+    };
+  }
   return load().costs[userId];
 }

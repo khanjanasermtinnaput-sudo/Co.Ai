@@ -23,6 +23,12 @@ export function validateFiles(files: CodeFile[]): ValidationResult[] {
       case 'python':
         results.push(checkPython(f));
         break;
+      case 'go':
+        results.push(checkGo(f));
+        break;
+      case 'rust':
+        results.push(checkRust(f));
+        break;
       case 'json':
         results.push(checkJson(f));
         break;
@@ -121,4 +127,59 @@ function findPython(): string | null {
     } catch { /* not found */ }
   }
   return null;
+}
+
+function checkGo(f: CodeFile): ValidationResult {
+  if (!commandExists('go')) {
+    return { kind: 'skipped', passed: true, logs: `${f.path}: go toolchain not found, skipped` };
+  }
+  let dir: string | undefined;
+  try {
+    dir = mkdtempSync(join(tmpdir(), 'aof-go-'));
+    // go vet needs a valid module; use go build -syntax-check approach via gofmt -e
+    const file = join(dir, 'check.go');
+    writeFileSync(file, f.content, 'utf8');
+    // gofmt -e reports parse/syntax errors; exit 0 = no errors
+    execFileSync('gofmt', ['-e', file], { stdio: 'pipe', timeout: 15_000 });
+    return { kind: 'syntax', passed: true, logs: `${f.path}: Go syntax OK` };
+  } catch (e: any) {
+    const msg = (e.stderr?.toString() || e.stdout?.toString() || e.message || '')
+      .split('\n').slice(0, 4).join(' ');
+    return { kind: 'syntax', passed: false, logs: `${f.path}: ${msg}` };
+  } finally {
+    if (dir) rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+function checkRust(f: CodeFile): ValidationResult {
+  if (!commandExists('rustc')) {
+    return { kind: 'skipped', passed: true, logs: `${f.path}: rustc not found, skipped` };
+  }
+  let dir: string | undefined;
+  try {
+    dir = mkdtempSync(join(tmpdir(), 'aof-rs-'));
+    const file = join(dir, 'check.rs');
+    writeFileSync(file, f.content, 'utf8');
+    // --emit=metadata only checks + produces tiny metadata, no binary output
+    execFileSync('rustc', ['--edition', '2021', '--emit=metadata', '--error-format=short', '-o', join(dir, 'out'), file], {
+      stdio: 'pipe',
+      timeout: 30_000,
+    });
+    return { kind: 'syntax', passed: true, logs: `${f.path}: Rust syntax OK` };
+  } catch (e: any) {
+    const stderr = e.stderr?.toString() || e.message || '';
+    const msg = stderr.split('\n').filter(Boolean).slice(0, 4).join(' ');
+    return { kind: 'syntax', passed: false, logs: `${f.path}: ${msg}` };
+  } finally {
+    if (dir) rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+function commandExists(cmd: string): boolean {
+  try {
+    execSync(`command -v ${cmd}`, { stdio: 'pipe' });
+    return true;
+  } catch {
+    return false;
+  }
 }
