@@ -14,8 +14,8 @@ const LABEL: Record<RouteTarget, string> = {
   search: "Search Agent",
 };
 
-// Keyword sets (English + a little Thai, matching the rest of the product copy).
-const SEARCH = [
+// Keyword sets (English + Thai, matching the rest of the product copy).
+const SEARCH: RegExp[] = [
   /\bsearch\b/,
   /\bweb\s*search\b/,
   /\bgoogle\b/,
@@ -32,7 +32,7 @@ const SEARCH = [
   /ราคา.*(วันนี้|ตอนนี้)/,
 ];
 
-const CODE = [
+const CODE: RegExp[] = [
   /\bcode\b/,
   /\bcoding\b/,
   /\bprogram(ming)?\b/,
@@ -43,15 +43,31 @@ const CODE = [
   /\bfunction\b|\bclass\b|\bapi\b/,
   /\barchitecture\b|\bsystem design\b/,
   /\bwebsite\b|\bweb ?app\b|\bfront[- ]?end\b|\bback[- ]?end\b/,
-  /\bapp\b|\bmobile app\b/,
+  // narrowed: removed bare \bapp\b (too broad — matched "app" in general conversation)
+  /\bmobile app\b|\bapp dev(elopment)?\b/,
   /\bgithub\b|\bpull request\b|\bpr\b|\brepo(sitory)?\b|\bcommit\b/,
-  /\bdeploy\b|\bbuild\b/,
-  /\breact\b|\bnext\.?js\b|\bnode\b|\bpython\b|\btypescript\b|\bjavascript\b/,
-  /เขียนโปรแกรม|เขียนโค้ด|โค้ด|ดีบัก|แก้บั๊ก|สถาปัตยกรรม|เว็บไซต์|แอป/,
+  // narrowed: removed bare \bbuild\b (matched "build confidence", "build a habit", etc.)
+  /\bdeploy(ment)?\b|\bci[\/-]?cd\b/,
+  /\breact\b|\bnext\.?js\b|\bnode\.?js\b|\bpython\b|\btypescript\b|\bjavascript\b/,
+  /\bdocker\b|\bkubernetes\b|\bterraform\b|\baws\b|\bgcp\b|\bazure\b/,
+  /\bsql\b|\bdatabase\b|\bschema\b|\bmigration\b/,
+  // Thai — split into multiple entries so each adds independently to the match count
+  /เขียนโปรแกรม|เขียนโค้ด|โค้ด|ดีบัก|แก้บั๊ก/,
+  /สถาปัตยกรรมซอฟต์แวร์|ออกแบบระบบ|ฐานข้อมูล|เซิร์ฟเวอร์/,
+  // narrowed: removed bare แอป — too ambiguous; require specific compound forms
+  /เว็บไซต์|เว็บแอป|แอปพลิเคชัน|แอปมือถือ/,
+  /ฟังก์ชัน|คลาส|เมธอด|ตัวแปร|ลูป/,
+  /บั๊ก|อีเรอร์|ข้อผิดพลาด|แก้ไขโค้ด|สคริปต์/,
 ];
 
-function anyMatch(text: string, patterns: RegExp[]): boolean {
-  return patterns.some((re) => re.test(text));
+/** Count how many patterns match (each pattern counts once regardless of occurrences). */
+function countMatches(text: string, patterns: RegExp[]): number {
+  return patterns.filter((re) => re.test(text)).length;
+}
+
+/** Confidence from match count: 1 match → 35, 2 → 60, 3+ → 85, capped at 95. */
+function codeConfidence(matches: number): number {
+  return Math.min(Math.round(matches * 30 + 5), 95);
 }
 
 /** Decide where a request should go. Attachments can force a route. */
@@ -65,24 +81,29 @@ export function routeRequest(text: string, attachments: Attachment[] = []): Rout
       target: "code",
       label: LABEL.code,
       reason: `Analyzing ${codeFile.name} — file analysis runs in Aof Code.`,
+      confidence: 100,
     };
   }
 
   // 2. Explicit web-search intent wins over everything textual.
-  if (anyMatch(t, SEARCH)) {
+  const searchMatches = countMatches(t, SEARCH);
+  if (searchMatches > 0) {
     return {
       target: "search",
       label: LABEL.search,
       reason: "This looks like a live web-search request.",
+      confidence: Math.min(searchMatches * 45, 90),
     };
   }
 
   // 3. Engineering intent → Aof Code.
-  if (anyMatch(t, CODE)) {
+  const codeMatches = countMatches(t, CODE);
+  if (codeMatches > 0) {
     return {
       target: "code",
       label: LABEL.code,
       reason: "Detected a software / engineering task.",
+      confidence: codeConfidence(codeMatches),
     };
   }
 
@@ -96,6 +117,7 @@ export function routeRequest(text: string, attachments: Attachment[] = []): Rout
         visual.kind === "image"
           ? "Understanding the image you shared."
           : "Reading the PDF you shared.",
+      confidence: 80,
     };
   }
 
@@ -104,6 +126,7 @@ export function routeRequest(text: string, attachments: Attachment[] = []): Rout
     target: "chat",
     label: LABEL.chat,
     reason: "General question — handled by Aof Chat.",
+    confidence: 70,
   };
 }
 

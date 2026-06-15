@@ -27,6 +27,8 @@ export interface RouteDecision {
   label: string;
   /** Short why-this-route explanation surfaced in the UI. */
   reason: string;
+  /** Routing confidence 0–100. Low values mean the signal was weak. */
+  confidence?: number;
 }
 
 /** Kinds of files the multimodal composer accepts. */

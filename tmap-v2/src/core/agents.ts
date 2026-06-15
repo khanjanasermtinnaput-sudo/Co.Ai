@@ -3,13 +3,22 @@ import type {
 } from '../types.js';
 
 // ── PLANNER ──────────────────────────────────────────────────────────────────
+// Canonical line format: "N. <path> — <create|modify> — <intent>"
+// The delimiter is em-dash (—) or double-dash (--), never a single dash (-).
+// This avoids mis-splitting file paths that contain hyphens (e.g. src/api-utils.ts).
 const PLANNER_SYS = `You are the Planner agent in AOF Code (TMAP v2).
 Break the user's task into a concrete build plan.
-Output ONLY a numbered list, max 7 lines, each line:
+Output ONLY a numbered list, max 7 lines, each line EXACTLY:
 "N. <path/filename> — <action: create|modify> — <short intent>"
+Use the em-dash character (—) as the delimiter, NOT a single hyphen (-).
+File paths may contain hyphens (e.g. src/api-utils.ts) — do not split on them.
 No prose before or after. Plain text.
 Write the <short intent> text in the SAME LANGUAGE the user wrote the task in
 (Thai task → Thai intent). Keep file paths and the create/modify keywords as-is.`;
+
+// Split pattern: em-dash (—) or double-dash (--) only.
+// Single hyphens are deliberately excluded so paths like src/api-utils.ts are preserved.
+const PLAN_DELIM = /\s*(?:—|--)\s*/;
 
 export async function runPlanner(call: LLMCall, bb: Blackboard): Promise<{ steps: PlanStep[]; raw: string }> {
   const raw = await call([
@@ -19,16 +28,19 @@ export async function runPlanner(call: LLMCall, bb: Blackboard): Promise<{ steps
 
   const steps: PlanStep[] = [];
   for (const line of raw.split('\n')) {
-    const m = line.match(/—|--|-/) ? line.replace(/^\s*\d+[.)]\s*/, '') : '';
-    if (!m) continue;
-    const parts = line.replace(/^\s*\d+[.)]\s*/, '').split(/—|--/).map((s) => s.trim());
-    if (parts[0]) {
-      steps.push({
-        file: parts[0].split(' ')[0],
-        action: /modify/i.test(line) ? 'modify' : 'create',
-        intent: parts.slice(1).join(' — ') || parts[0],
-      });
-    }
+    // Only process numbered list lines that contain the canonical delimiter.
+    if (!line.match(/—|--/)) continue;
+    const body = line.replace(/^\s*\d+[.)]\s*/, '').trim();
+    if (!body) continue;
+    const parts = body.split(PLAN_DELIM).map((s) => s.trim());
+    // parts[0] = path, parts[1] = action hint, parts[2+] = intent
+    const filePath = parts[0];
+    if (!filePath) continue;
+    steps.push({
+      file: filePath,
+      action: /modify/i.test(line) ? 'modify' : 'create',
+      intent: parts.slice(2).join(' — ') || parts[1] || filePath,
+    });
   }
   return { steps, raw };
 }
