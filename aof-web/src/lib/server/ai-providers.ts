@@ -55,6 +55,31 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
   },
 };
 
+// Anthropic fallback chain — when the primary model is rate-limited or quota-
+// throttled (HTTP 429/529), Aof steps down to the next model rather than
+// immediately failing over to OpenRouter. Override via ANTHROPIC_MODELS
+// (comma-separated) to customise the chain.
+const ANTHROPIC_MODEL_FALLBACKS = [
+  "claude-sonnet-4-6",
+  "claude-haiku-4-5-20251001",
+];
+
+// HTTP statuses that indicate a per-model throttle (not an auth or billing
+// terminal failure). On these, the next Anthropic model is worth trying.
+const ANTHROPIC_THROTTLE_STATUSES = new Set([429, 529]);
+// Auth / permission failures won't be fixed by a different model — stop immediately.
+const ANTHROPIC_FATAL_STATUSES = new Set([401, 403]);
+
+function anthropicModelChain(): string[] {
+  const primary = modelFor(PROVIDER_REGISTRY.anthropic);
+  const fromEnv = process.env.ANTHROPIC_MODELS?.split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const fallbacks = fromEnv && fromEnv.length ? fromEnv : ANTHROPIC_MODEL_FALLBACKS;
+  // Primary first, then fallbacks, de-duplicated.
+  return [...new Set([primary, ...fallbacks])];
+}
+
 const ALL_PROVIDERS: ProviderMeta[] = Object.values(PROVIDER_REGISTRY).sort(
   (a, b) => a.priority - b.priority,
 );
@@ -177,29 +202,55 @@ export interface AdapterInput {
 export async function* anthropicTextStream(input: AdapterInput): AsyncGenerator<string> {
   const meta = PROVIDER_REGISTRY.anthropic;
   const anthropic = new Anthropic({ apiKey: apiKeyFor(meta)! });
-  const model = modelFor(meta);
 
   const messages: Anthropic.MessageParam[] = [
     ...input.history.map((h) => ({ role: h.role, content: h.content })),
     { role: "user" as const, content: input.message },
   ];
 
-  const stream = anthropic.messages.stream(
-    {
-      model,
-      max_tokens: input.maxTokens,
-      temperature: input.temperature,
-      system: input.system,
-      messages,
-    },
-    { signal: input.signal },
-  );
+  const chain = anthropicModelChain();
+  let lastError: unknown;
 
-  for await (const event of stream) {
-    if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
-      yield event.delta.text;
+  for (const model of chain) {
+    let started = false;
+    try {
+      const stream = anthropic.messages.stream(
+        {
+          model,
+          max_tokens: input.maxTokens,
+          temperature: input.temperature,
+          system: input.system,
+          messages,
+        },
+        { signal: input.signal },
+      );
+
+      for await (const event of stream) {
+        if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+          if (!started) started = true;
+          yield event.delta.text;
+        }
+      }
+      return; // completed successfully
+    } catch (thrown) {
+      if (started) throw thrown; // mid-stream failure — surface it as-is
+      if (isAbort(thrown)) throw thrown; // user pressed Stop
+
+      const status = (thrown as { status?: number } | null)?.status;
+      if (typeof status === "number" && ANTHROPIC_FATAL_STATUSES.has(status)) {
+        throw thrown; // auth/permission failure — switching model won't help
+      }
+      if (typeof status === "number" && ANTHROPIC_THROTTLE_STATUSES.has(status)) {
+        lastError = thrown; // rate-limit / overload — try next model
+        continue;
+      }
+      throw thrown; // unknown error — propagate immediately
     }
   }
+
+  // Every model in the chain was throttled — surface the last error so the
+  // outer provider loop can attempt the OpenRouter failover.
+  throw lastError ?? new Error("All Anthropic models throttled");
 }
 
 const OPENROUTER_CHAT_URL = "https://openrouter.ai/api/v1/chat/completions";
