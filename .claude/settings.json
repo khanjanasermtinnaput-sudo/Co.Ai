@@ -1,0 +1,68 @@
+{
+  "enabledPlugins": {
+    "typescript-lsp@claude-plugins-official": true,
+    "claude-md-management@claude-plugins-official": true,
+    "security-guidance@claude-plugins-official": true,
+    "remember@claude-community": true,
+    "frontend-design@claude-plugins-official": true,
+    "feature-dev@claude-plugins-official": true,
+    "commit-commands@claude-plugins-official": true,
+    "code-review@claude-plugins-official": true,
+    "pr-review-toolkit@claude-plugins-official": true,
+    "hookify@claude-plugins-official": true,
+    "ralph-loop@claude-plugins-official": true,
+    "agent-sdk-dev@claude-plugins-official": true,
+    "context7@claude-plugins-official": true,
+    "serena@claude-plugins-official": true,
+    "greptile@claude-plugins-official": true,
+    "playwright@claude-plugins-official": true,
+    "superpowers@claude-plugins-official": true,
+    "figma@claude-plugins-official": true,
+    "firecrawl@claude-plugins-official": true,
+    "chrome-devtools-mcp@claude-plugins-official": true,
+    "exa@claude-plugins-official": true
+  },
+  "extraKnownMarketplaces": {
+    "claude-plugins-official": {
+      "source": {
+        "source": "github",
+        "repo": "anthropics/claude-plugins-official"
+      },
+      "autoUpdate": true
+    },
+    "claude-community": {
+      "source": {
+        "source": "github",
+        "repo": "anthropics/claude-plugins-community"
+      },
+      "autoUpdate": true
+    }
+  },
+  "plugins": {
+    "enabledPlugins": [
+      "typescript-lsp@claude-plugins-official",
+      "claude-md-management@claude-plugins-official",
+      "remember@claude-community",
+      "security-guidance@claude-plugins-official",
+      "frontend-design@claude-plugins-official",
+      "superpowers@claude-community",
+      "context7@claude-community",
+      "playwright@claude-community",
+      "code-review@claude-plugins-official",
+      "feature-dev@claude-plugins-official",
+      "pr-review-toolkit@claude-plugins-official",
+      "commit-commands@claude-plugins-official",
+      "serena@claude-community",
+      "agent-sdk-dev@claude-plugins-official",
+      "figma@claude-plugins-official",
+      "chrome-devtools@claude-community",
+      "hookify@claude-plugins-official",
+      "ralph-loop@claude-plugins-official",
+      "firecrawl@claude-community"
+    ],
+    "pluginSuggestionMarketplaces": [
+      "claude-plugins-official",
+      "claude-community"
+    ]
+  }
+}
