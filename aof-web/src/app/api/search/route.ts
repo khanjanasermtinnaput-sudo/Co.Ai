@@ -6,6 +6,7 @@
 
 import { NextResponse } from "next/server";
 import { getAdminSupabase, getUserFromRequest, isAdminConfigured } from "@/lib/server/supabase-admin";
+import { checkRateLimit, applyRateLimitHeaders } from "@/lib/server/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,6 +40,13 @@ export async function GET(req: Request) {
   }
   const user = await getUserFromRequest(req);
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+
+  const rl = await checkRateLimit(user.id, "search");
+  if (!rl.allowed) {
+    const headers = new Headers({ "Content-Type": "application/json" });
+    applyRateLimitHeaders(headers, rl);
+    return new NextResponse(JSON.stringify({ error: "rate-limited" }), { status: 429, headers });
+  }
 
   const url = new URL(req.url);
   const q = url.searchParams.get("q")?.trim() ?? "";

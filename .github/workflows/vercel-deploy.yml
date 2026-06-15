@@ -10,8 +10,7 @@ on:
   push:
     branches:
       - main
-      - claude/trusting-wright-zj93vo
-      - claude/trusting-mayer-oua7s2
+      - 'claude/**'
     paths:
       - 'aof-web/**'
       - '.github/workflows/vercel-deploy.yml'
