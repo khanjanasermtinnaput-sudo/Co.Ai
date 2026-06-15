@@ -2,12 +2,19 @@
 
 import { useEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import { Sparkles, Wand2 } from "lucide-react";
+import { Sparkles, Wand2, Download, FileText, FileJson } from "lucide-react";
 import { useChatStore } from "@/store/chat-store";
+import { exportConversation } from "@/lib/export";
 import { Composer } from "@/components/composer/composer";
 import { ResponseStyleSelector } from "./response-style-selector";
 import { ChatThread } from "./chat-thread";
 import { LogoMark } from "@/components/brand/logo";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const STARTERS = [
   "Summarize this article for me",
@@ -50,7 +57,32 @@ export function ChatView() {
             <Wand2 className="size-3 text-primary" /> Auto-routed
           </span>
         </div>
-        <ResponseStyleSelector value={style} onChange={setStyle} size="compact" />
+        <div className="flex items-center gap-2">
+          {active && messages.length > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="flex items-center gap-1.5 rounded-lg border border-border/50 bg-secondary/40 px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                >
+                  <Download className="size-3.5" />
+                  Export
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => exportConversation(active, "md")}>
+                  <FileText className="mr-2 size-3.5" />
+                  Markdown (.md)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportConversation(active, "json")}>
+                  <FileJson className="mr-2 size-3.5" />
+                  JSON (.json)
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+          <ResponseStyleSelector value={style} onChange={setStyle} size="compact" />
+        </div>
       </div>
 
       {/* body */}

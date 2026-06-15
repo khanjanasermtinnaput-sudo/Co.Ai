@@ -42,6 +42,7 @@ interface ChatState {
   queueFirstMessage: (text: string, attachments?: Attachment[]) => void;
   consumePending: () => PendingMessage | null;
   send: (text: string, attachments?: Attachment[]) => Promise<void>;
+  editMessage: (messageId: string, newContent: string) => Promise<void>;
   regenerate: () => Promise<void>;
   stop: () => void;
 }
@@ -302,6 +303,27 @@ export const useChatStore = create<ChatState>()(
         } finally {
           finish(accumulated || undefined);
         }
+      },
+
+      editMessage: async (messageId, newContent) => {
+        const { conversations, activeId, streaming } = get();
+        if (streaming || !activeId) return;
+
+        const conv = conversations.find((c) => c.id === activeId);
+        if (!conv) return;
+
+        const msgIdx = conv.messages.findIndex((m) => m.id === messageId);
+        if (msgIdx === -1 || conv.messages[msgIdx].role !== "user") return;
+
+        // Keep everything up to (but not including) this message
+        const keptMessages = conv.messages.slice(0, msgIdx);
+        set((s) => ({
+          conversations: s.conversations.map((c) =>
+            c.id === activeId ? { ...c, messages: keptMessages } : c,
+          ),
+        }));
+
+        await get().send(newContent, conv.messages[msgIdx].attachments);
       },
 
       regenerate: async () => {

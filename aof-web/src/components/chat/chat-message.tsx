@@ -1,9 +1,10 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Copy, Check, RefreshCw, ThumbsUp, ThumbsDown } from "lucide-react";
-import { useState } from "react";
+import { Copy, Check, RefreshCw, ThumbsUp, ThumbsDown, Pencil, X } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
+import { estimateTokens } from "@/lib/export";
 import type { ChatMessageT } from "@/lib/types";
 import { LogoMark } from "@/components/brand/logo";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -18,20 +19,52 @@ export function ChatMessage({
   message,
   isLast,
   onRegenerate,
+  onEdit,
 }: {
   message: ChatMessageT;
   isLast?: boolean;
   onRegenerate?: () => void;
+  onEdit?: (newContent: string) => void;
 }) {
   const isUser = message.role === "user";
   const [copied, setCopied] = useState(false);
   const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(message.content);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Auto-resize textarea
+  useEffect(() => {
+    if (editing && textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+      textareaRef.current.focus();
+      textareaRef.current.setSelectionRange(draft.length, draft.length);
+    }
+  }, [editing, draft]);
 
   const copy = async () => {
     await navigator.clipboard.writeText(message.content);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };
+
+  const commitEdit = () => {
+    const trimmed = draft.trim();
+    if (trimmed && trimmed !== message.content && onEdit) {
+      onEdit(trimmed);
+    }
+    setEditing(false);
+  };
+
+  const cancelEdit = () => {
+    setDraft(message.content);
+    setEditing(false);
+  };
+
+  const tokens = !message.streaming && message.content
+    ? estimateTokens(message.content)
+    : null;
 
   return (
     <motion.div
@@ -74,63 +107,127 @@ export function ChatMessage({
         ) : (
           <>
             {!isUser && message.route && <RouteBadge route={message.route} />}
-            <div
-              className={cn(
-                "rounded-2xl px-4 py-3",
-                isUser
-                  ? "rounded-tr-md bg-primary/12 text-foreground"
-                  : "rounded-tl-md border border-white/[0.06] bg-card/70",
-              )}
-            >
-              {message.attachments && message.attachments.length > 0 && (
-                <AttachmentList
-                  attachments={message.attachments}
-                  className={cn(message.content && "mb-2.5")}
+
+            {/* ── User message: editable ──────────────────────────────── */}
+            {isUser && editing ? (
+              <div className="flex w-full flex-col gap-2">
+                <textarea
+                  ref={textareaRef}
+                  value={draft}
+                  onChange={(e) => {
+                    setDraft(e.target.value);
+                    e.target.style.height = "auto";
+                    e.target.style.height = `${e.target.scrollHeight}px`;
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      commitEdit();
+                    }
+                    if (e.key === "Escape") cancelEdit();
+                  }}
+                  rows={1}
+                  className="w-full resize-none overflow-hidden rounded-2xl rounded-tr-md border border-primary/40 bg-primary/12 px-4 py-3 text-[15px] text-foreground outline-none focus:border-primary/70"
                 />
-              )}
-              {message.learning ? (
-                <LearningAnswerView data={message.learning} />
-              ) : message.content ? (
-                <Markdown content={message.content} />
-              ) : message.attachments && message.attachments.length > 0 ? null : (
-                <TypingDots />
-              )}
-              {message.streaming && message.content && (
-                <span className="ml-0.5 inline-block h-4 w-[2px] translate-y-0.5 animate-pulse bg-primary" />
-              )}
-            </div>
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={cancelEdit}
+                    className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs text-muted-foreground hover:bg-white/5"
+                  >
+                    <X className="size-3" /> Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={commitEdit}
+                    className="flex items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground"
+                  >
+                    Send
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div
+                className={cn(
+                  "rounded-2xl px-4 py-3",
+                  isUser
+                    ? "rounded-tr-md bg-primary/12 text-foreground"
+                    : "rounded-tl-md border border-white/[0.06] bg-card/70",
+                )}
+              >
+                {message.attachments && message.attachments.length > 0 && (
+                  <AttachmentList
+                    attachments={message.attachments}
+                    className={cn(message.content && "mb-2.5")}
+                  />
+                )}
+                {message.learning ? (
+                  <LearningAnswerView data={message.learning} />
+                ) : message.content ? (
+                  <Markdown content={message.content} />
+                ) : message.attachments && message.attachments.length > 0 ? null : (
+                  <TypingDots />
+                )}
+                {message.streaming && message.content && (
+                  <span className="ml-0.5 inline-block h-4 w-[2px] translate-y-0.5 animate-pulse bg-primary" />
+                )}
+              </div>
+            )}
 
-            {/* ── Action bar (assistant messages only, not streaming) ───── */}
-            {!isUser && message.content && !message.streaming && (
-              <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-                {/* Copy */}
-                <ActionButton onClick={copy} label={copied ? "Copied" : "Copy"}>
-                  {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-                </ActionButton>
+            {/* ── Action bar ──────────────────────────────────────────── */}
+            {!editing && !message.streaming && (
+              <div
+                className={cn(
+                  "flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100",
+                  isUser ? "flex-row-reverse" : "flex-row",
+                )}
+              >
+                {/* User message: Edit */}
+                {isUser && onEdit && (
+                  <ActionButton onClick={() => setEditing(true)} label="Edit message">
+                    <Pencil className="size-3.5" />
+                  </ActionButton>
+                )}
 
-                {/* Thumbs up */}
-                <ActionButton
-                  onClick={() => setFeedback(feedback === "up" ? null : "up")}
-                  label="Helpful"
-                  active={feedback === "up"}
-                >
-                  <ThumbsUp className="size-3.5" />
-                </ActionButton>
+                {/* Assistant: Copy */}
+                {!isUser && message.content && (
+                  <ActionButton onClick={copy} label={copied ? "Copied" : "Copy"}>
+                    {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+                  </ActionButton>
+                )}
 
-                {/* Thumbs down */}
-                <ActionButton
-                  onClick={() => setFeedback(feedback === "down" ? null : "down")}
-                  label="Not helpful"
-                  active={feedback === "down"}
-                >
-                  <ThumbsDown className="size-3.5" />
-                </ActionButton>
+                {/* Assistant: Thumbs */}
+                {!isUser && (
+                  <>
+                    <ActionButton
+                      onClick={() => setFeedback(feedback === "up" ? null : "up")}
+                      label="Helpful"
+                      active={feedback === "up"}
+                    >
+                      <ThumbsUp className="size-3.5" />
+                    </ActionButton>
+                    <ActionButton
+                      onClick={() => setFeedback(feedback === "down" ? null : "down")}
+                      label="Not helpful"
+                      active={feedback === "down"}
+                    >
+                      <ThumbsDown className="size-3.5" />
+                    </ActionButton>
+                  </>
+                )}
 
-                {/* Regenerate — only on the last assistant message */}
-                {isLast && onRegenerate && (
+                {/* Assistant last message: Regenerate */}
+                {!isUser && isLast && onRegenerate && (
                   <ActionButton onClick={onRegenerate} label="Regenerate">
                     <RefreshCw className="size-3.5" />
                   </ActionButton>
+                )}
+
+                {/* Token count estimate */}
+                {tokens !== null && tokens > 10 && (
+                  <span className="ml-1 text-[10px] text-muted-foreground/40">
+                    ~{tokens > 999 ? `${(tokens / 1000).toFixed(1)}k` : tokens} tokens
+                  </span>
                 )}
               </div>
             )}
@@ -159,9 +256,7 @@ function ActionButton({
       title={label}
       className={cn(
         "inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs transition-colors",
-        active
-          ? "text-primary"
-          : "text-muted-foreground hover:text-foreground",
+        active ? "text-primary" : "text-muted-foreground hover:text-foreground",
       )}
     >
       {children}
