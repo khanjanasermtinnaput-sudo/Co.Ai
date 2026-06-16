@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import type { ChatMessageT } from "@/lib/types";
 import { ChatMessage } from "./chat-message";
 import { useChatStore } from "@/store/chat-store";
+import { Taotao } from "@/components/mascot";
 
 export function ChatThread({
   messages,
@@ -29,6 +30,11 @@ export function ChatThread({
     -1,
   );
 
+  // TAOTAO reasons while we wait for the first tokens of the reply.
+  const last = messages[messages.length - 1];
+  const thinking =
+    streaming && (!last || last.role === "user" || last.content.length === 0);
+
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6 sm:px-6">
       {messages.map((m, i) => (
@@ -44,6 +50,11 @@ export function ChatThread({
           }
         />
       ))}
+      {thinking && (
+        <div className="flex justify-start py-2">
+          <Taotao state="thinking" size={64} showStatus />
+        </div>
+      )}
       <div ref={bottomRef} className="h-px" />
     </div>
   );

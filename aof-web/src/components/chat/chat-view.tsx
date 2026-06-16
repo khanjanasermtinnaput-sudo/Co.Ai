@@ -8,7 +8,7 @@ import { exportConversation } from "@/lib/export";
 import { Composer } from "@/components/composer/composer";
 import { ResponseStyleSelector } from "./response-style-selector";
 import { ChatThread } from "./chat-thread";
-import { LogoMark } from "@/components/brand/logo";
+import { Taotao } from "@/components/mascot";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -93,9 +93,8 @@ export function ChatView() {
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.4 }}
-              className="flex size-14 items-center justify-center rounded-2xl border border-white/10 bg-card"
             >
-              <LogoMark size={30} />
+              <Taotao state="idle" size={104} />
             </motion.div>
             <h2 className="mt-5 text-xl font-semibold">Chat with Aof</h2>
             <p className="mt-2 max-w-sm text-sm text-muted-foreground">
