@@ -48,7 +48,7 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
     envVar: "OPENROUTER_API_KEY",
     modelEnv: "OPENROUTER_MODEL",
     // Set OPENROUTER_MODEL env var to override. Browse free models at openrouter.ai/models?q=:free
-    defaultModel: "deepseek/deepseek-r1:free",
+    defaultModel: "google/gemma-4-31b-it:free",
     priority: 2,
   },
 };
@@ -217,10 +217,10 @@ const OPENROUTER_BACKOFF_MS = [300, 800];
 // paid key. The configured OPENROUTER_MODEL is always tried first; override the whole
 // chain with OPENROUTER_MODELS (comma-separated).
 const OPENROUTER_FREE_FALLBACKS = [
-  "deepseek/deepseek-r1:free",
-  "deepseek/deepseek-chat:free",
-  "google/gemma-2-9b-it:free",
-  "google/gemma-3-27b-it:free",
+  "google/gemma-4-31b-it:free",
+  "google/gemma-4-26b-a4b-it:free",
+  "nvidia/nemotron-3-ultra-550b-a55b:free",
+  "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
 ];
 
 function openrouterModelChain(): string[] {
