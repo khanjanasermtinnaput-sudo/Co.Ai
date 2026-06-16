@@ -4,7 +4,6 @@ import { motion } from "framer-motion";
 import {
   Boxes,
   Bug,
-  Download,
   FileCode2,
   Hammer,
   ListChecks,
@@ -20,7 +19,7 @@ import { ChatThread } from "@/components/chat/chat-thread";
 import { Markdown } from "@/components/chat/markdown";
 import { Button } from "@/components/ui/button";
 import { ErrorPanel } from "@/components/diagnostics/error-panel";
-import { downloadBuildOutput } from "@/lib/export";
+import { ExportMenu } from "./export-menu";
 import { ProjectBriefPanel } from "./project-brief";
 
 // Conversation-first starters — framed as projects to discuss, not commands.
@@ -112,13 +111,7 @@ export function CodeConversation({ mode }: { mode: Exclude<CodeMode, "titan"> })
                           </span>
                         ) : (
                           buildLog && (
-                            <button
-                              type="button"
-                              onClick={() => void downloadBuildOutput(buildLog, brief?.project)}
-                              className="ml-auto flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
-                            >
-                              <Download className="size-3.5" /> Download
-                            </button>
+                            <ExportMenu buildLog={buildLog} brief={brief} className="ml-auto" />
                           )
                         )}
                       </div>
