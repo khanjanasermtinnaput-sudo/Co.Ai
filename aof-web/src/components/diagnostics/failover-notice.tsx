@@ -12,17 +12,28 @@ export function FailoverNotice({ notice, className }: { notice: FailoverNoticeT;
   return (
     <div
       className={cn(
-        "flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200",
+        "space-y-1 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-200",
         className,
       )}
     >
-      <ArrowRightLeft className="mt-0.5 size-3.5 shrink-0" />
-      <div className="min-w-0">
-        <span className="font-medium">Primary provider failed — switched to {notice.to}.</span>{" "}
-        <span className="text-amber-200/80">
-          {notice.from} → {notice.to}. Reason: {notice.reason}.
-        </span>
+      <div className="flex items-center gap-2 font-medium">
+        <ArrowRightLeft className="size-3.5 shrink-0" />
+        ⚠ {notice.from} unavailable — switching model…
       </div>
+      <dl className="grid grid-cols-[110px_1fr] gap-y-0.5 pl-5 text-amber-200/85">
+        <dt>Previous Model</dt>
+        <dd>{notice.from}</dd>
+        <dt>Replacement Model</dt>
+        <dd>{notice.to}</dd>
+        <dt>Reason</dt>
+        <dd>
+          {notice.reason}
+          {notice.matchScore != null ? ` · Capability Match ${notice.matchScore}%` : ""}
+        </dd>
+        <dt>Migration Status</dt>
+        <dd className="text-emerald-300">Success</dd>
+      </dl>
+      <p className="pl-5 text-amber-200/70">Resuming task — no need to resend your message.</p>
     </div>
   );
 }

@@ -14,6 +14,7 @@ import { RouteBadge } from "./route-badge";
 import { LearningAnswerView } from "./learning-answer";
 import { ErrorPanel } from "@/components/diagnostics/error-panel";
 import { FailoverNotice } from "@/components/diagnostics/failover-notice";
+import { ActiveModelBadge } from "@/components/diagnostics/active-model-badge";
 
 const AGENT_LABELS: Record<string, string> = {
   chief: "Chief Agent",
@@ -150,6 +151,7 @@ export function ChatMessage({
           </>
         ) : (
           <>
+            {!isUser && message.activeModel && <ActiveModelBadge notice={message.activeModel} />}
             {!isUser && message.route && <RouteBadge route={message.route} />}
             {!isUser && message.agentStatus && <AgentStatusBar status={message.agentStatus} />}
 

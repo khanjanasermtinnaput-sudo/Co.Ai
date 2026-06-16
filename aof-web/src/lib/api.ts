@@ -175,6 +175,7 @@ async function readAofStream(
         handlers.onToken(decoded.text);
       }
       for (const fo of decoded.failovers) handlers.onFailover?.(fo);
+      for (const mn of decoded.models) handlers.onModel?.(mn);
       if (decoded.errors.length) {
         for (const e of decoded.errors) handlers.onError?.(e);
         errored = true;
@@ -195,6 +196,7 @@ async function readAofStream(
       handlers.onToken(decoded.text);
     }
     for (const fo of decoded.failovers) handlers.onFailover?.(fo);
+    for (const mn of decoded.models) handlers.onModel?.(mn);
     if (decoded.errors.length) {
       for (const e of decoded.errors) handlers.onError?.(e);
       errored = true;

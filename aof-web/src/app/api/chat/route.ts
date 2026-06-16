@@ -8,6 +8,7 @@
 import {
   classifyProviderError,
   makeFailoverNotice,
+  makeModelNotice,
   missingKeyError,
   newRequestId,
   ERROR_CATALOG,
@@ -21,11 +22,12 @@ import {
   failoverFrame,
   isConfigured,
   modelFor,
+  modelFrame,
   primeAndStream,
   type KeyOverrides,
   type ProviderMeta,
 } from "@/lib/server/ai-providers";
-import { bestModelFor, routeOrder, type TaskCategory } from "@/lib/server/model-registry";
+import { bestModelFor, matchScore, ROLE_LABEL, routeOrder, type TaskCategory } from "@/lib/server/model-registry";
 import { logAofError, logAofInfo, runStartupCheckOnce } from "@/lib/server/ai-log";
 import { checkRateLimit, applyRateLimitHeaders } from "@/lib/server/rate-limit";
 import { getUserFromRequest } from "@/lib/server/supabase-admin";
@@ -296,7 +298,8 @@ async function handleChat(req: Request): Promise<Response> {
       overrides,
       taskModel,
     });
-    const prefixFrame = pendingFailover ? failoverFrame(pendingFailover) : undefined;
+    const notice = makeModelNotice(p.label, model, ROLE_LABEL[task]);
+    const prefixFrame = (pendingFailover ? failoverFrame(pendingFailover) : "") + modelFrame(notice);
 
     const result = await primeAndStream({ ctx, gen, prefixFrame });
 
@@ -320,7 +323,12 @@ async function handleChat(req: Request): Promise<Response> {
 
     const next = providers[i + 1];
     if (next && ERROR_CATALOG[lastError.code].failoverWorthy) {
-      pendingFailover = makeFailoverNotice(p.label, next.label, `${lastError.code} · ${lastError.problem}`);
+      pendingFailover = makeFailoverNotice(
+        p.label,
+        next.label,
+        `${lastError.code} · ${lastError.problem}`,
+        matchScore(p.id, next.id, task),
+      );
       continue;
     }
     break;

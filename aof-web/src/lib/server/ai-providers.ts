@@ -17,8 +17,10 @@ import {
   emptyResponseError,
   encodeErrorFrame,
   encodeFailoverFrame,
+  encodeModelFrame,
   type AofProviderError,
   type FailoverNotice,
+  type ModelNotice,
 } from "@/lib/errors";
 import type { ProviderHealth, ProviderStatusLevel } from "@/lib/health";
 
@@ -684,6 +686,13 @@ export async function primeAndStream(opts: {
 /** Frame that announces a failover, prepended to the successful provider's stream. */
 export function failoverFrame(notice: FailoverNotice): string {
   return encodeFailoverFrame(notice);
+}
+
+/** Frame that announces which model is actually answering — prepended to EVERY
+ *  successful stream (Section 1 / Section 6 transparency: the UI never has to
+ *  guess which model produced a reply). */
+export function modelFrame(notice: ModelNotice): string {
+  return encodeModelFrame(notice);
 }
 
 // ── Health ping ───────────────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 // ── Domain types shared across the Aof frontend ───────────────────────────────
 
-import type { AofProviderError, FailoverNotice } from "./errors";
+import type { AofProviderError, FailoverNotice, ModelNotice } from "./errors";
 
 /** Top-level products surfaced in the sidebar. Titan is intentionally absent —
  *  it is a mode *inside* Aof Code, never a product on the homepage. */
@@ -73,6 +73,8 @@ export interface ChatMessageT {
   error?: AofProviderError;
   /** present when the route failed over to a different provider mid-request */
   failover?: FailoverNotice;
+  /** which model actually answered — always present on a successful AI reply */
+  activeModel?: ModelNotice;
   /** live agent activity status from the Chief Agent orchestration system */
   agentStatus?: string;
   /** which AI agents contributed to this response */

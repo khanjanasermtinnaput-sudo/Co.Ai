@@ -327,6 +327,7 @@ export const useChatStore = create<ChatState>()(
                 signal: controller.signal,
                 onError: (error) => patchAssistant({ error, streaming: false }),
                 onFailover: (failover) => patchAssistant({ failover }),
+                onModel: (activeModel) => patchAssistant({ activeModel }),
               },
             );
           }

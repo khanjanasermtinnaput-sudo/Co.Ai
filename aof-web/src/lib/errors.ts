@@ -340,6 +340,9 @@ export interface FailoverNotice {
   to: string;
   /** Why the primary was abandoned — usually the primary error's problem+code. */
   reason: string;
+  /** 50-98% capability-match score explaining why `to` was chosen (see Section 5,
+   *  model-registry.ts matchScore()). Omitted when a score couldn't be computed. */
+  matchScore?: number;
   timestamp: string;
 }
 
@@ -347,8 +350,30 @@ export function isFailoverNotice(v: unknown): v is FailoverNotice {
   return typeof v === "object" && v !== null && (v as { kind?: unknown }).kind === "aof-failover";
 }
 
-export function makeFailoverNotice(from: string, to: string, reason: string): FailoverNotice {
-  return { kind: "aof-failover", from, to, reason, timestamp: new Date().toISOString() };
+export function makeFailoverNotice(from: string, to: string, reason: string, matchScore?: number): FailoverNotice {
+  return { kind: "aof-failover", from, to, reason, matchScore, timestamp: new Date().toISOString() };
+}
+
+// ── Active model notice (Section 1 / Section 6 transparency panel) ────────────
+// Announces which model is actually answering — prefixed to every successful
+// stream, the same way a failover notice is prefixed to a switched one. This is
+// what lets the UI always show "Active Model" / "Current AI" without guessing.
+
+export interface ModelNotice {
+  readonly kind: "aof-model";
+  provider: string;
+  model: string;
+  /** Human task label, e.g. "Code Generation" (model-registry.ts ROLE_LABEL). */
+  role: string;
+  timestamp: string;
+}
+
+export function isModelNotice(v: unknown): v is ModelNotice {
+  return typeof v === "object" && v !== null && (v as { kind?: unknown }).kind === "aof-model";
+}
+
+export function makeModelNotice(provider: string, model: string, role: string): ModelNotice {
+  return { kind: "aof-model", provider, model, role, timestamp: new Date().toISOString() };
 }
 
 // ── Wire protocol ─────────────────────────────────────────────────────────────
@@ -364,6 +389,8 @@ const ERR_OPEN = NUL + "AOF_ERR" + NUL;
 const ERR_CLOSE = NUL + "/AOF_ERR" + NUL;
 const FO_OPEN = NUL + "AOF_FO" + NUL;
 const FO_CLOSE = NUL + "/AOF_FO" + NUL;
+const MN_OPEN = NUL + "AOF_MN" + NUL;
+const MN_CLOSE = NUL + "/AOF_MN" + NUL;
 
 export function encodeErrorFrame(error: AofProviderError): string {
   return ERR_OPEN + JSON.stringify(error) + ERR_CLOSE;
@@ -371,12 +398,16 @@ export function encodeErrorFrame(error: AofProviderError): string {
 export function encodeFailoverFrame(notice: FailoverNotice): string {
   return FO_OPEN + JSON.stringify(notice) + FO_CLOSE;
 }
+export function encodeModelFrame(notice: ModelNotice): string {
+  return MN_OPEN + JSON.stringify(notice) + MN_CLOSE;
+}
 
 export interface DecodedFrames {
   /** Plain text with all control frames removed. */
   text: string;
   errors: AofProviderError[];
   failovers: FailoverNotice[];
+  models: ModelNotice[];
   /** An incomplete trailing frame the caller should prepend to the next chunk. */
   remainder: string;
 }
@@ -387,55 +418,62 @@ export interface DecodedFrames {
  * trailing frame, or a partial sentinel split across a chunk boundary) that the
  * caller should prepend to the next chunk.
  */
+type FrameKind = "err" | "fo" | "mn";
+const FRAME_SENTINELS: Record<FrameKind, { open: string; close: string }> = {
+  err: { open: ERR_OPEN, close: ERR_CLOSE },
+  fo: { open: FO_OPEN, close: FO_CLOSE },
+  mn: { open: MN_OPEN, close: MN_CLOSE },
+};
+
 export function decodeFrames(buffer: string): DecodedFrames {
   const errors: AofProviderError[] = [];
   const failovers: FailoverNotice[] = [];
+  const models: ModelNotice[] = [];
   let text = "";
   let i = 0;
 
   while (i < buffer.length) {
-    const errStart = buffer.indexOf(ERR_OPEN, i);
-    const foStart = buffer.indexOf(FO_OPEN, i);
-    // Index of the next control frame (whichever comes first).
-    const candidates = [errStart, foStart].filter((n) => n >= 0).sort((a, b) => a - b);
-    const next = candidates.length ? candidates[0] : -1;
+    const starts = (Object.entries(FRAME_SENTINELS) as [FrameKind, { open: string; close: string }][]).map(
+      ([kind, s]) => ({ kind, idx: buffer.indexOf(s.open, i) }),
+    );
+    const candidates = starts.filter((s) => s.idx >= 0).sort((a, b) => a.idx - b.idx);
+    const hit = candidates[0];
 
-    if (next < 0) {
+    if (!hit) {
       // No more frames — but a sentinel could be split across the chunk boundary.
       const tail = partialSentinelTail(buffer);
       const cut = Math.max(i, buffer.length - tail.length);
       text += buffer.slice(i, cut);
-      return { text, errors, failovers, remainder: buffer.slice(cut) };
+      return { text, errors, failovers, models, remainder: buffer.slice(cut) };
     }
 
-    text += buffer.slice(i, next);
+    text += buffer.slice(i, hit.idx);
 
-    const isErr = next === errStart;
-    const open = isErr ? ERR_OPEN : FO_OPEN;
-    const close = isErr ? ERR_CLOSE : FO_CLOSE;
-    const closeIdx = buffer.indexOf(close, next + open.length);
+    const { open, close } = FRAME_SENTINELS[hit.kind];
+    const closeIdx = buffer.indexOf(close, hit.idx + open.length);
     if (closeIdx < 0) {
-      // Frame not yet complete — keep everything from `next` for the next pass.
-      return { text, errors, failovers, remainder: buffer.slice(next) };
+      // Frame not yet complete — keep everything from `hit.idx` for the next pass.
+      return { text, errors, failovers, models, remainder: buffer.slice(hit.idx) };
     }
-    const json = buffer.slice(next + open.length, closeIdx);
+    const json = buffer.slice(hit.idx + open.length, closeIdx);
     try {
       const parsed = JSON.parse(json);
-      if (isErr && isAofProviderError(parsed)) errors.push(parsed);
-      else if (!isErr && isFailoverNotice(parsed)) failovers.push(parsed);
+      if (hit.kind === "err" && isAofProviderError(parsed)) errors.push(parsed);
+      else if (hit.kind === "fo" && isFailoverNotice(parsed)) failovers.push(parsed);
+      else if (hit.kind === "mn" && isModelNotice(parsed)) models.push(parsed);
     } catch {
       /* drop a corrupt frame rather than render its bytes */
     }
     i = closeIdx + close.length;
   }
 
-  return { text, errors, failovers, remainder: "" };
+  return { text, errors, failovers, models, remainder: "" };
 }
 
 /** The longest proper prefix of a sentinel-open marker at the end of the buffer. */
 function partialSentinelTail(buffer: string): string {
   let best = "";
-  for (const marker of [ERR_OPEN, FO_OPEN]) {
+  for (const marker of [ERR_OPEN, FO_OPEN, MN_OPEN]) {
     const max = Math.min(marker.length - 1, buffer.length);
     for (let len = max; len > best.length; len--) {
       if (buffer.endsWith(marker.slice(0, len))) {

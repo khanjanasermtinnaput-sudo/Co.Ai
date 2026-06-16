@@ -87,3 +87,43 @@ export function routeOrder(task: TaskCategory): ProviderId[] {
   const order = ROUTE_PRIORITY[task] ?? ROUTE_PRIORITY.chat;
   return order.includes("openrouter") ? order : [...order, "openrouter"];
 }
+
+// ── Transparency: human-facing role label + smart-replacement match score ──────
+// Section 1 ("Active Model" panel) shows this label as the model's Role. Section 5
+// ("Smart Replacement Logic") uses matchScore() to explain *why* a given fallback
+// was picked instead of treating the candidate list as a blind priority order.
+
+export const ROLE_LABEL: Record<TaskCategory, string> = {
+  chat: "General Chat",
+  coding: "Code Generation",
+  research: "Research & Reasoning",
+  reasoning: "Planning & Reasoning",
+};
+
+/** The model the registry would actually pick for a provider+task pair. */
+export function modelDefFor(provider: ProviderId, task: TaskCategory): ModelDef | undefined {
+  const model = bestModelFor(provider, task);
+  return MODEL_REGISTRY.find((m) => m.provider === provider && m.model === model);
+}
+
+const COST_RANK: Record<CostTier, number> = { free: 0, low: 1, medium: 2, high: 3 };
+
+/** 50-98% capability-match score for switching `from` → `to` on a given task —
+ *  weighs shared capabilities, the target's fit for the task, cost-tier distance
+ *  and context-window parity. Deterministic so the same pair always explains the
+ *  same way. */
+export function matchScore(from: ProviderId, to: ProviderId, task: TaskCategory): number {
+  const a = modelDefFor(from, task);
+  const b = modelDefFor(to, task);
+  if (!a || !b) return 70;
+
+  const wanted = TASK_CAPABILITY[task];
+  let score = 60;
+  if (b.capabilities.includes(wanted)) score += 20;
+  score += a.capabilities.filter((c) => b.capabilities.includes(c)).length * 4;
+  score -= Math.abs(COST_RANK[a.costTier] - COST_RANK[b.costTier]) * 3;
+  const ctxRatio = Math.min(a.contextWindow, b.contextWindow) / Math.max(a.contextWindow, b.contextWindow);
+  score += Math.round(ctxRatio * 10);
+
+  return Math.max(50, Math.min(98, Math.round(score)));
+}
