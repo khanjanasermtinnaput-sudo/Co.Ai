@@ -20,6 +20,7 @@ import { Markdown } from "@/components/chat/markdown";
 import { Button } from "@/components/ui/button";
 import { ErrorPanel } from "@/components/diagnostics/error-panel";
 import { ExportMenu } from "./export-menu";
+import { CodePreview } from "./code-preview";
 import { ProjectBriefPanel } from "./project-brief";
 
 // Conversation-first starters — framed as projects to discuss, not commands.
@@ -111,7 +112,10 @@ export function CodeConversation({ mode }: { mode: Exclude<CodeMode, "titan"> })
                           </span>
                         ) : (
                           buildLog && (
-                            <ExportMenu buildLog={buildLog} brief={brief} className="ml-auto" />
+                            <div className="ml-auto flex items-center gap-2">
+                              <CodePreview buildLog={buildLog} />
+                              <ExportMenu buildLog={buildLog} brief={brief} />
+                            </div>
                           )
                         )}
                       </div>

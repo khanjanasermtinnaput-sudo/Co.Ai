@@ -9,6 +9,7 @@ import { Composer } from "@/components/composer/composer";
 import { Markdown } from "@/components/chat/markdown";
 import { ErrorPanel } from "@/components/diagnostics/error-panel";
 import { ExportMenu } from "./export-menu";
+import { CodePreview } from "./code-preview";
 
 const EXAMPLES = [
   "A responsive pricing page with a monthly/yearly toggle",
@@ -72,7 +73,12 @@ export function CodeBuild({ mode }: { mode: Exclude<CodeMode, "titan"> }) {
                         working…
                       </span>
                     ) : (
-                      buildLog && <ExportMenu buildLog={buildLog} className="ml-auto" />
+                      buildLog && (
+                        <div className="ml-auto flex items-center gap-2">
+                          <CodePreview buildLog={buildLog} />
+                          <ExportMenu buildLog={buildLog} />
+                        </div>
+                      )
 
                     )}
                   </div>

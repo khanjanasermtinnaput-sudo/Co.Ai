@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { exportProject, extractGeneratedFiles } from "@/lib/export";
-import { hasHtmlEntry } from "@/lib/project-detect";
+import { canBuildHtml } from "@/lib/project-detect";
 import { EXPORT_ERROR_MESSAGE, EXPORT_STAGE_LABEL, ExportError, type ExportStage } from "@/lib/export-types";
 import type { ProjectBrief } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -35,7 +35,7 @@ export function ExportMenu({
   const [stage, setStage] = useState<ExportStage | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const canExportHtml = hasHtmlEntry(extractGeneratedFiles(buildLog));
+  const canExportHtml = canBuildHtml(extractGeneratedFiles(buildLog));
 
   const run = async (format: "html" | "zip") => {
     setError(null);
