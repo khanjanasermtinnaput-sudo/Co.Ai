@@ -47,10 +47,8 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
     label: "OpenRouter",
     envVar: "OPENROUTER_API_KEY",
     modelEnv: "OPENROUTER_MODEL",
-    // A stable, widely-available free model. The experimental `:free` endpoints
-    // (e.g. gemini-2.0-flash-exp:free) frequently 5xx under load → AOF_ERROR_006.
     // Override with OPENROUTER_MODEL for a paid/more capable model.
-    defaultModel: "meta-llama/llama-3.3-70b-instruct:free",
+    defaultModel: "meta-llama/llama-3.1-8b-instruct:free",
     priority: 2,
   },
 };
@@ -219,10 +217,10 @@ const OPENROUTER_BACKOFF_MS = [300, 800];
 // paid key. The configured OPENROUTER_MODEL is always tried first; override the whole
 // chain with OPENROUTER_MODELS (comma-separated).
 const OPENROUTER_FREE_FALLBACKS = [
-  "meta-llama/llama-3.3-70b-instruct:free",
   "meta-llama/llama-3.1-8b-instruct:free",
   "google/gemma-2-9b-it:free",
-  "mistralai/mistral-7b-instruct:free",
+  "microsoft/phi-3-mini-128k-instruct:free",
+  "qwen/qwen2.5-7b-instruct:free",
 ];
 
 function openrouterModelChain(): string[] {
