@@ -210,6 +210,7 @@ export const useCodeStore = create<CodeState>()(
       content: "",
       createdAt: now,
       streaming: true,
+      model: get().mode,
     };
     set((s) => ({ chatting: true, convo: [...s.convo, userMsg, assistantMsg] }));
 

@@ -1482,22 +1482,22 @@ select.fld {
           <circle cx="6" cy="6" r="2.5" fill="currentColor"/>
           <path d="M6 1v1.5M6 9.5V11M1 6h1.5M9.5 6H11" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
         </svg>
-        <span id="model-label">AOF 1.0</span>
+        <span id="model-label">Kanon 1.0</span>
         <svg width="8" height="5" viewBox="0 0 8 5" fill="none" style="opacity:0.5">
           <path d="M1 1l3 3 3-3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
       </button>
       <div class="model-info-panel" id="model-panel">
         <div class="mi-option" onclick="selectModel('lite')">
-          <div class="mi-name">AOF 1.0 Lite</div>
+          <div class="mi-name">Mikros 1.0</div>
           <div class="mi-desc">Plan → Code → Review · เร็ว (ไม่วน loop)</div>
         </div>
         <div class="mi-option selected" onclick="selectModel('normal')">
-          <div class="mi-name">AOF 1.0 <span style="color:var(--accent);font-size:10px;font-weight:700">recommended</span></div>
+          <div class="mi-name">Kanon 1.0 <span style="color:var(--accent);font-size:10px;font-weight:700">recommended</span></div>
           <div class="mi-desc">วนแก้ได้ 1 รอบ · สมดุล</div>
         </div>
         <div class="mi-option" onclick="selectModel('pro')">
-          <div class="mi-name">AOF 1.0 Pro</div>
+          <div class="mi-name">Ypertatos 1.0</div>
           <div class="mi-desc">วนแก้ได้ 3 รอบ · ละเอียดสุด</div>
         </div>
         <div class="mi-option" onclick="selectModel('titan')" style="border-top:1px solid var(--border,rgba(255,255,255,0.08))">
@@ -1579,7 +1579,7 @@ select.fld {
       <span class="sb-sep">|</span>
       <span class="sb-item" id="sb-agents">RAA active</span>
       <span class="sb-sep">|</span>
-      <span class="sb-item" id="sb-model">AOF 1.0</span>
+      <span class="sb-item" id="sb-model">Kanon 1.0</span>
       <div class="sb-right">
         <span class="sb-item" id="sb-user">user: --</span>
         <span class="sb-sep">|</span>
@@ -1799,7 +1799,7 @@ const PROVIDERS = ['openrouter','gemini','deepseek','qwen','llama'];
 const ROLE_AGENT = { architect:'Architect', planner:'Gemini', coder:'DeepSeek', reviewer:'Qwen', validator:'Meta Llama', documenter:'Documenter', impact:'Impact', titan:'Titan' };
 const ROLE_COLOR = { architect:'t-blue', planner:'t-orange', coder:'t-green', reviewer:'t-yellow', validator:'t-blue', documenter:'t-green', impact:'t-red', titan:'t-orange', system:'t-dim' };
 const ROLE_WF    = { planner:1, coder:3, validator:5, reviewer:4 };
-const MODE_LABEL = { lite:'AOF 1.0 Lite', normal:'AOF 1.0', pro:'AOF 1.0 Pro', titan:'AOF Titan' };
+const MODE_LABEL = { lite:'Mikros 1.0', normal:'Kanon 1.0', pro:'Ypertatos 1.0', titan:'Titan' };
 
 const COMMANDS = [
   { cmd: '/gencode',  desc: 'เริ่มสร้างโค้ด (ต้องผ่าน Planning ก่อน)' },

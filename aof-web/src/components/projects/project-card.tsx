@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { Pin, PinOff, MoreVertical, Clock, Trash2, FolderOpen } from "lucide-react";
 import { cn, timeAgo } from "@/lib/utils";
 import type { Project } from "@/lib/types";
+import { getModelDisplayName } from "@/lib/model-branding";
 import { useProjectStore } from "@/store/project-store";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -99,7 +100,7 @@ export function ProjectCard({ project }: { project: Project }) {
         {project.mode && (
           <>
             <span className="mx-1 text-muted-foreground/40">·</span>
-            <span className="capitalize">{project.mode === "titan" ? "Titan" : project.mode}</span>
+            <span>{getModelDisplayName(project.mode)}</span>
           </>
         )}
       </div>
