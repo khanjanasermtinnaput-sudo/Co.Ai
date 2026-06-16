@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { toast } from "sonner";
 import { uid } from "@/lib/utils";
-import { streamChat, type ChatHistoryItem } from "@/lib/api";
+import { streamChat, streamOrchestrate, isLive, type ChatHistoryItem } from "@/lib/api";
 import { routeRequest } from "@/lib/router";
 import { composeLearningReply, isLearningProblem } from "@/lib/mock";
 import {
@@ -20,6 +20,7 @@ import type {
   Conversation,
   ResponseStyle,
 } from "@/lib/types";
+import type { AofProviderError } from "@/lib/errors";
 
 interface PendingMessage {
   text: string;
@@ -297,16 +298,38 @@ export const useChatStore = create<ChatState>()(
         };
 
         try {
-          await streamChat(
-            content,
-            { style, route, history },
-            {
-              onToken: appendToken,
-              signal: controller.signal,
-              onError: (error) => patchAssistant({ error, streaming: false }),
-              onFailover: (failover) => patchAssistant({ failover }),
-            },
-          );
+          if (isLive()) {
+            // Universal orchestration: Chief Agent handles all task types
+            await streamOrchestrate(
+              content,
+              history,
+              {
+                onStatus: (agent, text) =>
+                  patchAssistant({ agentStatus: `${agent}: ${text}` }),
+                onToken: appendToken,
+                onDone: (result) =>
+                  patchAssistant({
+                    agentsUsed: result.agentsUsed,
+                    qualityScore: result.qualityScore,
+                    categories: result.categories,
+                    agentStatus: undefined,
+                  }),
+                onError: (error) => patchAssistant({ error: error as AofProviderError, streaming: false }),
+                signal: controller.signal,
+              },
+            );
+          } else {
+            await streamChat(
+              content,
+              { style, route, history },
+              {
+                onToken: appendToken,
+                signal: controller.signal,
+                onError: (error) => patchAssistant({ error, streaming: false }),
+                onFailover: (failover) => patchAssistant({ failover }),
+              },
+            );
+          }
         } finally {
           finish(accumulated || undefined);
         }

@@ -73,6 +73,14 @@ export interface ChatMessageT {
   error?: AofProviderError;
   /** present when the route failed over to a different provider mid-request */
   failover?: FailoverNotice;
+  /** live agent activity status from the Chief Agent orchestration system */
+  agentStatus?: string;
+  /** which AI agents contributed to this response */
+  agentsUsed?: string[];
+  /** quality score 0-100 from the review gate */
+  qualityScore?: number;
+  /** detected task categories */
+  categories?: string[];
 }
 
 export interface Conversation {

@@ -15,6 +15,50 @@ import { LearningAnswerView } from "./learning-answer";
 import { ErrorPanel } from "@/components/diagnostics/error-panel";
 import { FailoverNotice } from "@/components/diagnostics/failover-notice";
 
+const AGENT_LABELS: Record<string, string> = {
+  chief: "Chief Agent",
+  research: "Research Agent",
+  writing: "Writing Agent",
+  math: "Math Agent",
+  coding: "Code Agent",
+  vision: "Vision Agent",
+  system: "System",
+};
+
+function AgentStatusBar({ status }: { status: string }) {
+  const [agent, ...rest] = status.split(": ");
+  const label = AGENT_LABELS[agent] ?? agent;
+  const detail = rest.join(": ");
+  return (
+    <div className="flex items-center gap-1.5 rounded-lg border border-primary/20 bg-primary/5 px-3 py-1.5 text-xs text-primary/80">
+      <span className="size-1.5 animate-pulse rounded-full bg-primary" />
+      <span className="font-medium">{label}</span>
+      {detail && <span className="text-muted-foreground">— {detail}</span>}
+    </div>
+  );
+}
+
+function AgentBadges({ agents, quality, categories }: { agents?: string[]; quality?: number; categories?: string[] }) {
+  if (!agents?.length && !quality && !categories?.length) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+      {categories?.slice(0, 3).map((cat) => (
+        <span key={cat} className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-muted-foreground">
+          {cat.replace(/_/g, " ")}
+        </span>
+      ))}
+      {quality !== undefined && quality > 0 && (
+        <span className={cn(
+          "rounded-full border px-2 py-0.5 text-[10px] font-medium",
+          quality >= 90 ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400" : "border-amber-500/30 bg-amber-500/10 text-amber-400",
+        )}>
+          ✓ {quality}/100
+        </span>
+      )}
+    </div>
+  );
+}
+
 export function ChatMessage({
   message,
   isLast,
@@ -107,6 +151,7 @@ export function ChatMessage({
         ) : (
           <>
             {!isUser && message.route && <RouteBadge route={message.route} />}
+            {!isUser && message.agentStatus && <AgentStatusBar status={message.agentStatus} />}
 
             {/* ── User message: editable ──────────────────────────────── */}
             {isUser && editing ? (
@@ -172,6 +217,14 @@ export function ChatMessage({
                   <span className="ml-0.5 inline-block h-4 w-[2px] translate-y-0.5 animate-pulse bg-primary" />
                 )}
               </div>
+            )}
+
+            {!isUser && !message.streaming && (
+              <AgentBadges
+                agents={message.agentsUsed}
+                quality={message.qualityScore}
+                categories={message.categories}
+              />
             )}
 
             {/* ── Action bar ──────────────────────────────────────────── */}

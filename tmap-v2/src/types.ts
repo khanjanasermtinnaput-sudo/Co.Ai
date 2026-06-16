@@ -3,6 +3,70 @@
 export type Role = 'planner' | 'coder' | 'reviewer' | 'validator';
 export type Mode = 'lite' | 'normal' | 'pro';
 
+// ── AOF AI Universal Orchestration System types ───────────────────────────────
+
+export type TaskCategory =
+  | 'coding'
+  | 'image_generation'
+  | 'image_editing'
+  | 'research'
+  | 'writing'
+  | 'mathematics'
+  | 'science'
+  | 'data_analysis'
+  | 'education'
+  | 'business'
+  | 'translation'
+  | 'ui_design'
+  | 'ux_design'
+  | 'product_design'
+  | 'video'
+  | 'audio'
+  | 'multi_step';
+
+export type AgentType = 'coding' | 'research' | 'writing' | 'math' | 'vision' | 'chief';
+
+export interface ChiefPlan {
+  intent: string;
+  categories: TaskCategory[];
+  agents: AgentType[];
+  subtasks: string[];
+  strategy: string;
+  expandedPrompt: string;
+}
+
+export interface QualityScore {
+  score: number; // 0-100
+  issues: string[];
+  passed: boolean; // score >= 90
+}
+
+export interface OrchestrationResult {
+  response: string;
+  categories: TaskCategory[];
+  agentsUsed: AgentType[];
+  qualityScore: number;
+  iterations: number;
+}
+
+export interface ResearchResult {
+  answer: string;
+  sources: string[];
+  confidence: 'high' | 'medium' | 'low';
+}
+
+export interface WritingResult {
+  content: string;
+  wordCount: number;
+  tone: string;
+}
+
+export interface MathResult {
+  solution: string;
+  steps: string[];
+  verified: boolean;
+}
+
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;

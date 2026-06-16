@@ -512,6 +512,93 @@ export async function streamDebug(input: DebugInput, handlers: StreamHandlers): 
   }
 }
 
+// ── AOF AI Universal Orchestration ───────────────────────────────────────────
+
+export interface OrchestrationEvent {
+  role: string;
+  kind: string;
+  text?: string;
+  categories?: string[];
+  agentsUsed?: string[];
+  qualityScore?: number;
+  iterations?: number;
+}
+
+export interface OrchestrationHandlers {
+  onStatus?: (agent: string, text: string) => void;
+  onToken: (text: string) => void;
+  onDone?: (result: { categories: string[]; agentsUsed: string[]; qualityScore: number; iterations: number }) => void;
+  onError?: (error: unknown) => void;
+  signal?: AbortSignal;
+}
+
+/**
+ * Stream a universal orchestration request through the AOF AI Chief Agent.
+ * The Chief Agent classifies intent, expands the prompt, delegates to specialized
+ * agents, runs a quality review loop, and returns the best possible response.
+ */
+export async function streamOrchestrate(
+  message: string,
+  history: ChatHistoryItem[],
+  handlers: OrchestrationHandlers,
+  qualityGate = true,
+): Promise<void> {
+  if (!isLive()) {
+    // Fallback to regular chat when backend not configured
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message, agent: "chat", history: history.slice(-20) }),
+        signal: handlers.signal,
+      });
+      const decoder = new TextDecoder();
+      const reader = res.body?.getReader();
+      if (!reader) return;
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        handlers.onToken(decoder.decode(value, { stream: true }));
+      }
+    } catch (e) {
+      if ((e as { name?: string })?.name === "AbortError") return;
+      handlers.onError?.(e);
+    }
+    return;
+  }
+
+  try {
+    await postSSE(
+      "/v1/orchestrate",
+      {
+        message,
+        history: history.map((h) => ({ role: h.role, content: h.content })),
+        qualityGate,
+      },
+      (e: OrchestrationEvent) => {
+        if (e.kind === "status" && typeof e.text === "string") {
+          handlers.onStatus?.(String(e.role ?? "chief"), e.text);
+        } else if (e.kind === "output" && typeof e.text === "string") {
+          handlers.onToken(e.text);
+        } else if (e.kind === "done") {
+          handlers.onDone?.({
+            categories: Array.isArray(e.categories) ? e.categories : [],
+            agentsUsed: Array.isArray(e.agentsUsed) ? e.agentsUsed : [],
+            qualityScore: typeof e.qualityScore === "number" ? e.qualityScore : 0,
+            iterations: typeof e.iterations === "number" ? e.iterations : 1,
+          });
+        } else if (e.kind === "error" && typeof e.text === "string") {
+          handlers.onError?.(new Error(e.text));
+        }
+      },
+      handlers.signal,
+    );
+  } catch (e) {
+    if ((e as { name?: string })?.name === "AbortError") return;
+    handlers.onError?.(backendUnavailableError("Orchestration backend (/v1/orchestrate) is unreachable.", e));
+  }
+}
+
 // ── Health ────────────────────────────────────────────────────────────────────
 
 import type { SystemHealth } from "./health";

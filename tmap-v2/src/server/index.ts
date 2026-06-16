@@ -24,6 +24,7 @@ import { runAnalyzer } from '../core/analyze.js';
 import { loadMemory, memoryToContext, recordSessionMemory, recordDecision, clearMemory } from '../core/memory.js';
 import { currentMode } from '../config.js';
 import type { Mode, ChatMessage } from '../types.js';
+import { runChiefAgent } from '../core/chief-agent.js';
 import { chatWithDARS } from '../dars/run.js';
 import { globalHealth } from '../dars/health.js';
 
@@ -496,6 +497,80 @@ app.post('/v1/run', requireAuth, async (req: AuthedRequest, res) => {
     await updateSession(sessionRec.id, { status: 'error' });
     logger.error('tmap_error', { sessionId: sessionRec.id, error: (e as Error).message });
     send({ role: 'system', kind: 'error', text: (e as Error).message });
+  }
+  res.end();
+});
+
+// ── ORCHESTRATE — AOF AI Universal Chief Agent (SSE stream) ──────────────────
+app.post('/v1/orchestrate', requireAuth, async (req: AuthedRequest, res) => {
+  const message = String(req.body?.message ?? '').trim();
+  const history: ChatMessage[] = Array.isArray(req.body?.history) ? req.body.history : [];
+  const enableQualityGate = req.body?.qualityGate !== false;
+  if (!message) return res.status(400).json({ error: 'message required' });
+  if (tooLong(message, MAX_MESSAGE)) return res.status(413).json({ error: `message too long (max ${MAX_MESSAGE} bytes)` });
+
+  const u = req.user!;
+  const creds: CredentialBag = {};
+  for (const p of PROVIDERS) {
+    if (u.encryptedKeys[p]) (creds as Record<string, string>)[p] = decryptSecret(u.encryptedKeys[p]!);
+  }
+
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive',
+  });
+  const send = (event: object) => res.write(`data: ${JSON.stringify(event)}\n\n`);
+
+  // Load memory for context continuity
+  let memCtx = '';
+  try {
+    const mem = await loadMemory(u.id);
+    memCtx = memoryToContext(mem);
+    if (memCtx) send({ role: 'chief', kind: 'status', text: 'memory: loading context from previous sessions' });
+  } catch { /* best-effort */ }
+
+  // Prepend memory to history context if available
+  const enrichedHistory: ChatMessage[] = memCtx
+    ? [{ role: 'system' as const, content: memCtx }, ...history]
+    : history;
+
+  try {
+    const result = await runChiefAgent(message, {
+      creds,
+      health: globalHealth,
+      emit: (agent, text, kind = 'status') => send({ role: agent, kind, text }),
+      sessionId: 'orchestrate-' + u.id,
+      history: enrichedHistory,
+      enableQualityGate,
+    });
+
+    send({
+      role: 'chief',
+      kind: 'output',
+      text: result.response,
+    });
+    send({
+      role: 'chief',
+      kind: 'done',
+      categories: result.categories,
+      agentsUsed: result.agentsUsed,
+      qualityScore: result.qualityScore,
+      iterations: result.iterations,
+    });
+
+    // Record to memory for future sessions
+    try {
+      await recordSessionMemory(u.id, {
+        task: message.slice(0, 160),
+        status: 'done',
+        files: [],
+        iterations: result.iterations,
+        at: new Date().toISOString(),
+      }, {});
+    } catch { /* best-effort */ }
+  } catch (e) {
+    send({ role: 'chief', kind: 'error', text: (e as Error).message });
   }
   res.end();
 });
