@@ -575,20 +575,21 @@ export async function streamOrchestrate(
         history: history.map((h) => ({ role: h.role, content: h.content })),
         qualityGate,
       },
-      (e: OrchestrationEvent) => {
-        if (e.kind === "status" && typeof e.text === "string") {
-          handlers.onStatus?.(String(e.role ?? "chief"), e.text);
-        } else if (e.kind === "output" && typeof e.text === "string") {
-          handlers.onToken(e.text);
-        } else if (e.kind === "done") {
+      (e: SSEEvent) => {
+        const oe = e as OrchestrationEvent;
+        if (oe.kind === "status" && typeof oe.text === "string") {
+          handlers.onStatus?.(String(oe.role ?? "chief"), oe.text);
+        } else if (oe.kind === "output" && typeof oe.text === "string") {
+          handlers.onToken(oe.text);
+        } else if (oe.kind === "done") {
           handlers.onDone?.({
-            categories: Array.isArray(e.categories) ? e.categories : [],
-            agentsUsed: Array.isArray(e.agentsUsed) ? e.agentsUsed : [],
-            qualityScore: typeof e.qualityScore === "number" ? e.qualityScore : 0,
-            iterations: typeof e.iterations === "number" ? e.iterations : 1,
+            categories: Array.isArray(oe.categories) ? oe.categories : [],
+            agentsUsed: Array.isArray(oe.agentsUsed) ? oe.agentsUsed : [],
+            qualityScore: typeof oe.qualityScore === "number" ? oe.qualityScore : 0,
+            iterations: typeof oe.iterations === "number" ? oe.iterations : 1,
           });
-        } else if (e.kind === "error" && typeof e.text === "string") {
-          handlers.onError?.(new Error(e.text));
+        } else if (oe.kind === "error" && typeof oe.text === "string") {
+          handlers.onError?.(new Error(oe.text));
         }
       },
       handlers.signal,
