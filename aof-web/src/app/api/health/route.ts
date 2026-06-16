@@ -7,13 +7,17 @@
 import { deriveSystemStatus, type ChecklistItem, type SystemHealth } from "@/lib/health";
 import { allProviders, isConfigured, pingProvider } from "@/lib/server/ai-providers";
 import { logAofError, runStartupCheckOnce } from "@/lib/server/ai-log";
-import { isAdminConfigured } from "@/lib/server/supabase-admin";
+import { getUserFromRequest, isAdminConfigured } from "@/lib/server/supabase-admin";
+import { loadUserKeyOverrides } from "@/lib/server/keys-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET(): Promise<Response> {
-  const providers = await Promise.all(allProviders().map((p) => pingProvider(p)));
+export async function GET(req: Request): Promise<Response> {
+  const user = await getUserFromRequest(req).catch(() => null);
+  const overrides = await loadUserKeyOverrides(user?.id);
+
+  const providers = await Promise.all(allProviders().map((p) => pingProvider(p, overrides)));
 
   // Log any provider that came back unhealthy so the failure is recorded too.
   for (const p of providers) {
@@ -23,8 +27,8 @@ export async function GET(): Promise<Response> {
   const checklist: ChecklistItem[] = [
     ...allProviders().map((p) => ({
       label: `${p.label} API Key`,
-      ok: isConfigured(p),
-      note: isConfigured(p) ? "Loaded" : "Missing",
+      ok: isConfigured(p, overrides),
+      note: isConfigured(p, overrides) ? "Loaded" : "Missing",
     })),
     {
       label: "Database (Supabase)",

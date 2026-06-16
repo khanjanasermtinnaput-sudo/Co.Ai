@@ -5,8 +5,11 @@
 // clean structured error (instead of a half-rendered fake answer), and the
 // lightweight health ping used by the diagnostics panel.
 //
-// Only Anthropic (Claude) and OpenRouter are wired into the chat runtime today;
-// the registry is shaped so more providers slot in without touching callers.
+// Six providers are wired into the chat runtime: Anthropic (Claude), OpenRouter,
+// Google Gemini, DeepSeek, Qwen (DashScope) and Meta Llama (via Groq). A key for
+// any of the latter five can come from the server environment (operator-wide) or
+// from the signed-in user's own encrypted key (see keys-store.ts) — the user key
+// always wins when both are present.
 
 import Anthropic from "@anthropic-ai/sdk";
 import {
@@ -21,7 +24,7 @@ import type { ProviderHealth, ProviderStatusLevel } from "@/lib/health";
 
 // ── Registry ──────────────────────────────────────────────────────────────────
 
-export type ProviderId = "anthropic" | "openrouter";
+export type ProviderId = "anthropic" | "openrouter" | "gemini" | "deepseek" | "qwen" | "llama";
 
 export interface ProviderMeta {
   id: ProviderId;
@@ -32,6 +35,11 @@ export interface ProviderMeta {
   /** Lower = higher priority when picking the primary + failover order. */
   priority: number;
 }
+
+/** Per-request override of which key to use for a provider — the signed-in
+ *  user's own key, when they've saved one (see keys-store.ts). Falls back to
+ *  the server environment variable when a provider has no entry here. */
+export type KeyOverrides = Partial<Record<ProviderId, string>>;
 
 export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
   anthropic: {
@@ -49,7 +57,39 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
     modelEnv: "OPENROUTER_MODEL",
     // Set OPENROUTER_MODEL env var to override. Browse free models at openrouter.ai/models?q=:free
     defaultModel: "google/gemma-4-31b-it:free",
+    priority: 6,
+  },
+  gemini: {
+    id: "gemini",
+    label: "Google Gemini",
+    envVar: "GEMINI_API_KEY",
+    modelEnv: "GEMINI_MODEL",
+    defaultModel: "gemini-2.5-flash",
     priority: 2,
+  },
+  deepseek: {
+    id: "deepseek",
+    label: "DeepSeek",
+    envVar: "DEEPSEEK_API_KEY",
+    modelEnv: "DEEPSEEK_MODEL",
+    defaultModel: "deepseek-chat",
+    priority: 3,
+  },
+  qwen: {
+    id: "qwen",
+    label: "Qwen (DashScope)",
+    envVar: "QWEN_API_KEY",
+    modelEnv: "QWEN_MODEL",
+    defaultModel: "qwen-plus",
+    priority: 4,
+  },
+  llama: {
+    id: "llama",
+    label: "Llama (Groq)",
+    envVar: "LLAMA_API_KEY",
+    modelEnv: "LLAMA_MODEL",
+    defaultModel: "llama-3.3-70b",
+    priority: 5,
   },
 };
 
@@ -57,7 +97,9 @@ const ALL_PROVIDERS: ProviderMeta[] = Object.values(PROVIDER_REGISTRY).sort(
   (a, b) => a.priority - b.priority,
 );
 
-export function apiKeyFor(p: ProviderMeta): string | undefined {
+export function apiKeyFor(p: ProviderMeta, overrides?: KeyOverrides): string | undefined {
+  const own = overrides?.[p.id]?.trim();
+  if (own) return own;
   const v = process.env[p.envVar];
   return typeof v === "string" && v.trim() ? v.trim() : undefined;
 }
@@ -66,13 +108,22 @@ export function modelFor(p: ProviderMeta): string {
   return process.env[p.modelEnv]?.trim() || p.defaultModel;
 }
 
-export function isConfigured(p: ProviderMeta): boolean {
-  return apiKeyFor(p) !== undefined;
+export function isConfigured(p: ProviderMeta, overrides?: KeyOverrides): boolean {
+  return apiKeyFor(p, overrides) !== undefined;
 }
 
 /** Configured providers in priority order (primary first). */
-export function configuredProviders(): ProviderMeta[] {
-  return ALL_PROVIDERS.filter(isConfigured);
+export function configuredProviders(overrides?: KeyOverrides): ProviderMeta[] {
+  return ALL_PROVIDERS.filter((p) => isConfigured(p, overrides));
+}
+
+/** Configured providers ordered for a specific task category, falling back to
+ *  priority order for any provider the task list doesn't mention. */
+export function configuredProvidersForOrder(order: ProviderId[], overrides?: KeyOverrides): ProviderMeta[] {
+  const byId = new Map(order.map((id, i) => [id, i]));
+  return ALL_PROVIDERS.filter((p) => isConfigured(p, overrides) && byId.has(p.id)).sort(
+    (a, b) => byId.get(a.id)! - byId.get(b.id)!,
+  );
 }
 
 /** Every registered provider, configured or not, in priority order. */
@@ -170,12 +221,17 @@ export interface AdapterInput {
   maxTokens: number;
   temperature: number;
   signal: AbortSignal;
+  /** Per-user key overrides (own key beats the server's env var), if any. */
+  overrides?: KeyOverrides;
+  /** Task-selected model, when the router picked one more specific than the
+   *  provider's configured default (see model-registry.ts). */
+  taskModel?: string;
 }
 
 export async function* anthropicTextStream(input: AdapterInput): AsyncGenerator<string> {
   const meta = PROVIDER_REGISTRY.anthropic;
-  const anthropic = new Anthropic({ apiKey: apiKeyFor(meta)! });
-  const model = modelFor(meta);
+  const anthropic = new Anthropic({ apiKey: apiKeyFor(meta, input.overrides)! });
+  const model = input.taskModel || modelFor(meta);
 
   const messages: Anthropic.MessageParam[] = [
     ...input.history.map((h) => ({ role: h.role, content: h.content })),
@@ -223,8 +279,8 @@ const OPENROUTER_FREE_FALLBACKS = [
   "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
 ];
 
-function openrouterModelChain(): string[] {
-  const primary = modelFor(PROVIDER_REGISTRY.openrouter);
+function openrouterModelChain(taskModel?: string): string[] {
+  const primary = taskModel || modelFor(PROVIDER_REGISTRY.openrouter);
   const fromEnv = process.env.OPENROUTER_MODELS?.split(",")
     .map((s) => s.trim())
     .filter(Boolean);
@@ -270,7 +326,7 @@ async function openrouterConnect(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKeyFor(meta)!}`,
+        Authorization: `Bearer ${apiKeyFor(meta, input.overrides)!}`,
         "HTTP-Referer": "https://aof-web.vercel.app",
         "X-Title": "Aof",
       },
@@ -315,7 +371,7 @@ export async function* openrouterTextStream(input: AdapterInput): AsyncGenerator
   // Try each model in the chain; an overloaded/rate-limited/unknown/slow model falls
   // through to the next free one. With multiple models we attempt each once (the
   // chain is the resilience); a single configured model still gets retried.
-  const chain = openrouterModelChain();
+  const chain = openrouterModelChain(input.taskModel);
   const perModelAttempts = chain.length > 1 ? 1 : OPENROUTER_MAX_ATTEMPTS;
 
   let lastError: ProviderHttpError | undefined;
@@ -423,8 +479,129 @@ function parseUpstreamError(body: string): { type?: string; message?: string } {
   }
 }
 
+// ── OpenAI-compatible adapter (Gemini, DeepSeek, Qwen, Llama) ──────────────────
+// All four new providers speak the same `POST {baseUrl}/chat/completions` SSE
+// dialect as OpenRouter, just against a different host/key. One generator
+// covers all of them; retry/backoff for transient upstream errors mirrors the
+// OpenRouter adapter above so behavior (and failover semantics) stays consistent.
+
+interface OpenAiCompatConfig {
+  baseUrl: string;
+  providerId: "gemini" | "deepseek" | "qwen" | "llama";
+}
+
+const OPENAI_COMPAT: Record<OpenAiCompatConfig["providerId"], string> = {
+  gemini: "https://generativelanguage.googleapis.com/v1beta/openai",
+  deepseek: "https://api.deepseek.com/v1",
+  qwen: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+  llama: "https://api.groq.com/openai/v1",
+};
+
+const COMPAT_MAX_ATTEMPTS = 3;
+const COMPAT_BACKOFF_MS = [300, 800];
+
+async function openAiCompatConnect(
+  cfg: OpenAiCompatConfig,
+  apiKey: string,
+  model: string,
+  messages: unknown[],
+  input: AdapterInput,
+): Promise<Response> {
+  const body = JSON.stringify({
+    model,
+    messages,
+    temperature: input.temperature,
+    max_tokens: input.maxTokens,
+    stream: true,
+  });
+
+  let lastTransient: ProviderHttpError | undefined;
+  for (let attempt = 1; attempt <= COMPAT_MAX_ATTEMPTS; attempt++) {
+    const res = await fetch(`${cfg.baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body,
+      signal: input.signal,
+    });
+
+    if (res.ok && res.body) return res;
+
+    const text = await res.text().catch(() => "");
+    const { type, message } = parseUpstreamError(text);
+    const err = new ProviderHttpError(res.status, text, type, message);
+
+    if (TRANSIENT_STATUSES.has(res.status) && attempt < COMPAT_MAX_ATTEMPTS) {
+      lastTransient = err;
+      await abortableDelay(COMPAT_BACKOFF_MS[attempt - 1] ?? 800, input.signal);
+      continue;
+    }
+    throw err;
+  }
+  throw lastTransient ?? new ProviderHttpError(502, "", undefined, "Provider unavailable");
+}
+
+async function* openAiCompatTextStream(cfg: OpenAiCompatConfig, input: AdapterInput): AsyncGenerator<string> {
+  const meta = PROVIDER_REGISTRY[cfg.providerId];
+  const apiKey = apiKeyFor(meta, input.overrides)!;
+  const model = input.taskModel || modelFor(meta);
+  const messages = [
+    { role: "system", content: input.system },
+    ...input.history,
+    { role: "user", content: input.message },
+  ];
+
+  const res = await openAiCompatConnect(cfg, apiKey, model, messages, input);
+  const reader = res.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith("data:")) continue;
+      const data = trimmed.slice(5).trim();
+      if (data === "[DONE]") return;
+      let delta = "";
+      try {
+        const json = JSON.parse(data);
+        if (json?.error) {
+          const msg = typeof json.error === "string" ? json.error : json.error?.message;
+          throw new ProviderHttpError(json.error?.code ?? 502, data, json.error?.type, msg);
+        }
+        delta = json?.choices?.[0]?.delta?.content ?? "";
+      } catch (e) {
+        if (e instanceof ProviderHttpError) throw e;
+        /* ignore malformed keep-alive frames */
+      }
+      if (delta) yield delta;
+    }
+  }
+}
+
+export const geminiTextStream = (input: AdapterInput) =>
+  openAiCompatTextStream({ baseUrl: OPENAI_COMPAT.gemini, providerId: "gemini" }, input);
+export const deepseekTextStream = (input: AdapterInput) =>
+  openAiCompatTextStream({ baseUrl: OPENAI_COMPAT.deepseek, providerId: "deepseek" }, input);
+export const qwenTextStream = (input: AdapterInput) =>
+  openAiCompatTextStream({ baseUrl: OPENAI_COMPAT.qwen, providerId: "qwen" }, input);
+export const llamaTextStream = (input: AdapterInput) =>
+  openAiCompatTextStream({ baseUrl: OPENAI_COMPAT.llama, providerId: "llama" }, input);
+
+const ADAPTERS: Record<ProviderId, (input: AdapterInput) => AsyncGenerator<string>> = {
+  anthropic: anthropicTextStream,
+  openrouter: openrouterTextStream,
+  gemini: geminiTextStream,
+  deepseek: deepseekTextStream,
+  qwen: qwenTextStream,
+  llama: llamaTextStream,
+};
+
 export function adapterFor(id: ProviderId): (input: AdapterInput) => AsyncGenerator<string> {
-  return id === "anthropic" ? anthropicTextStream : openrouterTextStream;
+  return ADAPTERS[id];
 }
 
 // ── Prime then stream ─────────────────────────────────────────────────────────
@@ -515,12 +692,12 @@ const HEALTH_TIMEOUT_MS = 8000;
 const DEGRADED_LATENCY_MS = 2500;
 
 /** Cheap, non-generative auth check for a single provider. */
-export async function pingProvider(p: ProviderMeta): Promise<ProviderHealth> {
+export async function pingProvider(p: ProviderMeta, overrides?: KeyOverrides): Promise<ProviderHealth> {
   const now = () => new Date().toISOString();
   const model = modelFor(p);
   const primary = p.priority === 1;
 
-  if (!isConfigured(p)) {
+  if (!isConfigured(p, overrides)) {
     const error = classifyProviderError({ provider: p.label, envVar: p.envVar, model, hint: "missing-key" });
     return {
       id: p.id,
@@ -540,12 +717,28 @@ export async function pingProvider(p: ProviderMeta): Promise<ProviderHealth> {
   const timer = setTimeout(() => ctrl.abort(), HEALTH_TIMEOUT_MS);
   const started = Date.now();
   try {
+    const apiKey = apiKeyFor(p, overrides)!;
     if (p.id === "anthropic") {
-      const anthropic = new Anthropic({ apiKey: apiKeyFor(p)! });
+      const anthropic = new Anthropic({ apiKey });
       await anthropic.models.list({}, { signal: ctrl.signal });
-    } else {
+    } else if (p.id === "openrouter") {
       const res = await fetch("https://openrouter.ai/api/v1/key", {
-        headers: { Authorization: `Bearer ${apiKeyFor(p)!}` },
+        headers: { Authorization: `Bearer ${apiKey}` },
+        signal: ctrl.signal,
+      });
+      if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        const { type, message } = parseUpstreamError(body);
+        throw new ProviderHttpError(res.status, body, type, message);
+      }
+    } else {
+      // Gemini / DeepSeek / Qwen / Llama — OpenAI-compatible. A minimal,
+      // non-streaming 1-token completion is the cheapest real auth check.
+      const baseUrl = OPENAI_COMPAT[p.id];
+      const res = await fetch(`${baseUrl}/chat/completions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({ model, messages: [{ role: "user", content: "ping" }], max_tokens: 1 }),
         signal: ctrl.signal,
       });
       if (!res.ok) {

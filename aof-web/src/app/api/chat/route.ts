@@ -17,16 +17,19 @@ import {
 import {
   adapterFor,
   allProviders,
-  configuredProviders,
+  configuredProvidersForOrder,
   failoverFrame,
   isConfigured,
   modelFor,
   primeAndStream,
+  type KeyOverrides,
   type ProviderMeta,
 } from "@/lib/server/ai-providers";
+import { bestModelFor, routeOrder, type TaskCategory } from "@/lib/server/model-registry";
 import { logAofError, logAofInfo, runStartupCheckOnce } from "@/lib/server/ai-log";
 import { checkRateLimit, applyRateLimitHeaders } from "@/lib/server/rate-limit";
 import { getUserFromRequest } from "@/lib/server/supabase-admin";
+import { loadUserKeyOverrides } from "@/lib/server/keys-store";
 import type { ResponseStyle, RouteDecision } from "@/lib/types";
 import {
   RAA_SYSTEM,
@@ -109,6 +112,26 @@ function buildSystem(style: ResponseStyle | undefined, route: RouteDecision | un
   return [persona, language, verbosity, search].filter(Boolean).join("\n\n");
 }
 
+/** Which provider-priority chain (model-registry.ts) a request should use,
+ *  derived from the agent already chosen by the caller (or the chat router's
+ *  3-way target when no agent is set). */
+function taskCategoryFor(agent: Agent | undefined, route: RouteDecision | undefined): TaskCategory {
+  switch (agent) {
+    case "code-gen":
+    case "code-chat":
+    case "debug":
+      return "coding";
+    case "plan":
+      return "research";
+    case "analyze":
+      return "reasoning";
+    case "requirements":
+      return "chat";
+    default:
+      return route?.target === "search" ? "research" : "chat";
+  }
+}
+
 function maxTokensFor(style: ResponseStyle | undefined): number {
   if (style === "short") return 500;
   if (style === "detailed") return 1800;
@@ -159,7 +182,7 @@ function logStartup(): void {
     label: `${p.label} API Key ${isConfigured(p) ? "Loaded" : "Missing"}`,
     ok: isConfigured(p),
   }));
-  const configured = providers.filter(isConfigured).length;
+  const configured = providers.filter((p) => isConfigured(p)).length;
   const status = configured === 0 ? "DOWN" : configured === providers.length ? "OPERATIONAL" : "DEGRADED";
   runStartupCheckOnce(items, status);
 }
@@ -204,19 +227,8 @@ async function handleChat(req: Request): Promise<Response> {
     return new Response(JSON.stringify(error), { status: 429, headers });
   }
 
-  const providers = configuredProviders();
-
-  // No provider has a key → the user must know immediately (AOF_ERROR_001).
-  if (providers.length === 0) {
-    const primary = allProviders()[0];
-    const error = missingKeyError(primary.label, primary.envVar, modelFor(primary));
-    error.details =
-      `No AI provider is configured. Set ${allProviders()
-        .map((p) => p.envVar)
-        .join(" or ")} so Aof can reach a provider.`;
-    logAofError(error);
-    return errorResponse(error);
-  }
+  // Per-user keys (Settings → API Keys) take priority over the server's env vars.
+  const overrides: KeyOverrides = await loadUserKeyOverrides(user?.id);
 
   let body: ChatBody;
   try {
@@ -241,17 +253,49 @@ async function handleChat(req: Request): Promise<Response> {
 
   const { system, temperature, maxTokens } = agentConfig(body.agent, body.style, body.route);
 
+  // ── Task-aware provider order (model-registry.ts), filtered to what's configured. ──
+  const task = taskCategoryFor(body.agent, body.route);
+  const providers = configuredProvidersForOrder(routeOrder(task), overrides);
+
+  if (providers.length === 0) {
+    // Nothing configured anywhere (env or per-user) → tell the user immediately.
+    const primary = allProviders()[0];
+    const error = missingKeyError(primary.label, primary.envVar, modelFor(primary));
+    error.details =
+      `No AI provider is configured. Set ${allProviders()
+        .map((p) => p.envVar)
+        .join(" or ")} (or save a key in Settings → API Keys) so Aof can reach a provider.`;
+    logAofError(error);
+    return errorResponse(error);
+  }
+
   // ── Try each configured provider in priority order, announcing any failover. ──
   let pendingFailover: ReturnType<typeof makeFailoverNotice> | undefined;
   let lastError: AofProviderError | undefined;
 
+  // Anthropic and OpenRouter keep their existing env-override + fallback-chain
+  // model selection untouched; only the four newer providers pick a model from
+  // the registry based on the task (no ANTHROPIC_MODEL/OPENROUTER_MODEL surprise).
+  const REGISTRY_ROUTES_MODEL = new Set<ProviderMeta["id"]>(["gemini", "deepseek", "qwen", "llama"]);
+
   for (let i = 0; i < providers.length; i++) {
     const p: ProviderMeta = providers[i];
-    const model = modelFor(p);
+    const explicitModel = process.env[p.modelEnv]?.trim();
+    const taskModel = REGISTRY_ROUTES_MODEL.has(p.id) ? explicitModel || bestModelFor(p.id, task) : undefined;
+    const model = taskModel || modelFor(p);
     const requestId = newRequestId();
     const ctx = { provider: p, model, requestId };
 
-    const gen = adapterFor(p.id)({ system, history, message, maxTokens, temperature, signal: req.signal });
+    const gen = adapterFor(p.id)({
+      system,
+      history,
+      message,
+      maxTokens,
+      temperature,
+      signal: req.signal,
+      overrides,
+      taskModel,
+    });
     const prefixFrame = pendingFailover ? failoverFrame(pendingFailover) : undefined;
 
     const result = await primeAndStream({ ctx, gen, prefixFrame });
