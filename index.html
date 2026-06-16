@@ -740,20 +740,20 @@ html, body {
     <button class="tb-btn" onclick="exportCode()" title="Download generated code">export</button>
     <div class="model-wrap">
       <button class="tb-btn" id="model-btn" onclick="toggleModelPanel()">
-        <span id="model-label">AOF 1.0</span>
+        <span id="model-label">Kanon 1.0</span>
         <span style="color:var(--text-dim);font-size:9px">&#9660;</span>
       </button>
       <div class="model-info-panel" id="model-panel">
-        <div class="mi-option" onclick="selectModel('AOF 1.0 Lite','AOF 1.0 Lite')">
-          <div class="mi-name">AOF 1.0 Lite</div>
+        <div class="mi-option" onclick="selectModel('lite')">
+          <div class="mi-name">Mikros 1.0</div>
           <div class="mi-desc">1–2 agents &nbsp;·&nbsp; Fast &nbsp;·&nbsp; Low token usage</div>
         </div>
-        <div class="mi-option selected" onclick="selectModel('AOF 1.0','AOF 1.0')">
-          <div class="mi-name">AOF 1.0 &nbsp;<span style="color:var(--accent);font-size:10px">[recommended]</span></div>
+        <div class="mi-option selected" onclick="selectModel('normal')">
+          <div class="mi-name">Kanon 1.0 &nbsp;<span style="color:var(--accent);font-size:10px">[recommended]</span></div>
           <div class="mi-desc">1–3 agents &nbsp;·&nbsp; Balanced performance</div>
         </div>
-        <div class="mi-option" onclick="selectModel('AOF 1.0 Pro','AOF 1.0 Pro')">
-          <div class="mi-name">AOF 1.0 Pro</div>
+        <div class="mi-option" onclick="selectModel('pro')">
+          <div class="mi-name">Ypertatos 1.0</div>
           <div class="mi-desc">All agents &nbsp;·&nbsp; Maximum reasoning &amp; quality</div>
         </div>
       </div>
@@ -797,7 +797,7 @@ html, body {
       <span class="sb-sep">|</span>
       <span class="sb-item" id="sb-agents">4 agents ready</span>
       <span class="sb-sep">|</span>
-      <span class="sb-item" id="sb-model">AOF 1.0</span>
+      <span class="sb-item" id="sb-model">Kanon 1.0</span>
       <span class="sb-item" id="sb-room">room: --</span>
       <div class="sb-right">
         <span class="sb-item" id="sb-user">user: --</span>
@@ -898,10 +898,23 @@ const COMMANDS = [
   { cmd: '/help',     desc: 'Show all available commands' },
 ];
 
+// ── MODEL BRANDING ────────────────────────────────────────────────────────────
+// Single source of truth for display names. Internal ids (lite/normal/pro)
+// never change — only the version string here needs editing on a future bump.
+const MODEL_BRANDING = {
+  lite:   { baseName: 'Mikros',    version: '1.0' },
+  normal: { baseName: 'Kanon',     version: '1.0' },
+  pro:    { baseName: 'Ypertatos', version: '1.0' },
+};
+function modelDisplayName(id) {
+  const b = MODEL_BRANDING[id];
+  return `${b.baseName} ${b.version}`;
+}
+
 // ── STATE ─────────────────────────────────────────────────────────────────────
 const state = {
   mode: 'NORMAL',
-  model: 'AOF 1.0',
+  model: 'normal',
   sessions: 0,
   projects: [],
   running: false,
@@ -1016,16 +1029,16 @@ function restoreState() {
 
 function syncUiFromState() {
   document.getElementById('sb-sessions').textContent = `sessions: ${state.sessions}`;
-  document.getElementById('sb-model').textContent = state.model;
+  document.getElementById('sb-model').textContent = modelDisplayName(state.model);
   document.getElementById('sb-room').textContent = `room: ${state.room || '--'}`;
-  document.getElementById('model-label').textContent = state.model;
+  document.getElementById('model-label').textContent = modelDisplayName(state.model);
   document.getElementById('tb-project').textContent = (state.currentProject || 'untitled').substring(0, 28);
   document.getElementById('sb-user').textContent = `user: ${state.user?.username || '--'}`;
   document.getElementById('account-btn').textContent = state.user?.username || 'user';
   document.getElementById('tech-stack').value = state.techStack;
-  const names = ['AOF 1.0 Lite', 'AOF 1.0', 'AOF 1.0 Pro'];
+  const ids = ['lite', 'normal', 'pro'];
   document.querySelectorAll('.mi-option').forEach((o, i) => {
-    o.classList.toggle('selected', names[i] === state.model);
+    o.classList.toggle('selected', ids[i] === state.model);
   });
   renderHistory();
 }
@@ -1909,16 +1922,17 @@ function toggleModelPanel() {
   document.getElementById('model-panel').classList.toggle('open');
 }
 
-function selectModel(id, label) {
+function selectModel(id) {
   state.model = id;
+  const label = modelDisplayName(id);
   document.getElementById('model-label').textContent = label;
   document.getElementById('sb-model').textContent = label;
   document.getElementById('model-panel').classList.remove('open');
 
   const options = document.querySelectorAll('.mi-option');
   options.forEach((o, i) => {
-    const names = ['AOF 1.0 Lite', 'AOF 1.0', 'AOF 1.0 Pro'];
-    o.classList.toggle('selected', names[i] === id);
+    const ids = ['lite', 'normal', 'pro'];
+    o.classList.toggle('selected', ids[i] === id);
   });
 
   writeLine(`<span class="t-dim">Model switched to </span><span class="t-orange">${label}</span>`);

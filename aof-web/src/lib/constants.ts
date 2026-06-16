@@ -12,6 +12,7 @@ import type {
   ProductKey,
   TitanPhase,
 } from "./types";
+import { getModelDisplayName } from "./model-branding";
 
 // ── Sidebar navigation ────────────────────────────────────────────────────────
 export interface NavItem {
@@ -108,13 +109,13 @@ export interface ChatModelInfo {
 export const CHAT_MODELS: ChatModelInfo[] = [
   {
     id: "lite",
-    name: "Lite",
+    name: getModelDisplayName("lite"),
     tagline: "Fast & efficient",
     description: "Quick answers for everyday questions.",
   },
   {
     id: "normal",
-    name: "Normal",
+    name: getModelDisplayName("normal"),
     tagline: "Balanced reasoning",
     description: "Deeper thinking for richer conversations.",
     badge: "Default",
@@ -134,26 +135,26 @@ export interface CodeModeInfo {
 export const CODE_MODES: CodeModeInfo[] = [
   {
     id: "lite",
-    name: "Lite",
+    name: getModelDisplayName("lite"),
     tagline: "One-shot",
     description: "Fast generation, no critique loop. Great for snippets.",
   },
   {
     id: "1.0",
-    name: "1.0",
+    name: getModelDisplayName("1.0"),
     tagline: "Balanced",
     description: "Plan → code → validate with a single review pass.",
     badge: "Default",
   },
   {
     id: "pro",
-    name: "Pro",
+    name: getModelDisplayName("pro"),
     tagline: "Deep critique",
     description: "Multi-pass self-review loop for production-grade output.",
   },
   {
     id: "titan",
-    name: "Titan",
+    name: getModelDisplayName("titan"),
     tagline: "Architect mode",
     description:
       "Think first, build later. Discovery, planning & approval gate before any code.",

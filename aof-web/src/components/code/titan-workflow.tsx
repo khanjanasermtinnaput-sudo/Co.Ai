@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TITAN_PHASES } from "@/lib/constants";
+import { getModelDisplayName } from "@/lib/model-branding";
 import { useCodeStore } from "@/store/code-store";
 import type { TitanPlanOption, TitanRisk } from "@/lib/types";
 import { Composer } from "@/components/composer/composer";
@@ -533,7 +534,11 @@ function ApprovalPhase() {
         <Row label="Project" value={titan.prompt} />
         <Row label="Chosen plan" value={chosen ? `${chosen.title} — ${chosen.tagline}` : "—"} />
         <Row label="Confidence" value={`${titan.confidence}%`} />
-        <Row label="Build mode" value="Aof Code · Pro (multi-pass review)" last />
+        <Row
+          label="Build mode"
+          value={`Aof Code · ${getModelDisplayName("pro")} (multi-pass review)`}
+          last
+        />
       </div>
 
       <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center">

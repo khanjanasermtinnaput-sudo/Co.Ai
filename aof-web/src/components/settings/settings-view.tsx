@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/providers/auth-provider";
 import { getSupabase } from "@/lib/supabase/client";
 import { keysEnabled, loadKeys, saveKey, deleteKey } from "@/lib/keys";
+import { getModelDisplayName } from "@/lib/model-branding";
 import { useMounted } from "@/hooks/use-mounted";
 import { useDiagnosticsStore } from "@/store/diagnostics-store";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -457,7 +458,11 @@ function BillingTab() {
             $0<span className="text-base font-normal text-muted-foreground">/mo</span>
           </p>
           <ul className="mt-4 space-y-2 text-sm text-muted-foreground">
-            {["Chat with Aof (Lite & Normal)", "Aof Code Lite & 1.0", "Up to 5 projects"].map((f) => (
+            {[
+              `Chat with Aof (${getModelDisplayName("lite")} & ${getModelDisplayName("normal")})`,
+              `Aof Code ${getModelDisplayName("lite")} & ${getModelDisplayName("1.0")}`,
+              "Up to 5 projects",
+            ].map((f) => (
               <li key={f} className="flex items-center gap-2">
                 <Check className="size-4 text-success" /> {f}
               </li>
@@ -479,7 +484,12 @@ function BillingTab() {
             $10<span className="text-base font-normal text-muted-foreground">/mo</span>
           </p>
           <ul className="mt-4 space-y-2 text-sm text-muted-foreground">
-            {["Everything in Free", "Aof Code Pro & Titan", "Unlimited projects", "Priority compute"].map(
+            {[
+              "Everything in Free",
+              `Aof Code ${getModelDisplayName("pro")} & ${getModelDisplayName("titan")}`,
+              "Unlimited projects",
+              "Priority compute",
+            ].map(
               (f) => (
                 <li key={f} className="flex items-center gap-2">
                   <Check className="size-4 text-success" /> {f}
