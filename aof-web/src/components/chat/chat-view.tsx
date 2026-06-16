@@ -8,7 +8,8 @@ import { exportConversation } from "@/lib/export";
 import { Composer } from "@/components/composer/composer";
 import { ResponseStyleSelector } from "./response-style-selector";
 import { ChatThread } from "./chat-thread";
-import { Taotao } from "@/components/mascot";
+import { LogoMark } from "@/components/brand/logo";
+import { ComposerMascot, type ComposerMascotState } from "@/components/mascot";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,6 +47,19 @@ export function ChatView() {
   }, [consumePending, send]);
 
   const empty = messages.length === 0;
+
+  // TAOTAO's mood on the input box: playful while waiting, two cats tossing a
+  // yarn ball while the AI works, sad on error / quota.
+  const lastMsg = messages[messages.length - 1];
+  const lastError =
+    lastMsg && lastMsg.role === "assistant" ? lastMsg.error : undefined;
+  const mascotState: ComposerMascotState = streaming
+    ? "processing"
+    : lastError?.code === "AOF_ERROR_004"
+      ? "quota"
+      : lastError
+        ? "error"
+        : "waiting";
 
   return (
     <div className="flex h-full flex-col">
@@ -93,8 +107,9 @@ export function ChatView() {
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.4 }}
+              className="flex size-14 items-center justify-center rounded-2xl border border-white/10 bg-card"
             >
-              <Taotao state="idle" size={104} />
+              <LogoMark size={30} />
             </motion.div>
             <h2 className="mt-5 text-xl font-semibold">Chat with Aof</h2>
             <p className="mt-2 max-w-sm text-sm text-muted-foreground">
@@ -122,6 +137,7 @@ export function ChatView() {
       {/* composer */}
       <div className="border-t border-border/70 bg-background/60 px-3 py-3 backdrop-blur-xl sm:px-5 sm:py-4">
         <div className="mx-auto w-full max-w-3xl">
+         <ComposerMascot state={mascotState}>
           <Composer
             placeholder="Message Aof — or attach an image, PDF or code file…"
             onSubmit={(v, atts) => void send(v, atts)}
@@ -137,6 +153,7 @@ export function ChatView() {
               </div>
             }
           />
+         </ComposerMascot>
         </div>
       </div>
     </div>

@@ -21,7 +21,7 @@ import { Logo, LogoMark } from "@/components/brand/logo";
 import { NavLink } from "./nav-link";
 import { ThemeToggle } from "./theme-toggle";
 import { UserMenu } from "./user-menu";
-import { Settings, Cat } from "lucide-react";
+import { Settings } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { conversationsEnabled, searchMessages, type SearchHit } from "@/lib/conversations";
@@ -229,7 +229,6 @@ export function Sidebar() {
         )}
 
         <div className="mt-auto" />
-        <NavLink href="/mascot" label="TAOTAO" icon={Cat} expanded={expanded} />
         <NavLink href="/settings" label="Settings" icon={Settings} expanded={expanded} />
       </nav>
 

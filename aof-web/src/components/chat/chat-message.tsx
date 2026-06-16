@@ -6,7 +6,7 @@ import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { estimateTokens } from "@/lib/export";
 import type { ChatMessageT } from "@/lib/types";
-import { LogoMark } from "@/components/brand/logo";
+import { TaotaoAvatar } from "@/components/mascot";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Markdown } from "./markdown";
 import { AttachmentList } from "./attachment-list";
@@ -127,9 +127,7 @@ export function ChatMessage({
             </AvatarFallback>
           </Avatar>
         ) : (
-          <span className="flex size-8 items-center justify-center rounded-full border border-white/10 bg-card">
-            <LogoMark size={20} />
-          </span>
+          <TaotaoAvatar message={message} isLast={isLast} />
         )}
       </div>
 

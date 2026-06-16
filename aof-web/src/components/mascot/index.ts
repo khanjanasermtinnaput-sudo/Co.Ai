@@ -1,15 +1,15 @@
 /**
- * TAOTAO — the official Aof AI pixel mascot.
+ * TAOTAO — the official Aof AI pixel mascot, living inside the chat.
  *
- * Public API:
- *   import { Taotao } from "@/components/mascot";
- *   <Taotao state="thinking" size={96} showStatus />
+ *   <ComposerMascot state="processing"><Composer …/></ComposerMascot>  // on the input box
+ *   <TaotaoAvatar message={m} isLast />                                 // beside the AI message
  *
- * Lower-level building blocks (sprite, palette, effects) are exported for custom
- * scenes and the micro-interactions documented in README.md.
+ * Asset-free, pixel-perfect, GPU-accelerated, SSR-safe. No panels or cards —
+ * just the chat, the input box, and TAOTAO.
  */
 
-export { Taotao, type TaotaoProps, type TaotaoState } from "./taotao";
+export { ComposerMascot, type ComposerMascotState } from "./composer-mascot";
+export { TaotaoAvatar } from "./message-mascot";
 export { TaotaoSprite, type TaotaoSpriteProps } from "./taotao-sprite";
 export {
   EMOTIONS,
@@ -17,14 +17,4 @@ export {
   type Emotion,
   type Expression,
 } from "./palette";
-export {
-  YarnBall,
-  Laptop,
-  CardboardBox,
-  FoodBowl,
-  EngineerHelmet,
-  Rocket,
-  Particles,
-  Zzz,
-  Tears,
-} from "./effects";
+export { YarnBall, CardboardBox, FoodBowl, Zzz, Tears, Sparkles } from "./effects";

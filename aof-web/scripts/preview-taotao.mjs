@@ -102,3 +102,36 @@ function png(grids){
 const emotions=["neutral","happy","success","curious","coding","sleepy","sad"];
 fs.writeFileSync("/tmp/taotao.png", png(emotions.map(compose)));
 console.log("wrote /tmp/taotao.png", emotions.join(", "));
+
+// ── Mock in-chat scenes: cat(s) sitting on the input box ────────────────────
+function encodePng(buf,W,H){
+ const raw=Buffer.alloc((W*4+1)*H);
+ for(let y=0;y<H;y++){raw[y*(W*4+1)]=0;buf.copy(raw,y*(W*4+1)+1,y*W*4,(y+1)*W*4);}
+ const idat=zlib.deflateSync(raw);
+ const t=[];for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xedb88320^(c>>>1):c>>>1;t[n]=c>>>0;}
+ const crc=(b)=>{let c=0xffffffff;for(const x of b)c=t[(c^x)&0xff]^(c>>>8);return(c^0xffffffff)>>>0;};
+ const chunk=(ty,d)=>{const l=Buffer.alloc(4);l.writeUInt32BE(d.length);const tt=Buffer.from(ty);const cr=Buffer.alloc(4);cr.writeUInt32BE(crc(Buffer.concat([tt,d])));return Buffer.concat([l,tt,d,cr]);};
+ const ih=Buffer.alloc(13);ih.writeUInt32BE(W,0);ih.writeUInt32BE(H,4);ih[8]=8;ih[9]=6;
+ return Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),chunk("IHDR",ih),chunk("IDAT",idat),chunk("IEND",Buffer.alloc(0))]);
+}
+function px(buf,W,H,x,y,c){x|=0;y|=0;if(x<0||y<0||x>=W||y>=H)return;const o=(y*W+x)*4;buf[o]=c[0];buf[o+1]=c[1];buf[o+2]=c[2];buf[o+3]=255;}
+function fillRect(buf,W,H,x0,y0,w,h,c){for(let y=y0;y<y0+h;y++)for(let x=x0;x<x0+w;x++)px(buf,W,H,x,y,c);}
+function blit(buf,W,H,grid,ox,oy,S,flip){for(const[k,col]of Object.entries(grid)){let[gx,gy]=k.split(",").map(Number);if(flip)gx=31-gx;const c=hex(col);for(let dy=0;dy<S;dy++)for(let dx=0;dx<S;dx++)px(buf,W,H,ox+gx*S+dx,oy+gy*S+dy,c);}}
+function yarn(buf,W,H,cx,cy,S){const g={"1,2":"#ef4444","0,3":"#ef4444","1,5":"#ef4444","2,1":"#f87171","2,6":"#dc2626","2,3":"#b91c1c","5,2":"#b91c1c","3,2":"#fca5a5"};for(const[k,col]of Object.entries(g)){const[gx,gy]=k.split(",").map(Number);const c=hex(col);for(let dy=0;dy<S;dy++)for(let dx=0;dx<S;dx++)px(buf,W,H,cx+gx*S+dx,cy+gy*S+dy,c);}fillRect(buf,W,H,cx+0*S,cy+3*S,8*S,2*S,hex("#ef4444"));}
+function scene(buf,W,H,y0,kind){
+ const boxTop=y0+150, S=4, catH=32*S;
+ fillRect(buf,W,H,140,boxTop,W-280,70,hex("#111317"));
+ fillRect(buf,W,H,140,boxTop,W-280,2,hex("#2a2f3a"));
+ fillRect(buf,W,H,140,boxTop+68,W-280,2,hex("#15181f"));
+ fillRect(buf,W,H,W-188,boxTop+18,34,34,hex("#D97706"));
+ const feet=boxTop-catH+10;
+ if(kind==="waiting")blit(buf,W,H,compose("happy"),(W-catH)/2,feet,S,false);
+ if(kind==="processing"){blit(buf,W,H,compose("curious"),200,feet,S,false);blit(buf,W,H,compose("curious"),W-200-catH,feet,S,true);yarn(buf,W,H,(W-32)/2-30,feet-30,4);}
+ if(kind==="quota"){blit(buf,W,H,compose("sad"),(W-catH)/2-30,feet,S,false);const bx=(W+catH)/2-30,by=boxTop-26;fillRect(buf,W,H,bx,by,70,8,hex("#1f2430"));fillRect(buf,W,H,bx+4,by+6,62,14,hex("#3b82f6"));fillRect(buf,W,H,bx+8,by+6,54,5,hex("#1f2430"));}
+}
+const SW=820,SH=250,kinds=["waiting","processing","quota"];
+const CW=SW,CH=SH*kinds.length;
+const cbuf=Buffer.alloc(CW*CH*4);for(let i=0;i<CW*CH;i++){cbuf[i*4]=10;cbuf[i*4+1]=12;cbuf[i*4+2]=20;cbuf[i*4+3]=255;}
+kinds.forEach((k,i)=>scene(cbuf,CW,CH,i*SH,k));
+fs.writeFileSync("/tmp/taotao-chat.png", encodePng(cbuf,CW,CH));
+console.log("wrote /tmp/taotao-chat.png", kinds.join(", "));
