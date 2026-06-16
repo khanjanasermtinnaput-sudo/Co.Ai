@@ -101,3 +101,49 @@ export function exportConversation(conv: Conversation, format: "md" | "json"): v
 export function estimateTokens(text: string): number {
   return Math.max(1, Math.round(text.length / 4));
 }
+
+// ── Aof Code output export ────────────────────────────────────────────────────
+
+export interface ExtractedFile {
+  path: string;
+  content: string;
+}
+
+/** Pull individual files out of Aof Code's generated output. The Coder agent
+ *  emits one fenced block per file with `path=<file path>` as the info string
+ *  (see tmap-v2/src/core/agents.ts CODER_SYS) — e.g. ```path=src/main.js. */
+export function extractGeneratedFiles(buildLog: string): ExtractedFile[] {
+  const files: ExtractedFile[] = [];
+  const re = /```path=([^\s`]+)\n([\s\S]*?)```/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(buildLog))) {
+    files.push({ path: m[1].trim(), content: m[2] });
+  }
+  return files;
+}
+
+/** Download Aof Code's build output. When the output contains tagged file
+ *  blocks, zip them with their original paths; otherwise fall back to a
+ *  single Markdown file of the raw output. */
+export async function downloadBuildOutput(buildLog: string, projectName = "aof-code-project"): Promise<void> {
+  const files = extractGeneratedFiles(buildLog);
+  const slug = slugify(projectName);
+
+  if (!files.length) {
+    downloadFile(buildLog, `${slug}.md`, "text/markdown");
+    return;
+  }
+
+  const JSZip = (await import("jszip")).default;
+  const zip = new JSZip();
+  for (const f of files) {
+    zip.file(f.path, f.content);
+  }
+  const blob = await zip.generateAsync({ type: "blob" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${slug}.zip`;
+  a.click();
+  URL.revokeObjectURL(url);
+}

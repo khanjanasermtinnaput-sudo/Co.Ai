@@ -1,13 +1,14 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Terminal, FileCode2, Boxes } from "lucide-react";
+import { Terminal, FileCode2, Boxes, Download } from "lucide-react";
 import { useCodeStore } from "@/store/code-store";
 import { CODE_MODES } from "@/lib/constants";
 import type { CodeMode } from "@/lib/types";
 import { Composer } from "@/components/composer/composer";
 import { Markdown } from "@/components/chat/markdown";
 import { ErrorPanel } from "@/components/diagnostics/error-panel";
+import { downloadBuildOutput } from "@/lib/export";
 
 const EXAMPLES = [
   "A responsive pricing page with a monthly/yearly toggle",
@@ -65,11 +66,21 @@ export function CodeBuild({ mode }: { mode: Exclude<CodeMode, "titan"> }) {
                   <div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
                     <Terminal className="size-4 text-primary" />
                     <span className="text-sm font-medium">Build output</span>
-                    {building && (
+                    {building ? (
                       <span className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
                         <span className="size-1.5 animate-pulse rounded-full bg-primary" />
                         working…
                       </span>
+                    ) : (
+                      buildLog && (
+                        <button
+                          type="button"
+                          onClick={() => void downloadBuildOutput(buildLog)}
+                          className="ml-auto flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                        >
+                          <Download className="size-3.5" /> Download
+                        </button>
+                      )
                     )}
                   </div>
                   <div className="p-5">
