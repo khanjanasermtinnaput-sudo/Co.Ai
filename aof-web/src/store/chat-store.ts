@@ -19,6 +19,7 @@ import type {
   ChatModel,
   Conversation,
   ResponseStyle,
+  SearchMode,
 } from "@/lib/types";
 import type { AofProviderError } from "@/lib/errors";
 import { checkUserAccess } from "@/lib/access";
@@ -34,11 +35,13 @@ interface ChatState {
   conversations: Conversation[];
   activeId: string | null;
   style: ResponseStyle;
+  searchMode: SearchMode;
   streaming: boolean;
   pendingFirstMessage: PendingMessage | null;
   abort: AbortController | null;
 
   setStyle: (s: ResponseStyle) => void;
+  setSearchMode: (m: SearchMode) => void;
   newConversation: () => string;
   selectConversation: (id: string | null) => void;
   deleteConversation: (id: string) => void;
@@ -68,11 +71,13 @@ export const useChatStore = create<ChatState>()(
       conversations: [],
       activeId: null,
       style: "normal",
+      searchMode: "auto",
       streaming: false,
       pendingFirstMessage: null,
       abort: null,
 
       setStyle: (style) => set({ style }),
+      setSearchMode: (searchMode) => set({ searchMode }),
 
       newConversation: () => {
         const id = uid("conv");
@@ -358,13 +363,14 @@ export const useChatStore = create<ChatState>()(
           } else {
             await streamChat(
               content,
-              { style, route, history },
+              { style, route, history, searchMode: get().searchMode },
               {
                 onToken: appendToken,
                 signal: controller.signal,
                 onError: (error) => patchAssistant({ error, streaming: false }),
                 onFailover: (failover) => patchAssistant({ failover }),
                 onModel: (activeModel) => patchAssistant({ activeModel }),
+                onSources: (sources) => patchAssistant({ sources }),
               },
             );
           }
@@ -427,6 +433,7 @@ export const useChatStore = create<ChatState>()(
       name: "aof.chat",
       partialize: (s) => ({
         style: s.style,
+        searchMode: s.searchMode,
         conversations: s.conversations.map((c) => ({
           ...c,
           // Truncate messages in localStorage — only keep last 20 per conversation

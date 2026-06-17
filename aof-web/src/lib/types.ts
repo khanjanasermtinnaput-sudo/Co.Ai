@@ -1,6 +1,6 @@
 // ── Domain types shared across the Aof frontend ───────────────────────────────
 
-import type { AofProviderError, FailoverNotice, ModelNotice } from "./errors";
+import type { AofProviderError, FailoverNotice, ModelNotice, SourcesNotice } from "./errors";
 
 /** Top-level products surfaced in the sidebar. Titan is intentionally absent —
  *  it is a mode *inside* Aof Code, never a product on the homepage. */
@@ -17,6 +17,9 @@ export type Role = "user" | "assistant" | "system";
 /** How verbose the assistant should be. The user picks this; the model that
  *  actually answers is chosen automatically by the router. */
 export type ResponseStyle = "short" | "normal" | "detailed";
+
+/** Universal Search mode toggle: AI decides · always off · always search. */
+export type SearchMode = "auto" | "off" | "force";
 
 /** Where the router sends a request. Users never choose this directly. */
 export type RouteTarget = "chat" | "code" | "search";
@@ -75,6 +78,8 @@ export interface ChatMessageT {
   failover?: FailoverNotice;
   /** which model actually answered — always present on a successful AI reply */
   activeModel?: ModelNotice;
+  /** live web-search sources this reply was grounded on (Universal Search) */
+  sources?: SourcesNotice;
   /** live agent activity status from the Chief Agent orchestration system */
   agentStatus?: string;
   /** which AI agents contributed to this response */

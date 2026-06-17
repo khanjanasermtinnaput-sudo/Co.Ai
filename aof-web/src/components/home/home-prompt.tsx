@@ -7,6 +7,7 @@ import { BRAND } from "@/lib/constants";
 import { useChatStore } from "@/store/chat-store";
 import { Composer } from "@/components/composer/composer";
 import { ResponseStyleSelector } from "@/components/chat/response-style-selector";
+import { SearchModeSelector } from "@/components/chat/search-mode-selector";
 import type { Attachment } from "@/lib/types";
 
 const SUGGESTIONS = [
@@ -20,6 +21,8 @@ export function HomePrompt() {
   const router = useRouter();
   const style = useChatStore((s) => s.style);
   const setStyle = useChatStore((s) => s.setStyle);
+  const searchMode = useChatStore((s) => s.searchMode);
+  const setSearchMode = useChatStore((s) => s.setSearchMode);
   const queueFirstMessage = useChatStore((s) => s.queueFirstMessage);
   const selectConversation = useChatStore((s) => s.selectConversation);
 
@@ -42,8 +45,11 @@ export function HomePrompt() {
         placeholder={BRAND.composerPlaceholder}
         onSubmit={startChat}
         toolbar={
-          <div className="flex w-full items-center justify-between">
-            <ResponseStyleSelector value={style} onChange={setStyle} size="compact" />
+          <div className="flex w-full items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-2 overflow-x-auto no-scrollbar">
+              <SearchModeSelector value={searchMode} onChange={setSearchMode} size="compact" />
+              <ResponseStyleSelector value={style} onChange={setStyle} size="compact" />
+            </div>
             <button
               type="button"
               onClick={() => router.push("/code")}

@@ -376,6 +376,38 @@ export function makeModelNotice(provider: string, model: string, role: string): 
   return { kind: "aof-model", provider, model, role, timestamp: new Date().toISOString() };
 }
 
+// ── Search sources notice (Universal Search citation system) ──────────────────
+// When a reply was grounded on live web search, the route prefixes the stream
+// with the list of sources it consulted so the UI can render a transparent
+// "Sources Used · Retrieved At · Provider" citation block under the answer.
+
+export interface Citation {
+  title: string;
+  url: string;
+  /** Short excerpt that was fed into the model's context. */
+  snippet?: string;
+  /** Which provider returned this hit (e.g. "Tavily", "Wikipedia"). */
+  source: string;
+}
+
+export interface SourcesNotice {
+  readonly kind: "aof-sources";
+  /** The provider that ultimately served the results. */
+  provider: string;
+  /** The effective query that was searched. */
+  query: string;
+  retrievedAt: string;
+  sources: Citation[];
+}
+
+export function isSourcesNotice(v: unknown): v is SourcesNotice {
+  return typeof v === "object" && v !== null && (v as { kind?: unknown }).kind === "aof-sources";
+}
+
+export function makeSourcesNotice(provider: string, query: string, sources: Citation[]): SourcesNotice {
+  return { kind: "aof-sources", provider, query, sources, retrievedAt: new Date().toISOString() };
+}
+
 // ── Wire protocol ─────────────────────────────────────────────────────────────
 // The chat route streams plain text. To carry an error or failover notice inside
 // that same text channel (mid-stream), we wrap a JSON payload between sentinels
@@ -391,6 +423,8 @@ const FO_OPEN = NUL + "AOF_FO" + NUL;
 const FO_CLOSE = NUL + "/AOF_FO" + NUL;
 const MN_OPEN = NUL + "AOF_MN" + NUL;
 const MN_CLOSE = NUL + "/AOF_MN" + NUL;
+const SRC_OPEN = NUL + "AOF_SRC" + NUL;
+const SRC_CLOSE = NUL + "/AOF_SRC" + NUL;
 
 export function encodeErrorFrame(error: AofProviderError): string {
   return ERR_OPEN + JSON.stringify(error) + ERR_CLOSE;
@@ -401,6 +435,9 @@ export function encodeFailoverFrame(notice: FailoverNotice): string {
 export function encodeModelFrame(notice: ModelNotice): string {
   return MN_OPEN + JSON.stringify(notice) + MN_CLOSE;
 }
+export function encodeSourcesFrame(notice: SourcesNotice): string {
+  return SRC_OPEN + JSON.stringify(notice) + SRC_CLOSE;
+}
 
 export interface DecodedFrames {
   /** Plain text with all control frames removed. */
@@ -408,6 +445,7 @@ export interface DecodedFrames {
   errors: AofProviderError[];
   failovers: FailoverNotice[];
   models: ModelNotice[];
+  sources: SourcesNotice[];
   /** An incomplete trailing frame the caller should prepend to the next chunk. */
   remainder: string;
 }
@@ -418,17 +456,19 @@ export interface DecodedFrames {
  * trailing frame, or a partial sentinel split across a chunk boundary) that the
  * caller should prepend to the next chunk.
  */
-type FrameKind = "err" | "fo" | "mn";
+type FrameKind = "err" | "fo" | "mn" | "src";
 const FRAME_SENTINELS: Record<FrameKind, { open: string; close: string }> = {
   err: { open: ERR_OPEN, close: ERR_CLOSE },
   fo: { open: FO_OPEN, close: FO_CLOSE },
   mn: { open: MN_OPEN, close: MN_CLOSE },
+  src: { open: SRC_OPEN, close: SRC_CLOSE },
 };
 
 export function decodeFrames(buffer: string): DecodedFrames {
   const errors: AofProviderError[] = [];
   const failovers: FailoverNotice[] = [];
   const models: ModelNotice[] = [];
+  const sources: SourcesNotice[] = [];
   let text = "";
   let i = 0;
 
@@ -444,7 +484,7 @@ export function decodeFrames(buffer: string): DecodedFrames {
       const tail = partialSentinelTail(buffer);
       const cut = Math.max(i, buffer.length - tail.length);
       text += buffer.slice(i, cut);
-      return { text, errors, failovers, models, remainder: buffer.slice(cut) };
+      return { text, errors, failovers, models, sources, remainder: buffer.slice(cut) };
     }
 
     text += buffer.slice(i, hit.idx);
@@ -453,7 +493,7 @@ export function decodeFrames(buffer: string): DecodedFrames {
     const closeIdx = buffer.indexOf(close, hit.idx + open.length);
     if (closeIdx < 0) {
       // Frame not yet complete — keep everything from `hit.idx` for the next pass.
-      return { text, errors, failovers, models, remainder: buffer.slice(hit.idx) };
+      return { text, errors, failovers, models, sources, remainder: buffer.slice(hit.idx) };
     }
     const json = buffer.slice(hit.idx + open.length, closeIdx);
     try {
@@ -461,19 +501,20 @@ export function decodeFrames(buffer: string): DecodedFrames {
       if (hit.kind === "err" && isAofProviderError(parsed)) errors.push(parsed);
       else if (hit.kind === "fo" && isFailoverNotice(parsed)) failovers.push(parsed);
       else if (hit.kind === "mn" && isModelNotice(parsed)) models.push(parsed);
+      else if (hit.kind === "src" && isSourcesNotice(parsed)) sources.push(parsed);
     } catch {
       /* drop a corrupt frame rather than render its bytes */
     }
     i = closeIdx + close.length;
   }
 
-  return { text, errors, failovers, models, remainder: "" };
+  return { text, errors, failovers, models, sources, remainder: "" };
 }
 
 /** The longest proper prefix of a sentinel-open marker at the end of the buffer. */
 function partialSentinelTail(buffer: string): string {
   let best = "";
-  for (const marker of [ERR_OPEN, FO_OPEN, MN_OPEN]) {
+  for (const marker of [ERR_OPEN, FO_OPEN, MN_OPEN, SRC_OPEN]) {
     const max = Math.min(marker.length - 1, buffer.length);
     for (let len = max; len > best.length; len--) {
       if (buffer.endsWith(marker.slice(0, len))) {

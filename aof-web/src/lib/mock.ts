@@ -10,7 +10,7 @@ import type {
   ResponseStyle,
   RouteDecision,
 } from "./types";
-import type { AofProviderError, FailoverNotice, ModelNotice } from "./errors";
+import type { AofProviderError, FailoverNotice, ModelNotice, SourcesNotice } from "./errors";
 import { GENCODE_HINT } from "./raa";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -29,6 +29,8 @@ export interface StreamHandlers {
   onFailover?: (notice: FailoverNotice) => void;
   /** Called once the answering model is known. */
   onModel?: (notice: ModelNotice) => void;
+  /** Called when the reply was grounded on live web-search sources. */
+  onSources?: (notice: SourcesNotice) => void;
 }
 
 /** Stream an arbitrary string token-by-token with human-ish pacing. */

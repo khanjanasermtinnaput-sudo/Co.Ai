@@ -12,6 +12,7 @@ import { Markdown } from "./markdown";
 import { AttachmentList } from "./attachment-list";
 import { RouteBadge } from "./route-badge";
 import { LearningAnswerView } from "./learning-answer";
+import { SourcesPanel } from "./sources-panel";
 import { ErrorPanel } from "@/components/diagnostics/error-panel";
 import { FailoverNotice } from "@/components/diagnostics/failover-notice";
 import { ActiveModelBadge } from "@/components/diagnostics/active-model-badge";
@@ -219,6 +220,10 @@ export function ChatMessage({
                   <span className="ml-0.5 inline-block h-4 w-[2px] translate-y-0.5 animate-pulse bg-primary" />
                 )}
               </div>
+            )}
+
+            {!isUser && !message.streaming && message.sources && (
+              <SourcesPanel notice={message.sources} />
             )}
 
             {!isUser && !message.streaming && (

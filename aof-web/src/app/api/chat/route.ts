@@ -7,6 +7,7 @@
 
 import {
   classifyProviderError,
+  encodeSourcesFrame,
   makeFailoverNotice,
   makeModelNotice,
   missingKeyError,
@@ -15,6 +16,9 @@ import {
   type AofErrorCode,
   type AofProviderError,
 } from "@/lib/errors";
+import { decideSearch, runSearch } from "@/lib/server/search/manager";
+import { buildSearchContext } from "@/lib/server/search/context-builder";
+import { normalizeSearchMode } from "@/lib/server/search/types";
 import {
   adapterFor,
   allProviders,
@@ -89,6 +93,8 @@ interface ChatBody {
    *  Aof Code NORMAL_CHAT; "code-gen"/"plan"/"analyze"/"debug" = serverless build
    *  pipeline (used when the tmap-v2 backend is not configured). */
   agent?: Agent;
+  /** Universal Search mode: "auto" (default) | "off" | "force". */
+  searchMode?: string;
 }
 
 function buildSystem(style: ResponseStyle | undefined, route: RouteDecision | undefined): string {
@@ -253,7 +259,29 @@ async function handleChat(req: Request): Promise<Response> {
     (h) => h && (h.role === "user" || h.role === "assistant") && typeof h.content === "string",
   );
 
-  const { system, temperature, maxTokens } = agentConfig(body.agent, body.style, body.route);
+  const { system: baseSystem, temperature, maxTokens } = agentConfig(body.agent, body.style, body.route);
+  let system = baseSystem;
+
+  // ── Universal Search ─────────────────────────────────────────────────────────
+  // Ground the answer in live web results when the query needs fresh information.
+  // OFF never searches, FORCE always does, AUTO decides from route + heuristics.
+  // Results become a system-prompt addendum and an in-band "sources" frame the UI
+  // renders as a citation block. Search failures degrade silently to model knowledge.
+  let sourcesFrame = "";
+  const decision = decideSearch(message, normalizeSearchMode(body.searchMode), body.route?.target);
+  if (decision.search) {
+    try {
+      const outcome = await runSearch(message, { signal: req.signal, limit: 5 });
+      if (outcome) {
+        const built = buildSearchContext(outcome);
+        system = `${system}\n\n${built.systemAddon}`;
+        sourcesFrame = encodeSourcesFrame(built.notice);
+        logAofInfo(`Search: ${outcome.provider} → ${outcome.hits.length} results (${decision.reason})`);
+      }
+    } catch {
+      // Search is best-effort — never block the answer on it.
+    }
+  }
 
   // ── Task-aware provider order (model-registry.ts), filtered to what's configured. ──
   const task = taskCategoryFor(body.agent, body.route);
@@ -299,7 +327,8 @@ async function handleChat(req: Request): Promise<Response> {
       taskModel,
     });
     const notice = makeModelNotice(p.label, model, ROLE_LABEL[task]);
-    const prefixFrame = (pendingFailover ? failoverFrame(pendingFailover) : "") + modelFrame(notice);
+    const prefixFrame =
+      sourcesFrame + (pendingFailover ? failoverFrame(pendingFailover) : "") + modelFrame(notice);
 
     const result = await primeAndStream({ ctx, gen, prefixFrame });
 

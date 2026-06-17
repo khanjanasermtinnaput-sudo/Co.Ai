@@ -176,6 +176,7 @@ async function readAofStream(
       }
       for (const fo of decoded.failovers) handlers.onFailover?.(fo);
       for (const mn of decoded.models) handlers.onModel?.(mn);
+      for (const src of decoded.sources) handlers.onSources?.(src);
       if (decoded.errors.length) {
         for (const e of decoded.errors) handlers.onError?.(e);
         errored = true;
@@ -197,6 +198,7 @@ async function readAofStream(
     }
     for (const fo of decoded.failovers) handlers.onFailover?.(fo);
     for (const mn of decoded.models) handlers.onModel?.(mn);
+    for (const src of decoded.sources) handlers.onSources?.(src);
     if (decoded.errors.length) {
       for (const e of decoded.errors) handlers.onError?.(e);
       errored = true;
@@ -217,6 +219,8 @@ export interface ChatRequest {
   style: ResponseStyle;
   route: RouteDecision;
   history: ChatHistoryItem[];
+  /** Universal Search mode for this turn: "auto" | "off" | "force". */
+  searchMode?: "auto" | "off" | "force";
 }
 
 /** Stream a Chat-with-Aof reply. Live `/v1/chat` → real `/api/chat`; failures
@@ -261,6 +265,7 @@ export async function streamChat(
         message,
         style: req.style,
         route: req.route,
+        searchMode: req.searchMode ?? "auto",
         history: req.history.map((h) => ({ role: h.role, content: h.content })),
       }),
       signal: handlers.signal,
