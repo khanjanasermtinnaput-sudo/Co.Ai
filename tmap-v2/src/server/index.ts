@@ -10,9 +10,12 @@ import {
   createUser, findUserByUsername, setUserKey, deleteUserKey,
   createSession, updateSession, getUserSessions, getSession, getSessionLogs,
   addCost, getUserCost, appendEvent, getSessionEvents,
+  createProject, getUserProjects, getProject,
+  createConversation, getUserConversations, getConversation, addMessage, getConversationMessages,
   type ProviderKeyName,
 } from './db.js';
 import type { AgentLogEntry } from '../dars/run.js';
+import { resolveAllWith, ROLE_PROVIDER, PROVIDERS as PROVIDER_DEFS } from '../config.js';
 import { checkLoginRate, recordFailure, recordSuccess } from './rateLimit.js';
 import { logger, incRequest, incError, incTmapRun, incTmapError, addTokens, incAgentCall, getMetrics } from './logger.js';
 import { bagHasAnyKey, type CredentialBag } from '../config.js';
@@ -225,6 +228,112 @@ app.get('/v1/sessions/:id/events', requireAuth, async (req: AuthedRequest, res) 
 app.get('/v1/me/cost', requireAuth, async (req: AuthedRequest, res) => {
   const cost = await getUserCost(req.user!.id);
   res.json(cost ?? { userId: req.user!.id, totalCostUsd: 0, totalTokens: 0, sessionCount: 0 });
+});
+
+// ── AGENTS — role mapping + DARS health (TDD §4.3 dashboard) ─────────────────
+app.get('/v1/agents', requireAuth, async (req: AuthedRequest, res) => {
+  const u = req.user!;
+  const creds: CredentialBag = {};
+  for (const p of PROVIDERS) {
+    if (u.encryptedKeys[p]) (creds as Record<string, string>)[p] = decryptSecret(u.encryptedKeys[p]!);
+  }
+
+  const resolved = resolveAllWith(creds);
+  const healthSnapshot = globalHealth.snapshot();
+  const healthMap = new Map(healthSnapshot.map((h) => [h.key, h]));
+
+  const roles = Object.fromEntries(
+    Object.entries(resolved).map(([role, prov]) => {
+      const providerKey = ROLE_PROVIDER[role as keyof typeof ROLE_PROVIDER];
+      const health = healthMap.get(providerKey) ?? null;
+      return [role, {
+        provider: prov.providerName,
+        model: prov.model,
+        mode: prov.mode,
+        health: health ? {
+          circuit: health.circuit,
+          latencyMs: Math.round(health.ewmaLatencyMs),
+          successRate: Math.round(health.successRate * 100) / 100,
+          consecutiveFails: health.consecutiveFails,
+          cooldownUntil: health.cooldownUntil ?? null,
+          lastKind: health.lastKind ?? null,
+        } : null,
+      }];
+    }),
+  );
+
+  res.json({ roles, health: healthSnapshot });
+});
+
+// ── PROJECTS ──────────────────────────────────────────────────────────────────
+app.get('/v1/projects', requireAuth, async (req: AuthedRequest, res) => {
+  const projects = await getUserProjects(req.user!.id);
+  res.json({ projects });
+});
+
+app.post('/v1/projects', requireAuth, async (req: AuthedRequest, res) => {
+  const name = String(req.body?.name ?? '').trim();
+  const repoUrl = req.body?.repoUrl ? String(req.body.repoUrl).trim() : undefined;
+  if (!name || name.length > 100) {
+    return res.status(400).json({ error: 'name required (max 100 chars)' });
+  }
+  const project = await createProject(req.user!.id, name, repoUrl);
+  res.status(201).json({ project });
+});
+
+app.get('/v1/projects/:id', requireAuth, async (req: AuthedRequest, res) => {
+  const project = await getProject(req.params.id);
+  if (!project || project.userId !== req.user!.id) {
+    return res.status(404).json({ error: 'project not found' });
+  }
+  res.json({ project });
+});
+
+// ── CONVERSATIONS ─────────────────────────────────────────────────────────────
+app.get('/v1/conversations', requireAuth, async (req: AuthedRequest, res) => {
+  const limit = Math.min(Number(req.query.limit) || 30, 100);
+  const conversations = await getUserConversations(req.user!.id, limit);
+  res.json({ conversations });
+});
+
+app.post('/v1/conversations', requireAuth, async (req: AuthedRequest, res) => {
+  const title = String(req.body?.title ?? 'Untitled').trim().slice(0, 200);
+  const projectId = req.body?.projectId ? String(req.body.projectId) : undefined;
+  if (projectId) {
+    const project = await getProject(projectId);
+    if (!project || project.userId !== req.user!.id) {
+      return res.status(400).json({ error: 'project not found' });
+    }
+  }
+  const conversation = await createConversation(req.user!.id, title, projectId);
+  res.status(201).json({ conversation });
+});
+
+app.get('/v1/conversations/:id', requireAuth, async (req: AuthedRequest, res) => {
+  const conversation = await getConversation(req.params.id);
+  if (!conversation || conversation.userId !== req.user!.id) {
+    return res.status(404).json({ error: 'conversation not found' });
+  }
+  const limit = Math.min(Number(req.query.limit) || 100, 500);
+  const messages = await getConversationMessages(req.params.id, limit);
+  res.json({ conversation, messages });
+});
+
+app.post('/v1/conversations/:id/messages', requireAuth, async (req: AuthedRequest, res) => {
+  const conversation = await getConversation(req.params.id);
+  if (!conversation || conversation.userId !== req.user!.id) {
+    return res.status(404).json({ error: 'conversation not found' });
+  }
+  const role = req.body?.role;
+  const content = String(req.body?.content ?? '').trim();
+  if (!['user', 'assistant', 'system'].includes(role)) {
+    return res.status(400).json({ error: 'role must be user | assistant | system' });
+  }
+  if (!content || tooLong(content, MAX_MESSAGE)) {
+    return res.status(400).json({ error: `content required (max ${MAX_MESSAGE} bytes)` });
+  }
+  const message = await addMessage(req.params.id, role, content);
+  res.status(201).json({ message });
 });
 
 // ── PROJECT MEMORY ────────────────────────────────────────────────────────────
@@ -522,6 +631,7 @@ app.post('/v1/run', requireAuth, async (req: AuthedRequest, res) => {
         incAgentCall(log.role, log.provider);
         logger.debug('agent_call', { role: log.role, provider: log.provider, model: log.model, durationMs: log.durationMs, tokens: log.inputTokens + log.outputTokens });
       },
+      onDarsLog: makeEventLogger(u.id, sessionRec.id),
     });
     send({ role: 'system', kind: 'done', text: 'done', files: bb.files, iterations: bb.iterations, sessionId: sessionRec.id });
   } catch (e) {

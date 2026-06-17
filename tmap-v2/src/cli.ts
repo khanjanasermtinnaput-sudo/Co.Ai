@@ -2,11 +2,13 @@
 import { mkdirSync, writeFileSync, readdirSync, readFileSync, existsSync } from 'node:fs';
 import { join, dirname, extname } from 'node:path';
 import { resolveAll, currentMode, anyKeyConfigured, PROVIDERS, ROLE_PROVIDER, bagFromEnv } from './config.js';
+import type { CodeFile } from './types.js';
 import { createBlackboard, loadSession } from './core/blackboard.js';
 import { runTMAP } from './core/orchestrator.js';
 import { gatherProjectContext } from './core/context.js';
 import { runTitan, blueprintToBuild } from './core/titan.js';
-import { loadMemory, memoryToContext, recordDecision } from './core/memory.js';
+import { loadMemory, memoryToContext, recordDecision, clearMemory } from './core/memory.js';
+import { runAnalyzer } from './core/analyze.js';
 import { chatWithDARS } from './dars/run.js';
 import { globalHealth } from './dars/health.js';
 import type { Role, ChatMessage } from './types.js';
@@ -38,6 +40,58 @@ function makeEmit() {
       if (line.trim()) console.log(`${label} ${arrow} ${kind === 'error' ? c.red(line) : line}`);
     }
   };
+}
+
+// ── interactive diff review ────────────────────────────────────────────────────
+// Shows generated files and asks confirmation before writing to disk.
+async function selectFilesToApply(files: CodeFile[]): Promise<CodeFile[]> {
+  if (!files.length) return [];
+
+  console.log(c.dim('\n' + '─'.repeat(60)));
+  console.log(c.bold(`Files to write`) + c.dim(` (${files.length}):`));
+  for (const f of files) {
+    const lines = f.content.split('\n').length;
+    console.log(`  ${c.green('+')} ${c.bold(f.path)}  ${c.dim(`${lines} line${lines !== 1 ? 's' : ''}`)}`);
+  }
+  console.log();
+
+  const { createInterface } = await import('node:readline/promises');
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    const answer = (await rl.question(
+      `Apply?  ${c.bold('[y]')}es all · ${c.bold('[e]')}ach file · ${c.bold('[N]')}o  `,
+    )).trim().toLowerCase();
+
+    if (answer === 'y' || answer === 'yes') return files;
+
+    if (answer === 'e' || answer === 'each') {
+      const selected: CodeFile[] = [];
+      for (const f of files) {
+        const lines = f.content.split('\n');
+        const preview = lines.slice(0, 18).join('\n');
+        console.log(c.dim('\n' + '─'.repeat(60)));
+        console.log(`${c.green('+')} ${c.bold(f.path)}  ${c.dim(`(${lines.length} lines)`)}`);
+        for (const line of preview.split('\n')) console.log(`  ${c.dim(line)}`);
+        if (lines.length > 18) console.log(`  ${c.dim(`... +${lines.length - 18} more lines`)}`);
+        const a2 = (await rl.question(`  Write this file?  ${c.bold('[y/N]')} `)).trim();
+        if (/^(y|yes)$/i.test(a2)) selected.push(f);
+      }
+      console.log();
+      return selected;
+    }
+
+    return []; // 'n' or anything else → skip
+  } finally {
+    rl.close();
+  }
+}
+
+function writeFiles(files: CodeFile[], outDir: string): void {
+  for (const f of files) {
+    const target = join(outDir, f.path);
+    mkdirSync(dirname(target), { recursive: true });
+    writeFileSync(target, f.content, 'utf8');
+  }
 }
 
 // ── commands ───────────────────────────────────────────────────────────────────
@@ -87,10 +141,37 @@ function cmdDoctor() {
 function cmdAgents() {
   banner();
   const agents = resolveAll();
+  const healthSnap = globalHealth.snapshot();
+  const healthMap = new Map(healthSnap.map((h) => [h.key, h]));
+
+  console.log(c.bold('\nRole → Model Mapping  (● closed  ◑ half-open  ○ open)\n'));
   (Object.keys(agents) as Role[]).forEach((r) => {
     const a = agents[r];
-    console.log(`${ROLE_COLOR[r](r.padEnd(10))} ${c.dim('provider:')} ${PROVIDERS[ROLE_PROVIDER[r]].name.padEnd(10)} ${c.dim('model:')} ${a.model}`);
+    const provKey = ROLE_PROVIDER[r];
+    const h = healthMap.get(provKey);
+    const circuit = !h ? c.dim('○')
+      : h.circuit === 'closed'    ? c.green('●')
+      : h.circuit === 'half_open' ? c.yellow('◑')
+      : c.red('○');
+    const latency = h ? c.dim(`${Math.round(h.ewmaLatencyMs)}ms`) : c.dim('—');
+    const tag = a.mode === 'mock' ? c.red('[mock]')
+      : a.mode === 'fallback' ? c.yellow('[fallback]')
+      : c.green('[ready]');
+    console.log(
+      `  ${circuit}  ${ROLE_COLOR[r](r.padEnd(10))} ${c.dim('→')} ${PROVIDERS[provKey].name.padEnd(12)} ${c.dim(a.model.padEnd(28))} ${latency.padEnd(8)}  ${tag}`,
+    );
   });
+
+  if (healthSnap.length) {
+    console.log(c.dim('\nProvider health (DARS):'));
+    for (const h of healthSnap) {
+      const st = h.circuit === 'closed' ? c.green('closed   ')
+        : h.circuit === 'half_open' ? c.yellow('half-open')
+        : c.red('open     ');
+      const fails = h.consecutiveFails ? c.red(` fails:${h.consecutiveFails}`) : '';
+      console.log(`  ${st}  ${h.key.padEnd(22)} ${c.dim(`${Math.round(h.ewmaLatencyMs)}ms`)}${fails}`);
+    }
+  }
 }
 
 function cmdContext() {
@@ -135,18 +216,24 @@ async function cmdGencode(task: string, opts: { apply: boolean; mode?: string })
     return;
   }
 
-  const outDir = opts.apply ? process.cwd() : join(process.cwd(), 'aof-output');
-  for (const f of bb.files) {
-    const target = join(outDir, f.path);
-    mkdirSync(dirname(target), { recursive: true });
-    writeFileSync(target, f.content, 'utf8');
-  }
-  console.log(c.dim('─'.repeat(60)));
-  console.log(c.green(`Wrote ${bb.files.length} file(s) to ${c.bold(outDir)}`));
-  if (!opts.apply) console.log(c.dim('(use --apply to write into the current project root instead)'));
-
   const high = bb.review.filter((i) => i.severity === 'HIGH').length;
   console.log(`Review: ${high ? c.red(`${high} HIGH`) : c.green('no blocking issues')}   ·   iterations: ${bb.iterations}`);
+
+  if (opts.apply) {
+    const toWrite = await selectFilesToApply(bb.files);
+    if (toWrite.length) {
+      writeFiles(toWrite, process.cwd());
+      console.log(c.green(`Wrote ${toWrite.length} file(s) to ${c.bold(process.cwd())}`));
+    } else {
+      console.log(c.dim('No files written.'));
+    }
+  } else {
+    const outDir = join(process.cwd(), 'aof-output');
+    writeFiles(bb.files, outDir);
+    console.log(c.dim('─'.repeat(60)));
+    console.log(c.green(`Wrote ${bb.files.length} file(s) to ${c.bold(outDir)}`));
+    console.log(c.dim('(use --apply to review each file and write into the project root)'));
+  }
 }
 
 async function cmdReview(targetDir: string) {
@@ -205,15 +292,21 @@ async function cmdFix(targetDir: string, opts: { apply: boolean }) {
     return;
   }
 
-  const outDir = opts.apply ? dir : join(process.cwd(), 'aof-fix-output');
-  for (const f of bb.files) {
-    const target = join(outDir, f.path);
-    mkdirSync(dirname(target), { recursive: true });
-    writeFileSync(target, f.content, 'utf8');
+  if (opts.apply) {
+    const toWrite = await selectFilesToApply(bb.files);
+    if (toWrite.length) {
+      writeFiles(toWrite, dir);
+      console.log(c.green(`Fixed ${toWrite.length} file(s) in ${c.bold(dir)}`));
+    } else {
+      console.log(c.dim('No files written.'));
+    }
+  } else {
+    const outDir = join(process.cwd(), 'aof-fix-output');
+    writeFiles(bb.files, outDir);
+    console.log(c.dim('─'.repeat(60)));
+    console.log(c.green(`Fixed ${bb.files.length} file(s) → ${c.bold(outDir)}`));
+    console.log(c.dim('(use --apply to review and overwrite files in place)'));
   }
-  console.log(c.dim('─'.repeat(60)));
-  console.log(c.green(`Fixed ${bb.files.length} file(s) → ${c.bold(outDir)}`));
-  if (!opts.apply) console.log(c.dim('(use --apply to overwrite files in place)'));
 }
 
 // ── TITAN MODE — interactive AI System Architect ──────────────────────────────
@@ -288,14 +381,20 @@ async function cmdTitan(task: string, opts: { apply: boolean; mode?: string }) {
           console.log(c.dim(`mode: ${c.orange(mode)} (Titan → Pro by default)`));
           const bb = createBlackboard(build.task, mode, build.context);
           await runTMAP(bb, emit);
-          const outDir = opts.apply ? process.cwd() : join(process.cwd(), 'aof-output');
-          for (const f of bb.files) {
-            const target = join(outDir, f.path);
-            mkdirSync(dirname(target), { recursive: true });
-            writeFileSync(target, f.content, 'utf8');
+          if (opts.apply) {
+            const toWrite = await selectFilesToApply(bb.files);
+            if (toWrite.length) {
+              writeFiles(toWrite, process.cwd());
+              console.log(c.green(`Wrote ${toWrite.length} file(s) to ${c.bold(process.cwd())}`));
+            } else {
+              console.log(c.dim('No files written.'));
+            }
+          } else {
+            const outDir = join(process.cwd(), 'aof-output');
+            writeFiles(bb.files, outDir);
+            console.log(c.dim('─'.repeat(60)));
+            console.log(c.green(`Wrote ${bb.files.length} file(s) to ${c.bold(outDir)}`));
           }
-          console.log(c.dim('─'.repeat(60)));
-          console.log(c.green(`Wrote ${bb.files.length} file(s) to ${c.bold(outDir)}`));
           return;
         }
       }
@@ -328,6 +427,125 @@ function cmdSessions() {
   }
 }
 
+async function cmdAnalyze(brief: string) {
+  if (!brief.trim()) {
+    console.log(c.red('usage: aof analyze "<project brief or idea>"'));
+    return;
+  }
+  banner();
+  console.log(`${c.dim('analyzing:')} ${c.orange(brief)}`);
+  console.log(c.dim('─'.repeat(60)));
+
+  const creds = bagFromEnv();
+  const emit = makeEmit();
+  const call = async (messages: import('./types.js').ChatMessage[], opts = {}) => {
+    const r = await chatWithDARS('planner', messages, opts, {
+      creds, health: globalHealth, emit, sessionId: 'analyze-cli',
+    });
+    return r.text;
+  };
+
+  try {
+    const result = await runAnalyzer(call, brief);
+    console.log(c.dim('─'.repeat(60)));
+    console.log(c.bold(`Feasibility: ${result.feasibility === 'high' ? c.green('HIGH') : result.feasibility === 'medium' ? c.yellow('MEDIUM') : c.red('LOW')}`));
+    if (result.risks?.length) {
+      console.log(c.bold('\nRisks:'));
+      for (const r of result.risks) console.log(`  ${c.red('·')} ${r}`);
+    }
+    if (result.recommendations?.length) {
+      console.log(c.bold('\nRecommendations:'));
+      for (const r of result.recommendations) console.log(`  ${c.green('·')} ${r}`);
+    }
+  } catch (e) {
+    console.log(c.red(`Error: ${(e as Error).message}`));
+  }
+}
+
+async function cmdMemory(subCmd: string) {
+  banner();
+  const memoryKey = process.cwd();
+
+  if (subCmd === 'clear') {
+    try {
+      await clearMemory(memoryKey);
+      console.log(c.green('Project memory cleared.'));
+    } catch (e) {
+      console.log(c.red(`Error: ${(e as Error).message}`));
+    }
+    return;
+  }
+
+  try {
+    const mem = await loadMemory(memoryKey);
+    const ctx = memoryToContext(mem);
+    if (!ctx) {
+      console.log(c.dim('No project memory found for this directory.'));
+      console.log(c.dim(`Run ${c.bold('aof gencode')} or ${c.bold('aof titan')} to build up memory.`));
+      return;
+    }
+    console.log(c.dim('─'.repeat(60)));
+    console.log(c.bold(`Project: ${c.orange(memoryKey)}`));
+    if (mem.techStack) console.log(`Tech stack:  ${c.orange(mem.techStack)}`);
+    if (mem.conventions?.length) console.log(`Conventions: ${mem.conventions.slice(0, 5).join(', ')}`);
+    if (mem.decisions?.length) {
+      console.log(c.bold('\nArchitecture decisions:'));
+      for (const d of mem.decisions.slice(0, 10)) console.log(`  ${c.dim('·')} ${d}`);
+    }
+    if (mem.sessions?.length) {
+      console.log(c.bold(`\nSessions (${mem.sessions.length}):`));
+      for (const s of mem.sessions.slice(0, 5)) {
+        const icon = s.status === 'done' ? c.green('✓') : c.red('✗');
+        console.log(`  ${icon} ${c.orange(s.task.slice(0, 60))}  ${c.dim(s.at ?? '')}`);
+      }
+    }
+  } catch (e) {
+    console.log(c.red(`Error: ${(e as Error).message}`));
+  }
+}
+
+async function cmdExplain(filePath: string) {
+  if (!filePath.trim()) {
+    console.log(c.red('usage: aof explain <file-path>'));
+    return;
+  }
+  const { readFileSync, existsSync } = await import('node:fs');
+  if (!existsSync(filePath)) {
+    console.log(c.red(`File not found: ${filePath}`));
+    return;
+  }
+  banner();
+  const content = readFileSync(filePath, 'utf8');
+  const snippet = content.slice(0, 8000);
+  console.log(`${c.dim('explaining:')} ${c.orange(filePath)}`);
+  console.log(c.dim('─'.repeat(60)));
+
+  const creds = bagFromEnv();
+  const emit = makeEmit();
+  const messages: import('./types.js').ChatMessage[] = [
+    {
+      role: 'system',
+      content: 'You are a senior engineer. Explain the following code clearly and concisely: what it does, how it works, and any notable patterns or concerns. Write in a clear professional style.',
+    },
+    {
+      role: 'user',
+      content: `File: ${filePath}\n\n\`\`\`\n${snippet}\n\`\`\`${content.length > 8000 ? '\n\n(file truncated)' : ''}`,
+    },
+  ];
+
+  try {
+    const r = await chatWithDARS('reviewer', messages, {}, {
+      creds, health: globalHealth, emit, sessionId: 'explain-cli',
+    });
+    console.log(c.dim('─'.repeat(60)));
+    for (const line of r.text.split('\n')) {
+      console.log(`${c.blue('explain   ')} ${c.dim('›')} ${line}`);
+    }
+  } catch (e) {
+    console.log(c.red(`Error: ${(e as Error).message}`));
+  }
+}
+
 function help() {
   banner();
   console.log(`
@@ -339,14 +557,17 @@ ${c.bold('Commands')}
   ${c.orange('agents')}                 show role → model mapping
   ${c.orange('context')}                scan current directory and show project info
   ${c.orange('gencode')} "<task>"        run full TMAP pipeline and generate files
-        --apply              write files into project root (default: ./aof-output)
+        --apply              interactive diff review → write into project root
         --mode=lite|normal|pro
   ${c.orange('titan')} ["<idea>"]         Titan Mode — interactive AI System Architect:
                          discovery → multi-plan → risks → approval gate → build
         --apply / --mode     same as gencode (used after approval)
   ${c.orange('review')} [dir]            review existing codebase (read-only, lite mode)
   ${c.orange('fix')} [dir]               generate fixes for existing codebase
-        --apply              overwrite files in place
+        --apply              interactive diff review → overwrite files in place
+  ${c.orange('analyze')} "<brief>"       assess feasibility, risks, recommendations (no code)
+  ${c.orange('explain')} <file>          explain what a source file does
+  ${c.orange('memory')} [clear]          show (or clear) persistent project memory
   ${c.orange('sessions')}               list recent local sessions
 
 ${c.bold('Examples')}
@@ -374,6 +595,9 @@ async function main() {
     case 'titan':    await cmdTitan(rest, { apply, mode: modeArg }); break;
     case 'review':   await cmdReview(rest); break;
     case 'fix':      await cmdFix(rest, { apply }); break;
+    case 'analyze':  await cmdAnalyze(rest); break;
+    case 'explain':  await cmdExplain(rest); break;
+    case 'memory':   await cmdMemory(rest); break;
     case 'gencode':
     case 'run':      await cmdGencode(rest, { apply, mode: modeArg }); break;
     case undefined:

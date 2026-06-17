@@ -110,3 +110,54 @@ alter table tmap_events enable row level security;
 
 create index if not exists tmap_events_session_idx on tmap_events (session_key, created_at desc);
 create index if not exists tmap_events_user_idx    on tmap_events (user_id,     created_at desc);
+
+-- ── Phase 2: Projects ─────────────────────────────────────────────────────────
+-- โปรเจกต์ของผู้ใช้ — เชื่อม session / memory / context เข้าด้วยกัน
+create table if not exists tmap_projects (
+  id             uuid        default gen_random_uuid() primary key,
+  user_id        uuid        not null references users (id) on delete cascade,
+  name           text        not null,
+  repo_url       text,
+  default_branch text        not null default 'main',
+  settings       jsonb       not null default '{}'::jsonb,
+  created_at     timestamptz not null default now()
+);
+
+alter table tmap_projects enable row level security;
+
+create index if not exists tmap_projects_user_idx on tmap_projects (user_id, created_at desc);
+
+-- ── Phase 2: Conversations + Messages ────────────────────────────────────────
+-- Persistent chat history ต่อ user (รองรับ /v1/chat ที่ตอนนี้ stateless)
+create table if not exists tmap_conversations (
+  id          uuid        default gen_random_uuid() primary key,
+  user_id     uuid        not null references users (id) on delete cascade,
+  project_id  uuid        references tmap_projects (id) on delete set null,
+  title       text        not null default 'Untitled',
+  created_at  timestamptz not null default now()
+);
+
+alter table tmap_conversations enable row level security;
+
+create index if not exists tmap_conversations_user_idx
+  on tmap_conversations (user_id, created_at desc);
+
+create table if not exists tmap_messages (
+  id              uuid        default gen_random_uuid() primary key,
+  conversation_id uuid        not null references tmap_conversations (id) on delete cascade,
+  role            text        not null,   -- 'user' | 'assistant' | 'system'
+  content         text        not null,
+  created_at      timestamptz not null default now()
+);
+
+alter table tmap_messages enable row level security;
+
+create index if not exists tmap_messages_conv_idx
+  on tmap_messages (conversation_id, created_at asc);
+
+-- ── Phase 4 (prep): pgvector semantic memory ──────────────────────────────────
+-- uncomment หลังจากเปิด pgvector extension ใน Supabase:
+--   create extension if not exists vector;
+--   alter table memories add column if not exists embedding vector(1024);
+--   create index if not exists memories_embedding_idx
+--     on memories using hnsw (embedding vector_cosine_ops);

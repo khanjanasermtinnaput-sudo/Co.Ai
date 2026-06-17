@@ -121,16 +121,28 @@ interface DbShape {
   agentLogs: AgentLogRecord[];
   costs: Record<string, CostRecord>; // userId -> cost
   events: EventRecord[];
+  projects: Record<string, ProjectRecord>;
+  conversations: Record<string, ConversationRecord>;
+  messages: MessageRecord[];
 }
 
+const EMPTY_DB = (): DbShape => ({
+  users: {}, sessions: {}, agentLogs: [], costs: {}, events: [],
+  projects: {}, conversations: {}, messages: [],
+});
+
 function load(): DbShape {
-  if (!existsSync(DB_PATH)) return { users: {}, sessions: {}, agentLogs: [], costs: {}, events: [] };
+  if (!existsSync(DB_PATH)) return EMPTY_DB();
   try {
     const raw = JSON.parse(readFileSync(DB_PATH, 'utf8')) as DbShape;
-    if (!raw.events) raw.events = []; // backwards compat for existing db files
+    // backwards compat: fill any fields added after initial creation
+    if (!raw.events) raw.events = [];
+    if (!raw.projects) raw.projects = {};
+    if (!raw.conversations) raw.conversations = {};
+    if (!raw.messages) raw.messages = [];
     return raw;
   } catch {
-    return { users: {}, sessions: {}, agentLogs: [], costs: {}, events: [] };
+    return EMPTY_DB();
   }
 }
 
@@ -435,6 +447,197 @@ export async function getUserCost(userId: string): Promise<CostRecord | undefine
     };
   }
   return load().costs[userId];
+}
+
+// ── PROJECTS ──────────────────────────────────────────────────────────────────
+export interface ProjectRecord {
+  id: string;
+  userId: string;
+  name: string;
+  repoUrl?: string;
+  defaultBranch: string;
+  settings: Record<string, unknown>;
+  createdAt: string;
+}
+
+function rowToProject(r: Record<string, unknown>): ProjectRecord {
+  return {
+    id: r.id as string,
+    userId: r.user_id as string,
+    name: r.name as string,
+    repoUrl: (r.repo_url as string | null) ?? undefined,
+    defaultBranch: (r.default_branch as string) ?? 'main',
+    settings: (r.settings as Record<string, unknown>) ?? {},
+    createdAt: r.created_at as string,
+  };
+}
+
+export async function createProject(
+  userId: string, name: string, repoUrl?: string,
+): Promise<ProjectRecord> {
+  const id = randomUUID();
+  const createdAt = new Date().toISOString();
+  const row = { id, user_id: userId, name, repo_url: repoUrl ?? null, default_branch: 'main', settings: {}, created_at: createdAt };
+
+  if (useSupabase) {
+    const res = await sb('tmap_projects', {
+      method: 'POST',
+      headers: { Prefer: 'return=representation' },
+      body: JSON.stringify(row),
+    });
+    if (!res.ok) throw new Error(`supabase createProject failed: ${res.status} ${await res.text()}`);
+    const rows = (await res.json()) as Array<Record<string, unknown>>;
+    return rowToProject(rows[0]);
+  }
+
+  const db = load();
+  const project = rowToProject(row);
+  db.projects[id] = project;
+  save(db);
+  return project;
+}
+
+export async function getUserProjects(userId: string): Promise<ProjectRecord[]> {
+  if (useSupabase) {
+    const res = await sb(
+      `tmap_projects?user_id=eq.${encodeURIComponent(userId)}&order=created_at.desc&select=*`,
+    );
+    if (!res.ok) throw new Error(`supabase getUserProjects failed: ${res.status}`);
+    return ((await res.json()) as Array<Record<string, unknown>>).map(rowToProject);
+  }
+  return Object.values(load().projects).filter((p) => p.userId === userId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export async function getProject(id: string): Promise<ProjectRecord | undefined> {
+  if (useSupabase) {
+    const res = await sb(`tmap_projects?id=eq.${encodeURIComponent(id)}&select=*&limit=1`);
+    if (!res.ok) throw new Error(`supabase getProject failed: ${res.status}`);
+    const rows = (await res.json()) as Array<Record<string, unknown>>;
+    return rows[0] ? rowToProject(rows[0]) : undefined;
+  }
+  return load().projects[id];
+}
+
+// ── CONVERSATIONS ──────────────────────────────────────────────────────────────
+export interface ConversationRecord {
+  id: string;
+  userId: string;
+  projectId?: string;
+  title: string;
+  createdAt: string;
+}
+
+export interface MessageRecord {
+  id: string;
+  conversationId: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  createdAt: string;
+}
+
+function rowToConversation(r: Record<string, unknown>): ConversationRecord {
+  return {
+    id: r.id as string,
+    userId: r.user_id as string,
+    projectId: (r.project_id as string | null) ?? undefined,
+    title: (r.title as string) ?? 'Untitled',
+    createdAt: r.created_at as string,
+  };
+}
+
+function rowToMessage(r: Record<string, unknown>): MessageRecord {
+  return {
+    id: r.id as string,
+    conversationId: r.conversation_id as string,
+    role: r.role as MessageRecord['role'],
+    content: r.content as string,
+    createdAt: r.created_at as string,
+  };
+}
+
+export async function createConversation(
+  userId: string, title: string, projectId?: string,
+): Promise<ConversationRecord> {
+  const id = randomUUID();
+  const createdAt = new Date().toISOString();
+  const row: Record<string, unknown> = { id, user_id: userId, title, project_id: projectId ?? null, created_at: createdAt };
+
+  if (useSupabase) {
+    const res = await sb('tmap_conversations', {
+      method: 'POST',
+      headers: { Prefer: 'return=representation' },
+      body: JSON.stringify(row),
+    });
+    if (!res.ok) throw new Error(`supabase createConversation failed: ${res.status} ${await res.text()}`);
+    const rows = (await res.json()) as Array<Record<string, unknown>>;
+    return rowToConversation(rows[0]);
+  }
+
+  const db = load();
+  const conv = rowToConversation(row);
+  db.conversations[id] = conv;
+  save(db);
+  return conv;
+}
+
+export async function getUserConversations(userId: string, limit = 30): Promise<ConversationRecord[]> {
+  if (useSupabase) {
+    const res = await sb(
+      `tmap_conversations?user_id=eq.${encodeURIComponent(userId)}&order=created_at.desc&limit=${limit}&select=*`,
+    );
+    if (!res.ok) throw new Error(`supabase getUserConversations failed: ${res.status}`);
+    return ((await res.json()) as Array<Record<string, unknown>>).map(rowToConversation);
+  }
+  return Object.values(load().conversations).filter((c) => c.userId === userId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, limit);
+}
+
+export async function getConversation(id: string): Promise<ConversationRecord | undefined> {
+  if (useSupabase) {
+    const res = await sb(`tmap_conversations?id=eq.${encodeURIComponent(id)}&select=*&limit=1`);
+    if (!res.ok) throw new Error(`supabase getConversation failed: ${res.status}`);
+    const rows = (await res.json()) as Array<Record<string, unknown>>;
+    return rows[0] ? rowToConversation(rows[0]) : undefined;
+  }
+  return load().conversations[id];
+}
+
+export async function addMessage(
+  conversationId: string, role: MessageRecord['role'], content: string,
+): Promise<MessageRecord> {
+  const id = randomUUID();
+  const createdAt = new Date().toISOString();
+  const row = { id, conversation_id: conversationId, role, content, created_at: createdAt };
+
+  if (useSupabase) {
+    const res = await sb('tmap_messages', {
+      method: 'POST',
+      headers: { Prefer: 'return=representation' },
+      body: JSON.stringify(row),
+    });
+    if (!res.ok) throw new Error(`supabase addMessage failed: ${res.status} ${await res.text()}`);
+    const rows = (await res.json()) as Array<Record<string, unknown>>;
+    return rowToMessage(rows[0]);
+  }
+
+  const db = load();
+  const msg = rowToMessage(row);
+  db.messages.push(msg);
+  if (db.messages.length > 50_000) db.messages = db.messages.slice(-50_000);
+  save(db);
+  return msg;
+}
+
+export async function getConversationMessages(conversationId: string, limit = 100): Promise<MessageRecord[]> {
+  if (useSupabase) {
+    const res = await sb(
+      `tmap_messages?conversation_id=eq.${encodeURIComponent(conversationId)}&order=created_at.asc&limit=${limit}&select=*`,
+    );
+    if (!res.ok) throw new Error(`supabase getConversationMessages failed: ${res.status}`);
+    return ((await res.json()) as Array<Record<string, unknown>>).map(rowToMessage);
+  }
+  return load().messages.filter((m) => m.conversationId === conversationId).slice(0, limit);
 }
 
 // ── EVENTS (DARS failover + audit trail) ──────────────────────────────────────
