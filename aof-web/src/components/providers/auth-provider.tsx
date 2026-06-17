@@ -44,7 +44,7 @@ const AuthContext = React.createContext<AuthContextValue | null>(null);
 function tierForSession(session: Session): UserTier {
   const meta = (session.user.app_metadata ?? {}) as Record<string, unknown>;
   const raw = String(meta.tier ?? "").toUpperCase();
-  if (raw === "PRO" || raw === "LITE" || raw === "FREE") return raw;
+  if (raw === "ADVANCED" || raw === "PRO" || raw === "LITE" || raw === "FREE") return raw;
   return "FREE";
 }
 

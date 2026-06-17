@@ -6,7 +6,7 @@ import { create } from "zustand";
 // a hook. AuthProvider mirrors its state into this store so those call sites can
 // check login/tier synchronously via useAuthStore.getState().
 
-export type UserTier = "GUEST" | "FREE" | "LITE" | "PRO";
+export type UserTier = "GUEST" | "FREE" | "LITE" | "PRO" | "ADVANCED";
 
 /** Higher number = more access. Used for >= comparisons in checkUserAccess. */
 export const TIER_RANK: Record<UserTier, number> = {
@@ -14,6 +14,7 @@ export const TIER_RANK: Record<UserTier, number> = {
   FREE: 1,
   LITE: 2,
   PRO: 3,
+  ADVANCED: 4,
 };
 
 interface AuthStore {

@@ -12,7 +12,6 @@ import {
   Check,
   Moon,
   Sun,
-  Sparkles,
   ShieldCheck,
   LogOut,
   Activity,
@@ -22,7 +21,8 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/providers/auth-provider";
 import { getSupabase } from "@/lib/supabase/client";
 import { keysEnabled, loadKeys, saveKey, deleteKey } from "@/lib/keys";
-import { getModelDisplayName } from "@/lib/model-branding";
+import { planFor, byokBonusLabel } from "@/lib/plans";
+import { PricingTable } from "@/components/billing/pricing-table";
 import { useMounted } from "@/hooks/use-mounted";
 import { useDiagnosticsStore } from "@/store/diagnostics-store";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -443,65 +443,45 @@ function DiagnosticsTab() {
 }
 
 function BillingTab() {
+  const { tier } = useAuth();
+  const plan = planFor(tier);
+  const displayTier = tier === "GUEST" ? "Guest" : plan.name;
+
   return (
-    <div className="grid gap-4 sm:grid-cols-2">
-      <Card className="relative overflow-hidden">
+    <div className="space-y-5">
+      <Card>
         <CardHeader>
-          <Badge variant="muted" className="w-fit">
-            Current
-          </Badge>
-          <CardTitle className="mt-1">Free</CardTitle>
-          <CardDescription>Everything you need to get started.</CardDescription>
+          <CardTitle className="flex items-center gap-2">
+            <CreditCard className="size-4 text-primary" /> Your plan
+          </CardTitle>
+          <CardDescription>
+            You&apos;re on the <span className="font-medium text-foreground">{displayTier}</span> plan.
+            Bring your own API key on any plan for a bigger quota (BYOK bonus).
+          </CardDescription>
         </CardHeader>
-        <CardContent>
-          <p className="text-3xl font-semibold">
-            $0<span className="text-base font-normal text-muted-foreground">/mo</span>
-          </p>
-          <ul className="mt-4 space-y-2 text-sm text-muted-foreground">
-            {[
-              `Chat with Aof (${getModelDisplayName("lite")} & ${getModelDisplayName("normal")})`,
-              `Aof Code ${getModelDisplayName("lite")} & ${getModelDisplayName("1.0")}`,
-              "Up to 5 projects",
-            ].map((f) => (
-              <li key={f} className="flex items-center gap-2">
-                <Check className="size-4 text-success" /> {f}
-              </li>
-            ))}
-          </ul>
+        <CardContent className="flex flex-wrap items-center gap-2 text-xs">
+          <Badge variant="muted">
+            {plan.limits.dailyMessages === Infinity
+              ? "Unlimited messages/day"
+              : `${plan.limits.dailyMessages} messages/day`}
+          </Badge>
+          <Badge variant="muted">
+            {plan.limits.maxProjects === Infinity
+              ? "Unlimited projects"
+              : `${plan.limits.maxProjects} projects`}
+          </Badge>
+          {plan.byokMultiplier > 1 && (
+            <Badge variant="default" className="gap-1">
+              <KeyRound className="size-3" /> BYOK {byokBonusLabel(tier)} quota
+            </Badge>
+          )}
         </CardContent>
       </Card>
 
-      <Card className="relative overflow-hidden border-primary/30 shadow-glow">
-        <CardHeader>
-          <Badge variant="default" className="w-fit gap-1">
-            <Sparkles className="size-3" /> Recommended
-          </Badge>
-          <CardTitle className="mt-1">Pro</CardTitle>
-          <CardDescription>For builders who ship every day.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-3xl font-semibold">
-            $10<span className="text-base font-normal text-muted-foreground">/mo</span>
-          </p>
-          <ul className="mt-4 space-y-2 text-sm text-muted-foreground">
-            {[
-              "Everything in Free",
-              `Aof Code ${getModelDisplayName("pro")} & ${getModelDisplayName("titan")}`,
-              "Unlimited projects",
-              "Priority compute",
-            ].map(
-              (f) => (
-                <li key={f} className="flex items-center gap-2">
-                  <Check className="size-4 text-success" /> {f}
-                </li>
-              ),
-            )}
-          </ul>
-          <Button className="mt-5 w-full" onClick={() => toast("Upgrade flow is a demo")}>
-            Upgrade to Pro
-          </Button>
-        </CardContent>
-      </Card>
+      <div>
+        <h2 className="mb-3 text-sm font-medium text-muted-foreground">Plans</h2>
+        <PricingTable />
+      </div>
     </div>
   );
 }

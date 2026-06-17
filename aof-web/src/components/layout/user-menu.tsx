@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { CreditCard, LogIn, LogOut, Settings, Sparkles, UserRound } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/providers/auth-provider";
+import { planFor } from "@/lib/plans";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -33,8 +34,9 @@ function initialsOf(name: string): string {
 }
 
 export function UserMenu({ expanded = false }: UserMenuProps) {
-  const { user, configured, signOut } = useAuth();
+  const { user, configured, signOut, tier } = useAuth();
   const router = useRouter();
+  const planName = planFor(tier).name;
 
   // A "real" session only exists in live mode with a signed-in user. In demo
   // mode (or when signed out) we surface a clear Sign in button instead.
@@ -103,7 +105,7 @@ export function UserMenu({ expanded = false }: UserMenuProps) {
         </DropdownMenuLabel>
         <div className="px-2 pb-1.5">
           <Badge variant="default" className="gap-1">
-            <Sparkles className="size-3" /> Free plan
+            <Sparkles className="size-3" /> {planName} plan
           </Badge>
         </div>
         <DropdownMenuSeparator />
