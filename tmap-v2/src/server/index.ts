@@ -9,9 +9,10 @@ import { signToken, requireAuth, type AuthedRequest } from './auth.js';
 import {
   createUser, findUserByUsername, setUserKey, deleteUserKey,
   createSession, updateSession, getUserSessions, getSession, getSessionLogs,
-  addCost, getUserCost,
+  addCost, getUserCost, appendEvent, getSessionEvents,
   type ProviderKeyName,
 } from './db.js';
+import type { AgentLogEntry } from '../dars/run.js';
 import { checkLoginRate, recordFailure, recordSuccess } from './rateLimit.js';
 import { logger, incRequest, incError, incTmapRun, incTmapError, addTokens, incAgentCall, getMetrics } from './logger.js';
 import { bagHasAnyKey, type CredentialBag } from '../config.js';
@@ -80,6 +81,20 @@ const MAX_BRIEF   = 10_000;
 
 function tooLong(value: string, limit: number): boolean {
   return Buffer.byteLength(value, 'utf8') > limit;
+}
+
+// Fire-and-forget DARS event logger — never throws, never blocks the SSE stream.
+function makeEventLogger(userId: string, sessionKey: string) {
+  return (entry: AgentLogEntry) => {
+    appendEvent(userId, sessionKey, entry.event === 'success' ? 'dars_success' : 'dars_switch', {
+      role: entry.role,
+      provider: entry.provider,
+      failureKind: entry.kind ?? null,
+      attempt: entry.attempt,
+      latencyMs: entry.latencyMs ?? null,
+      error: entry.error ?? null,
+    }).catch(() => {});
+  };
 }
 
 // ── AUTH ──────────────────────────────────────────────────────────────────────
@@ -196,6 +211,16 @@ app.get('/v1/sessions/:id', requireAuth, async (req: AuthedRequest, res) => {
   res.json({ session, logs });
 });
 
+app.get('/v1/sessions/:id/events', requireAuth, async (req: AuthedRequest, res) => {
+  const session = await getSession(req.params.id);
+  if (!session || session.userId !== req.user!.id) {
+    return res.status(404).json({ error: 'session not found' });
+  }
+  const limit = Math.min(Number(req.query.limit) || 200, 500);
+  const events = await getSessionEvents(req.params.id, limit);
+  res.json({ events });
+});
+
 // ── COST TRACKING ─────────────────────────────────────────────────────────────
 app.get('/v1/me/cost', requireAuth, async (req: AuthedRequest, res) => {
   const cost = await getUserCost(req.user!.id);
@@ -234,9 +259,11 @@ app.post('/v1/chat', requireAuth, async (req: AuthedRequest, res) => {
   const emit = (_role: string, text: string, kind = 'status') =>
     send({ role: 'raa', kind, text });
 
+  const raaKey = 'raa-' + u.id;
   const call = async (messages: ChatMessage[], opts = {}) => {
     const r = await chatWithDARS('planner', messages, opts, {
-      creds, health: globalHealth, emit, sessionId: 'raa-' + u.id,
+      creds, health: globalHealth, emit, sessionId: raaKey,
+      onLog: makeEventLogger(u.id, raaKey),
     });
     return r.text;
   };
@@ -275,9 +302,11 @@ app.post('/v1/debug', requireAuth, async (req: AuthedRequest, res) => {
   const send = (event: object) => res.write(`data: ${JSON.stringify(event)}\n\n`);
   const emit = (_role: string, text: string, kind = 'status') => send({ role: 'debugger', kind, text });
 
+  const debugKey = 'debug-' + u.id;
   const call = async (messages: ChatMessage[], opts = {}) => {
     const r = await chatWithDARS('reviewer', messages, opts, {
-      creds, health: globalHealth, emit, sessionId: 'debug-' + u.id,
+      creds, health: globalHealth, emit, sessionId: debugKey,
+      onLog: makeEventLogger(u.id, debugKey),
     });
     return r.text;
   };
@@ -316,9 +345,11 @@ app.post('/v1/analyze', requireAuth, async (req: AuthedRequest, res) => {
   const send = (event: object) => res.write(`data: ${JSON.stringify(event)}\n\n`);
   const emit = (_role: string, text: string, kind = 'status') => send({ role: 'analyst', kind, text });
 
+  const analyzeKey = 'analyze-' + u.id;
   const call = async (messages: ChatMessage[], opts = {}) => {
     const r = await chatWithDARS('planner', messages, opts, {
-      creds, health: globalHealth, emit, sessionId: 'analyze-' + u.id,
+      creds, health: globalHealth, emit, sessionId: analyzeKey,
+      onLog: makeEventLogger(u.id, analyzeKey),
     });
     return r.text;
   };
@@ -358,9 +389,11 @@ app.post('/v1/titan', requireAuth, async (req: AuthedRequest, res) => {
   const emit = (_role: string, text: string, kind = 'status') =>
     send({ role: 'titan', kind, text });
 
+  const titanKey = 'titan-' + u.id;
   const call = async (messages: ChatMessage[], opts = {}) => {
     const r = await chatWithDARS('planner', messages, opts, {
-      creds, health: globalHealth, emit, sessionId: 'titan-' + u.id,
+      creds, health: globalHealth, emit, sessionId: titanKey,
+      onLog: makeEventLogger(u.id, titanKey),
     });
     return r.text;
   };

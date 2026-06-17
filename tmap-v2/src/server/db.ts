@@ -49,6 +49,15 @@ export interface CostRecord {
   updatedAt: string;
 }
 
+export interface EventRecord {
+  id: string;
+  userId: string | null;
+  sessionKey: string;
+  type: string;  // 'dars_success' | 'dars_switch' | 'dars_exhaust' | 'audit'
+  meta: Record<string, unknown>;
+  createdAt: string;
+}
+
 // ── Supabase (persistent Postgres via PostgREST) ──────────────────────────────
 // When SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY are set, user accounts and their
 // encrypted API keys are stored in Postgres so they survive across requests and
@@ -111,14 +120,17 @@ interface DbShape {
   sessions: Record<string, SessionRecord>;
   agentLogs: AgentLogRecord[];
   costs: Record<string, CostRecord>; // userId -> cost
+  events: EventRecord[];
 }
 
 function load(): DbShape {
-  if (!existsSync(DB_PATH)) return { users: {}, sessions: {}, agentLogs: [], costs: {} };
+  if (!existsSync(DB_PATH)) return { users: {}, sessions: {}, agentLogs: [], costs: {}, events: [] };
   try {
-    return JSON.parse(readFileSync(DB_PATH, 'utf8')) as DbShape;
+    const raw = JSON.parse(readFileSync(DB_PATH, 'utf8')) as DbShape;
+    if (!raw.events) raw.events = []; // backwards compat for existing db files
+    return raw;
   } catch {
-    return { users: {}, sessions: {}, agentLogs: [], costs: {} };
+    return { users: {}, sessions: {}, agentLogs: [], costs: {}, events: [] };
   }
 }
 
@@ -423,4 +435,50 @@ export async function getUserCost(userId: string): Promise<CostRecord | undefine
     };
   }
   return load().costs[userId];
+}
+
+// ── EVENTS (DARS failover + audit trail) ──────────────────────────────────────
+export async function appendEvent(
+  userId: string | null,
+  sessionKey: string,
+  type: string,
+  meta: Record<string, unknown>,
+): Promise<void> {
+  const id = randomUUID();
+  const createdAt = new Date().toISOString();
+
+  if (useSupabase) {
+    const body: Record<string, unknown> = { id, session_key: sessionKey, type, meta, created_at: createdAt };
+    if (userId) body.user_id = userId;
+    await sb('tmap_events', {
+      method: 'POST',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify(body),
+    });
+    return;
+  }
+
+  const db = load();
+  db.events.push({ id, userId, sessionKey, type, meta, createdAt });
+  if (db.events.length > 10_000) db.events = db.events.slice(-10_000);
+  save(db);
+}
+
+export async function getSessionEvents(sessionKey: string, limit = 100): Promise<EventRecord[]> {
+  if (useSupabase) {
+    const res = await sb(
+      `tmap_events?session_key=eq.${encodeURIComponent(sessionKey)}&order=created_at.asc&limit=${limit}&select=*`,
+    );
+    if (!res.ok) throw new Error(`supabase getSessionEvents failed: ${res.status}`);
+    const rows = (await res.json()) as Array<Record<string, unknown>>;
+    return rows.map((r) => ({
+      id: r.id as string,
+      userId: (r.user_id as string | null) ?? null,
+      sessionKey: r.session_key as string,
+      type: r.type as string,
+      meta: (r.meta as Record<string, unknown>) ?? {},
+      createdAt: r.created_at as string,
+    }));
+  }
+  return load().events.filter((e) => e.sessionKey === sessionKey).slice(0, limit);
 }

@@ -91,3 +91,22 @@ create table if not exists tmap_costs (
 
 alter table tmap_costs enable row level security;
 -- ไม่มี policy โดยตั้งใจ → service role เท่านั้น
+
+-- ── TMAP Events (DARS failover audit trail) ───────────────────────────────────
+-- เก็บ DARS switch / failover / success events และ audit events ทุกประเภท
+-- session_key เป็น TEXT ไม่ใช่ UUID FK เพื่อรองรับทั้ง UUID จริงและ synthetic key
+-- เช่น 'raa-<userId>' ที่ไม่มีแถวใน tmap_sessions
+create table if not exists tmap_events (
+  id           uuid        default gen_random_uuid() primary key,
+  user_id      uuid        references users (id) on delete cascade,
+  session_key  text        not null,
+  type         text        not null,  -- 'dars_success' | 'dars_switch' | 'dars_exhaust' | 'audit'
+  meta         jsonb       not null default '{}'::jsonb,
+  created_at   timestamptz not null default now()
+);
+
+alter table tmap_events enable row level security;
+-- ไม่มี policy โดยตั้งใจ → service role เท่านั้น
+
+create index if not exists tmap_events_session_idx on tmap_events (session_key, created_at desc);
+create index if not exists tmap_events_user_idx    on tmap_events (user_id,     created_at desc);
