@@ -25,6 +25,7 @@ import {
 import { TITAN_PHASES } from "@/lib/constants";
 import { checkUserAccess } from "@/lib/access";
 import { useAuthStore } from "@/store/auth-store";
+import { useChatStore } from "@/store/chat-store";
 import { uid } from "@/lib/utils";
 import { formatErrorBlock, type AofProviderError, type FailoverNotice } from "@/lib/errors";
 import type {
@@ -243,12 +244,14 @@ export const useCodeStore = create<CodeState>()(
     try {
       if (convState === "NORMAL_CHAT") {
         // ── NORMAL_CHAT: casual reply, no RAA, no brief update ────────────────
+        // Honour the shared Web Search preference so Aof Code answers can be
+        // grounded in live docs/web results too (spec §3 — every mode).
         await streamCodeChat(content, history, {
           onToken: append,
           signal: controller.signal,
           onError,
           onFailover,
-        });
+        }, useChatStore.getState().searchMode);
       } else {
         // ── DISCOVERY: RAA gathers requirements, brief may be emitted ─────────
         // Mark the project active so all subsequent turns stay in DISCOVERY
