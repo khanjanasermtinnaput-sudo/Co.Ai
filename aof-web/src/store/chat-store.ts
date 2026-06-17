@@ -25,6 +25,7 @@ import type { AofProviderError } from "@/lib/errors";
 import { checkUserAccess } from "@/lib/access";
 import { useAuthStore } from "@/store/auth-store";
 import { useGuestStore } from "@/store/guest-store";
+import { useUsageStore, estimateTokensFor } from "@/store/usage-store";
 
 interface PendingMessage {
   text: string;
@@ -195,12 +196,20 @@ export const useChatStore = create<ChatState>()(
         // stop here so the message is never lost (the composer keeps its draft).
         const access = checkUserAccess("send-message");
         if (!access.allowed) {
-          useAuthStore.getState().openLoginModal(access.reason);
+          if (access.requiresUpgrade) {
+            toast.error(access.reason ?? "Upgrade required", {
+              description: "Open Settings → Billing to upgrade your plan.",
+              duration: 5000,
+            });
+          } else {
+            useAuthStore.getState().openLoginModal(access.reason);
+          }
           return;
         }
         if (useAuthStore.getState().tier === "GUEST") {
           useGuestStore.getState().increment();
         }
+        useUsageStore.getState().recordMessage(estimateTokensFor(content));
 
         let activeId = get().activeId;
         if (!activeId) activeId = get().newConversation();

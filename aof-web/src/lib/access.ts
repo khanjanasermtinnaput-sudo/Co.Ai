@@ -9,7 +9,15 @@
 
 import { useAuthStore, type UserTier } from "@/store/auth-store";
 import { useGuestStore, GUEST_LIMIT } from "@/store/guest-store";
-import { hasFeature, minTierForFeature, planFor, type Feature } from "@/lib/plans";
+import { useUsageStore } from "@/store/usage-store";
+import {
+  hasFeature,
+  minTierForFeature,
+  planFor,
+  entitlementsEnforced,
+  effectiveDailyMessages,
+  type Feature,
+} from "@/lib/plans";
 import type { ChatModel, CodeMode } from "@/lib/types";
 
 export type AccessAction =
@@ -115,7 +123,23 @@ export function evaluateAccess(
 export function checkUserAccess(action: AccessAction, ctx: AccessContext = {}): AccessResult {
   const tier = useAuthStore.getState().tier;
   const guestCount = useGuestStore.getState().messageCount;
-  return evaluateAccess(action, { tier, guestCount }, ctx);
+  const base = evaluateAccess(action, { tier, guestCount }, ctx);
+
+  // Daily message quota — only enforced once billing is live; dormant otherwise.
+  if (action === "send-message" && base.allowed && tier !== "GUEST" && entitlementsEnforced()) {
+    const used = useUsageStore.getState().messages;
+    const limit = effectiveDailyMessages(tier, /* usingOwnKey */ false);
+    if (Number.isFinite(limit) && used >= limit) {
+      return {
+        allowed: false,
+        requiresLogin: false,
+        requiresUpgrade: true,
+        reason: "You've reached today's message limit. Upgrade or add your own API key for more.",
+      };
+    }
+  }
+
+  return base;
 }
 
 /** Live Feature gate — convenience for components/stores guarding a capability. */

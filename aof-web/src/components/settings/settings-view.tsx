@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   LogOut,
   Activity,
+  BarChart3,
   TerminalSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -23,6 +24,7 @@ import { getSupabase } from "@/lib/supabase/client";
 import { keysEnabled, loadKeys, saveKey, deleteKey } from "@/lib/keys";
 import { planFor, byokBonusLabel } from "@/lib/plans";
 import { PricingTable } from "@/components/billing/pricing-table";
+import { UsageDashboard } from "@/components/billing/usage-dashboard";
 import { useMounted } from "@/hooks/use-mounted";
 import { useDiagnosticsStore } from "@/store/diagnostics-store";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -62,6 +64,9 @@ export function SettingsView({ defaultTab = "account" }: { defaultTab?: string }
           <TabsTrigger value="keys">
             <KeyRound className="size-4" /> API Keys
           </TabsTrigger>
+          <TabsTrigger value="usage">
+            <BarChart3 className="size-4" /> Usage
+          </TabsTrigger>
           <TabsTrigger value="diagnostics">
             <Activity className="size-4" /> Diagnostics
           </TabsTrigger>
@@ -78,6 +83,9 @@ export function SettingsView({ defaultTab = "account" }: { defaultTab?: string }
         </TabsContent>
         <TabsContent value="keys">
           <KeysTab />
+        </TabsContent>
+        <TabsContent value="usage">
+          <UsageDashboard />
         </TabsContent>
         <TabsContent value="diagnostics">
           <DiagnosticsTab />

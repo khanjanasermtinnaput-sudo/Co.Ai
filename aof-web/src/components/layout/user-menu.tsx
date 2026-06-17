@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CreditCard, LogIn, LogOut, Settings, Sparkles, UserRound } from "lucide-react";
+import { BarChart3, CreditCard, LogIn, LogOut, Settings, Sparkles, UserRound } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/providers/auth-provider";
 import { planFor } from "@/lib/plans";
@@ -117,6 +117,11 @@ export function UserMenu({ expanded = false }: UserMenuProps) {
         <DropdownMenuItem asChild>
           <Link href="/settings">
             <Settings /> Settings
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="/settings?tab=usage">
+            <BarChart3 /> Usage
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>

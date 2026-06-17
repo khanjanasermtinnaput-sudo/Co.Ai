@@ -3,7 +3,7 @@ import { SettingsView } from "@/components/settings/settings-view";
 
 export const metadata: Metadata = { title: "Settings" };
 
-const VALID_TABS = ["account", "appearance", "keys", "billing"];
+const VALID_TABS = ["account", "appearance", "keys", "usage", "diagnostics", "billing"];
 
 export default function SettingsPage({
   searchParams,
