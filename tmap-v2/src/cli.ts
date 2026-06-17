@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { mkdirSync, writeFileSync, readdirSync, readFileSync, existsSync } from 'node:fs';
-import { join, dirname, extname } from 'node:path';
+import { join, dirname, extname, isAbsolute } from 'node:path';
 import { resolveAll, currentMode, anyKeyConfigured, PROVIDERS, ROLE_PROVIDER, bagFromEnv } from './config.js';
 import { createBlackboard, loadSession } from './core/blackboard.js';
 import { runTMAP } from './core/orchestrator.js';
@@ -136,13 +136,19 @@ async function cmdGencode(task: string, opts: { apply: boolean; mode?: string })
   }
 
   const outDir = opts.apply ? process.cwd() : join(process.cwd(), 'aof-output');
+  let written = 0;
   for (const f of bb.files) {
+    if (f.path.includes('..') || isAbsolute(f.path)) {
+      console.log(c.yellow(`[skip] unsafe path blocked: ${f.path}`));
+      continue;
+    }
     const target = join(outDir, f.path);
     mkdirSync(dirname(target), { recursive: true });
     writeFileSync(target, f.content, 'utf8');
+    written++;
   }
   console.log(c.dim('─'.repeat(60)));
-  console.log(c.green(`Wrote ${bb.files.length} file(s) to ${c.bold(outDir)}`));
+  console.log(c.green(`Wrote ${written} file(s) to ${c.bold(outDir)}`));
   if (!opts.apply) console.log(c.dim('(use --apply to write into the current project root instead)'));
 
   const high = bb.review.filter((i) => i.severity === 'HIGH').length;
@@ -206,13 +212,19 @@ async function cmdFix(targetDir: string, opts: { apply: boolean }) {
   }
 
   const outDir = opts.apply ? dir : join(process.cwd(), 'aof-fix-output');
+  let written = 0;
   for (const f of bb.files) {
+    if (f.path.includes('..') || isAbsolute(f.path)) {
+      console.log(c.yellow(`[skip] unsafe path blocked: ${f.path}`));
+      continue;
+    }
     const target = join(outDir, f.path);
     mkdirSync(dirname(target), { recursive: true });
     writeFileSync(target, f.content, 'utf8');
+    written++;
   }
   console.log(c.dim('─'.repeat(60)));
-  console.log(c.green(`Fixed ${bb.files.length} file(s) → ${c.bold(outDir)}`));
+  console.log(c.green(`Fixed ${written} file(s) → ${c.bold(outDir)}`));
   if (!opts.apply) console.log(c.dim('(use --apply to overwrite files in place)'));
 }
 
@@ -289,13 +301,19 @@ async function cmdTitan(task: string, opts: { apply: boolean; mode?: string }) {
           const bb = createBlackboard(build.task, mode, build.context);
           await runTMAP(bb, emit);
           const outDir = opts.apply ? process.cwd() : join(process.cwd(), 'aof-output');
+          let written = 0;
           for (const f of bb.files) {
+            if (f.path.includes('..') || isAbsolute(f.path)) {
+              console.log(c.yellow(`[skip] unsafe path blocked: ${f.path}`));
+              continue;
+            }
             const target = join(outDir, f.path);
             mkdirSync(dirname(target), { recursive: true });
             writeFileSync(target, f.content, 'utf8');
+            written++;
           }
           console.log(c.dim('─'.repeat(60)));
-          console.log(c.green(`Wrote ${bb.files.length} file(s) to ${c.bold(outDir)}`));
+          console.log(c.green(`Wrote ${written} file(s) to ${c.bold(outDir)}`));
           return;
         }
       }

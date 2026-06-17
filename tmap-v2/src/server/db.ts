@@ -160,6 +160,7 @@ export async function createUser(username: string, pinHash: string): Promise<Use
     if (res.status === 409) throw new Error('username already taken');
     if (!res.ok) throw new Error(`supabase createUser failed: ${res.status} ${await res.text()}`);
     const rows = (await res.json()) as SupabaseUserRow[];
+    if (!rows[0]) throw new Error('supabase createUser: empty response');
     return rowToUser(rows[0]);
   }
   const db = load();

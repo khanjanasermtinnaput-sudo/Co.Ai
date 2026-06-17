@@ -9,12 +9,12 @@ import { signToken, requireAuth, type AuthedRequest } from './auth.js';
 import {
   createUser, findUserByUsername, setUserKey, deleteUserKey,
   createSession, updateSession, getUserSessions, getSession, getSessionLogs,
-  addCost, getUserCost,
+  addCost, getUserCost, appendAgentLog,
   type ProviderKeyName,
 } from './db.js';
 import { checkLoginRate, recordFailure, recordSuccess } from './rateLimit.js';
 import { logger, incRequest, incError, incTmapRun, incTmapError, addTokens, incAgentCall, getMetrics } from './logger.js';
-import { bagHasAnyKey, type CredentialBag } from '../config.js';
+import { bagHasAnyKey, resolveAllWith, ROLE_PROVIDER, type CredentialBag } from '../config.js';
 import { createBlackboard } from '../core/blackboard.js';
 import { runTMAP } from '../core/orchestrator.js';
 import { runRAA } from '../core/raa.js';
@@ -48,7 +48,7 @@ app.use(cors({
     if (
       ALLOWED_ORIGINS.includes(origin) ||
       process.env.NODE_ENV !== 'production' ||
-      /^https?:\/\/localhost(:\d+)?$/.test(origin)
+      /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)
     ) return cb(null, true);
     cb(new Error(`CORS: origin not allowed: ${origin}`));
   },
@@ -200,6 +200,31 @@ app.get('/v1/sessions/:id', requireAuth, async (req: AuthedRequest, res) => {
 app.get('/v1/me/cost', requireAuth, async (req: AuthedRequest, res) => {
   const cost = await getUserCost(req.user!.id);
   res.json(cost ?? { userId: req.user!.id, totalCostUsd: 0, totalTokens: 0, sessionCount: 0 });
+});
+
+// ── AGENTS — active role → provider/model mapping ────────────────────────────
+app.get('/v1/agents', requireAuth, (req: AuthedRequest, res) => {
+  const u = req.user!;
+  const creds: CredentialBag = {};
+  for (const p of PROVIDERS) {
+    if (u.encryptedKeys[p]) (creds as Record<string, string>)[p] = decryptSecret(u.encryptedKeys[p]!);
+  }
+  const resolved = resolveAllWith(creds);
+  const healthSnap = globalHealth.snapshot();
+  const healthByKey = Object.fromEntries(healthSnap.map((h) => [h.key, h]));
+  const agents = Object.entries(resolved).map(([role, r]) => {
+    const providerKey = ROLE_PROVIDER[role as keyof typeof ROLE_PROVIDER];
+    const h = healthByKey[providerKey];
+    return {
+      role,
+      providerName: r.providerName,
+      model: r.model,
+      mode: r.mode,
+      circuit: h?.circuit ?? 'closed',
+      latencyMs: Math.round(h?.ewmaLatencyMs ?? 1500),
+    };
+  });
+  res.json({ agents, darsHealth: healthSnap });
 });
 
 // ── PROJECT MEMORY ────────────────────────────────────────────────────────────
@@ -484,7 +509,6 @@ app.post('/v1/run', requireAuth, async (req: AuthedRequest, res) => {
         if (result.status === 'error') incTmapError();
       },
       onAgentCall: async (_sid, log) => {
-        const { appendAgentLog } = await import('./db.js');
         await appendAgentLog({ sessionId: sessionRec.id, ...log });
         incAgentCall(log.role, log.provider);
         logger.debug('agent_call', { role: log.role, provider: log.provider, model: log.model, durationMs: log.durationMs, tokens: log.inputTokens + log.outputTokens });
