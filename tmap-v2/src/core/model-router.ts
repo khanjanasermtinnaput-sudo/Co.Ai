@@ -63,7 +63,7 @@ export function routeToRole(
     const candidates = listProviderCandidates(role, creds);
     const healthy = candidates.filter((c) => {
       const snap = health.snapshot();
-      const pHealth = snap[c.healthKey];
+      const pHealth = snap.find((h) => h.key === c.healthKey);
       return !pHealth || (pHealth.consecutiveFails ?? 0) < 3;
     });
     if (healthy.length > 0) {

@@ -91,3 +91,103 @@ create table if not exists tmap_costs (
 
 alter table tmap_costs enable row level security;
 -- ไม่มี policy โดยตั้งใจ → service role เท่านั้น
+
+-- ── TMAP Events (DARS failover audit trail) ───────────────────────────────────
+-- เก็บ DARS switch / failover / success events และ audit events ทุกประเภท
+-- session_key เป็น TEXT ไม่ใช่ UUID FK เพื่อรองรับทั้ง UUID จริงและ synthetic key
+-- เช่น 'raa-<userId>' ที่ไม่มีแถวใน tmap_sessions
+create table if not exists tmap_events (
+  id           uuid        default gen_random_uuid() primary key,
+  user_id      uuid        references users (id) on delete cascade,
+  session_key  text        not null,
+  type         text        not null,  -- 'dars_success' | 'dars_switch' | 'dars_exhaust' | 'audit'
+  meta         jsonb       not null default '{}'::jsonb,
+  created_at   timestamptz not null default now()
+);
+
+alter table tmap_events enable row level security;
+-- ไม่มี policy โดยตั้งใจ → service role เท่านั้น
+
+create index if not exists tmap_events_session_idx on tmap_events (session_key, created_at desc);
+create index if not exists tmap_events_user_idx    on tmap_events (user_id,     created_at desc);
+create index if not exists tmap_events_type_idx    on tmap_events (type,        created_at desc);
+
+-- ── Phase 2: Projects ─────────────────────────────────────────────────────────
+-- โปรเจกต์ของผู้ใช้ — เชื่อม session / memory / context เข้าด้วยกัน
+create table if not exists tmap_projects (
+  id             uuid        default gen_random_uuid() primary key,
+  user_id        uuid        not null references users (id) on delete cascade,
+  name           text        not null,
+  repo_url       text,
+  default_branch text        not null default 'main',
+  settings       jsonb       not null default '{}'::jsonb,
+  created_at     timestamptz not null default now()
+);
+
+alter table tmap_projects enable row level security;
+
+create index if not exists tmap_projects_user_idx on tmap_projects (user_id, created_at desc);
+
+-- ── Phase 2: Conversations + Messages ────────────────────────────────────────
+-- Persistent chat history ต่อ user (รองรับ /v1/chat ที่ตอนนี้ stateless)
+create table if not exists tmap_conversations (
+  id          uuid        default gen_random_uuid() primary key,
+  user_id     uuid        not null references users (id) on delete cascade,
+  project_id  uuid        references tmap_projects (id) on delete set null,
+  title       text        not null default 'Untitled',
+  created_at  timestamptz not null default now()
+);
+
+alter table tmap_conversations enable row level security;
+
+create index if not exists tmap_conversations_user_idx
+  on tmap_conversations (user_id, created_at desc);
+
+create table if not exists tmap_messages (
+  id              uuid        default gen_random_uuid() primary key,
+  conversation_id uuid        not null references tmap_conversations (id) on delete cascade,
+  role            text        not null,   -- 'user' | 'assistant' | 'system'
+  content         text        not null,
+  created_at      timestamptz not null default now()
+);
+
+alter table tmap_messages enable row level security;
+
+create index if not exists tmap_messages_conv_idx
+  on tmap_messages (conversation_id, created_at asc);
+
+-- ── Phase 3: File Memory (§6.3) ─────────────────────────────────────────────
+-- เก็บ metadata ของไฟล์ที่ generate/apply ต่อ project
+create table if not exists tmap_files (
+  id          uuid        default gen_random_uuid() primary key,
+  project_id  uuid        references tmap_projects (id) on delete cascade,
+  session_id  uuid        references tmap_sessions (id) on delete set null,
+  user_id     uuid        not null references users (id) on delete cascade,
+  path        text        not null,
+  language    text        not null default 'unknown',
+  hash        text,                         -- sha256 of content for dedup
+  line_count  integer     not null default 0,
+  summary     text,                         -- one-line LLM summary (optional)
+  applied     boolean     not null default false,
+  created_at  timestamptz not null default now()
+);
+
+alter table tmap_files enable row level security;
+
+create index if not exists tmap_files_project_idx on tmap_files (project_id, created_at desc);
+create index if not exists tmap_files_user_idx    on tmap_files (user_id,    created_at desc);
+create index if not exists tmap_files_session_idx on tmap_files (session_id);
+
+-- ── Phase 4 (prep): pgvector semantic memory ──────────────────────────────────
+-- uncomment หลังจากเปิด pgvector extension ใน Supabase:
+--   create extension if not exists vector;
+--   alter table memories add column if not exists embedding vector(1024);
+--   create index if not exists memories_embedding_idx
+--     on memories using hnsw (embedding vector_cosine_ops);
+
+-- ── Phase 4 env vars (server/index.ts) ────────────────────────────────────────
+-- AOF_USER_BUDGET_USD       สูงสุด (USD) ต่อผู้ใช้  (ไม่กำหนด = ไม่จำกัด)
+-- AOF_LIMIT_RUN_PER_HOUR    req/hour สำหรับ /v1/run + /v1/orchestrate  (default 10)
+-- AOF_LIMIT_CHAT_PER_HOUR   req/hour สำหรับ /v1/chat + debug + analyze  (default 30)
+-- AOF_LIMIT_GENERAL_PER_HOUR  req/hour สำหรับ GET endpoints             (default 120)
+-- E2B_API_KEY               (Phase 4+) เปิดใช้ E2B sandbox สำหรับ runtime validation

@@ -3,7 +3,7 @@ import type { Blackboard, ReviewIssue, Role, LLMCall } from '../types.js';
 import { runPlanner, runCoder, runReviewer } from './agents.js';
 import { validateFiles } from './validator.js';
 import { logEvent, persist } from './blackboard.js';
-import { chatWithDARS, type DarsContext } from '../dars/run.js';
+import { chatWithDARS, type DarsContext, type AgentLogEntry } from '../dars/run.js';
 import { HealthStore, globalHealth } from '../dars/health.js';
 import { listProviderCandidates } from '../dars/select.js';
 import { gatherProjectContext } from './context.js';
@@ -23,6 +23,8 @@ export interface RunOpts {
   onSessionStart?: (sessionId: string) => Promise<void>;
   onSessionEnd?: (sessionId: string, result: { filesCount: number; iterations: number; status: 'done' | 'error'; costUsd: number; tokensUsed: number }) => Promise<void>;
   onAgentCall?: (sessionId: string, log: AgentCallLog) => Promise<void>;
+  // DARS failover events (server wires this to appendEvent; CLI omits)
+  onDarsLog?: (entry: AgentLogEntry) => void;
   // Project root for context scanning (default: cwd)
   projectRoot?: string;
   // Skip context scan (e.g. when task is self-contained)
@@ -139,7 +141,7 @@ export async function runTMAP(
     }
   }
 
-  const ctx: DarsContext = { creds, health, emit, sessionId: bb.sessionId };
+  const ctx: DarsContext = { creds, health, emit, sessionId: bb.sessionId, onLog: runOpts.onDarsLog };
 
   const callFor = (role: Role): LLMCall => async (messages, opts = {}) => {
     const startMs = Date.now();

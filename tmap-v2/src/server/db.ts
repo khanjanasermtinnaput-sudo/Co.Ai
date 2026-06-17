@@ -49,6 +49,15 @@ export interface CostRecord {
   updatedAt: string;
 }
 
+export interface EventRecord {
+  id: string;
+  userId: string | null;
+  sessionKey: string;
+  type: string;  // 'dars_success' | 'dars_switch' | 'dars_exhaust' | 'audit'
+  meta: Record<string, unknown>;
+  createdAt: string;
+}
+
 // ── Supabase (persistent Postgres via PostgREST) ──────────────────────────────
 // When SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY are set, user accounts and their
 // encrypted API keys are stored in Postgres so they survive across requests and
@@ -111,14 +120,29 @@ interface DbShape {
   sessions: Record<string, SessionRecord>;
   agentLogs: AgentLogRecord[];
   costs: Record<string, CostRecord>; // userId -> cost
+  events: EventRecord[];
+  projects: Record<string, ProjectRecord>;
+  conversations: Record<string, ConversationRecord>;
+  messages: MessageRecord[];
 }
 
+const EMPTY_DB = (): DbShape => ({
+  users: {}, sessions: {}, agentLogs: [], costs: {}, events: [],
+  projects: {}, conversations: {}, messages: [],
+});
+
 function load(): DbShape {
-  if (!existsSync(DB_PATH)) return { users: {}, sessions: {}, agentLogs: [], costs: {} };
+  if (!existsSync(DB_PATH)) return EMPTY_DB();
   try {
-    return JSON.parse(readFileSync(DB_PATH, 'utf8')) as DbShape;
+    const raw = JSON.parse(readFileSync(DB_PATH, 'utf8')) as DbShape;
+    // backwards compat: fill any fields added after initial creation
+    if (!raw.events) raw.events = [];
+    if (!raw.projects) raw.projects = {};
+    if (!raw.conversations) raw.conversations = {};
+    if (!raw.messages) raw.messages = [];
+    return raw;
   } catch {
-    return { users: {}, sessions: {}, agentLogs: [], costs: {} };
+    return EMPTY_DB();
   }
 }
 
@@ -160,6 +184,7 @@ export async function createUser(username: string, pinHash: string): Promise<Use
     if (res.status === 409) throw new Error('username already taken');
     if (!res.ok) throw new Error(`supabase createUser failed: ${res.status} ${await res.text()}`);
     const rows = (await res.json()) as SupabaseUserRow[];
+    if (!rows[0]) throw new Error('supabase createUser: no row returned');
     return rowToUser(rows[0]);
   }
   const db = load();
@@ -261,7 +286,10 @@ export async function updateSession(id: string, patch: Partial<SessionRecord>): 
   }
 
   const db = load();
-  if (!db.sessions[id]) return;
+  if (!db.sessions[id]) {
+    console.warn(`[db] updateSession: session ${id} not found`);
+    return;
+  }
   Object.assign(db.sessions[id], patch, { updatedAt: now });
   save(db);
 }
@@ -423,4 +451,244 @@ export async function getUserCost(userId: string): Promise<CostRecord | undefine
     };
   }
   return load().costs[userId];
+}
+
+// ── PROJECTS ──────────────────────────────────────────────────────────────────
+export interface ProjectRecord {
+  id: string;
+  userId: string;
+  name: string;
+  repoUrl?: string;
+  defaultBranch: string;
+  settings: Record<string, unknown>;
+  createdAt: string;
+}
+
+function rowToProject(r: Record<string, unknown>): ProjectRecord {
+  return {
+    id: r.id as string,
+    userId: r.user_id as string,
+    name: r.name as string,
+    repoUrl: (r.repo_url as string | null) ?? undefined,
+    defaultBranch: (r.default_branch as string) ?? 'main',
+    settings: (r.settings as Record<string, unknown>) ?? {},
+    createdAt: r.created_at as string,
+  };
+}
+
+export async function createProject(
+  userId: string, name: string, repoUrl?: string,
+): Promise<ProjectRecord> {
+  const id = randomUUID();
+  const createdAt = new Date().toISOString();
+  const row = { id, user_id: userId, name, repo_url: repoUrl ?? null, default_branch: 'main', settings: {}, created_at: createdAt };
+
+  if (useSupabase) {
+    const res = await sb('tmap_projects', {
+      method: 'POST',
+      headers: { Prefer: 'return=representation' },
+      body: JSON.stringify(row),
+    });
+    if (!res.ok) throw new Error(`supabase createProject failed: ${res.status} ${await res.text()}`);
+    const rows = (await res.json()) as Array<Record<string, unknown>>;
+    if (!rows[0]) throw new Error('supabase createProject: no row returned');
+    return rowToProject(rows[0]);
+  }
+
+  const db = load();
+  const project = rowToProject(row);
+  db.projects[id] = project;
+  save(db);
+  return project;
+}
+
+export async function getUserProjects(userId: string): Promise<ProjectRecord[]> {
+  if (useSupabase) {
+    const res = await sb(
+      `tmap_projects?user_id=eq.${encodeURIComponent(userId)}&order=created_at.desc&select=*`,
+    );
+    if (!res.ok) throw new Error(`supabase getUserProjects failed: ${res.status}`);
+    return ((await res.json()) as Array<Record<string, unknown>>).map(rowToProject);
+  }
+  return Object.values(load().projects).filter((p) => p.userId === userId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export async function getProject(id: string): Promise<ProjectRecord | undefined> {
+  if (useSupabase) {
+    const res = await sb(`tmap_projects?id=eq.${encodeURIComponent(id)}&select=*&limit=1`);
+    if (!res.ok) throw new Error(`supabase getProject failed: ${res.status}`);
+    const rows = (await res.json()) as Array<Record<string, unknown>>;
+    return rows[0] ? rowToProject(rows[0]) : undefined;
+  }
+  return load().projects[id];
+}
+
+// ── CONVERSATIONS ──────────────────────────────────────────────────────────────
+export interface ConversationRecord {
+  id: string;
+  userId: string;
+  projectId?: string;
+  title: string;
+  createdAt: string;
+}
+
+export interface MessageRecord {
+  id: string;
+  conversationId: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  createdAt: string;
+}
+
+function rowToConversation(r: Record<string, unknown>): ConversationRecord {
+  return {
+    id: r.id as string,
+    userId: r.user_id as string,
+    projectId: (r.project_id as string | null) ?? undefined,
+    title: (r.title as string) ?? 'Untitled',
+    createdAt: r.created_at as string,
+  };
+}
+
+function rowToMessage(r: Record<string, unknown>): MessageRecord {
+  return {
+    id: r.id as string,
+    conversationId: r.conversation_id as string,
+    role: r.role as MessageRecord['role'],
+    content: r.content as string,
+    createdAt: r.created_at as string,
+  };
+}
+
+export async function createConversation(
+  userId: string, title: string, projectId?: string,
+): Promise<ConversationRecord> {
+  const id = randomUUID();
+  const createdAt = new Date().toISOString();
+  const row: Record<string, unknown> = { id, user_id: userId, title, project_id: projectId ?? null, created_at: createdAt };
+
+  if (useSupabase) {
+    const res = await sb('tmap_conversations', {
+      method: 'POST',
+      headers: { Prefer: 'return=representation' },
+      body: JSON.stringify(row),
+    });
+    if (!res.ok) throw new Error(`supabase createConversation failed: ${res.status} ${await res.text()}`);
+    const rows = (await res.json()) as Array<Record<string, unknown>>;
+    if (!rows[0]) throw new Error('supabase createConversation: no row returned');
+    return rowToConversation(rows[0]);
+  }
+
+  const db = load();
+  const conv = rowToConversation(row);
+  db.conversations[id] = conv;
+  save(db);
+  return conv;
+}
+
+export async function getUserConversations(userId: string, limit = 30): Promise<ConversationRecord[]> {
+  if (useSupabase) {
+    const res = await sb(
+      `tmap_conversations?user_id=eq.${encodeURIComponent(userId)}&order=created_at.desc&limit=${limit}&select=*`,
+    );
+    if (!res.ok) throw new Error(`supabase getUserConversations failed: ${res.status}`);
+    return ((await res.json()) as Array<Record<string, unknown>>).map(rowToConversation);
+  }
+  return Object.values(load().conversations).filter((c) => c.userId === userId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, limit);
+}
+
+export async function getConversation(id: string): Promise<ConversationRecord | undefined> {
+  if (useSupabase) {
+    const res = await sb(`tmap_conversations?id=eq.${encodeURIComponent(id)}&select=*&limit=1`);
+    if (!res.ok) throw new Error(`supabase getConversation failed: ${res.status}`);
+    const rows = (await res.json()) as Array<Record<string, unknown>>;
+    return rows[0] ? rowToConversation(rows[0]) : undefined;
+  }
+  return load().conversations[id];
+}
+
+export async function addMessage(
+  conversationId: string, role: MessageRecord['role'], content: string,
+): Promise<MessageRecord> {
+  const id = randomUUID();
+  const createdAt = new Date().toISOString();
+  const row = { id, conversation_id: conversationId, role, content, created_at: createdAt };
+
+  if (useSupabase) {
+    const res = await sb('tmap_messages', {
+      method: 'POST',
+      headers: { Prefer: 'return=representation' },
+      body: JSON.stringify(row),
+    });
+    if (!res.ok) throw new Error(`supabase addMessage failed: ${res.status} ${await res.text()}`);
+    const rows = (await res.json()) as Array<Record<string, unknown>>;
+    if (!rows[0]) throw new Error('supabase addMessage: no row returned');
+    return rowToMessage(rows[0]);
+  }
+
+  const db = load();
+  const msg = rowToMessage(row);
+  db.messages.push(msg);
+  if (db.messages.length > 50_000) db.messages = db.messages.slice(-50_000);
+  save(db);
+  return msg;
+}
+
+export async function getConversationMessages(conversationId: string, limit = 100): Promise<MessageRecord[]> {
+  if (useSupabase) {
+    const res = await sb(
+      `tmap_messages?conversation_id=eq.${encodeURIComponent(conversationId)}&order=created_at.asc&limit=${limit}&select=*`,
+    );
+    if (!res.ok) throw new Error(`supabase getConversationMessages failed: ${res.status}`);
+    return ((await res.json()) as Array<Record<string, unknown>>).map(rowToMessage);
+  }
+  return load().messages.filter((m) => m.conversationId === conversationId).slice(0, limit);
+}
+
+// ── EVENTS (DARS failover + audit trail) ──────────────────────────────────────
+export async function appendEvent(
+  userId: string | null,
+  sessionKey: string,
+  type: string,
+  meta: Record<string, unknown>,
+): Promise<void> {
+  const id = randomUUID();
+  const createdAt = new Date().toISOString();
+
+  if (useSupabase) {
+    const body: Record<string, unknown> = { id, session_key: sessionKey, type, meta, created_at: createdAt };
+    if (userId) body.user_id = userId;
+    await sb('tmap_events', {
+      method: 'POST',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify(body),
+    });
+    return;
+  }
+
+  const db = load();
+  db.events.push({ id, userId, sessionKey, type, meta, createdAt });
+  if (db.events.length > 10_000) db.events = db.events.slice(-10_000);
+  save(db);
+}
+
+export async function getSessionEvents(sessionKey: string, limit = 100): Promise<EventRecord[]> {
+  if (useSupabase) {
+    const res = await sb(
+      `tmap_events?session_key=eq.${encodeURIComponent(sessionKey)}&order=created_at.asc&limit=${limit}&select=*`,
+    );
+    if (!res.ok) throw new Error(`supabase getSessionEvents failed: ${res.status}`);
+    const rows = (await res.json()) as Array<Record<string, unknown>>;
+    return rows.map((r) => ({
+      id: r.id as string,
+      userId: (r.user_id as string | null) ?? null,
+      sessionKey: r.session_key as string,
+      type: r.type as string,
+      meta: (r.meta as Record<string, unknown>) ?? {},
+      createdAt: r.created_at as string,
+    }));
+  }
+  return load().events.filter((e) => e.sessionKey === sessionKey).slice(0, limit);
 }

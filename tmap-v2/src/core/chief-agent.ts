@@ -12,6 +12,7 @@ import type {
 } from '../types.js';
 import type { CredentialBag } from '../config.js';
 import type { HealthStore } from '../dars/health.js';
+import type { AgentLogEntry } from '../dars/run.js';
 import { classifyTask } from './classifier.js';
 import { expandPrompt } from './prompt-engineer.js';
 import { runResearchAgent } from './research-agent.js';
@@ -32,6 +33,7 @@ export interface ChiefOpts {
   history?: ChatMessage[];
   enableQualityGate?: boolean; // default true
   planOnly?: boolean;
+  onLog?: (entry: AgentLogEntry) => void;
 }
 
 const CHIEF_ANALYSIS_SYS = `You are the Chief Agent in AOF AI — an intelligent meta-orchestrator.
@@ -68,7 +70,7 @@ export async function runChiefAgent(
   userMessage: string,
   opts: ChiefOpts,
 ): Promise<OrchestrationResult> {
-  const { creds, health, emit, sessionId, history = [], enableQualityGate = true } = opts;
+  const { creds, health, emit, sessionId, history = [], enableQualityGate = true, onLog } = opts;
 
   // Phase 1: Classify intent
   emit('chief', 'analyzing request...', 'status');
@@ -84,6 +86,7 @@ export async function runChiefAgent(
   const makeCall = (role = routing.role): LLMCall => async (messages, callOpts = {}) => {
     const r = await chatWithDARS(role, messages, callOpts, {
       creds, health, emit: (r, t, k) => emit('system' as AgentType, `[${r}] ${t}`, k), sessionId,
+      onLog,
     });
     return r.text;
   };
