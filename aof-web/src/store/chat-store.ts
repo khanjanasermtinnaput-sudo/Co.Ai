@@ -21,6 +21,9 @@ import type {
   ResponseStyle,
 } from "@/lib/types";
 import type { AofProviderError } from "@/lib/errors";
+import { checkUserAccess } from "@/lib/access";
+import { useAuthStore } from "@/store/auth-store";
+import { useGuestStore } from "@/store/guest-store";
 
 interface PendingMessage {
   text: string;
@@ -41,6 +44,7 @@ interface ChatState {
   deleteConversation: (id: string) => void;
   renameConversation: (id: string, title: string) => void;
   loadRemoteConversations: () => Promise<void>;
+  migrateGuestConversations: () => Promise<void>;
   queueFirstMessage: (text: string, attachments?: Attachment[]) => void;
   consumePending: () => PendingMessage | null;
   send: (text: string, attachments?: Attachment[]) => Promise<void>;
@@ -148,6 +152,27 @@ export const useChatStore = create<ChatState>()(
         }
       },
 
+      migrateGuestConversations: async () => {
+        // Called right after a guest signs in: upload the chat they started while
+        // logged out so it lives on their account, then merge in anything that was
+        // already saved server-side. Best-effort — a failed upload keeps the local
+        // copy intact.
+        if (!conversationsEnabled()) return;
+        const localConvos = get().conversations.filter((c) => c.messages.length > 0);
+        for (const c of localConvos) {
+          try {
+            await createConversation({ id: c.id, title: c.title, model: c.model });
+            await saveMessages(c.id, c.messages);
+          } catch {
+            /* keep local copy; will retry on next save */
+          }
+        }
+        if (localConvos.length) {
+          toast.success("Your chat was saved to your account", { id: "guest-migrated", duration: 4000 });
+        }
+        await get().loadRemoteConversations();
+      },
+
       queueFirstMessage: (text, attachments) =>
         set({ pendingFirstMessage: { text, attachments } }),
       consumePending: () => {
@@ -159,6 +184,18 @@ export const useChatStore = create<ChatState>()(
       send: async (text, attachments) => {
         const content = text.trim();
         if ((!content && !(attachments && attachments.length)) || get().streaming) return;
+
+        // ── Access gate ──────────────────────────────────────────────────────
+        // Guests can chat up to the limit; past it we surface the login wall and
+        // stop here so the message is never lost (the composer keeps its draft).
+        const access = checkUserAccess("send-message");
+        if (!access.allowed) {
+          useAuthStore.getState().openLoginModal(access.reason);
+          return;
+        }
+        if (useAuthStore.getState().tier === "GUEST") {
+          useGuestStore.getState().increment();
+        }
 
         let activeId = get().activeId;
         if (!activeId) activeId = get().newConversation();

@@ -10,6 +10,7 @@ import { ResponseStyleSelector } from "./response-style-selector";
 import { ChatThread } from "./chat-thread";
 import { LogoMark } from "@/components/brand/logo";
 import { ComposerMascot, type ComposerMascotState } from "@/components/mascot";
+import { GuestMeter } from "@/components/auth/guest-meter";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -136,6 +137,7 @@ export function ChatView() {
 
       {/* composer */}
       <div className="border-t border-border/70 bg-background/60 px-3 py-3 backdrop-blur-xl sm:px-5 sm:py-4">
+        <GuestMeter />
         <div className="mx-auto w-full max-w-3xl">
          <ComposerMascot state={mascotState}>
           <Composer

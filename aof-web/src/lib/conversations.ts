@@ -3,10 +3,16 @@
 // graceful no-op when Supabase is not configured (offline / demo mode).
 
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase/client";
+import { isSignedIn } from "@/store/auth-store";
 import type { ChatMessageT, Conversation } from "@/lib/types";
 
+/**
+ * Server sync is available only when Supabase is configured AND a real user is
+ * signed in. Guests keep everything in localStorage (the chat-store persist
+ * layer), so we must not attempt authed fetches for them — they would 401.
+ */
 export function conversationsEnabled(): boolean {
-  return isSupabaseConfigured();
+  return isSupabaseConfigured() && isSignedIn();
 }
 
 async function authToken(): Promise<string | null> {

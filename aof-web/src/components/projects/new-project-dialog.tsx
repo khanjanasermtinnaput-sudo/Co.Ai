@@ -5,6 +5,8 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { ProjectType } from "@/lib/types";
 import { useProjectStore } from "@/store/project-store";
+import { checkUserAccess } from "@/lib/access";
+import { useAuthStore } from "@/store/auth-store";
 import {
   Dialog,
   DialogContent,
@@ -43,6 +45,13 @@ export function NewProjectDialog({
   const submit = async () => {
     if (!name.trim()) {
       toast.error("Give your project a name");
+      return;
+    }
+    // Guests must sign in before saving a project.
+    const access = checkUserAccess("create-project");
+    if (!access.allowed) {
+      onOpenChange(false);
+      useAuthStore.getState().openLoginModal(access.reason);
       return;
     }
     if (submitting) return;

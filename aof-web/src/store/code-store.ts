@@ -23,6 +23,8 @@ import {
   stripBriefBlock,
 } from "@/lib/raa";
 import { TITAN_PHASES } from "@/lib/constants";
+import { checkUserAccess } from "@/lib/access";
+import { useAuthStore } from "@/store/auth-store";
 import { uid } from "@/lib/utils";
 import { formatErrorBlock, type AofProviderError, type FailoverNotice } from "@/lib/errors";
 import type {
@@ -153,7 +155,15 @@ export const useCodeStore = create<CodeState>()(
   persist(
     (set, get) => ({
   mode: "1.0",
-  setMode: (mode) => set({ mode }),
+  setMode: (mode) => {
+    // Pro / Titan are premium — guests are asked to sign in instead of switching.
+    const access = checkUserAccess("premium-model", { codeMode: mode });
+    if (!access.allowed) {
+      useAuthStore.getState().openLoginModal(access.reason);
+      return;
+    }
+    set({ mode });
+  },
 
   // ── Conversation-first workflow ────────────────────────────────────────────
   convo: [],
