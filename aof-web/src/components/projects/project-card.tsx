@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Pin, PinOff, MoreVertical, Clock, Trash2, FolderOpen } from "lucide-react";
 import { cn, timeAgo } from "@/lib/utils";
@@ -18,11 +19,14 @@ import {
 import { TYPE_META, STATUS_META } from "./project-meta";
 
 export function ProjectCard({ project }: { project: Project }) {
+  const router = useRouter();
   const togglePin = useProjectStore((s) => s.togglePin);
   const remove = useProjectStore((s) => s.deleteProject);
   const type = TYPE_META[project.type];
   const status = STATUS_META[project.status];
   const TypeIcon = type.icon;
+
+  const open = () => router.push(`/projects/${project.id}`);
 
   return (
     <motion.div
@@ -31,13 +35,14 @@ export function ProjectCard({ project }: { project: Project }) {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.98 }}
       transition={{ duration: 0.25 }}
-      className="group relative flex flex-col rounded-2xl border border-white/[0.07] bg-card/60 p-4 transition-card hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-glow"
+      onClick={open}
+      className="group relative flex cursor-pointer flex-col rounded-2xl border border-white/[0.07] bg-card/60 p-4 transition-card hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-glow"
     >
       <div className="flex items-start justify-between">
         <span className="flex size-10 items-center justify-center rounded-xl border border-white/10 bg-background/60 text-primary">
           <TypeIcon className="size-5" />
         </span>
-        <div className="flex items-center gap-0.5">
+        <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
           <button
             type="button"
             onClick={() => togglePin(project.id)}
@@ -60,7 +65,7 @@ export function ProjectCard({ project }: { project: Project }) {
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-44">
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={open}>
                 <FolderOpen /> Open
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => togglePin(project.id)}>

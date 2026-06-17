@@ -121,6 +121,10 @@ interface ProjectState {
   load: () => Promise<void>;
   togglePin: (id: string) => Promise<void>;
   createProject: (input: CreateInput) => Promise<Project | null>;
+  updateProject: (
+    id: string,
+    patch: Partial<Pick<Project, "name" | "description" | "status" | "type">>,
+  ) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
 }
 
@@ -243,6 +247,24 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     };
     set((s) => ({ projects: [project, ...s.projects] }));
     return project;
+  },
+
+  updateProject: async (id, patch) => {
+    const previous = get().projects;
+    const now = new Date().toISOString();
+    // Optimistic update.
+    set((s) => ({
+      projects: s.projects.map((p) => (p.id === id ? { ...p, ...patch, updatedAt: now } : p)),
+    }));
+
+    const supabase = getSupabase();
+    if (isSupabaseConfigured() && supabase) {
+      const { error } = await supabase
+        .from("projects")
+        .update({ ...patch, updated_at: now })
+        .eq("id", id);
+      if (error) set({ projects: previous }); // roll back on failure
+    }
   },
 
   deleteProject: async (id) => {
