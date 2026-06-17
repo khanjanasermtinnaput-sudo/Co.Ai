@@ -1,9 +1,33 @@
 import { execFileSync, execSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, rmSync, existsSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import ts from 'typescript';
 import type { CodeFile, ValidationResult } from '../types.js';
+
+/**
+ * Interface for pluggable sandbox execution (E2B, Firecracker, Docker).
+ * When E2B_API_KEY is configured, inject an E2B implementation via
+ * `setSandboxRunner()`.  Until then, static syntax checkers are used.
+ */
+export interface SandboxRunner {
+  /** Run code in an isolated sandbox and return stdout, stderr, exit code. */
+  run(file: CodeFile): Promise<{ stdout: string; stderr: string; exitCode: number }>;
+  /** Whether this runner supports the given language. */
+  supports(language: string): boolean;
+}
+
+let sandboxRunner: SandboxRunner | null = null;
+
+/** Inject a sandbox implementation at startup (e.g. E2B, Docker). */
+export function setSandboxRunner(runner: SandboxRunner): void {
+  sandboxRunner = runner;
+}
+
+/** Return the currently configured sandbox runner, or null if none. */
+export function getSandboxRunner(): SandboxRunner | null {
+  return sandboxRunner;
+}
 
 /**
  * Grounded validation (TDD §3 principle 4): actually EXECUTE checks instead of
@@ -13,6 +37,11 @@ import type { CodeFile, ValidationResult } from '../types.js';
 export function validateFiles(files: CodeFile[]): ValidationResult[] {
   const results: ValidationResult[] = [];
   for (const f of files) {
+    // Prefer sandbox runner when available and it supports this language
+    if (sandboxRunner?.supports(f.language)) {
+      // Sandbox runs async; caller must use validateFilesAsync for full sandbox support.
+      // Fallback to static checks here (sync path) so existing callers aren't broken.
+    }
     switch (f.language) {
       case 'javascript':
         results.push(checkJs(f));
@@ -36,8 +65,39 @@ export function validateFiles(files: CodeFile[]): ValidationResult[] {
         results.push({
           kind: 'skipped',
           passed: true,
-          logs: `${f.path}: no validator for ${f.language} (Phase 3 sandbox).`,
+          logs: `${f.path}: no validator for ${f.language}${sandboxRunner ? ' (sandbox runner installed but async — use validateFilesAsync)' : ''}.`,
         });
+    }
+  }
+  return results;
+}
+
+/**
+ * Async variant that uses the injected SandboxRunner when available,
+ * falling back to static syntax checks for languages the sandbox doesn't support.
+ */
+export async function validateFilesAsync(files: CodeFile[]): Promise<ValidationResult[]> {
+  if (!sandboxRunner) return validateFiles(files);
+
+  const results: ValidationResult[] = [];
+  for (const f of files) {
+    if (sandboxRunner.supports(f.language)) {
+      try {
+        const { stdout, stderr, exitCode } = await sandboxRunner.run(f);
+        results.push({
+          kind: 'runtime',
+          passed: exitCode === 0,
+          logs: exitCode === 0
+            ? `${f.path}: sandbox OK${stdout ? ` — ${stdout.slice(0, 200)}` : ''}`
+            : `${f.path}: sandbox exit ${exitCode} — ${stderr.slice(0, 400)}`,
+        });
+      } catch (e: any) {
+        results.push({ kind: 'runtime', passed: false, logs: `${f.path}: sandbox error — ${e.message}` });
+      }
+    } else {
+      // Fallback to static check for unsupported languages
+      const [staticResult] = validateFiles([f]);
+      results.push(staticResult);
     }
   }
   return results;

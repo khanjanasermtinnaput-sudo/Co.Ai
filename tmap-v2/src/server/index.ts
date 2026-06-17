@@ -17,6 +17,7 @@ import {
 import type { AgentLogEntry } from '../dars/run.js';
 import { resolveAllWith, ROLE_PROVIDER, PROVIDERS as PROVIDER_DEFS } from '../config.js';
 import { checkLoginRate, recordFailure, recordSuccess } from './rateLimit.js';
+import { checkApiRate, getRateLimitStatus, type ApiTier } from './apiRateLimit.js';
 import { logger, incRequest, incError, incTmapRun, incTmapError, addTokens, incAgentCall, getMetrics } from './logger.js';
 import { bagHasAnyKey, type CredentialBag } from '../config.js';
 import { createBlackboard } from '../core/blackboard.js';
@@ -98,6 +99,38 @@ function makeEventLogger(userId: string, sessionKey: string) {
       error: entry.error ?? null,
     }).catch(() => {});
   };
+}
+
+// Per-user budget guardrail (AOF_USER_BUDGET_USD env, default: no limit).
+// Returns an error string when the user is over budget, null when OK.
+const USER_BUDGET_USD = process.env.AOF_USER_BUDGET_USD
+  ? Number(process.env.AOF_USER_BUDGET_USD)
+  : null;
+
+async function checkBudget(userId: string): Promise<string | null> {
+  if (USER_BUDGET_USD === null) return null;
+  const cost = await getUserCost(userId);
+  const spent = cost?.totalCostUsd ?? 0;
+  if (spent >= USER_BUDGET_USD) {
+    return `ยอดใช้งาน $${spent.toFixed(4)} เกินงบประมาณ $${USER_BUDGET_USD.toFixed(2)} — กรุณาติดต่อผู้ดูแลระบบ`;
+  }
+  return null;
+}
+
+// API rate-limit check — returns 429 response when exceeded.
+function enforceApiRate(userId: string, tier: ApiTier, res: express.Response): boolean {
+  const result = checkApiRate(userId, tier);
+  if (!result.allowed) {
+    res.setHeader('Retry-After', result.resetAfterSec);
+    res.setHeader('X-RateLimit-Remaining', '0');
+    res.status(429).json({
+      error: `ใช้งานบ่อยเกินไป กรุณารอ ${Math.ceil(result.resetAfterSec / 60)} นาทีแล้วลองใหม่`,
+      resetAfterSec: result.resetAfterSec,
+    });
+    return false;
+  }
+  res.setHeader('X-RateLimit-Remaining', result.remaining);
+  return true;
 }
 
 // ── AUTH ──────────────────────────────────────────────────────────────────────
@@ -230,6 +263,22 @@ app.get('/v1/me/cost', requireAuth, async (req: AuthedRequest, res) => {
   res.json(cost ?? { userId: req.user!.id, totalCostUsd: 0, totalTokens: 0, sessionCount: 0 });
 });
 
+app.get('/v1/me/budget', requireAuth, async (req: AuthedRequest, res) => {
+  const cost = await getUserCost(req.user!.id);
+  const spent = cost?.totalCostUsd ?? 0;
+  const limits = {
+    run:     getRateLimitStatus(req.user!.id, 'run'),
+    chat:    getRateLimitStatus(req.user!.id, 'chat'),
+    general: getRateLimitStatus(req.user!.id, 'general'),
+  };
+  res.json({
+    spentUsd: spent,
+    budgetUsd: USER_BUDGET_USD,
+    overBudget: USER_BUDGET_USD !== null && spent >= USER_BUDGET_USD,
+    rateLimits: limits,
+  });
+});
+
 // ── AGENTS — role mapping + DARS health (TDD §4.3 dashboard) ─────────────────
 app.get('/v1/agents', requireAuth, async (req: AuthedRequest, res) => {
   const u = req.user!;
@@ -354,6 +403,8 @@ app.post('/v1/chat', requireAuth, async (req: AuthedRequest, res) => {
   if (tooLong(message, MAX_MESSAGE)) return res.status(413).json({ error: `message too long (max ${MAX_MESSAGE} bytes)` });
 
   const u = req.user!;
+  if (!enforceApiRate(u.id, 'chat', res)) return;
+
   const creds: CredentialBag = {};
   for (const p of PROVIDERS) {
     if (u.encryptedKeys[p]) (creds as Record<string, string>)[p] = decryptSecret(u.encryptedKeys[p]!);
@@ -398,6 +449,8 @@ app.post('/v1/debug', requireAuth, async (req: AuthedRequest, res) => {
   if (tooLong(context, MAX_CONTEXT)) return res.status(413).json({ error: `context too long (max ${MAX_CONTEXT} bytes)` });
 
   const u = req.user!;
+  if (!enforceApiRate(u.id, 'chat', res)) return;
+
   const creds: CredentialBag = {};
   for (const p of PROVIDERS) {
     if (u.encryptedKeys[p]) (creds as Record<string, string>)[p] = decryptSecret(u.encryptedKeys[p]!);
@@ -441,6 +494,8 @@ app.post('/v1/analyze', requireAuth, async (req: AuthedRequest, res) => {
   if (tooLong(brief, MAX_BRIEF)) return res.status(413).json({ error: `brief too long (max ${MAX_BRIEF} bytes)` });
 
   const u = req.user!;
+  if (!enforceApiRate(u.id, 'chat', res)) return;
+
   const creds: CredentialBag = {};
   for (const p of PROVIDERS) {
     if (u.encryptedKeys[p]) (creds as Record<string, string>)[p] = decryptSecret(u.encryptedKeys[p]!);
@@ -484,6 +539,8 @@ app.post('/v1/titan', requireAuth, async (req: AuthedRequest, res) => {
   if (tooLong(message, MAX_MESSAGE)) return res.status(413).json({ error: `message too long (max ${MAX_MESSAGE} bytes)` });
 
   const u = req.user!;
+  if (!enforceApiRate(u.id, 'chat', res)) return;
+
   const creds: CredentialBag = {};
   for (const p of PROVIDERS) {
     if (u.encryptedKeys[p]) (creds as Record<string, string>)[p] = decryptSecret(u.encryptedKeys[p]!);
@@ -550,6 +607,10 @@ app.post('/v1/run', requireAuth, async (req: AuthedRequest, res) => {
   if (tooLong(context, MAX_CONTEXT)) return res.status(413).json({ error: `context too long (max ${MAX_CONTEXT} bytes)` });
 
   const u = req.user!;
+  if (!enforceApiRate(u.id, 'run', res)) return;
+  const budgetErr = await checkBudget(u.id);
+  if (budgetErr) return res.status(402).json({ error: budgetErr });
+
   const creds: CredentialBag = {};
   for (const p of PROVIDERS) {
     if (u.encryptedKeys[p]) (creds as Record<string, string>)[p] = decryptSecret(u.encryptedKeys[p]!);
@@ -653,6 +714,10 @@ app.post('/v1/orchestrate', requireAuth, async (req: AuthedRequest, res) => {
   if (tooLong(message, MAX_MESSAGE)) return res.status(413).json({ error: `message too long (max ${MAX_MESSAGE} bytes)` });
 
   const u = req.user!;
+  if (!enforceApiRate(u.id, 'run', res)) return;
+  const budgetErr = await checkBudget(u.id);
+  if (budgetErr) return res.status(402).json({ error: budgetErr });
+
   const creds: CredentialBag = {};
   for (const p of PROVIDERS) {
     if (u.encryptedKeys[p]) (creds as Record<string, string>)[p] = decryptSecret(u.encryptedKeys[p]!);
@@ -678,14 +743,17 @@ app.post('/v1/orchestrate', requireAuth, async (req: AuthedRequest, res) => {
     ? [{ role: 'system' as const, content: memCtx }, ...history]
     : history;
 
+  const orchestrateKey = 'orchestrate-' + u.id;
+
   try {
     const result = await runChiefAgent(message, {
       creds,
       health: globalHealth,
       emit: (agent, text, kind = 'status') => send({ role: agent, kind, text }),
-      sessionId: 'orchestrate-' + u.id,
+      sessionId: orchestrateKey,
       history: enrichedHistory,
       enableQualityGate,
+      onLog: makeEventLogger(u.id, orchestrateKey),
     });
 
     send({

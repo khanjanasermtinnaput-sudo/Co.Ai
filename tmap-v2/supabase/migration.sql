@@ -110,6 +110,7 @@ alter table tmap_events enable row level security;
 
 create index if not exists tmap_events_session_idx on tmap_events (session_key, created_at desc);
 create index if not exists tmap_events_user_idx    on tmap_events (user_id,     created_at desc);
+create index if not exists tmap_events_type_idx    on tmap_events (type,        created_at desc);
 
 -- ── Phase 2: Projects ─────────────────────────────────────────────────────────
 -- โปรเจกต์ของผู้ใช้ — เชื่อม session / memory / context เข้าด้วยกัน
@@ -161,3 +162,10 @@ create index if not exists tmap_messages_conv_idx
 --   alter table memories add column if not exists embedding vector(1024);
 --   create index if not exists memories_embedding_idx
 --     on memories using hnsw (embedding vector_cosine_ops);
+
+-- ── Phase 4 env vars (server/index.ts) ────────────────────────────────────────
+-- AOF_USER_BUDGET_USD       สูงสุด (USD) ต่อผู้ใช้  (ไม่กำหนด = ไม่จำกัด)
+-- AOF_LIMIT_RUN_PER_HOUR    req/hour สำหรับ /v1/run + /v1/orchestrate  (default 10)
+-- AOF_LIMIT_CHAT_PER_HOUR   req/hour สำหรับ /v1/chat + debug + analyze  (default 30)
+-- AOF_LIMIT_GENERAL_PER_HOUR  req/hour สำหรับ GET endpoints             (default 120)
+-- E2B_API_KEY               (Phase 4+) เปิดใช้ E2B sandbox สำหรับ runtime validation

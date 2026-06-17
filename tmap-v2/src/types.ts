@@ -105,7 +105,7 @@ export interface ReviewIssue {
 }
 
 export interface ValidationResult {
-  kind: 'syntax' | 'skipped';
+  kind: 'syntax' | 'skipped' | 'runtime';
   passed: boolean;
   logs: string;
 }
