@@ -156,6 +156,28 @@ alter table tmap_messages enable row level security;
 create index if not exists tmap_messages_conv_idx
   on tmap_messages (conversation_id, created_at asc);
 
+-- ── Phase 3: File Memory (§6.3) ─────────────────────────────────────────────
+-- เก็บ metadata ของไฟล์ที่ generate/apply ต่อ project
+create table if not exists tmap_files (
+  id          uuid        default gen_random_uuid() primary key,
+  project_id  uuid        references tmap_projects (id) on delete cascade,
+  session_id  uuid        references tmap_sessions (id) on delete set null,
+  user_id     uuid        not null references users (id) on delete cascade,
+  path        text        not null,
+  language    text        not null default 'unknown',
+  hash        text,                         -- sha256 of content for dedup
+  line_count  integer     not null default 0,
+  summary     text,                         -- one-line LLM summary (optional)
+  applied     boolean     not null default false,
+  created_at  timestamptz not null default now()
+);
+
+alter table tmap_files enable row level security;
+
+create index if not exists tmap_files_project_idx on tmap_files (project_id, created_at desc);
+create index if not exists tmap_files_user_idx    on tmap_files (user_id,    created_at desc);
+create index if not exists tmap_files_session_idx on tmap_files (session_id);
+
 -- ── Phase 4 (prep): pgvector semantic memory ──────────────────────────────────
 -- uncomment หลังจากเปิด pgvector extension ใน Supabase:
 --   create extension if not exists vector;

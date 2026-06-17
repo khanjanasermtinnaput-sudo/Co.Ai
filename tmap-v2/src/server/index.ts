@@ -9,7 +9,7 @@ import { signToken, requireAuth, type AuthedRequest } from './auth.js';
 import {
   createUser, findUserByUsername, setUserKey, deleteUserKey,
   createSession, updateSession, getUserSessions, getSession, getSessionLogs,
-  addCost, getUserCost, appendEvent, getSessionEvents,
+  addCost, getUserCost, appendEvent, getSessionEvents, appendAgentLog,
   createProject, getUserProjects, getProject,
   createConversation, getUserConversations, getConversation, addMessage, getConversationMessages,
   type ProviderKeyName,
@@ -53,7 +53,7 @@ app.use(cors({
     if (
       ALLOWED_ORIGINS.includes(origin) ||
       process.env.NODE_ENV !== 'production' ||
-      /^https?:\/\/localhost(:\d+)?$/.test(origin)
+      /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)
     ) return cb(null, true);
     cb(new Error(`CORS: origin not allowed: ${origin}`));
   },
@@ -97,7 +97,7 @@ function makeEventLogger(userId: string, sessionKey: string) {
       attempt: entry.attempt,
       latencyMs: entry.latencyMs ?? null,
       error: entry.error ?? null,
-    }).catch(() => {});
+    }).catch((e) => logger.warn('appendEvent failed', { error: (e as Error).message }));
   };
 }
 
@@ -687,7 +687,6 @@ app.post('/v1/run', requireAuth, async (req: AuthedRequest, res) => {
         if (result.status === 'error') incTmapError();
       },
       onAgentCall: async (_sid, log) => {
-        const { appendAgentLog } = await import('./db.js');
         await appendAgentLog({ sessionId: sessionRec.id, ...log });
         incAgentCall(log.role, log.provider);
         logger.debug('agent_call', { role: log.role, provider: log.provider, model: log.model, durationMs: log.durationMs, tokens: log.inputTokens + log.outputTokens });

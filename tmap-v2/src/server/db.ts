@@ -184,6 +184,7 @@ export async function createUser(username: string, pinHash: string): Promise<Use
     if (res.status === 409) throw new Error('username already taken');
     if (!res.ok) throw new Error(`supabase createUser failed: ${res.status} ${await res.text()}`);
     const rows = (await res.json()) as SupabaseUserRow[];
+    if (!rows[0]) throw new Error('supabase createUser: no row returned');
     return rowToUser(rows[0]);
   }
   const db = load();
@@ -285,7 +286,10 @@ export async function updateSession(id: string, patch: Partial<SessionRecord>): 
   }
 
   const db = load();
-  if (!db.sessions[id]) return;
+  if (!db.sessions[id]) {
+    console.warn(`[db] updateSession: session ${id} not found`);
+    return;
+  }
   Object.assign(db.sessions[id], patch, { updatedAt: now });
   save(db);
 }
@@ -487,6 +491,7 @@ export async function createProject(
     });
     if (!res.ok) throw new Error(`supabase createProject failed: ${res.status} ${await res.text()}`);
     const rows = (await res.json()) as Array<Record<string, unknown>>;
+    if (!rows[0]) throw new Error('supabase createProject: no row returned');
     return rowToProject(rows[0]);
   }
 
@@ -571,6 +576,7 @@ export async function createConversation(
     });
     if (!res.ok) throw new Error(`supabase createConversation failed: ${res.status} ${await res.text()}`);
     const rows = (await res.json()) as Array<Record<string, unknown>>;
+    if (!rows[0]) throw new Error('supabase createConversation: no row returned');
     return rowToConversation(rows[0]);
   }
 
@@ -618,6 +624,7 @@ export async function addMessage(
     });
     if (!res.ok) throw new Error(`supabase addMessage failed: ${res.status} ${await res.text()}`);
     const rows = (await res.json()) as Array<Record<string, unknown>>;
+    if (!rows[0]) throw new Error('supabase addMessage: no row returned');
     return rowToMessage(rows[0]);
   }
 

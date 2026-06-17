@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { mkdirSync, writeFileSync, readdirSync, readFileSync, existsSync } from 'node:fs';
-import { join, dirname, extname } from 'node:path';
+import { join, dirname, extname, resolve, normalize, relative } from 'node:path';
 import { resolveAll, currentMode, anyKeyConfigured, PROVIDERS, ROLE_PROVIDER, bagFromEnv } from './config.js';
 import type { CodeFile } from './types.js';
 import { createBlackboard, loadSession } from './core/blackboard.js';
@@ -87,8 +87,20 @@ async function selectFilesToApply(files: CodeFile[]): Promise<CodeFile[]> {
 }
 
 function writeFiles(files: CodeFile[], outDir: string): void {
+  const resolvedOut = resolve(outDir);
   for (const f of files) {
-    const target = join(outDir, f.path);
+    // Reject absolute paths and path traversal (../foo) produced by LLM
+    const normalised = normalize(f.path).replace(/\\/g, '/');
+    if (normalised.startsWith('/') || normalised.startsWith('..')) {
+      console.log(c.red(`  Skipped unsafe path: ${f.path}`));
+      continue;
+    }
+    const target = join(resolvedOut, normalised);
+    // Double-check the resolved target is actually inside outDir
+    if (!resolve(target).startsWith(resolvedOut + '/') && resolve(target) !== resolvedOut) {
+      console.log(c.red(`  Skipped path outside output dir: ${f.path}`));
+      continue;
+    }
     mkdirSync(dirname(target), { recursive: true });
     writeFileSync(target, f.content, 'utf8');
   }
@@ -546,6 +558,157 @@ async function cmdExplain(filePath: string) {
   }
 }
 
+// ── CREDENTIAL STORE (server login token) ─────────────────────────────────────
+const CRED_FILE = join(
+  process.env.HOME ?? process.env.USERPROFILE ?? process.cwd(),
+  '.aof', 'credentials.json',
+);
+interface SavedCreds { serverUrl: string; token: string; username: string }
+function loadCreds(): SavedCreds | null {
+  try {
+    if (!existsSync(CRED_FILE)) return null;
+    return JSON.parse(readFileSync(CRED_FILE, 'utf8')) as SavedCreds;
+  } catch { return null; }
+}
+function saveCreds(data: SavedCreds): void {
+  mkdirSync(dirname(CRED_FILE), { recursive: true });
+  writeFileSync(CRED_FILE, JSON.stringify(data, null, 2), 'utf8');
+}
+
+// ── aof login ─────────────────────────────────────────────────────────────────
+async function cmdLogin() {
+  banner();
+  console.log(c.bold('Login to AOF Code server\n'));
+  const { createInterface } = await import('node:readline/promises');
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    const existing = loadCreds();
+    const defaultUrl = existing?.serverUrl ?? 'http://localhost:8787';
+    const serverUrl = ((await rl.question(`Server URL [${defaultUrl}]: `)).trim() || defaultUrl)
+      .replace(/\/$/, '');
+    const username = (await rl.question('Username: ')).trim();
+    const pin = (await rl.question('PIN: ')).trim();
+
+    if (!username || !pin) { console.log(c.red('username and PIN required')); return; }
+
+    process.stdout.write(c.dim('Logging in…'));
+    const res = await fetch(`${serverUrl}/v1/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, pin }),
+    });
+    const data = await res.json() as { token?: string; username?: string; error?: string };
+    if (!res.ok || !data.token) {
+      console.log(c.red(` ✗\n${data.error ?? `HTTP ${res.status}`}`));
+      return;
+    }
+    saveCreds({ serverUrl, token: data.token, username: data.username ?? username });
+    console.log(c.green(` ✓\nLogged in as ${c.bold(username)} → ${serverUrl}`));
+  } catch (e) {
+    console.log(c.red(`\nError: ${(e as Error).message}`));
+  } finally {
+    rl.close();
+  }
+}
+
+// ── aof chat (standalone REPL via DARS) ───────────────────────────────────────
+async function cmdChat(initial: string) {
+  banner();
+  console.log(`${c.bold('Chat')} ${c.dim('· type exit to quit\n')}`);
+  if (!anyKeyConfigured()) console.log(c.yellow('(mock mode — no API key)'));
+
+  const { createInterface } = await import('node:readline/promises');
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  let closed = false;
+  rl.on('close', () => { closed = true; });
+  const ask = async (q: string) => {
+    if (closed) return 'exit';
+    try { return await rl.question(q); } catch { return 'exit'; }
+  };
+
+  const creds = bagFromEnv();
+  const emit = makeEmit();
+  const history: ChatMessage[] = [];
+
+  let message = initial || (await ask(c.orange('คุณ› ')));
+  try {
+    while (true) {
+      if (!message.trim()) { message = await ask(c.orange('คุณ› ')); continue; }
+      if (/^(exit|quit|ออก)$/i.test(message.trim())) break;
+
+      try {
+        const r = await chatWithDARS('planner', [
+          { role: 'system', content: 'You are AOF AI, a helpful and highly capable AI assistant. Respond in the same language the user uses. Be concise but thorough.' },
+          ...history.slice(-10),
+          { role: 'user', content: message },
+        ], {}, { creds, health: globalHealth, emit, sessionId: 'chat-cli' });
+        history.push({ role: 'user', content: message });
+        history.push({ role: 'assistant', content: r.text });
+        console.log();
+        for (const line of r.text.split('\n')) {
+          console.log(`${c.blue('aof       ')} ${c.dim('›')} ${line}`);
+        }
+        console.log();
+      } catch (e) {
+        console.log(c.red(`Error: ${(e as Error).message}`));
+      }
+      message = await ask(c.orange('คุณ› '));
+    }
+  } finally {
+    rl.close();
+  }
+}
+
+// ── aof project ───────────────────────────────────────────────────────────────
+async function cmdProject(sub: string) {
+  banner();
+  const creds = loadCreds();
+  if (!creds) {
+    console.log(c.red('Not logged in. Run: npm run aof -- login'));
+    return;
+  }
+  const headers = {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${creds.token}`,
+  };
+
+  if (sub === 'list' || !sub) {
+    const res = await fetch(`${creds.serverUrl}/v1/projects`, { headers }).catch(() => null);
+    if (!res?.ok) { console.log(c.red('Could not reach server')); return; }
+    const { projects } = await res.json() as { projects: Array<{ id: string; name: string; repoUrl?: string; createdAt: string }> };
+    if (!projects.length) { console.log(c.dim('No projects yet. Run: aof project create "<name>"')); return; }
+    console.log(c.bold(`\nProjects (${projects.length}):\n`));
+    for (const p of projects) {
+      console.log(`  ${c.green('•')} ${c.bold(p.name)}  ${c.dim(p.id.slice(0, 8))}  ${p.repoUrl ? c.dim(p.repoUrl) : ''}`);
+    }
+    return;
+  }
+
+  const words = sub.trim().split(/\s+/);
+  const action = words[0];
+  const nameArg = words.slice(1).join(' ');
+
+  if (action === 'create' || action === 'init') {
+    const { createInterface } = await import('node:readline/promises');
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    let name = nameArg;
+    if (!name) name = (await rl.question('Project name: ')).trim();
+    const repoUrl = (await rl.question('Repo URL (optional): ')).trim() || undefined;
+    rl.close();
+    if (!name) { console.log(c.red('name required')); return; }
+    const res = await fetch(`${creds.serverUrl}/v1/projects`, {
+      method: 'POST', headers, body: JSON.stringify({ name, repoUrl }),
+    }).catch(() => null);
+    if (!res?.ok) { console.log(c.red('Failed to create project')); return; }
+    const { project } = await res.json() as { project: { id: string; name: string } };
+    console.log(c.green(`Created: ${c.bold(project.name)}  ${c.dim(project.id)}`));
+    return;
+  }
+
+  console.log(c.yellow(`Unknown project sub-command: ${action}`));
+  console.log(c.dim('Usage: aof project [list | create "<name>"]'));
+}
+
 function help() {
   banner();
   console.log(`
@@ -556,6 +719,9 @@ ${c.bold('Commands')}
   ${c.orange('doctor')}                 check API keys, agents & project context
   ${c.orange('agents')}                 show role → model mapping
   ${c.orange('context')}                scan current directory and show project info
+  ${c.orange('login')}                  login to AOF Code server (saves token)
+  ${c.orange('chat')} ["<message>"]      interactive REPL chat with the AI
+  ${c.orange('project')} [list|create]   manage server projects (requires login)
   ${c.orange('gencode')} "<task>"        run full TMAP pipeline and generate files
         --apply              interactive diff review → write into project root
         --mode=lite|normal|pro
@@ -572,6 +738,8 @@ ${c.bold('Commands')}
 
 ${c.bold('Examples')}
   npm run aof -- doctor
+  npm run aof -- login
+  npm run aof -- chat "explain async/await in JS"
   npm run aof -- gencode "build a REST API for a todo app in Node.js"
   npm run aof -- review ./src
   npm run aof -- fix ./src --apply
@@ -592,6 +760,9 @@ async function main() {
     case 'agents':   cmdAgents(); break;
     case 'context':  cmdContext(); break;
     case 'sessions': cmdSessions(); break;
+    case 'login':    await cmdLogin(); break;
+    case 'chat':     await cmdChat(rest); break;
+    case 'project':  await cmdProject(rest); break;
     case 'titan':    await cmdTitan(rest, { apply, mode: modeArg }); break;
     case 'review':   await cmdReview(rest); break;
     case 'fix':      await cmdFix(rest, { apply }); break;
