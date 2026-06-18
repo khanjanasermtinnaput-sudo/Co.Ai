@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>AOF Code</title>
-<meta name="theme-color" content="#000000">
+<meta name="theme-color" content="#080808">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -13,296 +13,1388 @@
 <link rel="manifest" href="/manifest.json">
 <link rel="apple-touch-icon" href="/icons/icon.svg">
 <link rel="icon" type="image/svg+xml" href="/icons/icon.svg">
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800&family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 <style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
+/* ═══════════════════════════════════════════════════════════════════
+   AOF CODE — PREMIUM DESIGN SYSTEM v3.0
+   ═══════════════════════════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg: #000000;
-  --term-bg: #0C0C0C;
-  --bar-bg: #141414;
-  --border: #1E1E1E;
-  --border-mid: #2A2A2A;
-  --text: #FFFFFF;
-  --text-sec: #A0A0A0;
-  --text-dim: #555555;
-  --accent: #FF7A00;
-  --accent-dim: rgba(255,122,0,0.12);
-  --accent-border: rgba(255,122,0,0.25);
-  --green: #3DD68C;
-  --blue: #5B9CF6;
-  --red: #F87171;
-  --yellow: #FBBF24;
-  --purple: #B57BFF;
-  --purple-dim: rgba(181,123,255,0.12);
-  --purple-border: rgba(181,123,255,0.25);
+  /* ── Surfaces ── */
+  --bg:    #080808;
+  --s0:    #0C0C10;
+  --s1:    #101014;
+  --s2:    #141418;
+  --s3:    #1B1B22;
+  --s4:    #222230;
+
+  /* ── Borders ── */
+  --b0: rgba(255,255,255,0.04);
+  --b1: rgba(255,255,255,0.08);
+  --b2: rgba(255,255,255,0.14);
+  --b3: rgba(255,255,255,0.22);
+
+  /* ── Foreground ── */
+  --fg:  #EDEDF0;
+  --fg2: #888891;
+  --fg3: #3C3C48;
+
+  /* ── Accent – Orange ── */
+  --accent:       #FF7A00;
+  --accent-lite:  #FF9933;
+  --accent-bg:    rgba(255,122,0,0.08);
+  --accent-ring:  rgba(255,122,0,0.22);
+
+  /* ── Legacy aliases (keep for dynamically-inserted HTML classes) ── */
+  --text:          var(--fg);
+  --text-sec:      var(--fg2);
+  --text-dim:      var(--fg3);
+  --border:        var(--b1);
+  --border-mid:    var(--b2);
+  --accent-dim:    var(--accent-bg);
+  --accent-border: var(--accent-ring);
+
+  /* ── Status ── */
+  --green:       #22D172;
+  --green-bg:    rgba(34,209,114,0.08);
+  --blue:        #4F91F8;
+  --blue-bg:     rgba(79,145,248,0.08);
+  --red:         #F25A5A;
+  --red-bg:      rgba(242,90,90,0.08);
+  --yellow:      #FFBE0B;
+  --yellow-bg:   rgba(255,190,11,0.08);
+  --purple:      #9B6FFF;
+  --purple-dim:  rgba(155,111,255,0.08);
+  --purple-border: rgba(155,111,255,0.22);
+
+  /* ── Typography ── */
   --mono: 'JetBrains Mono', 'Consolas', 'Courier New', monospace;
+  --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
+
+  /* ── Layout ── */
+  --titlebar-h:   44px;
+  --tabbar-h:     36px;
+  --statusbar-h:  26px;
+  --sidebar-w:    252px;
 }
 
 html, body {
   height: 100%;
   background: var(--bg);
-  color: var(--text);
+  color: var(--fg);
   font-family: var(--mono);
   font-size: 13px;
-  line-height: 1.5;
+  line-height: 1.6;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ─── Scrollbar ─────────────────────────────────────────────────── */
+::-webkit-scrollbar         { width: 4px; height: 4px; }
+::-webkit-scrollbar-track   { background: transparent; }
+::-webkit-scrollbar-thumb   { background: rgba(255,255,255,0.07); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.14); }
+
+/* ─── TITLE BAR ─────────────────────────────────────────────────── */
+#titlebar {
+  height: var(--titlebar-h);
+  background: rgba(8,8,8,0.94);
+  backdrop-filter: blur(24px) saturate(1.6);
+  -webkit-backdrop-filter: blur(24px) saturate(1.6);
+  border-bottom: 1px solid var(--b0);
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  user-select: none;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 20;
+  gap: 0;
+}
+
+.tb-left { display: flex; align-items: center; gap: 10px; min-width: 160px; }
+
+.tb-logo {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+.tb-logo .logo-aof {
+  background: linear-gradient(135deg, #FF7A00 0%, #FF9933 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.tb-logo .logo-code { color: var(--fg); opacity: 0.9; }
+
+.tb-divider { width: 1px; height: 18px; background: var(--b1); margin: 0 8px; flex-shrink: 0; }
+
+.tb-center {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.tb-project-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 27px;
+  padding: 0 11px;
+  background: var(--s2);
+  border: 1px solid var(--b1);
+  border-radius: 7px;
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--fg2);
+  max-width: 220px;
+  transition: border-color 0.15s;
+  letter-spacing: -0.02em;
+}
+.tb-project-chip:hover { border-color: var(--b2); }
+.tb-project-dot {
+  width: 6px; height: 6px;
+  background: var(--fg3);
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.tb-project-name { color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.tb-right { display: flex; align-items: center; gap: 5px; min-width: 160px; justify-content: flex-end; }
+
+.tb-btn {
+  height: 28px;
+  padding: 0 11px;
+  background: transparent;
+  border: 1px solid var(--b1);
+  color: var(--fg2);
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 7px;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+  white-space: nowrap;
+  letter-spacing: -0.02em;
+}
+.tb-btn:hover { border-color: var(--b2); color: var(--fg); background: var(--s2); }
+.tb-btn.active { border-color: var(--accent-ring); color: var(--accent); background: var(--accent-bg); }
+
+.model-select {
+  height: 28px;
+  padding: 0 28px 0 10px;
+  background: var(--s2);
+  border: 1px solid var(--b1);
+  color: var(--fg2);
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  border-radius: 7px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23666'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 9px center;
+  transition: border-color 0.15s;
+}
+.model-select:focus { border-color: var(--accent-ring); outline: none; }
+
+/* ─── LAYOUT ────────────────────────────────────────────────────── */
+#app {
+  height: calc(100vh - var(--titlebar-h));
+  display: flex;
+  flex-direction: row;
   overflow: hidden;
 }
 
-/* ── TITLE BAR ───────────────────────────────────────────────── */
-#titlebar {
-  height: 38px;
-  background: var(--bar-bg);
-  border-bottom: 1px solid var(--border);
+#main {
+  flex: 1;
   display: flex;
-  align-items: center;
-  padding: 0 12px;
-  user-select: none;
-  flex-shrink: 0;
-}
-.tb-left { display: flex; align-items: center; gap: 10px; min-width: 180px; }
-.tb-logo { font-size: 13px; font-weight: 700; color: var(--text); letter-spacing: 0.02em; }
-.tb-logo span { color: var(--accent); }
-.tb-center { flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; }
-.tb-project-label { font-size: 12px; color: var(--text-dim); }
-.tb-project-name { font-size: 12px; color: var(--text-sec); }
-.tb-right { display: flex; align-items: center; gap: 6px; min-width: 180px; justify-content: flex-end; }
-
-.tb-btn {
-  height: 26px; padding: 0 10px; background: transparent;
-  border: 1px solid var(--border-mid); color: var(--text-sec);
-  font-family: var(--mono); font-size: 11px; cursor: pointer;
-  display: flex; align-items: center; gap: 6px;
-  transition: border-color 0.15s, color 0.15s; white-space: nowrap;
-}
-.tb-btn:hover { border-color: #444; color: var(--text); }
-.tb-btn.active { border-color: var(--accent-border); color: var(--accent); background: var(--accent-dim); }
-
-.model-select {
-  height: 26px; padding: 0 24px 0 8px; background: var(--bar-bg);
-  border: 1px solid var(--border-mid); color: var(--text-sec);
-  font-family: var(--mono); font-size: 11px; cursor: pointer; outline: none;
-  appearance: none; -webkit-appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23666'/%3E%3C/svg%3E");
-  background-repeat: no-repeat; background-position: right 8px center;
-}
-.model-select:focus { border-color: var(--accent-border); }
-
-/* ── LAYOUT ──────────────────────────────────────────────────── */
-#app { height: calc(100vh - 38px); display: flex; flex-direction: row; }
-#main { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--term-bg); }
-
-#tabbar {
-  height: 34px; background: var(--bar-bg); border-bottom: 1px solid var(--border);
-  display: flex; align-items: flex-end; padding: 0 12px; flex-shrink: 0;
-}
-.tab {
-  height: 30px; padding: 0 16px; font-size: 11px; color: var(--text-dim);
-  border: 1px solid transparent; border-bottom: none; cursor: pointer;
-  display: flex; align-items: center; gap: 8px; position: relative; top: 1px;
-}
-.tab.active { background: var(--term-bg); border-color: var(--border); border-bottom-color: var(--term-bg); color: var(--text); }
-.tab:not(.active):hover { color: var(--text-sec); }
-.tab-dot { width: 5px; height: 5px; background: var(--accent); display: none; }
-.tab.active .tab-dot { display: block; }
-
-#terminal-body { flex: 1; overflow-y: auto; padding: 16px 20px; font-size: 13px; line-height: 1.7; scroll-behavior: smooth; }
-#terminal-body::-webkit-scrollbar { width: 4px; }
-#terminal-body::-webkit-scrollbar-thumb { background: #222; }
-
-.t-line { display: block; white-space: pre-wrap; word-break: break-word; }
-.t-prompt { color: var(--accent); }
-.t-text { color: var(--text); }
-.t-dim { color: var(--text-sec); }
-.t-muted { color: var(--text-dim); }
-.t-green { color: var(--green); }
-.t-orange { color: var(--accent); }
-.t-blue { color: var(--blue); }
-.t-red { color: var(--red); }
-.t-yellow { color: var(--yellow); }
-.t-bold { font-weight: 700; }
-.t-purple { color: var(--purple); }
-.t-blank { height: 8px; display: block; }
-
-/* ── RAA SUMMARY BOX ─────────────────────────────────────────── */
-.req-summary-box {
-  margin: 8px 0; padding: 12px 16px;
-  border: 1px solid var(--purple-border);
-  background: var(--purple-dim);
-  border-left: 3px solid var(--purple);
-  white-space: pre-wrap; word-break: break-word;
-}
-.req-summary-title { font-size: 11px; font-weight: 700; color: var(--purple); margin-bottom: 8px; letter-spacing: 0.08em; }
-
-/* ── PLANNING MODE — status bar override ─────────────────────── */
-#statusbar.planning { background: var(--purple); }
-#statusbar.planning .sb-item, #statusbar.planning .sb-sep { color: #000; }
-
-#input-bar {
-  height: 42px; border-top: 1px solid var(--border); display: flex;
-  align-items: center; padding: 0 20px; gap: 10px; background: var(--term-bg); flex-shrink: 0;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--s0);
   position: relative;
 }
-.input-prompt { color: var(--accent); white-space: nowrap; font-size: 13px; user-select: none; }
-#cmd-input { flex: 1; background: transparent; border: none; outline: none; color: var(--text); font-family: var(--mono); font-size: 13px; caret-color: var(--accent); }
-#cmd-input::placeholder { color: var(--text-dim); }
-.input-hint { font-size: 11px; color: var(--text-dim); white-space: nowrap; }
 
-#statusbar { height: 24px; background: var(--accent); display: flex; align-items: center; padding: 0 12px; gap: 16px; flex-shrink: 0; }
-.sb-item { font-size: 11px; color: #000; font-weight: 500; display: flex; align-items: center; gap: 5px; }
-.sb-sep { color: rgba(0,0,0,0.3); font-size: 11px; }
-.sb-right { margin-left: auto; display: flex; align-items: center; gap: 16px; }
-
-/* ── SIDEBAR ─────────────────────────────────────────────────── */
-#sidebar { width: 220px; flex-shrink: 0; background: var(--bar-bg); border-left: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
-.sidebar-section { border-bottom: 1px solid var(--border); }
-.sidebar-title { height: 34px; display: flex; align-items: center; padding: 0 14px; font-size: 10px; font-weight: 700; color: var(--text-dim); letter-spacing: 0.1em; text-transform: uppercase; border-bottom: 1px solid var(--border); }
-.agent-row { padding: 10px 14px; border-bottom: 1px solid var(--border); }
-.agent-row:last-child { border-bottom: none; }
-.agent-name { font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 3px; }
-.agent-role { font-size: 10px; color: var(--text-dim); }
-.agent-status-line { font-size: 11px; color: var(--text-dim); display: flex; align-items: center; gap: 5px; margin-top: 2px; }
-.agent-dot { width: 5px; height: 5px; background: var(--green); flex-shrink: 0; }
-.agent-dot.busy { background: var(--accent); animation: blink-dot 0.6s step-end infinite; }
-.agent-dot.done { background: var(--blue); }
-.agent-dot.error { background: var(--red); }
-@keyframes blink-dot { 0%,100%{opacity:1} 50%{opacity:0.2} }
-
-.wf-list { padding: 10px 14px; }
-.wf-step { display: flex; align-items: flex-start; gap: 10px; padding: 4px 0; font-size: 11px; color: var(--text-dim); }
-.wf-step.done { color: var(--text-sec); }
-.wf-step.active { color: var(--accent); }
-.wf-num { font-size: 10px; min-width: 14px; text-align: right; flex-shrink: 0; margin-top: 1px; }
-.wf-step.done .wf-num { color: var(--green); }
-.wf-step.active .wf-num { color: var(--accent); }
-
-.hist-list { overflow-y: auto; flex: 1; }
-.hist-list::-webkit-scrollbar { width: 3px; }
-.hist-list::-webkit-scrollbar-thumb { background: #222; }
-.hist-item { padding: 8px 14px; border-bottom: 1px solid var(--border); cursor: pointer; }
-.hist-item:hover { background: rgba(255,255,255,0.03); }
-.hist-name { font-size: 11px; color: var(--text-sec); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; }
-.hist-time { font-size: 10px; color: var(--text-dim); }
-
-/* ── MODEL DROPDOWN ──────────────────────────────────────────── */
-.model-wrap { position: relative; }
-.model-info-panel { position: absolute; top: 30px; right: 0; width: 280px; background: #141414; border: 1px solid var(--border-mid); z-index: 200; display: none; }
-.model-info-panel.open { display: block; }
-.mi-option { padding: 12px 14px; border-bottom: 1px solid var(--border); cursor: pointer; }
-.mi-option:last-child { border-bottom: none; }
-.mi-option:hover { background: rgba(255,255,255,0.04); }
-.mi-option.selected { background: var(--accent-dim); border-left: 2px solid var(--accent); }
-.mi-name { font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
-.mi-desc { font-size: 11px; color: var(--text-dim); line-height: 1.5; }
-
-/* ── OVERLAYS (auth / keys) ──────────────────────────────────── */
-.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); display: none; align-items: center; justify-content: center; z-index: 999; padding: 20px; }
-.modal-overlay.open { display: flex; }
-.modal-box { width: min(420px, 100%); background: #111; border: 1px solid var(--border-mid); padding: 24px; border-radius: 10px; box-shadow: 0 20px 60px rgba(0,0,0,0.45); }
-.modal-title { font-size: 14px; margin-bottom: 4px; color: var(--text); font-weight: 700; }
-.modal-title span { color: var(--accent); }
-.modal-sub { font-size: 11px; color: var(--text-dim); margin-bottom: 16px; }
-.auth-tabs { display: flex; margin-bottom: 16px; }
-.auth-tab { flex: 1; padding: 9px; text-align: center; font-size: 12px; cursor: pointer; border: 1px solid var(--border-mid); color: var(--text-dim); background: transparent; font-family: var(--mono); }
-.auth-tab:first-child { border-radius: 6px 0 0 6px; }
-.auth-tab:last-child { border-radius: 0 6px 6px 0; border-left: 0; }
-.auth-tab.active { background: var(--accent); color: #000; font-weight: 700; border-color: var(--accent); }
-.fld-label { display: block; font-size: 11px; color: var(--text-dim); margin: 12px 0 4px; }
-.fld { width: 100%; background: #0a0a0a; border: 1px solid var(--border-mid); color: var(--text); padding: 10px 12px; border-radius: 6px; font-family: var(--mono); font-size: 13px; outline: none; }
-.fld:focus { border-color: var(--accent); }
-.pin-wrap { position: relative; }
-.pin-toggle { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); cursor: pointer; color: var(--text-dim); font-size: 11px; background: 0; border: 0; font-family: var(--mono); }
-.btn-p { background: var(--accent); color: #000; border: 0; padding: 10px 16px; border-radius: 6px; cursor: pointer; font-weight: 700; font-family: var(--mono); font-size: 12px; }
-.btn-s { background: transparent; color: var(--text); border: 1px solid var(--border-mid); padding: 8px 14px; border-radius: 6px; cursor: pointer; font-family: var(--mono); font-size: 12px; }
-.btn-d { background: transparent; color: var(--red); border: 1px solid rgba(248,113,113,.25); font-size: 11px; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-family: var(--mono); }
-.modal-msg { font-size: 12px; margin-top: 10px; min-height: 16px; }
-.modal-msg.ok { color: var(--green); }
-.modal-msg.err { color: var(--red); }
-.modal-msg.info { color: var(--text-dim); }
-.keys-grid { display: grid; gap: 7px; margin-top: 14px; }
-.key-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
-.key-name { color: var(--text-dim); width: 96px; flex-shrink: 0; }
-.key-val { color: var(--green); flex: 1; }
-.key-val.none { color: var(--border-mid); }
-
-/* ── INLINE COMMAND AUTOCOMPLETE ─────────────────────────────── */
-#cmd-ac {
-  position: absolute; left: 16px; right: 16px; bottom: calc(100% + 6px);
-  background: #141414; border: 1px solid var(--border-mid);
-  max-height: 280px; overflow-y: auto; z-index: 300; display: none;
-  box-shadow: 0 -10px 30px rgba(0,0,0,0.5);
+/* ─── TAB BAR ───────────────────────────────────────────────────── */
+#tabbar {
+  height: var(--tabbar-h);
+  background: var(--bg);
+  border-bottom: 1px solid var(--b0);
+  display: flex;
+  align-items: flex-end;
+  padding: 0 14px;
+  flex-shrink: 0;
+  gap: 1px;
 }
-#cmd-ac.open { display: block; }
-.ac-item { display: flex; align-items: center; gap: 14px; padding: 9px 14px; border-bottom: 1px solid var(--border); cursor: pointer; }
-.ac-item:last-child { border-bottom: none; }
-.ac-item:hover, .ac-item.sel { background: var(--accent-dim); }
-.ac-cmd { font-size: 12px; font-weight: 600; color: var(--accent); min-width: 92px; }
-.ac-desc { font-size: 11px; color: var(--text-dim); flex: 1; }
-
-.cursor { display: inline-block; width: 8px; height: 14px; background: var(--accent); vertical-align: text-bottom; animation: blink-cur 1s step-end infinite; }
-@keyframes blink-cur { 0%,100%{opacity:1} 50%{opacity:0} }
-::-webkit-scrollbar { width: 4px; }
-::-webkit-scrollbar-thumb { background: #222; }
-
-@media (max-width: 760px) { #sidebar { display: none; } .tb-center { display: none; } }
-
-/* ── COPY BUTTON (on code blocks in output) ──────────────────── */
-.code-block-wrap { position: relative; margin: 4px 0; }
-.copy-btn {
-  position: absolute; top: 4px; right: 6px;
-  background: var(--border-mid); color: var(--text-sec);
-  border: 1px solid #333; border-radius: 3px;
-  font-family: var(--mono); font-size: 10px;
-  padding: 2px 7px; cursor: pointer;
-  opacity: 0; transition: opacity 0.15s;
+.tab {
+  height: 32px;
+  padding: 0 13px;
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--fg3);
+  border: 1px solid transparent;
+  border-bottom: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  position: relative;
+  top: 1px;
+  border-radius: 6px 6px 0 0;
+  transition: color 0.15s, background 0.15s;
+  letter-spacing: -0.02em;
 }
-.code-block-wrap:hover .copy-btn { opacity: 1; }
-.copy-btn.copied { color: var(--green); border-color: var(--green); }
-pre.code-output {
-  background: #0a0a0a; border: 1px solid var(--border);
-  padding: 8px 10px; overflow-x: auto; white-space: pre;
-  font-size: 12px; color: var(--text-sec); line-height: 1.5;
+.tab.active {
+  background: var(--s0);
+  border-color: var(--b0);
+  border-bottom-color: var(--s0);
+  color: var(--fg);
+}
+.tab:not(.active):hover { color: var(--fg2); }
+.tab-dot { width: 5px; height: 5px; background: var(--accent); border-radius: 50%; display: none; flex-shrink: 0; }
+.tab.active .tab-dot { display: block; }
+.tab-badge { width: 5px; height: 5px; background: var(--accent); border-radius: 50%; display: none; flex-shrink: 0; }
+.tab-badge.show { display: block; }
+.tab.active .tab-badge { display: none; }
+
+/* ─── TERMINAL BODY ─────────────────────────────────────────────── */
+#terminal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 22px 26px;
+  font-size: 13px;
+  line-height: 1.85;
+  scroll-behavior: smooth;
+  background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.018) 1px, transparent 0);
+  background-size: 28px 28px;
+  background-attachment: local;
 }
 
-
-/* ── PWA INSTALL BANNER ──────────────────────────────────────── */
-#pwa-banner {
-  position: fixed; bottom: 20px; right: 20px; z-index: 9999;
-  background: #141414; border: 1px solid var(--accent-border);
-  display: flex; align-items: center; gap: 12px; padding: 12px 14px;
-  max-width: 320px; pointer-events: none;
-  opacity: 0; transform: translateY(16px);
-  transition: opacity 0.35s ease, transform 0.35s ease;
+/* ─── AGENT LOG PANEL ───────────────────────────────────────────── */
+#agentlog-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 18px;
+  display: none;
+  flex-direction: column;
+  gap: 2px;
 }
-#pwa-banner.show { opacity: 1; transform: translateY(0); pointer-events: all; }
-#pwa-banner img { width: 36px; height: 36px; flex-shrink: 0; }
-.pwa-info { flex: 1; min-width: 0; }
-.pwa-info-title { font-size: 12px; font-weight: 700; color: var(--text); }
-.pwa-info-sub { font-size: 11px; color: var(--text-sec); margin-top: 1px; }
-#pwa-install-btn {
-  height: 26px; padding: 0 12px; background: var(--accent); border: none;
-  color: #000; font-family: var(--mono); font-size: 11px; font-weight: 700;
-  cursor: pointer; flex-shrink: 0; white-space: nowrap;
+#agentlog-body:empty::after {
+  content: 'Agent activity will appear here when a session runs';
+  display: block;
+  text-align: center;
+  font-family: var(--sans);
+  font-size: 12px;
+  color: var(--fg3);
+  padding: 60px 20px;
+  letter-spacing: -0.01em;
+}
+.al-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  transition: background 0.12s;
+}
+.al-row:hover { background: var(--s2); }
+.al-avatar {
+  width: 24px; height: 24px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--sans);
+  font-size: 9px;
+  font-weight: 800;
+  flex-shrink: 0;
+  letter-spacing: -0.03em;
+  margin-top: 1px;
+}
+.av-system { background: var(--s3); color: var(--fg2); border: 1px solid var(--b1); }
+.al-main { flex: 1; min-width: 0; }
+.al-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+.al-name {
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--fg);
+  letter-spacing: -0.02em;
+}
+.al-kind {
+  font-family: var(--sans);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+.kind-status { background: var(--s3); color: var(--fg3); }
+.kind-output { background: var(--green-bg); color: var(--green); }
+.kind-error  { background: var(--red-bg); color: var(--red); }
+.kind-done   { background: var(--accent-bg); color: var(--accent); }
+.al-time {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--fg3);
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.al-text {
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--fg2);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+/* ─── OUTPUT PANEL ──────────────────────────────────────────────── */
+#output-body {
+  flex: 1;
+  display: none;
+  flex-direction: column;
+  min-height: 0;
+}
+.out-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--b0);
+  flex-shrink: 0;
+}
+.out-stat {
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg2);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  letter-spacing: -0.01em;
+}
+.out-stat b { color: var(--accent); font-weight: 700; }
+.out-export-btn {
+  margin-left: auto;
+  height: 26px;
+  padding: 0 12px;
+  background: var(--accent);
+  border: none;
+  border-radius: 6px;
+  color: #000;
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
   transition: opacity 0.15s;
 }
-#pwa-install-btn:hover { opacity: 0.85; }
+.out-export-btn:hover { opacity: 0.88; }
+.out-split {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+.out-files {
+  width: 230px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--b0);
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.out-file-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 0.12s, border-color 0.12s;
+}
+.out-file-item:hover { background: var(--s2); }
+.out-file-item.sel { background: var(--accent-bg); border-color: var(--accent-ring); }
+.out-file-dot {
+  width: 7px; height: 7px;
+  border-radius: 2px;
+  flex-shrink: 0;
+  background: var(--fg3);
+}
+.ext-html { background: var(--accent); }
+.ext-css  { background: var(--blue); }
+.ext-js, .ext-jsx, .ext-ts, .ext-tsx { background: var(--yellow); }
+.ext-json { background: var(--green); }
+.ext-py   { background: var(--purple); }
+.out-file-name {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+.out-file-item.sel .out-file-name { color: var(--fg); }
+.out-file-size { font-family: var(--sans); font-size: 9px; color: var(--fg3); flex-shrink: 0; }
+.out-preview {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.out-preview-head {
+  padding: 9px 16px;
+  border-bottom: 1px solid var(--b0);
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg2);
+  flex-shrink: 0;
+}
+.out-preview-code {
+  flex: 1;
+  overflow: auto;
+  padding: 14px 18px;
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--fg);
+  white-space: pre;
+  tab-size: 2;
+}
+.out-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-family: var(--sans);
+  font-size: 12px;
+  color: var(--fg3);
+  letter-spacing: -0.01em;
+}
+.out-empty svg { opacity: 0.3; }
+
+/* ─── TERMINAL TEXT PRIMITIVES ──────────────────────────────────── */
+.t-line {
+  display: block;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-feature-settings: "liga" 0, "calt" 0;
+}
+.t-line:has(.t-prompt) {
+  padding: 1px 6px;
+  margin: 2px -6px;
+  border-radius: 5px;
+  background: rgba(255,122,0,0.04);
+  border-left: 2px solid rgba(255,122,0,0.25);
+}
+.t-prompt  { color: var(--accent); }
+.t-text    { color: var(--fg); }
+.t-dim     { color: var(--fg2); }
+.t-muted   { color: var(--fg3); }
+.t-green   { color: var(--green); }
+.t-orange  { color: var(--accent); }
+.t-blue    { color: var(--blue); }
+.t-red     { color: var(--red); }
+.t-yellow  { color: var(--yellow); }
+.t-bold    { font-weight: 700; }
+.t-purple  { color: var(--purple); }
+.t-blank   { height: 9px; display: block; }
+
+/* ─── REQUIREMENT SUMMARY BOX ───────────────────────────────────── */
+.req-summary-box {
+  margin: 14px 0;
+  padding: 18px 20px;
+  background: linear-gradient(135deg, rgba(155,111,255,0.07) 0%, rgba(155,111,255,0.03) 100%);
+  border: 1px solid var(--purple-border);
+  border-left: 3px solid var(--purple);
+  border-radius: 10px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  position: relative;
+  overflow: hidden;
+}
+.req-summary-box::after {
+  content: '';
+  position: absolute;
+  top: -60px; right: -60px;
+  width: 160px; height: 160px;
+  background: radial-gradient(circle, rgba(155,111,255,0.1), transparent 70%);
+  pointer-events: none;
+}
+.req-summary-title {
+  font-family: var(--sans);
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--purple);
+  margin-bottom: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.req-summary-title::before {
+  content: '';
+  display: inline-block;
+  width: 12px; height: 12px;
+  background: var(--purple);
+  border-radius: 3px;
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+
+/* ─── PLANNING MODE ─────────────────────────────────────────────── */
+#statusbar.planning { background: var(--purple); }
+#statusbar.planning .sb-item,
+#statusbar.planning .sb-sep { color: rgba(0,0,0,0.9); }
+
+/* When status bar is planning, tint the input bar */
+#statusbar.planning ~ #input-bar .input-wrap {
+  border-color: var(--purple-border);
+}
+#statusbar.planning ~ #input-bar .input-wrap:focus-within {
+  border-color: var(--purple);
+  box-shadow: 0 0 0 3px var(--purple-dim);
+}
+#statusbar.planning ~ #input-bar .input-prompt { color: var(--purple); }
+
+/* ─── STATUS BAR ────────────────────────────────────────────────── */
+#statusbar {
+  height: var(--statusbar-h);
+  background: var(--accent);
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  gap: 12px;
+  flex-shrink: 0;
+  transition: background 0.35s ease;
+}
+.sb-item {
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(0,0,0,0.88);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  letter-spacing: 0.01em;
+}
+.sb-sep { color: rgba(0,0,0,0.22); font-size: 11px; }
+.sb-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+
+/* ─── INPUT BAR ─────────────────────────────────────────────────── */
+#input-bar {
+  flex-shrink: 0;
+  background: var(--s0);
+  border-top: 1px solid var(--b0);
+  padding: 10px 14px 12px;
+  position: relative;
+}
+.input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--s2);
+  border: 1px solid var(--b1);
+  border-radius: 10px;
+  padding: 9px 14px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.input-wrap:focus-within {
+  border-color: var(--accent-ring);
+  box-shadow: 0 0 0 3px var(--accent-bg);
+}
+.input-prompt {
+  color: var(--accent);
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+  user-select: none;
+  flex-shrink: 0;
+  transition: color 0.3s;
+  letter-spacing: 0;
+}
+#cmd-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--fg);
+  font-family: var(--mono);
+  font-size: 13px;
+  caret-color: var(--accent);
+  min-width: 0;
+}
+#cmd-input::placeholder { color: var(--fg3); }
+#cmd-input:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.input-hint {
+  font-family: var(--sans);
+  font-size: 11px;
+  color: var(--fg3);
+  white-space: nowrap;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  letter-spacing: -0.01em;
+}
+.input-hint-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  background: var(--s3);
+  border: 1px solid var(--b1);
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  font-size: 10px;
+  color: var(--fg2);
+  font-family: var(--sans);
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+/* ─── AUTOCOMPLETE ──────────────────────────────────────────────── */
+#cmd-ac {
+  position: absolute;
+  left: 14px; right: 14px;
+  bottom: calc(100% + 8px);
+  background: var(--s2);
+  border: 1px solid var(--b2);
+  border-radius: 10px;
+  max-height: 280px;
+  overflow-y: auto;
+  z-index: 300;
+  display: none;
+  box-shadow: 0 -20px 50px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.02);
+}
+#cmd-ac.open { display: block; }
+.ac-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--b0);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.ac-item:last-child { border-bottom: none; }
+.ac-item:hover, .ac-item.sel { background: var(--accent-bg); }
+.ac-cmd { font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--accent); min-width: 96px; }
+.ac-desc { font-family: var(--sans); font-size: 11px; color: var(--fg3); flex: 1; letter-spacing: -0.01em; }
+
+/* ─── CURSOR ────────────────────────────────────────────────────── */
+.cursor {
+  display: inline-block;
+  width: 7px; height: 15px;
+  background: var(--accent);
+  vertical-align: text-bottom;
+  border-radius: 1px;
+  animation: blink-cur 1s step-end infinite;
+}
+@keyframes blink-cur { 0%,100%{opacity:0.85} 50%{opacity:0} }
+
+/* ─── SIDEBAR ───────────────────────────────────────────────────── */
+#sidebar {
+  width: var(--sidebar-w);
+  flex-shrink: 0;
+  background: var(--s1);
+  border-left: 1px solid var(--b0);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Brand header */
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 15px 11px;
+  border-bottom: 1px solid var(--b0);
+  flex-shrink: 0;
+}
+.sidebar-brand-logo {
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+.sidebar-brand-logo .logo-aof {
+  background: linear-gradient(135deg, #FF7A00, #FF9933);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.sidebar-brand-logo .logo-code { color: var(--fg); opacity: 0.85; }
+.sidebar-brand-tag {
+  font-family: var(--sans);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fg3);
+  background: var(--s3);
+  border: 1px solid var(--b1);
+  border-radius: 4px;
+  padding: 2px 7px;
+}
+
+/* Section container */
+.sidebar-section { border-bottom: 1px solid var(--b0); flex-shrink: 0; }
+.sidebar-section.flex-fill {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Section title */
+.sidebar-title {
+  height: 31px;
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  gap: 7px;
+  font-family: var(--sans);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--fg3);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--b0);
+  user-select: none;
+}
+.sidebar-title svg { opacity: 0.5; flex-shrink: 0; }
+
+/* ─── AGENT CARDS ───────────────────────────────────────────────── */
+#agent-list {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.agent-row {
+  border-radius: 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  padding: 9px 10px;
+  transition: border-color 0.2s, background 0.2s;
+  cursor: default;
+  position: relative;
+}
+.agent-row:hover {
+  background: var(--s2);
+  border-color: var(--b0);
+}
+/* RAA has persistent purple left border */
+#raa-row {
+  background: var(--purple-dim);
+  border-color: var(--purple-border);
+  border-left: 2px solid var(--purple);
+}
+#raa-row:hover { background: rgba(155,111,255,0.12); }
+
+.agent-row-inner {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.agent-avatar {
+  width: 28px; height: 28px;
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--sans);
+  font-size: 10px;
+  font-weight: 800;
+  flex-shrink: 0;
+  letter-spacing: -0.03em;
+  transition: transform 0.2s;
+}
+.agent-row:hover .agent-avatar { transform: scale(1.05); }
+
+.av-raa       { background: rgba(155,111,255,0.15); color: var(--purple); border: 1px solid rgba(155,111,255,0.3); }
+.av-architect { background: rgba(91,156,246,0.13);  color: #6FA8FF;       border: 1px solid rgba(91,156,246,0.28); }
+.av-planner   { background: rgba(255,122,0,0.12);   color: var(--accent); border: 1px solid rgba(255,122,0,0.25); }
+.av-coder     { background: rgba(34,209,114,0.1);   color: var(--green);  border: 1px solid rgba(34,209,114,0.22); }
+.av-reviewer  { background: rgba(255,190,11,0.1);   color: var(--yellow); border: 1px solid rgba(255,190,11,0.22); }
+.av-validator { background: rgba(79,145,248,0.1);   color: var(--blue);   border: 1px solid rgba(79,145,248,0.22); }
+.av-documenter{ background: rgba(34,209,114,0.1);   color: var(--green);  border: 1px solid rgba(34,209,114,0.22); }
+.av-impact    { background: rgba(242,90,90,0.1);    color: var(--red);    border: 1px solid rgba(242,90,90,0.22); }
+
+.agent-info { flex: 1; min-width: 0; }
+.agent-name {
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg);
+  letter-spacing: -0.02em;
+  margin-bottom: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.agent-role {
+  font-family: var(--sans);
+  font-size: 10px;
+  color: var(--fg3);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.agent-status-line {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.agent-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--fg3);
+  transition: background 0.3s, box-shadow 0.3s;
+  flex-shrink: 0;
+}
+.agent-dot.busy {
+  background: var(--accent);
+  animation: pulse-agent 1.4s ease-out infinite;
+}
+.agent-dot.done  { background: var(--green); }
+.agent-dot.error { background: var(--red); }
+
+@keyframes pulse-agent {
+  0%   { box-shadow: 0 0 0 0 rgba(255,122,0,0.5); }
+  70%  { box-shadow: 0 0 0 7px rgba(255,122,0,0); }
+  100% { box-shadow: 0 0 0 0 rgba(255,122,0,0); }
+}
+
+.agent-status-text {
+  font-family: var(--sans);
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--fg3);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 1;
+}
+
+/* Active state — card glow */
+.agent-row:has(.agent-dot.busy) {
+  border-color: var(--accent-ring) !important;
+  background: var(--accent-bg) !important;
+}
+.agent-row:has(.agent-dot.busy) .agent-name { color: var(--accent-lite); }
+#raa-row:has(.agent-dot.busy) {
+  border-color: var(--purple-border) !important;
+  background: rgba(155,111,255,0.1) !important;
+}
+#raa-row:has(.agent-dot.busy) .agent-name { color: var(--purple); }
+
+/* ─── WORKFLOW PIPELINE ─────────────────────────────────────────── */
+.wf-list {
+  padding: 10px 13px 13px;
+  display: flex;
+  flex-direction: column;
+}
+
+.wf-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+  font-family: var(--sans);
+  font-size: 11px;
+  color: var(--fg3);
+  position: relative;
+  letter-spacing: -0.01em;
+  transition: color 0.2s;
+}
+.wf-step:not(:last-child) { padding-bottom: 0; }
+.wf-step:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 9.5px;
+  top: 26px;
+  bottom: -6px;
+  width: 1px;
+  background: var(--b1);
+  z-index: 0;
+}
+.wf-step.done { color: var(--fg2); }
+.wf-step.active { color: var(--fg); }
+
+.wf-num {
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--sans);
+  font-size: 9px;
+  font-weight: 700;
+  flex-shrink: 0;
+  background: var(--s3);
+  border: 1px solid var(--b1);
+  color: var(--fg3);
+  transition: all 0.2s ease;
+  letter-spacing: 0;
+  position: relative;
+  z-index: 1;
+}
+.wf-step.done .wf-num {
+  background: var(--green-bg);
+  border-color: rgba(34,209,114,0.25);
+  color: var(--green);
+}
+.wf-step.active .wf-num {
+  background: var(--accent-bg);
+  border-color: var(--accent-ring);
+  color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-bg);
+}
+
+.wf-label { line-height: 1.3; }
+
+/* ─── HISTORY ───────────────────────────────────────────────────── */
+.hist-list {
+  overflow-y: auto;
+  flex: 1;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.hist-list:empty::after {
+  content: 'No sessions yet';
+  display: block;
+  text-align: center;
+  font-family: var(--sans);
+  font-size: 11px;
+  color: var(--fg3);
+  padding: 20px 10px;
+  letter-spacing: -0.01em;
+}
+
+.hist-item {
+  padding: 8px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 0.12s, border-color 0.12s;
+}
+.hist-item:hover { background: var(--s2); border-color: var(--b0); }
+.hist-name {
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--fg2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 2px;
+  letter-spacing: -0.02em;
+}
+.hist-time {
+  font-family: var(--sans);
+  font-size: 10px;
+  color: var(--fg3);
+  letter-spacing: -0.01em;
+}
+
+/* Sidebar footer */
+.sidebar-footer {
+  padding: 10px 10px;
+  border-top: 1px solid var(--b0);
+  flex-shrink: 0;
+}
+.sidebar-new-btn {
+  width: 100%;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  background: transparent;
+  border: 1px solid var(--b1);
+  border-radius: 7px;
+  color: var(--fg3);
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  letter-spacing: -0.02em;
+}
+.sidebar-new-btn:hover { border-color: var(--b2); color: var(--fg2); background: var(--s2); }
+.sidebar-new-btn svg { flex-shrink: 0; }
+
+/* ─── MODEL DROPDOWN ────────────────────────────────────────────── */
+.model-wrap { position: relative; }
+.model-info-panel {
+  position: absolute;
+  top: calc(100% + 7px);
+  right: 0;
+  width: 288px;
+  background: var(--s2);
+  border: 1px solid var(--b2);
+  border-radius: 11px;
+  z-index: 200;
+  display: none;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.02);
+}
+.model-info-panel.open { display: block; }
+.mi-option {
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--b0);
+  cursor: pointer;
+  transition: background 0.12s;
+  border-left: 2px solid transparent;
+}
+.mi-option:last-child { border-bottom: none; }
+.mi-option:hover { background: var(--s3); }
+.mi-option.selected { background: var(--accent-bg); border-left-color: var(--accent); }
+.mi-name {
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--fg);
+  margin-bottom: 4px;
+  letter-spacing: -0.03em;
+}
+.mi-desc {
+  font-family: var(--sans);
+  font-size: 11px;
+  color: var(--fg3);
+  line-height: 1.5;
+  letter-spacing: -0.01em;
+}
+
+/* ─── MODALS ────────────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.72);
+  backdrop-filter: blur(10px) saturate(1.2);
+  -webkit-backdrop-filter: blur(10px) saturate(1.2);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+  padding: 20px;
+}
+.modal-overlay.open { display: flex; }
+
+.modal-box {
+  width: min(440px, 100%);
+  background: var(--s2);
+  border: 1px solid var(--b2);
+  border-radius: 16px;
+  padding: 28px;
+  box-shadow:
+    0 40px 100px rgba(0,0,0,0.65),
+    0 0 0 1px rgba(255,255,255,0.02),
+    inset 0 1px 0 rgba(255,255,255,0.04);
+  position: relative;
+  overflow: hidden;
+}
+.modal-box::before {
+  content: '';
+  position: absolute;
+  top: -100px; right: -100px;
+  width: 250px; height: 250px;
+  background: radial-gradient(circle, rgba(255,122,0,0.05), transparent 65%);
+  pointer-events: none;
+}
+
+.modal-title {
+  font-family: var(--sans);
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  color: var(--fg);
+  margin-bottom: 5px;
+  line-height: 1.2;
+}
+.modal-title span { color: var(--accent); }
+.modal-sub {
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--fg3);
+  margin-bottom: 22px;
+  line-height: 1.55;
+  letter-spacing: -0.01em;
+}
+
+.auth-tabs {
+  display: flex;
+  margin-bottom: 20px;
+  background: var(--s3);
+  border-radius: 9px;
+  padding: 3px;
+  gap: 3px;
+}
+.auth-tab {
+  flex: 1;
+  padding: 8px;
+  text-align: center;
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  color: var(--fg3);
+  background: transparent;
+  border-radius: 7px;
+  transition: all 0.15s;
+  letter-spacing: -0.02em;
+}
+.auth-tab.active {
+  background: var(--s2);
+  color: var(--fg);
+  font-weight: 700;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.35);
+}
+
+.fld-label {
+  display: block;
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg2);
+  margin: 14px 0 6px;
+  letter-spacing: -0.01em;
+}
+
+.fld {
+  width: 100%;
+  background: var(--s3);
+  border: 1px solid var(--b1);
+  color: var(--fg);
+  padding: 10px 14px;
+  border-radius: 9px;
+  font-family: var(--mono);
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.fld:focus {
+  border-color: var(--accent-ring);
+  box-shadow: 0 0 0 3px var(--accent-bg);
+}
+select.fld {
+  font-family: var(--sans);
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23666'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 32px;
+}
+
+.pin-wrap { position: relative; }
+.pin-toggle {
+  position: absolute;
+  right: 13px; top: 50%;
+  transform: translateY(-50%);
+  cursor: pointer;
+  color: var(--fg3);
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 600;
+  background: transparent;
+  border: none;
+  transition: color 0.15s;
+  letter-spacing: -0.01em;
+}
+.pin-toggle:hover { color: var(--fg2); }
+
+.btn-p {
+  background: var(--accent);
+  color: #000;
+  border: none;
+  padding: 11px 18px;
+  border-radius: 9px;
+  cursor: pointer;
+  font-family: var(--sans);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: -0.02em;
+  transition: opacity 0.15s, transform 0.1s;
+}
+.btn-p:hover { opacity: 0.9; }
+.btn-p:active { transform: scale(0.98); }
+.btn-p:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+.btn-s {
+  background: transparent;
+  color: var(--fg);
+  border: 1px solid var(--b1);
+  padding: 9px 16px;
+  border-radius: 9px;
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  transition: border-color 0.15s, background 0.15s;
+}
+.btn-s:hover { border-color: var(--b2); background: var(--s3); }
+
+.btn-d {
+  background: transparent;
+  color: var(--red);
+  border: 1px solid rgba(242,90,90,0.2);
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+  letter-spacing: -0.01em;
+}
+.btn-d:hover { background: var(--red-bg); }
+
+.modal-msg {
+  font-family: var(--sans);
+  font-size: 12px;
+  margin-top: 12px;
+  min-height: 18px;
+  letter-spacing: -0.01em;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.modal-msg.ok   { color: var(--green); }
+.modal-msg.err  { color: var(--red); }
+.modal-msg.info { color: var(--fg3); }
+
+.keys-grid { display: flex; flex-direction: column; gap: 0; margin-top: 14px; }
+.key-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--b0);
+}
+.key-row:last-child { border-bottom: none; }
+.key-name {
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg2);
+  width: 100px;
+  flex-shrink: 0;
+  letter-spacing: -0.01em;
+}
+.key-val { color: var(--green); flex: 1; font-size: 11px; }
+.key-val.none { color: var(--fg3); font-family: var(--sans); font-style: italic; }
+
+/* ─── PWA BANNER ────────────────────────────────────────────────── */
+#pwa-banner {
+  position: fixed;
+  bottom: 20px; right: 20px;
+  z-index: 9999;
+  background: var(--s2);
+  border: 1px solid var(--b2);
+  border-radius: 13px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  max-width: 320px;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 0.35s ease, transform 0.35s ease;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.55);
+}
+#pwa-banner.show { opacity: 1; transform: translateY(0); pointer-events: all; }
+#pwa-banner img { width: 38px; height: 38px; flex-shrink: 0; border-radius: 9px; }
+.pwa-info { flex: 1; min-width: 0; }
+.pwa-info-title { font-family: var(--sans); font-size: 13px; font-weight: 700; color: var(--fg); letter-spacing: -0.02em; }
+.pwa-info-sub { font-family: var(--sans); font-size: 11px; color: var(--fg2); margin-top: 2px; }
+#pwa-install-btn {
+  height: 30px; padding: 0 14px;
+  background: var(--accent);
+  border: none; color: #000;
+  font-family: var(--sans); font-size: 12px; font-weight: 700;
+  border-radius: 7px; cursor: pointer; flex-shrink: 0;
+  transition: opacity 0.15s;
+}
+#pwa-install-btn:hover { opacity: 0.88; }
 #pwa-close-btn {
-  width: 22px; height: 22px; background: transparent; border: 1px solid var(--border-mid);
-  color: var(--text-dim); font-family: var(--mono); font-size: 11px;
-  cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px;
+  background: transparent;
+  border: 1px solid var(--b1);
+  color: var(--fg3); font-size: 11px;
+  border-radius: 7px; cursor: pointer; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
   transition: border-color 0.15s, color 0.15s;
 }
-#pwa-close-btn:hover { border-color: #444; color: var(--text); }
+#pwa-close-btn:hover { border-color: var(--b2); color: var(--fg); }
+
+/* ─── ANIMATIONS ────────────────────────────────────────────────── */
+@keyframes blink-dot { 0%,100%{opacity:1} 50%{opacity:0.15} }
+
+/* ─── RESPONSIVE ────────────────────────────────────────────────── */
+@media (max-width: 760px) {
+  #sidebar { display: none; }
+  .tb-center { display: none; }
+}
 </style>
 </head>
 <body>
 
-<!-- AUTH OVERLAY -->
+<!-- ── AUTH MODAL ──────────────────────────────────────────────── -->
 <div id="auth-overlay" class="modal-overlay">
   <div class="modal-box">
-    <div class="modal-title">AOF <span>Code</span> access</div>
+    <div class="modal-title">AOF <span>Code</span></div>
     <div class="modal-sub">เข้าสู่ระบบด้วยชื่อผู้ใช้ + PIN (ตัวเลข 4–8 หลัก)</div>
     <div class="auth-tabs">
       <button class="auth-tab active" id="tab-login" onclick="switchAuth('login')">เข้าสู่ระบบ</button>
@@ -311,7 +1403,7 @@ pre.code-output {
     <label class="fld-label">ชื่อผู้ใช้ (Username)</label>
     <input id="auth-username" class="fld" placeholder="username" autocomplete="username"
            onkeydown="if(event.key==='Enter')document.getElementById('auth-pin').focus()">
-    <label class="fld-label">PIN <span style="color:var(--border-mid)">(ตัวเลข 4–8 หลัก)</span></label>
+    <label class="fld-label">PIN <span style="color:var(--fg3);font-weight:400">(ตัวเลข 4–8 หลัก)</span></label>
     <div class="pin-wrap">
       <input id="auth-pin" class="fld" type="password" inputmode="numeric" maxlength="8" placeholder="••••••••"
              autocomplete="current-password"
@@ -319,40 +1411,40 @@ pre.code-output {
              onkeydown="if(event.key==='Enter')doAuth()">
       <button class="pin-toggle" onclick="togglePin()" id="pin-eye">แสดง</button>
     </div>
-    <div style="margin-top:16px;display:flex;gap:8px">
+    <div style="margin-top:18px;display:flex;gap:8px">
       <button class="btn-p" style="flex:1" id="auth-btn" onclick="doAuth()">เข้าสู่ระบบ</button>
     </div>
     <div class="modal-msg info" id="auth-msg"></div>
   </div>
 </div>
 
-<!-- KEYS OVERLAY -->
+<!-- ── KEYS MODAL ──────────────────────────────────────────────── -->
 <div id="keys-overlay" class="modal-overlay">
   <div class="modal-box" style="width:min(520px,100%)">
-    <div class="modal-title">API Keys <span style="font-size:11px;color:var(--text-dim);font-weight:400">· ผูกกับ account · เข้ารหัสในเซิร์ฟเวอร์</span></div>
+    <div class="modal-title">API Keys <span style="font-size:12px;color:var(--fg3);font-weight:400;-webkit-text-fill-color:var(--fg3)">· เข้ารหัสในเซิร์ฟเวอร์</span></div>
     <div class="modal-sub">ใส่ key ของ provider จริง เพื่อให้ agents ทำงานได้ (openrouter key เดียวใช้ได้ครบ 4 agent)</div>
     <label class="fld-label">Provider</label>
-    <select id="kp" class="fld">
-      <option value="openrouter">openrouter (key เดียวครบ 4 agent)</option>
+    <select id="kp" class="fld" style="font-family:var(--sans)">
+      <option value="openrouter">openrouter — key เดียวครบ 4 agent</option>
       <option value="gemini">gemini — Planner</option>
       <option value="deepseek">deepseek — Coder</option>
       <option value="qwen">qwen — Reviewer</option>
       <option value="llama">llama / groq — Validator</option>
     </select>
     <label class="fld-label">วาง API Key</label>
-    <div style="display:flex;gap:8px">
+    <div style="display:flex;gap:8px;align-items:flex-start">
       <input id="kv" class="fld" type="password" placeholder="sk-..." style="flex:1">
-      <button class="btn-p" onclick="saveKey()">บันทึก</button>
+      <button class="btn-p" onclick="saveKey()" style="white-space:nowrap;height:40px;margin-top:0">บันทึก</button>
     </div>
     <div class="keys-grid" id="keys-list"></div>
     <div class="modal-msg info" id="key-msg"></div>
-    <div style="margin-top:18px;text-align:right">
+    <div style="margin-top:20px;display:flex;justify-content:flex-end">
       <button class="btn-s" onclick="closeKeys()">ปิด</button>
     </div>
   </div>
 </div>
 
-<!-- PWA INSTALL BANNER -->
+<!-- ── PWA INSTALL BANNER ─────────────────────────────────────── -->
 <div id="pwa-banner">
   <img src="/icons/icon.svg" alt="AOF Code">
   <div class="pwa-info">
@@ -363,59 +1455,131 @@ pre.code-output {
   <button id="pwa-close-btn" onclick="closePwaBanner()" title="ปิด">✕</button>
 </div>
 
-<!-- TITLE BAR -->
+<!-- ── TITLE BAR ──────────────────────────────────────────────── -->
 <div id="titlebar">
-  <div class="tb-left"><span class="tb-logo"><span>AOF</span> Code</span></div>
-  <div class="tb-center">
-    <span class="tb-project-label">project:</span>
-    <span class="tb-project-name" id="tb-project">untitled</span>
+  <div class="tb-left">
+    <div class="tb-logo">
+      <span class="logo-aof">AOF</span>
+      <span class="logo-code">&nbsp;Code</span>
+    </div>
   </div>
+
+  <div class="tb-divider"></div>
+
+  <div class="tb-center">
+    <div class="tb-project-chip">
+      <div class="tb-project-dot"></div>
+      <span class="tb-project-label" style="font-size:11px;color:var(--fg3)">project</span>
+      <span style="color:var(--fg3)">·</span>
+      <span class="tb-project-name" id="tb-project">untitled</span>
+    </div>
+  </div>
+
   <div class="tb-right">
     <div class="model-wrap">
       <button class="tb-btn" id="model-btn" onclick="toggleModelPanel()">
-        <span id="model-label">AOF 1.0</span>
-        <span style="color:var(--text-dim);font-size:9px">&#9660;</span>
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+          <circle cx="6" cy="6" r="2.5" fill="currentColor"/>
+          <path d="M6 1v1.5M6 9.5V11M1 6h1.5M9.5 6H11" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
+        <span id="model-label">Kanon 1.0</span>
+        <svg width="8" height="5" viewBox="0 0 8 5" fill="none" style="opacity:0.5">
+          <path d="M1 1l3 3 3-3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
       </button>
       <div class="model-info-panel" id="model-panel">
         <div class="mi-option" onclick="selectModel('lite')">
-          <div class="mi-name">AOF 1.0 Lite</div><div class="mi-desc">Plan → Code → Review &nbsp;·&nbsp; เร็ว (ไม่วน loop)</div>
+          <div class="mi-name">Mikros 1.0</div>
+          <div class="mi-desc">Plan → Code → Review · เร็ว (ไม่วน loop)</div>
         </div>
         <div class="mi-option selected" onclick="selectModel('normal')">
-          <div class="mi-name">AOF 1.0 &nbsp;<span style="color:var(--accent);font-size:10px">[recommended]</span></div><div class="mi-desc">วนแก้ได้ 1 รอบ &nbsp;·&nbsp; สมดุล</div>
+          <div class="mi-name">Kanon 1.0 <span style="color:var(--accent);font-size:10px;font-weight:700">recommended</span></div>
+          <div class="mi-desc">วนแก้ได้ 1 รอบ · สมดุล</div>
         </div>
         <div class="mi-option" onclick="selectModel('pro')">
-          <div class="mi-name">AOF 1.0 Pro</div><div class="mi-desc">วนแก้ได้ 3 รอบ &nbsp;·&nbsp; ละเอียดสุด</div>
+          <div class="mi-name">Ypertatos 1.0</div>
+          <div class="mi-desc">วนแก้ได้ 3 รอบ · ละเอียดสุด</div>
+        </div>
+        <div class="mi-option" onclick="selectModel('titan')" style="border-top:1px solid var(--border,rgba(255,255,255,0.08))">
+          <div class="mi-name" style="color:var(--accent)">⬢ AOF Titan <span style="font-size:10px;font-weight:700">highest</span></div>
+          <div class="mi-desc">AI System Architect — วางแผนลึก + Approval Gate แล้วสร้างด้วย Pro</div>
         </div>
       </div>
     </div>
-    <button class="tb-btn" onclick="runCmd('/export')" title="Download generated code">export</button>
-    <button class="tb-btn" onclick="openKeys()" title="API keys">keys</button>
-    <button class="tb-btn" id="account-btn" onclick="runCmd('/logout')" title="Logout">user</button>
-    <button class="tb-btn" onclick="runCmd('/settings')" title="Settings">[settings]</button>
+
+    <button class="tb-btn" onclick="runCmd('/export')" title="Download generated code">
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+        <path d="M6 1v7M3.5 5.5L6 8l2.5-2.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M1 10h10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+      </svg>
+      Export
+    </button>
+
+    <button class="tb-btn" onclick="openKeys()" title="Manage API keys">
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+        <path d="M7.5 4.5a3 3 0 11-2.12 5.12L2 12.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+        <circle cx="7.5" cy="4.5" r="2" stroke="currentColor" stroke-width="1.2"/>
+      </svg>
+      Keys
+    </button>
+
+    <button class="tb-btn" id="account-btn" onclick="runCmd('/logout')" title="Logout">
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+        <circle cx="6" cy="4" r="2.2" stroke="currentColor" stroke-width="1.2"/>
+        <path d="M1.5 11c0-2.485 2.015-4.5 4.5-4.5s4.5 2.015 4.5 4.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+      </svg>
+      <span style="font-family:var(--sans)">user</span>
+    </button>
+
+    <button class="tb-btn" onclick="runCmd('/settings')" title="Settings">
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+        <path d="M6 7.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z" stroke="currentColor" stroke-width="1.2"/>
+        <path d="M9.6 4.5l.4-.69A5 5 0 008.59 2.4l-.79.2a3.5 3.5 0 00-1.6-.93L6 1a5 5 0 00-2 0l-.2.67a3.5 3.5 0 00-1.6.93l-.79-.2A5 5 0 001 3.81l.4.69a3.5 3.5 0 000 1.86L1 7.05a5 5 0 001.41 1.41l.79-.2c.48.38 1.02.65 1.6.82l.2.92A5 5 0 006 10.1a5 5 0 002-.1l.2-.92a3.5 3.5 0 001.6-.82l.79.2A5 5 0 0011 7.06l-.4-.7a3.5 3.5 0 000-1.86z" stroke="currentColor" stroke-width="1.1"/>
+      </svg>
+    </button>
   </div>
 </div>
 
-<!-- APP -->
+<!-- ── APP ────────────────────────────────────────────────────── -->
 <div id="app">
+
+  <!-- Main content column -->
   <div id="main">
+
+    <!-- Tab bar -->
     <div id="tabbar">
-      <div class="tab active"><div class="tab-dot"></div>terminal</div>
-      <div class="tab" onclick="showToast('Agent logs stream live in the terminal')">agent-log</div>
-      <div class="tab" onclick="showToast('Generated files: run /export to download')">output</div>
+      <div class="tab active" id="tab-terminal" onclick="switchTab('terminal')">
+        <div class="tab-dot"></div>
+        terminal
+      </div>
+      <div class="tab" id="tab-agentlog" onclick="switchTab('agentlog')">
+        <div class="tab-dot"></div>
+        agent-log
+        <div class="tab-badge" id="badge-agentlog"></div>
+      </div>
+      <div class="tab" id="tab-output" onclick="switchTab('output')">
+        <div class="tab-dot"></div>
+        output
+        <div class="tab-badge" id="badge-output"></div>
+      </div>
     </div>
+
+    <!-- Terminal output -->
     <div id="terminal-body" onclick="focusInput()"></div>
-    <div id="input-bar">
-      <div id="cmd-ac"></div>
-      <span class="input-prompt" id="input-prompt">C:\AOF&gt;</span>
-      <input type="text" id="cmd-input" placeholder="อธิบายสิ่งที่คุณต้องการสร้าง..." autocomplete="off" spellcheck="false" disabled>
-      <span class="input-hint">พิมพ์ <span style="color:var(--accent)">/</span> เพื่อดูคำสั่ง</span>
-    </div>
+
+    <!-- Agent log panel -->
+    <div id="agentlog-body"></div>
+
+    <!-- Output panel -->
+    <div id="output-body"></div>
+
+    <!-- Status bar — placed BEFORE input-bar so CSS sibling selector works -->
     <div id="statusbar" class="planning">
       <span class="sb-item" id="sb-mode">PLANNING</span>
       <span class="sb-sep">|</span>
       <span class="sb-item" id="sb-agents">RAA active</span>
       <span class="sb-sep">|</span>
-      <span class="sb-item" id="sb-model">AOF 1.0</span>
+      <span class="sb-item" id="sb-model">Kanon 1.0</span>
       <div class="sb-right">
         <span class="sb-item" id="sb-user">user: --</span>
         <span class="sb-sep">|</span>
@@ -424,77 +1588,222 @@ pre.code-output {
         <span class="sb-item" id="sb-clock">--:--:--</span>
       </div>
     </div>
-  </div>
 
+    <!-- Input bar -->
+    <div id="input-bar">
+      <div id="cmd-ac"></div>
+      <div class="input-wrap">
+        <span class="input-prompt" id="input-prompt">C:\AOF&gt;</span>
+        <input type="text" id="cmd-input"
+               placeholder="อธิบายสิ่งที่คุณต้องการสร้าง..."
+               autocomplete="off" spellcheck="false" disabled>
+        <div class="input-hint">
+          พิมพ์ <span class="input-hint-key" style="color:var(--accent)">/</span> เพื่อดูคำสั่ง
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /#main -->
+
+  <!-- Right sidebar -->
   <div id="sidebar">
+
+    <!-- Brand header -->
+    <div class="sidebar-brand">
+      <div class="sidebar-brand-logo">
+        <span class="logo-aof">AOF</span><span class="logo-code"> Code</span>
+      </div>
+      <span class="sidebar-brand-tag">v2.0</span>
+    </div>
+
+    <!-- Agents section -->
     <div class="sidebar-section">
-      <div class="sidebar-title">Agents</div>
+      <div class="sidebar-title">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+          <rect x="1" y="3" width="10" height="7" rx="2" stroke="currentColor" stroke-width="1.2"/>
+          <path d="M4 3V2a2 2 0 014 0v1" stroke="currentColor" stroke-width="1.2"/>
+          <circle cx="4.5" cy="6.5" r="1" fill="currentColor"/>
+          <circle cx="7.5" cy="6.5" r="1" fill="currentColor"/>
+        </svg>
+        Agents
+      </div>
       <div id="agent-list">
-        <!-- RAA row — visible in planning mode only -->
-        <div class="agent-row" id="raa-row" style="border-left:2px solid var(--purple)">
-          <div class="agent-name" style="color:var(--purple)">RAA</div><div class="agent-role">Requirements Architect</div>
-          <div class="agent-status-line"><div class="agent-dot" id="dot-raa" style="background:var(--purple)"></div><span id="status-raa">Active</span></div>
+
+        <!-- RAA — visible in planning mode -->
+        <div class="agent-row" id="raa-row">
+          <div class="agent-row-inner">
+            <div class="agent-avatar av-raa">R</div>
+            <div class="agent-info">
+              <div class="agent-name">RAA</div>
+              <div class="agent-role">Requirements Architect</div>
+            </div>
+            <div class="agent-status-line">
+              <div class="agent-dot" id="dot-raa" style="background:var(--purple)"></div>
+              <span class="agent-status-text" id="status-raa">Active</span>
+            </div>
+          </div>
         </div>
+
+        <div class="agent-row" id="architect-row">
+          <div class="agent-row-inner">
+            <div class="agent-avatar av-architect">A</div>
+            <div class="agent-info">
+              <div class="agent-name">Architect</div>
+              <div class="agent-role">Design &amp; impact</div>
+            </div>
+            <div class="agent-status-line">
+              <div class="agent-dot" id="dot-architect"></div>
+              <span class="agent-status-text" id="status-architect">Ready</span>
+            </div>
+          </div>
+        </div>
+
         <div class="agent-row">
-          <div class="agent-name">Gemini</div><div class="agent-role">Planner</div>
-          <div class="agent-status-line"><div class="agent-dot" id="dot-planner"></div><span id="status-planner">Ready</span></div>
+          <div class="agent-row-inner">
+            <div class="agent-avatar av-planner">G</div>
+            <div class="agent-info">
+              <div class="agent-name">Gemini</div>
+              <div class="agent-role">Planner</div>
+            </div>
+            <div class="agent-status-line">
+              <div class="agent-dot" id="dot-planner"></div>
+              <span class="agent-status-text" id="status-planner">Ready</span>
+            </div>
+          </div>
         </div>
+
         <div class="agent-row">
-          <div class="agent-name">DeepSeek</div><div class="agent-role">Coder</div>
-          <div class="agent-status-line"><div class="agent-dot" id="dot-coder"></div><span id="status-coder">Ready</span></div>
+          <div class="agent-row-inner">
+            <div class="agent-avatar av-coder">DS</div>
+            <div class="agent-info">
+              <div class="agent-name">DeepSeek</div>
+              <div class="agent-role">Coder</div>
+            </div>
+            <div class="agent-status-line">
+              <div class="agent-dot" id="dot-coder"></div>
+              <span class="agent-status-text" id="status-coder">Ready</span>
+            </div>
+          </div>
         </div>
+
         <div class="agent-row">
-          <div class="agent-name">Qwen</div><div class="agent-role">Reviewer</div>
-          <div class="agent-status-line"><div class="agent-dot" id="dot-reviewer"></div><span id="status-reviewer">Ready</span></div>
+          <div class="agent-row-inner">
+            <div class="agent-avatar av-reviewer">Q</div>
+            <div class="agent-info">
+              <div class="agent-name">Qwen</div>
+              <div class="agent-role">Reviewer</div>
+            </div>
+            <div class="agent-status-line">
+              <div class="agent-dot" id="dot-reviewer"></div>
+              <span class="agent-status-text" id="status-reviewer">Ready</span>
+            </div>
+          </div>
         </div>
+
         <div class="agent-row">
-          <div class="agent-name">Meta Llama</div><div class="agent-role">Validator</div>
-          <div class="agent-status-line"><div class="agent-dot" id="dot-validator"></div><span id="status-validator">Ready</span></div>
+          <div class="agent-row-inner">
+            <div class="agent-avatar av-validator">L</div>
+            <div class="agent-info">
+              <div class="agent-name">Meta Llama</div>
+              <div class="agent-role">Validator</div>
+            </div>
+            <div class="agent-status-line">
+              <div class="agent-dot" id="dot-validator"></div>
+              <span class="agent-status-text" id="status-validator">Ready</span>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
+
+        <div class="agent-row" id="documenter-row">
+          <div class="agent-row-inner">
+            <div class="agent-avatar av-documenter">D</div>
+            <div class="agent-info">
+              <div class="agent-name">Documenter</div>
+              <div class="agent-role">README &amp; docs</div>
+            </div>
+            <div class="agent-status-line">
+              <div class="agent-dot" id="dot-documenter"></div>
+              <span class="agent-status-text" id="status-documenter">Ready</span>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /#agent-list -->
+    </div><!-- /.sidebar-section -->
+
+    <!-- Workflow section -->
     <div class="sidebar-section">
-      <div class="sidebar-title">Workflow</div>
-      <!-- Planning workflow (shown in planning mode) -->
+      <div class="sidebar-title">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+          <path d="M2 3h3v3H2zM7 6h3v3H7z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/>
+          <path d="M3.5 6v1a1 1 0 001 1H7" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
+        </svg>
+        Workflow
+      </div>
+
+      <!-- Planning workflow -->
       <div class="wf-list" id="wf-plan" style="display:none">
-        <div class="wf-step" id="wp-0"><span class="wf-num">1.</span><span>User input</span></div>
-        <div class="wf-step" id="wp-1"><span class="wf-num" style="color:var(--purple)">2.</span><span>RAA analysis</span></div>
-        <div class="wf-step" id="wp-2"><span class="wf-num" style="color:var(--purple)">3.</span><span>Requirements</span></div>
-        <div class="wf-step" id="wp-3"><span class="wf-num" style="color:var(--purple)">4.</span><span>Summary</span></div>
-        <div class="wf-step" id="wp-4"><span class="wf-num">5.</span><span>/gencode ↓</span></div>
-        <div class="wf-step" id="wp-5"><span class="wf-num">6.</span><span>TMAP engine</span></div>
-        <div class="wf-step" id="wp-6"><span class="wf-num">7.</span><span>Final output</span></div>
+        <div class="wf-step" id="wp-0"><div class="wf-num">1</div><span class="wf-label">User input</span></div>
+        <div class="wf-step" id="wp-1"><div class="wf-num" style="color:var(--purple)">2</div><span class="wf-label">RAA analysis</span></div>
+        <div class="wf-step" id="wp-2"><div class="wf-num" style="color:var(--purple)">3</div><span class="wf-label">Requirements</span></div>
+        <div class="wf-step" id="wp-3"><div class="wf-num" style="color:var(--purple)">4</div><span class="wf-label">Summary</span></div>
+        <div class="wf-step" id="wp-4"><div class="wf-num">5</div><span class="wf-label">/gencode ↓</span></div>
+        <div class="wf-step" id="wp-5"><div class="wf-num">6</div><span class="wf-label">TMAP engine</span></div>
+        <div class="wf-step" id="wp-6"><div class="wf-num">7</div><span class="wf-label">Final output</span></div>
       </div>
-      <!-- Generation workflow (shown in generation mode) -->
+
+      <!-- Generation workflow -->
       <div class="wf-list" id="wf-list">
-        <div class="wf-step" id="wf-0"><span class="wf-num">1.</span><span>User input</span></div>
-        <div class="wf-step" id="wf-1"><span class="wf-num">2.</span><span>Gemini planning</span></div>
-        <div class="wf-step" id="wf-2"><span class="wf-num">3.</span><span>Llama coordination</span></div>
-        <div class="wf-step" id="wf-3"><span class="wf-num">4.</span><span>DeepSeek codegen</span></div>
-        <div class="wf-step" id="wf-4"><span class="wf-num">5.</span><span>Qwen review</span></div>
-        <div class="wf-step" id="wf-5"><span class="wf-num">6.</span><span>Validation</span></div>
-        <div class="wf-step" id="wf-6"><span class="wf-num">7.</span><span>Final output</span></div>
+        <div class="wf-step" id="wf-0"><div class="wf-num">1</div><span class="wf-label">User input</span></div>
+        <div class="wf-step" id="wf-1"><div class="wf-num">2</div><span class="wf-label">Gemini planning</span></div>
+        <div class="wf-step" id="wf-2"><div class="wf-num">3</div><span class="wf-label">Llama coordination</span></div>
+        <div class="wf-step" id="wf-3"><div class="wf-num">4</div><span class="wf-label">DeepSeek codegen</span></div>
+        <div class="wf-step" id="wf-4"><div class="wf-num">5</div><span class="wf-label">Qwen review</span></div>
+        <div class="wf-step" id="wf-5"><div class="wf-num">6</div><span class="wf-label">Validation</span></div>
+        <div class="wf-step" id="wf-6"><div class="wf-num">7</div><span class="wf-label">Final output</span></div>
       </div>
-    </div>
-    <div class="sidebar-section" style="flex:1;display:flex;flex-direction:column;min-height:0;">
-      <div class="sidebar-title">History</div>
+
+    </div><!-- /.sidebar-section workflow -->
+
+    <!-- History section -->
+    <div class="sidebar-section flex-fill">
+      <div class="sidebar-title">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+          <circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="1.2"/>
+          <path d="M6 3.5V6l2 1.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        History
+      </div>
       <div class="hist-list" id="hist-list"></div>
     </div>
-  </div>
-</div>
+
+    <!-- New session button -->
+    <div class="sidebar-footer">
+      <button class="sidebar-new-btn" onclick="runCmd('/new')">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+          <path d="M6 2v8M2 6h8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+        </svg>
+        New Session
+      </button>
+    </div>
+
+  </div><!-- /#sidebar -->
+
+</div><!-- /#app -->
 
 
 <script>
 // ── CONFIG / API ──────────────────────────────────────────────────────────────
 const API = '';
 const PROVIDERS = ['openrouter','gemini','deepseek','qwen','llama'];
-const ROLE_AGENT = { planner:'Gemini', coder:'DeepSeek', reviewer:'Qwen', validator:'Meta Llama' };
-const ROLE_COLOR = { planner:'t-orange', coder:'t-green', reviewer:'t-yellow', validator:'t-blue', system:'t-dim' };
+const ROLE_AGENT = { architect:'Architect', planner:'Gemini', coder:'DeepSeek', reviewer:'Qwen', validator:'Meta Llama', documenter:'Documenter', impact:'Impact', titan:'Titan' };
+const ROLE_COLOR = { architect:'t-blue', planner:'t-orange', coder:'t-green', reviewer:'t-yellow', validator:'t-blue', documenter:'t-green', impact:'t-red', titan:'t-orange', system:'t-dim' };
 const ROLE_WF    = { planner:1, coder:3, validator:5, reviewer:4 };
-const MODE_LABEL = { lite:'AOF 1.0 Lite', normal:'AOF 1.0', pro:'AOF 1.0 Pro' };
+const MODE_LABEL = { lite:'Mikros 1.0', normal:'Kanon 1.0', pro:'Ypertatos 1.0', titan:'Titan' };
 
 const COMMANDS = [
   { cmd: '/gencode',  desc: 'เริ่มสร้างโค้ด (ต้องผ่าน Planning ก่อน)' },
+  { cmd: '/titan',    desc: 'Titan Mode — AI System Architect วางแผนลึกก่อนสร้าง (approval gate)' },
   { cmd: '/new',      desc: 'เริ่ม planning session ใหม่' },
   { cmd: '/keys',     desc: 'Manage your API keys' },
   { cmd: '/export',   desc: 'Download as ZIP  ·  /export html → single index.html' },
@@ -520,6 +1829,13 @@ const state = {
   phase: 'planning',           // 'planning' | 'generation'
   chatHistory: [],             // RAA conversation history [{role,content}]
   reqSummary: null,            // RequirementSummary from RAA (or null)
+  // ── Titan Mode (AI System Architect) ──
+  titan: false,                // true = planning messages go to Titan instead of RAA
+  titanBlueprint: null,        // approved TitanBlueprint (or null)
+  // ── Visual TMAP (tabs) ──
+  activeTab: 'terminal',       // 'terminal' | 'agentlog' | 'output'
+  agentLog: [],                // structured agent events [{role,kind,text,ts}]
+  outSel: 0,                   // selected file index in output panel
 };
 
 // ── UTILS ─────────────────────────────────────────────────────────────────────
@@ -529,71 +1845,6 @@ function now(){ return new Date().toLocaleTimeString('en-GB',{hour12:false}); }
 function val(id){ return document.getElementById(id).value.trim(); }
 function scrollBottom(){ const b=document.getElementById('terminal-body'); b.scrollTop=b.scrollHeight; }
 function focusInput(){ const i=document.getElementById('cmd-input'); if(!i.disabled) i.focus(); }
-
-// ── COPY BUTTON helper ────────────────────────────────────────────────────────
-function copyText(btn, text){
-  navigator.clipboard.writeText(text).then(()=>{
-    btn.textContent='copied!'; btn.classList.add('copied');
-    setTimeout(()=>{ btn.textContent='copy'; btn.classList.remove('copied'); }, 1500);
-  }).catch(()=>{ btn.textContent='err'; setTimeout(()=>btn.textContent='copy',1500); });
-}
-
-// Wrap a code block string in a styled <pre> with copy button
-function makeCodeBlock(code){
-  const wrap = document.createElement('div');
-  wrap.className = 'code-block-wrap t-line';
-  const pre = document.createElement('pre');
-  pre.className = 'code-output';
-  pre.textContent = code;
-  const btn = document.createElement('button');
-  btn.className = 'copy-btn';
-  btn.textContent = 'copy';
-  btn.onclick = () => copyText(btn, code);
-  wrap.appendChild(pre);
-  wrap.appendChild(btn);
-  return wrap;
-}
-
-// ── IndexedDB: session history ────────────────────────────────────────────────
-let _idb = null;
-function openIDB(){
-  if(_idb) return Promise.resolve(_idb);
-  return new Promise((res,rej)=>{
-    const req = indexedDB.open('aof-history',1);
-    req.onupgradeneeded = e => {
-      const db = e.target.result;
-      if(!db.objectStoreNames.contains('sessions')){
-        const s = db.createObjectStore('sessions',{keyPath:'id',autoIncrement:true});
-        s.createIndex('ts','ts');
-      }
-    };
-    req.onsuccess = e => { _idb = e.target.result; res(_idb); };
-    req.onerror = () => rej(req.error);
-  });
-}
-async function idbSaveSession(task, sessionId){
-  try{
-    const db = await openIDB();
-    const tx = db.transaction('sessions','readwrite');
-    tx.objectStore('sessions').add({ task, sessionId, ts: Date.now() });
-  }catch{ /* non-fatal */ }
-}
-async function idbLoadHistory(limit=20){
-  try{
-    const db = await openIDB();
-    return new Promise((res)=>{
-      const tx = db.transaction('sessions','readonly');
-      const req = tx.objectStore('sessions').index('ts').openCursor(null,'prev');
-      const rows = [];
-      req.onsuccess = e => {
-        const c = e.target.result;
-        if(!c || rows.length >= limit) return res(rows);
-        rows.push(c.value); c.continue();
-      };
-      req.onerror = () => res([]);
-    });
-  }catch{ return []; }
-}
 
 function writeLine(html='', cls=''){
   const el=document.createElement('div');
@@ -685,7 +1936,10 @@ async function doAuth(){
     syncUser();
     await boot();
   }catch(e){
-    authMsg(e.message,'err');
+    const msg = (e.status===404||e.status===503||e.status===502)
+      ? 'เซิร์ฟเวอร์ไม่พร้อมใช้งาน กรุณาลองใหม่ในอีกสักครู่'
+      : e.message;
+    authMsg(msg,'err');
     if(e.status===429 && e.retryAfterSec>0){
       startLockoutCountdown(e.retryAfterSec);
       return;
@@ -710,7 +1964,7 @@ async function cmdLogout(){
 
 function syncUser(){
   document.getElementById('sb-user').textContent = 'user: ' + (state.user || '--');
-  document.getElementById('account-btn').textContent = state.user || 'user';
+  document.getElementById('account-btn').querySelector('span').textContent = state.user || 'user';
 }
 
 // ── KEYS ──────────────────────────────────────────────────────────────────────
@@ -745,7 +1999,6 @@ async function delKey(p){ try{ await api('/v1/me/keys/'+p,'DELETE'); loadKeys();
 // ── BOOT ──────────────────────────────────────────────────────────────────────
 async function boot(){
   const body=document.getElementById('terminal-body'); body.innerHTML='';
-  // reset to planning mode on boot
   state.chatHistory=[]; state.reqSummary=null; state.phase='planning';
   setPhase('planning');
   writeBlank();
@@ -755,10 +2008,12 @@ async function boot(){
   await sleep(120);
   writeLine('<span class="t-purple">OK</span>  Loading RAA             [requirements architect]');
   await sleep(70);
-  writeLine('<span class="t-green">OK</span>  Loading Gemini          [planner]');
+  writeLine('<span class="t-blue">OK</span>  Loading Architect       [design &amp; impact analysis]');
+  await sleep(70); writeLine('<span class="t-green">OK</span>  Loading Gemini          [planner]');
   await sleep(70); writeLine('<span class="t-green">OK</span>  Loading DeepSeek        [coder]');
   await sleep(70); writeLine('<span class="t-green">OK</span>  Loading Qwen            [reviewer]');
   await sleep(70); writeLine('<span class="t-green">OK</span>  Loading Meta Llama      [validator]');
+  await sleep(70); writeLine('<span class="t-green">OK</span>  Loading Documenter      [readme &amp; docs]');
   await sleep(100);
   writeLine('<span class="t-dim">──────────────────────────────────────────────────────────</span>');
   writeLine('<span class="t-green">Ready.</span>  <span class="t-dim">Signed in as </span><span class="t-orange">'+escHtml(state.user)+'</span>');
@@ -772,7 +2027,6 @@ async function boot(){
   writeLine('  <span class="t-purple">3.</span>  <span class="t-orange">/gencode</span>  <span class="t-dim">→ TMAP engine เริ่มสร้างโค้ด</span>');
   writeBlank();
 
-  // hint if no key set
   try{
     const me = await api('/v1/me');
     const hasKey = Object.values(me.keys).some(Boolean);
@@ -786,15 +2040,15 @@ async function boot(){
   writeBlank();
   writeLine('<span class="cursor"></span>');
   focusInput();
-  // load history sidebar from server + IndexedDB
-  loadServerHistory();
 }
 
-// ── COMMAND RUNNER ──────────────────────────────────────────────────────────────
+// ── COMMAND RUNNER ────────────────────────────────────────────────────────────
 async function runCmd(raw){
   if(state.running) return;
   raw=(raw||'').trim(); if(!raw) return;
   if(!state.token){ showAuth(); return; }
+
+  if(state.activeTab!=='terminal') switchTab('terminal');
 
   const body=document.getElementById('terminal-body');
   body.querySelectorAll('.cursor').forEach(c=>c.parentElement.remove());
@@ -810,6 +2064,8 @@ async function runCmd(raw){
     switch(verb){
       case '/gencode':
         await handleGencode(); break;
+      case '/titan':
+        await cmdTitanMode(arg); break;
       case '/new':
         await cmdNewSession(); break;
       case '/keys':    openKeys(); break;
@@ -824,9 +2080,9 @@ async function runCmd(raw){
         writeLine(`<span class="t-red">'${escHtml(verb)}' is not a command. Type /help.</span>`);
     }
   }else{
-    // Any free-form text → RAA in planning mode, or TMAP in generation mode
     if(state.phase === 'planning'){
-      await sendToRAA(raw);
+      if(state.titan) await sendToTitan(raw);
+      else await sendToRAA(raw);
     } else {
       await runTask(raw);
     }
@@ -837,8 +2093,25 @@ async function runCmd(raw){
   scrollBottom(); focusInput();
 }
 
-// ── /gencode — switch planning → generation and run TMAP ───────────────────────
+// ── /gencode ──────────────────────────────────────────────────────────────────
 async function handleGencode(){
+  // Titan Mode: code generation is forbidden before the approval gate.
+  if(state.titan){
+    if(!state.titanBlueprint){
+      writeLine('<span class="t-yellow">!</span>  <span class="t-dim">Titan ยังไม่ปล่อย Blueprint — ต้องผ่าน Approval Gate ก่อน (ตอบ </span><span class="t-orange">1. Approve and Generate Code</span><span class="t-dim"> ในแชท)</span>');
+      return;
+    }
+    // Titan always generates at Pro quality — no need to set it manually.
+    state.mode = 'pro';
+    setModelUI('pro');
+    setPhase('generation');
+    writeLine('<span class="t-orange">Titan Blueprint approved.</span>  <span class="t-dim">กำลังส่งพิมพ์เขียวให้ TMAP engine (</span><span class="t-orange">Pro mode</span><span class="t-dim">) ...</span>');
+    writeBlank();
+    const bp = state.titanBlueprint;
+    await runTask(bp.project || 'project from Titan blueprint',
+      '## Approved Titan Blueprint (follow this exactly)\n' + bp.raw);
+    return;
+  }
   if(state.phase === 'planning' && !state.reqSummary){
     writeLine('<span class="t-yellow">!</span>  <span class="t-dim">อธิบายสิ่งที่ต้องการสร้างก่อน จากนั้นค่อยพิมพ์ </span><span class="t-purple">/gencode</span>');
     writeLine('<span class="t-dim">RAA จะช่วยสรุป Requirement ให้พร้อมก่อนเริ่ม TMAP</span>');
@@ -852,7 +2125,6 @@ async function handleGencode(){
     const context = buildContextFromSummary(state.reqSummary);
     await runTask(task, context);
   } else {
-    // already in generation mode — just re-run last task
     await runTask(state.lastTask || '');
   }
 }
@@ -871,15 +2143,139 @@ function buildContextFromSummary(s){
   ].filter(l=>l&&l.split(':')[1]?.trim()).join('\n');
 }
 
-// ── New planning session ────────────────────────────────────────────────────────
 async function cmdNewSession(){
   state.chatHistory=[];
   state.reqSummary=null;
+  state.titan=false;
+  state.titanBlueprint=null;
   setPhase('planning');
+  setModelUI(state.mode);
   writeLine('<span class="t-purple">New planning session.</span>  <span class="t-dim">อธิบายสิ่งที่ต้องการสร้าง</span>');
 }
 
-// ── Phase switch helper ─────────────────────────────────────────────────────────
+// ── TITAN MODE — AI System Architect ─────────────────────────────────────────
+async function cmdTitanMode(idea){
+  state.titan=true;
+  state.titanBlueprint=null;
+  state.chatHistory=[];
+  setPhase('planning');
+  setModelUI('titan');
+  document.getElementById('sb-agents').textContent='TITAN active';
+  writeLine('<span class="t-orange t-bold">⬢ TITAN MODE</span>  <span class="t-dim">Think First, Build Later — AI System Architect</span>');
+  writeLine('<span class="t-dim">Titan จะถามจนเข้าใจ ≥85% → เสนอแผน A/B/C + ความเสี่ยง → รอ Approval ก่อนสร้างโค้ด</span>');
+  if(idea && idea.trim()){
+    writeBlank();
+    await sendToTitan(idea.trim());
+  } else {
+    writeLine('<span class="t-dim">อธิบายไอเดียที่อยากสร้างได้เลย</span>');
+  }
+}
+
+async function sendToTitan(message){
+  if(state.running) return;
+  state.running = true;
+  setPlanWfStep(1);
+
+  try {
+    const r = await fetch(API+'/v1/titan', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json', Authorization:'Bearer '+state.token },
+      body: JSON.stringify({ message, history: state.chatHistory }),
+    });
+    if(r.status===401){ cmdLogout(); return; }
+    if(!r.ok){ const e=await r.json().catch(()=>({})); throw new Error(e.error||('HTTP '+r.status)); }
+
+    const reader=r.body.getReader(); const dec=new TextDecoder(); let buf='';
+    let accText='';
+
+    while(true){
+      const {value,done}=await reader.read(); if(done) break;
+      buf+=dec.decode(value,{stream:true});
+      let i;
+      while((i=buf.indexOf('\n\n'))>=0){
+        const line=buf.slice(0,i); buf=buf.slice(i+2);
+        if(!line.startsWith('data: ')) continue;
+        let ev; try{ ev=JSON.parse(line.slice(6)); }catch{ continue; }
+        if(ev.kind==='status'){
+          logAgentEvent('titan','status',ev.text);
+          // surface the enforced pipeline stages (self-review passes, confidence gate, memory)
+          if(/self-review|confidence|memory/i.test(ev.text||'')){
+            writeLine('<span class="t-dim">⬢ '+escHtml(ev.text)+'</span>');
+          }
+        }
+        if(ev.kind==='error')  logAgentEvent('titan','error',ev.text);
+        if(ev.kind==='output'){
+          accText = ev.text||'';
+          renderTitan(ev.text);
+          setPlanWfStep(2);
+          logAgentEvent('titan','output',ev.text);
+        }
+        if(ev.kind==='done'){
+          setPlanWfStep(ev.hasBlueprint ? 3 : ev.hasPlan ? 2 : 1);
+          if(ev.hasBlueprint && ev.blueprint){
+            state.titanBlueprint = ev.blueprint;
+            setPlanWfStep(3);
+            writeBlank();
+            writeLine('<span class="t-dim">──────────────────────────────────────────────────────────</span>');
+            writeLine('<span class="t-orange">⬢ Titan Blueprint อนุมัติแล้ว</span>  <span class="t-dim">พิมพ์ </span><span class="t-orange t-bold">/gencode</span><span class="t-dim"> เพื่อสร้างโค้ดตามพิมพ์เขียว</span>');
+          } else if(ev.hasPlan){
+            writeBlank();
+            if(ev.confidence != null){
+              const nf = (ev.reviewFindings||[]).length;
+              writeLine('<span class="t-dim">⬢ confidence </span><span class="t-green">'+ev.confidence+'%</span><span class="t-dim"> (ผ่านเกณฑ์ 85%) · self-review 5 pass'+(nf?' — แก้ '+nf+' จุด':' — ไม่พบจุดต้องแก้')+'</span>');
+            }
+            writeLine('<span class="t-yellow">APPROVAL REQUIRED</span>  <span class="t-dim">ตอบ </span><span class="t-orange">1</span><span class="t-dim">=Approve · </span><span class="t-orange">2</span><span class="t-dim">=Revise · </span><span class="t-orange">3</span><span class="t-dim">=Compare more · </span><span class="t-orange">4</span><span class="t-dim">=Ask more</span>');
+          } else if(ev.confidenceBlocked){
+            writeBlank();
+            writeLine('<span class="t-yellow">⛔ Confidence '+(ev.confidence!=null?ev.confidence+'%':'')+' &lt; 85%</span>  <span class="t-dim">ระบบบังคับให้ Titan ถามต่อก่อนวางแผน</span>');
+          }
+        }
+      }
+    }
+
+    state.chatHistory.push({ role:'user', content: message });
+    state.chatHistory.push({ role:'assistant', content: accText });
+  } catch(err){
+    writeLine(`<span class="t-red">Error: ${escHtml(String(err.message||err))}</span>`);
+  }
+  state.running = false;
+}
+
+function renderTitan(text){
+  if(!text) return;
+  // Box the structured blocks (plan / blueprint), print the rest as chat lines.
+  const blocks = [
+    { start:'===TITAN PLAN===',      end:'===END PLAN===',      title:'TITAN PLAN' },
+    { start:'===TITAN BLUEPRINT===', end:'===END BLUEPRINT===', title:'TITAN BLUEPRINT' },
+  ];
+  for(const b of blocks){
+    const si = text.indexOf(b.start);
+    const ei = text.indexOf(b.end);
+    if(si>=0 && ei>si){
+      const before = text.slice(0, si).trim();
+      const inside = text.slice(si+b.start.length, ei).trim();
+      const after  = text.slice(ei+b.end.length).trim();
+      if(before) renderTitanLines(before);
+      const box = document.createElement('div');
+      box.className='req-summary-box t-line';
+      box.innerHTML = '<div class="req-summary-title">'+b.title+'</div>' + escHtml(inside);
+      document.getElementById('terminal-body').appendChild(box);
+      scrollBottom();
+      if(after) renderTitan(after);   // a reply may contain plan then more text
+      return;
+    }
+  }
+  renderTitanLines(text);
+}
+
+function renderTitanLines(text){
+  for(const ln of text.split('\n')){
+    if(ln.trim()==='') writeBlank();
+    else writeLine(`<span class="t-orange">TITAN      </span><span class="t-muted">›</span> <span class="t-text">${escHtml(ln)}</span>`);
+  }
+}
+
+// ── Phase switch ──────────────────────────────────────────────────────────────
 function setPhase(p){
   state.phase = p;
   const sb = document.getElementById('statusbar');
@@ -903,15 +2299,14 @@ function setPhase(p){
     raaRow.style.display = 'none';
     wfPlan.style.display = 'none';
     wfGen.style.display  = '';
-    document.getElementById('sb-agents').textContent = '4 agents ready';
+    document.getElementById('sb-agents').textContent = '6 agents ready';
   }
 }
 
-// ── RAA chat (Planning mode) ────────────────────────────────────────────────────
+// ── RAA chat ──────────────────────────────────────────────────────────────────
 async function sendToRAA(message){
   if(state.running) return;
   state.running = true;
-  // update planning workflow
   setPlanWfStep(1);
 
   try {
@@ -923,7 +2318,6 @@ async function sendToRAA(message){
     if(r.status===401){ cmdLogout(); return; }
     if(!r.ok){ const e=await r.json().catch(()=>({})); throw new Error(e.error||('HTTP '+r.status)); }
 
-    // SSE stream
     const reader=r.body.getReader(); const dec=new TextDecoder(); let buf='';
     let accText='';
     const dotEl = document.getElementById('dot-raa');
@@ -939,10 +2333,17 @@ async function sendToRAA(message){
         const line=buf.slice(0,i); buf=buf.slice(i+2);
         if(!line.startsWith('data: ')) continue;
         let ev; try{ ev=JSON.parse(line.slice(6)); }catch{ continue; }
+        if(ev.kind==='status'){
+          logAgentEvent('raa','status',ev.text);
+        }
+        if(ev.kind==='error'){
+          logAgentEvent('raa','error',ev.text);
+        }
         if(ev.kind==='output'){
           accText = ev.text||'';
           renderRAA(ev.text);
           setPlanWfStep(2);
+          logAgentEvent('raa','output',ev.text);
         }
         if(ev.kind==='done'){
           setPlanWfStep(ev.hasSummary ? 3 : 2);
@@ -959,7 +2360,6 @@ async function sendToRAA(message){
     if(dotEl) dotEl.className='agent-dot done';
     if(stEl)  stEl.textContent='Done';
 
-    // Append to conversation history for next turn
     state.chatHistory.push({ role:'user', content: message });
     state.chatHistory.push({ role:'assistant', content: accText });
   } catch(err){
@@ -970,7 +2370,6 @@ async function sendToRAA(message){
 
 function renderRAA(text){
   if(!text) return;
-  // Split on summary markers — render raw text before, styled box for summary block
   const startMarker = '===REQUIREMENT SUMMARY===';
   const endMarker   = '===END SUMMARY===';
   const si = text.indexOf(startMarker);
@@ -980,10 +2379,9 @@ function renderRAA(text){
     const inside  = text.slice(si+startMarker.length, ei).trim();
     const after   = text.slice(ei+endMarker.length).trim();
     if(before)  renderRAALines(before);
-    // Summary box
     const box = document.createElement('div');
     box.className='req-summary-box t-line';
-    box.innerHTML = '<div class="req-summary-title">📋 REQUIREMENT SUMMARY</div>' + escHtml(inside);
+    box.innerHTML = '<div class="req-summary-title">REQUIREMENT SUMMARY</div>' + escHtml(inside);
     document.getElementById('terminal-body').appendChild(box);
     scrollBottom();
     if(after) renderRAALines(after);
@@ -1012,7 +2410,7 @@ function setPlanWfStep(n){
   }
 }
 
-// ── REAL TMAP RUN (SSE) ─────────────────────────────────────────────────────────
+// ── TMAP RUN (SSE) ────────────────────────────────────────────────────────────
 async function runTask(task, context){
   task=(task||state.lastTask||'').trim();
   if(!task){ writeLine('<span class="t-red">Please provide a task.</span>'); return; }
@@ -1049,7 +2447,6 @@ async function runTask(task, context){
         const line=buf.slice(0,i); buf=buf.slice(i+2);
         if(!line.startsWith('data: ')) continue;
         let ev; try{ ev=JSON.parse(line.slice(6)); }catch{ continue; }
-        // role transition → agent dots + workflow
         if(ev.role && ev.role!=='system' && ev.role!==curRole){
           if(curRole) setAgentDone(curRole);
           curRole=ev.role; setAgentBusy(curRole);
@@ -1066,10 +2463,6 @@ async function runTask(task, context){
   setWfStep(6);
   state.sessions++;
   document.getElementById('sb-sessions').textContent='sessions: '+state.sessions;
-  // save to IndexedDB
-  if(task) await idbSaveSession(task, null);
-  // refresh sidebar history
-  await loadServerHistory();
   resetAgents();
   setWfStep(0);
   setMode('NORMAL');
@@ -1086,86 +2479,37 @@ function renderEv(ev){
     writeBlank();
     writeLine('<span class="t-dim">──────────────────────────────────────────────────────────</span>');
     writeLine(`<span class="t-green">Build complete.</span>  <span class="t-dim">${state.files.length} file(s) · ${ev.iterations||1} iteration(s).</span>  <span class="t-dim">Run </span><span class="t-orange">/export</span><span class="t-dim"> to download.</span>`);
-    for(const f of state.files){
-      const row = document.createElement('div');
-      row.className='t-line';
-      row.innerHTML=`  <span class="t-dim">— ${escHtml(f.path)}</span>`;
-      // copy button for each file
-      const cb = document.createElement('button');
-      cb.className='copy-btn'; cb.style.cssText='position:static;opacity:1;margin-left:8px;display:inline';
-      cb.textContent='copy';
-      cb.onclick=()=>copyText(cb, f.content||'');
-      row.appendChild(cb);
-      document.getElementById('terminal-body').appendChild(row);
-    }
-    scrollBottom();
+    for(const f of state.files){ writeLine(`  <span class="t-dim">— ${escHtml(f.path)}</span>`); }
+    logAgentEvent('system','done',`Build complete — ${state.files.length} file(s) · ${ev.iterations||1} iteration(s)`);
+    renderOutput();
+    markTabBadge('output');
     return;
   }
+  logAgentEvent(role, ev.kind||'status', ev.text);
   const arrow = ev.kind==='error' ? '<span class="t-red">✗</span>' : ev.kind==='output' ? '<span class="t-green">›</span>' : '<span class="t-muted">·</span>';
-  const text = String(ev.text||'');
-
-  // Detect code blocks (```...```) in output and render them styled
-  const codeBlockRe = /```(?:\w+)?\n([\s\S]*?)```/g;
-  let lastIdx=0, hasCode=false, match;
-  const frag = document.createDocumentFragment();
-  while((match=codeBlockRe.exec(text))!==null){
-    hasCode=true;
-    // text before code block
-    const before = text.slice(lastIdx, match.index);
-    for(const ln of before.split('\n')){
-      if(!ln.trim()) continue;
-      const el=document.createElement('div'); el.className='t-line';
-      el.innerHTML=`<span class="${color}">${label.padEnd(11)}</span>${arrow} <span class="t-text">${escHtml(ln)}</span>`;
-      frag.appendChild(el);
-    }
-    // code block
-    frag.appendChild(makeCodeBlock(match[1]));
-    lastIdx = match.index+match[0].length;
-  }
-  if(hasCode){
-    // remaining text
-    const after = text.slice(lastIdx);
-    for(const ln of after.split('\n')){
-      if(!ln.trim()) continue;
-      const el=document.createElement('div'); el.className='t-line';
-      el.innerHTML=`<span class="${color}">${label.padEnd(11)}</span>${arrow} <span class="t-text">${escHtml(ln)}</span>`;
-      frag.appendChild(el);
-    }
-    document.getElementById('terminal-body').appendChild(frag);
-    scrollBottom();
-    return;
-  }
-
-  // No code block — plain rendering
-  for(const ln of text.split('\n')){
+  for(const ln of String(ev.text||'').split('\n')){
     if(!ln.trim()) continue;
     const txt = ev.kind==='error' ? `<span class="t-red">${escHtml(ln)}</span>` : `<span class="t-text">${escHtml(ln)}</span>`;
     writeLine(`<span class="${color}">${label.padEnd(11)}</span>${arrow} ${txt}`);
   }
 }
 
-// ── EXPORT ──────────────────────────────────────────────────────────────────────
+// ── EXPORT ────────────────────────────────────────────────────────────────────
 async function cmdExport(arg=''){
   if(!state.files.length){
     writeLine('<span class="t-yellow">No generated files yet. Run /gencode first.</span>');
     return;
   }
-
-  // /export html — bundle everything into one self-contained index.html
   if(arg.trim().toLowerCase()==='html'){
     cmdExportHtml();
     return;
   }
-
-  // Single HTML file → download directly (no need to ZIP)
   if(state.files.length===1 && /\.html?$/i.test(state.files[0].path)){
     const f=state.files[0];
     saveAs(new Blob([f.content||''],{type:'text/html'}), 'index.html');
     writeLine('<span class="t-green">Downloaded → index.html</span>');
     return;
   }
-
-  // Multiple files → ZIP
   if(typeof JSZip==='undefined'){ writeLine('<span class="t-red">ZIP library not loaded.</span>'); return; }
   writeLine('<span class="t-dim">Packaging '+state.files.length+' file(s)...</span>');
   const zip=new JSZip();
@@ -1177,7 +2521,6 @@ async function cmdExport(arg=''){
   writeLine('<span class="t-dim">  Tip: <span class="t-orange">/export html</span> → bundle ทุกไฟล์เป็น index.html ไฟล์เดียว</span>');
 }
 
-// Bundle all HTML/CSS/JS into one self-contained index.html (inline everything)
 function cmdExportHtml(){
   const htmlFile =
     state.files.find(f=>/index\.html?$/i.test(f.path)) ||
@@ -1186,11 +2529,8 @@ function cmdExportHtml(){
     writeLine('<span class="t-yellow">ไม่มีไฟล์ HTML ในผลลัพธ์ — ใช้ /export เพื่อดาวน์โหลดเป็น ZIP แทน</span>');
     return;
   }
-
   writeLine('<span class="t-dim">Bundling into single index.html (inlining CSS + JS)...</span>');
   let html = htmlFile.content || '';
-
-  // Inline <link rel="stylesheet" href="...">
   html = html.replace(
     /<link([^>]+)rel=["']stylesheet["'][^>]*href=["']([^"'#?]+)["'][^>]*\/?>/gi,
     (match, _attrs, href)=>{
@@ -1199,8 +2539,6 @@ function cmdExportHtml(){
       return css ? `<style>\n${css.content||''}\n</style>` : match;
     }
   );
-
-  // Inline <script src="..."><\/script>
   html = html.replace(
     /<script([^>]*)\bsrc=["']([^"'#?]+)["']([^>]*)><\/script>/gi,
     (match, pre, src, post)=>{
@@ -1209,48 +2547,41 @@ function cmdExportHtml(){
       return js ? `<script${pre}${post}>\n${js.content||''}\n<\/script>` : match;
     }
   );
-
   saveAs(new Blob([html],{type:'text/html'}), 'index.html');
   writeLine('<span class="t-green">Exported → index.html</span> <span class="t-dim">(self-contained · เปิดได้เลยในเบราว์เซอร์)</span>');
 }
 
-// ── INFO COMMANDS ────────────────────────────────────────────────────────────────
+// ── INFO COMMANDS ─────────────────────────────────────────────────────────────
 async function cmdAgents(){
   writeLine('AOF Agent Squad  (TMAP v2)');
   writeLine('<span class="t-dim">──────────────────────────────────────────────────────────</span>');
   writeBlank();
   const rows=[
+    ['Architect','Design','decides approach + new/modify files, flags risks early'],
     ['Gemini','Planner','breaks the task into a concrete plan'],
     ['DeepSeek','Coder','writes the actual code files'],
-    ['Qwen','Reviewer','reviews code, flags issues'],
     ['Meta Llama','Validator','runs grounded syntax validation'],
+    ['Qwen','Reviewer','reviews code, flags issues'],
+    ['Documenter','Docs','generates a README for the result'],
   ];
   for(const [n,role,desc] of rows){
-    await sleep(60);
+    await sleep(50);
     writeLine(`  <span class="t-orange">${n.padEnd(12)}</span> <span class="t-dim">${role.padEnd(11)}</span> <span class="t-green">Ready</span>`);
     writeLine(`  <span class="t-dim">${' '.repeat(12)} ${desc}</span>`);
     writeBlank();
   }
-  writeLine('<span class="t-green">Agents collaborate through a shared blackboard (plan → code → validate → review).</span>');
+  writeLine('<span class="t-green">Pipeline: architect → plan → code → validate → review → document.</span>');
+  writeLine('<span class="t-dim">Plus an Impact Analysis pass that warns which files a change might break.</span>');
 }
 async function cmdProfile(){
-  let keysLine='—', costLine='—', sessCount='—';
-  try{
-    const me=await api('/v1/me');
-    keysLine=Object.entries(me.keys).filter(([,v])=>v).map(([p])=>p).join('  ')||'none set';
-  }catch{}
-  try{
-    const cost=await api('/v1/me/cost');
-    costLine=`$${(cost.totalCostUsd||0).toFixed(4)}  (${(cost.totalTokens||0).toLocaleString()} tokens · ${cost.sessionCount||0} sessions)`;
-    sessCount=String(cost.sessionCount||0);
-  }catch{}
+  let keysLine='—';
+  try{ const me=await api('/v1/me'); keysLine=Object.entries(me.keys).filter(([,v])=>v).map(([p])=>p).join('  ')||'none set'; }catch{}
   writeLine('User Profile');
   writeLine('<span class="t-dim">──────────────────────────────</span>');
   writeLine(`  user        <span class="t-orange">${escHtml(state.user)}</span>`);
-  writeLine(`  sessions    <span class="t-orange">${sessCount}</span>`);
+  writeLine(`  sessions    <span class="t-orange">${state.sessions}</span>`);
   writeLine(`  mode        <span class="t-orange">${MODE_LABEL[state.mode]}</span>`);
   writeLine(`  api keys    <span class="t-orange">${escHtml(keysLine)}</span>`);
-  writeLine(`  total cost  <span class="t-orange">${escHtml(costLine)}</span>`);
 }
 async function cmdSettings(){
   writeLine('System Configuration');
@@ -1273,18 +2604,18 @@ async function cmdHelp(){
   writeLine('<span class="t-dim">Set provider keys with </span><span class="t-orange">/keys</span><span class="t-dim"> (openrouter key works for all 4 agents).</span>');
 }
 
-// ── AGENT / MODE HELPERS ─────────────────────────────────────────────────────────
+// ── AGENT / MODE HELPERS ──────────────────────────────────────────────────────
 function setMode(m){ document.getElementById('sb-mode').textContent=m; }
 function setAgentBusy(role){ const d=document.getElementById('dot-'+role),l=document.getElementById('status-'+role); if(d)d.className='agent-dot busy'; if(l)l.textContent='Working...'; }
 function setAgentDone(role){ const d=document.getElementById('dot-'+role),l=document.getElementById('status-'+role); if(d)d.className='agent-dot done'; if(l)l.textContent='Done'; }
 function setAgentReady(role){ const d=document.getElementById('dot-'+role),l=document.getElementById('status-'+role); if(d)d.className='agent-dot'; if(l)l.textContent='Ready'; }
 function resetAgents(){
-  ['planner','coder','reviewer','validator'].forEach(setAgentReady);
+  ['architect','planner','coder','reviewer','validator','documenter'].forEach(setAgentReady);
   document.getElementById('sb-agents').textContent=agentsLabel();
 }
 function setWfStep(n){ for(let i=0;i<7;i++){ const el=document.getElementById('wf-'+i); if(!el)continue; el.className='wf-step'+(i<n?' done':i===n?' active':''); } }
 
-// ── HISTORY ──────────────────────────────────────────────────────────────────────
+// ── HISTORY ───────────────────────────────────────────────────────────────────
 function addHistory(name){ if(!state.projects.includes(name)){ state.projects.unshift(name); if(state.projects.length>20)state.projects.pop(); } renderHistory(); }
 function renderHistory(){
   document.getElementById('hist-list').innerHTML = state.projects.map(p=>`
@@ -1294,45 +2625,37 @@ function renderHistory(){
 }
 function reRun(p){ document.getElementById('cmd-input').value=p; focusInput(); }
 
-async function loadServerHistory(){
-  try{
-    const d = await api('/v1/sessions?limit=20');
-    const sessions = d.sessions || [];
-    if(!sessions.length){
-      // fall back to IndexedDB
-      const rows = await idbLoadHistory();
-      state.projects = rows.map(r=>r.task||'session').slice(0,20);
-    } else {
-      state.projects = sessions.map(s=>s.task||s.summary||'session').slice(0,20);
-      document.getElementById('sb-sessions').textContent='sessions: '+sessions.length;
-    }
-    renderHistory();
-  }catch{
-    // offline fallback — load from IndexedDB
-    const rows = await idbLoadHistory();
-    state.projects = rows.map(r=>r.task||'session').slice(0,20);
-    renderHistory();
-  }
-}
-
-// ── MODEL SELECTOR ───────────────────────────────────────────────────────────────
+// ── MODEL SELECTOR ────────────────────────────────────────────────────────────
 function toggleModelPanel(){ document.getElementById('model-panel').classList.toggle('open'); }
+function setModelUI(key){
+  document.getElementById('model-label').textContent=MODE_LABEL[key];
+  document.getElementById('sb-model').textContent=MODE_LABEL[key];
+  document.querySelectorAll('.mi-option').forEach((o,i)=>o.classList.toggle('selected',['lite','normal','pro','titan'][i]===key));
+}
 function selectModel(mode){
-  state.mode=mode;
-  document.getElementById('model-label').textContent=MODE_LABEL[mode];
-  document.getElementById('sb-model').textContent=MODE_LABEL[mode];
   document.getElementById('model-panel').classList.remove('open');
-  document.querySelectorAll('.mi-option').forEach((o,i)=>o.classList.toggle('selected',['lite','normal','pro'][i]===mode));
+  if(mode==='titan'){
+    setModelUI('titan');
+    if(!state.titan) cmdTitanMode('');   // enter Titan planning session
+    return;
+  }
+  if(state.titan){
+    // leaving Titan back to a normal TMAP mode
+    state.titan=false;
+    state.titanBlueprint=null;
+    setPhase('planning');
+    writeLine('<span class="t-dim">ออกจาก Titan Mode — กลับสู่ planning ปกติ (RAA)</span>');
+  }
+  state.mode=mode;
+  setModelUI(mode);
 }
 document.addEventListener('click', e=>{ if(!e.target.closest('.model-wrap')) document.getElementById('model-panel').classList.remove('open'); });
 
-// ── INLINE COMMAND AUTOCOMPLETE ──────────────────────────────────────────────────
-// พิมพ์ "/" ในช่องแชท → ขึ้นรายการคำสั่งทั้งหมด คลิกเลือกได้เลย (แทน Ctrl+K เดิม)
+// ── INLINE COMMAND AUTOCOMPLETE ───────────────────────────────────────────────
 let acIndex = -1, acItems = [];
 function acEl(){ return document.getElementById('cmd-ac'); }
 function updateAutocomplete(){
   const v = document.getElementById('cmd-input').value;
-  // show only while typing the command word — hide once a space (args) is entered
   if(v[0] !== '/' || v.includes(' ')){ closeAutocomplete(); return; }
   const q = v.slice(1).toLowerCase();
   acItems = COMMANDS.filter(c => c.cmd.slice(1).startsWith(q));
@@ -1362,7 +2685,7 @@ function pickCommand(i){
   runCmd(item.cmd);
 }
 
-// ── KEYBOARD ─────────────────────────────────────────────────────────────────────
+// ── KEYBOARD ──────────────────────────────────────────────────────────────────
 document.addEventListener('keydown', e=>{
   if(e.key==='Escape'){ closeAutocomplete(); closeKeys(); focusInput(); }
 });
@@ -1380,26 +2703,136 @@ cmdInput.addEventListener('keydown', e=>{
   }
 });
 
-// ── CLOCK / TOAST ────────────────────────────────────────────────────────────────
+// ── VISUAL TMAP — TABS / AGENT LOG / OUTPUT ───────────────────────────────────
+const PANELS = { terminal: 'terminal-body', agentlog: 'agentlog-body', output: 'output-body' };
+const ROLE_AV = {
+  raa:        ['R',  'av-raa',        'RAA'],
+  architect:  ['A',  'av-architect',  'Architect'],
+  planner:    ['G',  'av-planner',    'Gemini'],
+  coder:      ['DS', 'av-coder',      'DeepSeek'],
+  reviewer:   ['Q',  'av-reviewer',   'Qwen'],
+  validator:  ['L',  'av-validator',  'Meta Llama'],
+  documenter: ['D',  'av-documenter', 'Documenter'],
+  impact:     ['I',  'av-impact',     'Impact'],
+  system:     ['S',  'av-system',     'System'],
+};
+
+function switchTab(name){
+  state.activeTab = name;
+  for(const [tab, panelId] of Object.entries(PANELS)){
+    document.getElementById('tab-'+tab).classList.toggle('active', tab===name);
+    document.getElementById(panelId).style.display = tab===name ? (tab==='terminal' ? 'block' : 'flex') : 'none';
+  }
+  const badge = document.getElementById('badge-'+name);
+  if(badge) badge.classList.remove('show');
+  if(name==='output') renderOutput();
+  if(name==='terminal') focusInput();
+}
+
+function markTabBadge(name){
+  if(state.activeTab===name) return;
+  const badge = document.getElementById('badge-'+name);
+  if(badge) badge.classList.add('show');
+}
+
+function logAgentEvent(role, kind, text){
+  text = String(text||'').trim();
+  if(!text) return;
+  state.agentLog.push({ role, kind, text, ts: now() });
+  if(state.agentLog.length > 500) state.agentLog.shift();
+
+  const [initials, avClass, name] = ROLE_AV[role] || ROLE_AV.system;
+  const body = document.getElementById('agentlog-body');
+  const nearBottom = body.scrollHeight - body.scrollTop - body.clientHeight < 80;
+
+  const row = document.createElement('div');
+  row.className = 'al-row';
+  row.innerHTML =
+    `<div class="al-avatar ${avClass}">${initials}</div>`+
+    `<div class="al-main">`+
+      `<div class="al-head">`+
+        `<span class="al-name">${name}</span>`+
+        `<span class="al-kind kind-${kind}">${kind}</span>`+
+        `<span class="al-time">${now()}</span>`+
+      `</div>`+
+      `<div class="al-text">${escHtml(text)}</div>`+
+    `</div>`;
+  body.appendChild(row);
+  while(body.children.length > 500) body.removeChild(body.firstChild);
+  if(nearBottom || state.activeTab!=='agentlog') body.scrollTop = body.scrollHeight;
+  markTabBadge('agentlog');
+}
+
+function extDotClass(path){
+  const ext = (path.split('.').pop()||'').toLowerCase();
+  return ['html','css','js','jsx','ts','tsx','json','py'].includes(ext) ? 'ext-'+ext : '';
+}
+
+function renderOutput(){
+  const body = document.getElementById('output-body');
+  if(!state.files.length){
+    body.innerHTML =
+      `<div class="out-empty">`+
+        `<svg width="36" height="36" viewBox="0 0 24 24" fill="none">`+
+          `<path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9l-7-7z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>`+
+          `<path d="M13 2v7h7" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>`+
+        `</svg>`+
+        `<span>No generated files yet — run <span style="color:var(--accent)">/gencode</span> first</span>`+
+      `</div>`;
+    return;
+  }
+  if(state.outSel >= state.files.length) state.outSel = 0;
+  const items = state.files.map((f,i)=>
+    `<div class="out-file-item ${i===state.outSel?'sel':''}" onclick="selectOutputFile(${i})">`+
+      `<div class="out-file-dot ${extDotClass(f.path)}"></div>`+
+      `<span class="out-file-name">${escHtml(f.path)}</span>`+
+      `<span class="out-file-size">${formatSize((f.content||'').length)}</span>`+
+    `</div>`).join('');
+  const sel = state.files[state.outSel];
+  body.innerHTML =
+    `<div class="out-toolbar">`+
+      `<span class="out-stat"><b>${state.files.length}</b> file(s)</span>`+
+      `<span class="out-stat" style="color:var(--fg3)">·</span>`+
+      `<span class="out-stat"><b>${formatSize(state.files.reduce((s,f)=>s+(f.content||'').length,0))}</b> total</span>`+
+      `<button class="out-export-btn" onclick="runCmd('/export')">Export ZIP</button>`+
+    `</div>`+
+    `<div class="out-split">`+
+      `<div class="out-files">${items}</div>`+
+      `<div class="out-preview">`+
+        `<div class="out-preview-head">${escHtml(sel.path)}</div>`+
+        `<pre class="out-preview-code">${escHtml(sel.content||'')}</pre>`+
+      `</div>`+
+    `</div>`;
+}
+
+function selectOutputFile(i){
+  state.outSel = i;
+  renderOutput();
+}
+
+function formatSize(n){
+  if(n < 1024) return n + ' B';
+  return (n/1024).toFixed(1) + ' KB';
+}
+
+// ── CLOCK / TOAST ─────────────────────────────────────────────────────────────
 function updateClock(){ document.getElementById('sb-clock').textContent=now(); }
 setInterval(updateClock,1000); updateClock();
 let toastTimer;
-function agentsLabel(){ return state.phase==='planning' ? 'RAA active' : '4 agents ready'; }
+function agentsLabel(){ return state.phase==='planning' ? 'RAA active' : '6 agents ready'; }
 function showToast(msg){ const el=document.getElementById('sb-agents'); el.textContent=msg; clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.textContent=agentsLabel(),3000); }
 
-// ── INIT ─────────────────────────────────────────────────────────────────────────
+// ── INIT ──────────────────────────────────────────────────────────────────────
 async function init(){
   syncUser();
   const inp = document.getElementById('cmd-input');
-  inp.disabled = true;                 // dead until we confirm a valid session
+  inp.disabled = true;
   if(!state.token){ showAuth(); return; }
-  // verify token still valid
   try{
-    await api('/v1/me');               // 20s timeout lives inside api()
+    await api('/v1/me');
     inp.disabled = false;
     await boot();
   }catch(e){
-    // expired/invalid token, or server unreachable → drop straight back to login
     if(e.status === 401){
       state.token=''; state.user='';
       localStorage.removeItem('aof:token'); localStorage.removeItem('aof:uname');
@@ -1408,6 +2841,9 @@ async function init(){
     const body=document.getElementById('terminal-body');
     if(body) body.innerHTML='';
     showAuth();
+    if(e.status !== 401){
+      authMsg('เซิร์ฟเวอร์ไม่พร้อมใช้งาน กรุณาลองใหม่ในอีกสักครู่','err');
+    }
   }
 }
 window.addEventListener('beforeinstallprompt', e => {

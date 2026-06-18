@@ -4,6 +4,7 @@ import type { Role, ResolvedProvider, Mode } from './types.js';
 interface ProviderDef {
   name: string;
   envKey: string;          // env var holding the direct API key
+  legacyEnvKey?: string;   // older env var name, checked if envKey is unset
   baseURL: string;         // OpenAI-compatible base URL
   defaultModel: string;
   modelEnv: string;        // env var to override model name
@@ -17,9 +18,9 @@ export const PROVIDERS: Record<string, ProviderDef> = {
     name: 'Gemini',
     envKey: 'GEMINI_API_KEY',
     baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai',
-    defaultModel: 'gemini-2.0-flash',
+    defaultModel: 'gemini-2.5-flash',
     modelEnv: 'GEMINI_MODEL',
-    openrouterModel: 'google/gemini-2.0-flash-001',
+    openrouterModel: 'google/gemini-2.5-flash',
   },
   deepseek: {
     name: 'DeepSeek',
@@ -31,7 +32,10 @@ export const PROVIDERS: Record<string, ProviderDef> = {
   },
   qwen: {
     name: 'Qwen',
-    envKey: 'DASHSCOPE_API_KEY',
+    // QWEN_API_KEY matches the aof-web key name; DASHSCOPE_API_KEY is kept as a
+    // fallback for existing deployments that set it directly (see legacyEnvKey).
+    envKey: 'QWEN_API_KEY',
+    legacyEnvKey: 'DASHSCOPE_API_KEY',
     baseURL: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
     defaultModel: 'qwen-plus',
     modelEnv: 'QWEN_MODEL',
@@ -39,7 +43,10 @@ export const PROVIDERS: Record<string, ProviderDef> = {
   },
   llama: {
     name: 'Llama',
-    envKey: 'GROQ_API_KEY',
+    // LLAMA_API_KEY matches the aof-web key name; GROQ_API_KEY is kept as a
+    // fallback since Llama here is served through Groq's API (see legacyEnvKey).
+    envKey: 'LLAMA_API_KEY',
+    legacyEnvKey: 'GROQ_API_KEY',
     baseURL: 'https://api.groq.com/openai/v1',
     defaultModel: 'llama-3.3-70b-versatile',
     modelEnv: 'LLAMA_MODEL',
@@ -59,7 +66,12 @@ const OPENROUTER_BASE = 'https://openrouter.ai/api/v1';
 
 function directKey(def: ProviderDef): string | undefined {
   const v = process.env[def.envKey];
-  return v && v.trim() ? v.trim() : undefined;
+  if (v && v.trim()) return v.trim();
+  if (def.legacyEnvKey) {
+    const legacy = process.env[def.legacyEnvKey];
+    if (legacy && legacy.trim()) return legacy.trim();
+  }
+  return undefined;
 }
 
 function openrouterKey(): string | undefined {
@@ -193,8 +205,8 @@ export function bagFromEnv(): CredentialBag {
   const or = process.env.OPENROUTER_API_KEY;
   if (or?.trim()) bag.openrouter = or.trim();
   for (const [pk, def] of Object.entries(PROVIDERS)) {
-    const v = process.env[def.envKey];
-    if (v?.trim()) (bag as Record<string, unknown>)[pk] = v.trim();
+    const v = directKey(def);
+    if (v) (bag as Record<string, unknown>)[pk] = v;
     const m = process.env[def.modelEnv];
     if (m?.trim()) { (bag.models ??= {})[pk] = m.trim(); }
   }

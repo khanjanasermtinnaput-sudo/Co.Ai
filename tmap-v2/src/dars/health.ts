@@ -20,8 +20,9 @@ export interface ProviderHealth {
 
 const FAIL_THRESHOLD = 3;          // consecutive transient fails → open
 const BASE_COOLDOWN_MS = 30_000;   // base open cooldown
-const QUOTA_COOLDOWN_MS = 60 * 60_000; // quota exhausted → back off 1h
-const RATE_COOLDOWN_MS = 60_000;   // default rate-limit cooldown if no Retry-After
+const QUOTA_COOLDOWN_MS = 60 * 60_000;  // quota exhausted → back off 1h
+const RATE_COOLDOWN_MS = 60_000;        // default rate-limit cooldown if no Retry-After
+const AUTH_COOLDOWN_MS  = 24 * 60 * 60_000; // bad API key → back off 24h (permanent until key changes)
 const INIT_LATENCY = 1500;
 
 export class HealthStore {
@@ -70,19 +71,31 @@ export class HealthStore {
     h.lastKind = kind;
     h.updatedAt = Date.now();
 
-    if (kind === 'quota') {
+    if (kind === 'auth') {
+      // Invalid API key is permanent until the key is changed — open for 24h to
+      // avoid wasting calls retrying a provider that will always reject us.
+      h.circuit = 'open';
+      h.cooldownUntil = Date.now() + AUTH_COOLDOWN_MS;
+    } else if (kind === 'quota') {
       h.circuit = 'open';
       h.cooldownUntil = Date.now() + (retryAfterMs ?? QUOTA_COOLDOWN_MS);
     } else if (kind === 'rate_limit') {
       h.circuit = 'open';
       h.cooldownUntil = Date.now() + (retryAfterMs ?? RATE_COOLDOWN_MS);
+    } else if (kind === 'low_quality') {
+      // Repeated low-quality results indicate the provider is unhealthy; let them
+      // accumulate toward the circuit-open threshold like other failures do.
+      if (h.consecutiveFails >= FAIL_THRESHOLD) {
+        const factor = Math.min(h.consecutiveFails - FAIL_THRESHOLD, 4);
+        h.circuit = 'open';
+        h.cooldownUntil = Date.now() + BASE_COOLDOWN_MS * 2 ** factor;
+      }
     } else if (h.consecutiveFails >= FAIL_THRESHOLD) {
       // exponential backoff for repeated down/timeout
       const factor = Math.min(h.consecutiveFails - FAIL_THRESHOLD, 4);
       h.circuit = 'open';
       h.cooldownUntil = Date.now() + BASE_COOLDOWN_MS * 2 ** factor;
     }
-    // low_quality / single transient fail → stay closed (just nudges successRate down)
   }
 
   snapshot(): ProviderHealth[] {

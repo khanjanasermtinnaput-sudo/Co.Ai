@@ -1,11 +1,15 @@
 #!/usr/bin/env node
 import { mkdirSync, writeFileSync, readdirSync, readFileSync, existsSync } from 'node:fs';
-import { join, dirname, extname } from 'node:path';
-import { resolveAll, currentMode, anyKeyConfigured, PROVIDERS, ROLE_PROVIDER } from './config.js';
+import { join, dirname, extname, isAbsolute } from 'node:path';
+import { resolveAll, currentMode, anyKeyConfigured, PROVIDERS, ROLE_PROVIDER, bagFromEnv } from './config.js';
 import { createBlackboard, loadSession } from './core/blackboard.js';
 import { runTMAP } from './core/orchestrator.js';
 import { gatherProjectContext } from './core/context.js';
-import type { Role } from './types.js';
+import { runTitan, blueprintToBuild } from './core/titan.js';
+import { loadMemory, memoryToContext, recordDecision } from './core/memory.js';
+import { chatWithDARS } from './dars/run.js';
+import { globalHealth } from './dars/health.js';
+import type { Role, ChatMessage } from './types.js';
 
 // ── tiny ANSI helpers (no deps) ───────────────────────────────────────────────
 const c = {
@@ -132,13 +136,19 @@ async function cmdGencode(task: string, opts: { apply: boolean; mode?: string })
   }
 
   const outDir = opts.apply ? process.cwd() : join(process.cwd(), 'aof-output');
+  let written = 0;
   for (const f of bb.files) {
+    if (f.path.includes('..') || isAbsolute(f.path)) {
+      console.log(c.yellow(`[skip] unsafe path blocked: ${f.path}`));
+      continue;
+    }
     const target = join(outDir, f.path);
     mkdirSync(dirname(target), { recursive: true });
     writeFileSync(target, f.content, 'utf8');
+    written++;
   }
   console.log(c.dim('─'.repeat(60)));
-  console.log(c.green(`Wrote ${bb.files.length} file(s) to ${c.bold(outDir)}`));
+  console.log(c.green(`Wrote ${written} file(s) to ${c.bold(outDir)}`));
   if (!opts.apply) console.log(c.dim('(use --apply to write into the current project root instead)'));
 
   const high = bb.review.filter((i) => i.severity === 'HIGH').length;
@@ -202,14 +212,117 @@ async function cmdFix(targetDir: string, opts: { apply: boolean }) {
   }
 
   const outDir = opts.apply ? dir : join(process.cwd(), 'aof-fix-output');
+  let written = 0;
   for (const f of bb.files) {
+    if (f.path.includes('..') || isAbsolute(f.path)) {
+      console.log(c.yellow(`[skip] unsafe path blocked: ${f.path}`));
+      continue;
+    }
     const target = join(outDir, f.path);
     mkdirSync(dirname(target), { recursive: true });
     writeFileSync(target, f.content, 'utf8');
+    written++;
   }
   console.log(c.dim('─'.repeat(60)));
-  console.log(c.green(`Fixed ${bb.files.length} file(s) → ${c.bold(outDir)}`));
+  console.log(c.green(`Fixed ${written} file(s) → ${c.bold(outDir)}`));
   if (!opts.apply) console.log(c.dim('(use --apply to overwrite files in place)'));
+}
+
+// ── TITAN MODE — interactive AI System Architect ──────────────────────────────
+async function cmdTitan(task: string, opts: { apply: boolean; mode?: string }) {
+  banner();
+  console.log(`${c.bold(c.orange('TITAN MODE'))} ${c.dim('· Think First, Build Later — AI System Architect')}`);
+  if (!anyKeyConfigured()) console.log(c.yellow('(mock mode — no API key; answers are placeholders)'));
+  console.log(c.dim('─'.repeat(60)));
+  console.log(c.dim('ตอบคำถามของ Titan ไปเรื่อย ๆ จนแผนผ่าน Approval Gate · พิมพ์ exit เพื่อออก\n'));
+
+  const { createInterface } = await import('node:readline/promises');
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  let rlClosed = false;
+  rl.on('close', () => { rlClosed = true; });
+  // EOF-safe prompt: returns 'exit' when stdin closes (e.g. piped input ran out)
+  const ask = async (q: string): Promise<string> => {
+    if (rlClosed) return 'exit';
+    try { return await rl.question(q); } catch { return 'exit'; }
+  };
+  const creds = bagFromEnv();
+  const emit = makeEmit();
+  const call = async (messages: ChatMessage[], callOpts = {}) => {
+    const r = await chatWithDARS('planner', messages, callOpts, {
+      creds, health: globalHealth, emit, sessionId: 'titan-cli',
+    });
+    return r.text;
+  };
+
+  // Project Memory: keyed by project root so Titan remembers across CLI sessions.
+  const memoryKey = process.cwd();
+  let memoryContext = '';
+  try {
+    memoryContext = memoryToContext(await loadMemory(memoryKey));
+    if (memoryContext) console.log(c.dim('project memory loaded — Titan จำการตัดสินใจเก่าของโปรเจกต์นี้ได้\n'));
+  } catch { /* memory is best-effort */ }
+
+  const history: ChatMessage[] = [];
+  let message = task || (await ask(c.orange('คุณ› ') + c.dim('(อธิบายสิ่งที่อยากสร้าง) ')));
+
+  try {
+    while (true) {
+      if (!message.trim()) { message = await ask(c.orange('คุณ› ')); continue; }
+      if (/^(exit|quit|ออก)$/i.test(message.trim())) break;
+
+      console.log(c.dim('\n… Titan กำลังคิด\n'));
+      const result = await runTitan(call, history, message, { emit, memoryContext });
+      history.push({ role: 'user', content: message });
+      history.push({ role: 'assistant', content: result.text });
+      if (result.confidenceBlocked) {
+        console.log(c.yellow(`\n⛔ Confidence ${result.confidence}% < 85% — Titan ถูกระบบบังคับให้ถามต่อ ห้ามวางแผน\n`));
+      }
+
+      for (const line of result.text.split('\n')) {
+        console.log(`${c.orange('titan     ')} ${c.dim('›')} ${line}`);
+      }
+
+      if (result.hasBlueprint && result.blueprint) {
+        // Record the approved blueprint into persistent project memory.
+        try {
+          const bp = result.blueprint;
+          await recordDecision(memoryKey, `Titan blueprint: ${bp.project} — plan ${bp.chosenPlan || '?'}, stack ${bp.techStack || '?'}`);
+        } catch { /* memory is best-effort */ }
+        console.log(c.dim('\n' + '─'.repeat(60)));
+        console.log(c.green('Blueprint อนุมัติแล้ว ✓'));
+        const go = await ask(`${c.bold('ส่งให้ TMAP สร้างโค้ดเลยไหม?')} ${c.dim('(y/N)')} `);
+        if (/^(y|yes|ใช่)$/i.test(go.trim())) {
+          rl.close();
+          const build = blueprintToBuild(result.blueprint);
+          // Titan always generates at Pro quality (override only if explicitly set lower)
+          const mode = (opts.mode === 'lite' || opts.mode === 'normal' ? opts.mode : 'pro') as 'lite' | 'normal' | 'pro';
+          console.log(c.dim('─'.repeat(60)));
+          console.log(c.dim(`mode: ${c.orange(mode)} (Titan → Pro by default)`));
+          const bb = createBlackboard(build.task, mode, build.context);
+          await runTMAP(bb, emit);
+          const outDir = opts.apply ? process.cwd() : join(process.cwd(), 'aof-output');
+          let written = 0;
+          for (const f of bb.files) {
+            if (f.path.includes('..') || isAbsolute(f.path)) {
+              console.log(c.yellow(`[skip] unsafe path blocked: ${f.path}`));
+              continue;
+            }
+            const target = join(outDir, f.path);
+            mkdirSync(dirname(target), { recursive: true });
+            writeFileSync(target, f.content, 'utf8');
+            written++;
+          }
+          console.log(c.dim('─'.repeat(60)));
+          console.log(c.green(`Wrote ${written} file(s) to ${c.bold(outDir)}`));
+          return;
+        }
+      }
+
+      message = await ask('\n' + c.orange('คุณ› '));
+    }
+  } finally {
+    rl.close();
+  }
 }
 
 function cmdSessions() {
@@ -246,6 +359,9 @@ ${c.bold('Commands')}
   ${c.orange('gencode')} "<task>"        run full TMAP pipeline and generate files
         --apply              write files into project root (default: ./aof-output)
         --mode=lite|normal|pro
+  ${c.orange('titan')} ["<idea>"]         Titan Mode — interactive AI System Architect:
+                         discovery → multi-plan → risks → approval gate → build
+        --apply / --mode     same as gencode (used after approval)
   ${c.orange('review')} [dir]            review existing codebase (read-only, lite mode)
   ${c.orange('fix')} [dir]               generate fixes for existing codebase
         --apply              overwrite files in place
@@ -273,6 +389,7 @@ async function main() {
     case 'agents':   cmdAgents(); break;
     case 'context':  cmdContext(); break;
     case 'sessions': cmdSessions(); break;
+    case 'titan':    await cmdTitan(rest, { apply, mode: modeArg }); break;
     case 'review':   await cmdReview(rest); break;
     case 'fix':      await cmdFix(rest, { apply }); break;
     case 'gencode':

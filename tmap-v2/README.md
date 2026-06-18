@@ -53,6 +53,27 @@ npm run doctor
 
 ---
 
+## ⬢ Titan Mode — AI System Architect (ใหม่)
+
+โหมดวางแผนระดับสูงสุด: **Think First, Build Later** — Titan ไม่รีบเขียนโค้ด
+แต่จะถามจนเข้าใจ ≥85% → วิเคราะห์ลึก → เสนอแผน A (เร็วสุด) / B (สมดุล) / C (ดีระยะยาว)
+พร้อม Devil's Advocate, Architecture, Risk Prediction และ Planning Score
+แล้ว**หยุดรอ Approval** ก่อนปล่อย Blueprint ให้ TMAP สร้างโค้ด
+
+```powershell
+# CLI — คุยกับ Titan แบบ interactive จนแผนผ่าน approval แล้วสร้างโค้ดต่อได้เลย
+npm run aof -- titan "อยากได้ระบบจองคิวร้านตัดผม"
+```
+
+บนเว็บ: พิมพ์ `/titan` ในหน้า terminal แล้วคุยตามขั้นตอน
+เมื่อ Titan แสดง `APPROVAL REQUIRED` ให้ตอบ `1` เพื่ออนุมัติ จากนั้นพิมพ์ `/gencode`
+
+ขั้นตอนของ Titan: Discovery → Smart Questions → Confidence Check (<85% ถามต่อ) →
+Multi-Plan → Devil's Advocate → Self Review 5 รอบ → Architecture → Risks →
+Planning Score → **Approval Gate** → Blueprint → TMAP
+
+---
+
 ## ใช้งาน
 ```powershell
 # รัน pipeline เต็ม แล้วได้ไฟล์ออกมาที่ ./aof-output

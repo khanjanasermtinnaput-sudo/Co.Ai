@@ -1,14 +1,11 @@
 name: Deploy GitHub Pages
 
 on:
-  workflow_run:
-    workflows: ["Enable GitHub Pages"]
-    types: [completed]
+  push:
     branches: [main]
 
 jobs:
   deploy:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -21,13 +18,14 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v5
         with:
-          path: ./
+          # Redirect shell → the live app+backend on Render.
+          # (GitHub Pages is static-only and cannot host the Express backend,
+          #  so serving the full app here would 404 on every /v1/ call.)
+          path: ./pages
 
       - name: Deploy to GitHub Pages
         id: deployment

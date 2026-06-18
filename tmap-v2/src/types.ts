@@ -3,6 +3,70 @@
 export type Role = 'planner' | 'coder' | 'reviewer' | 'validator';
 export type Mode = 'lite' | 'normal' | 'pro';
 
+// ── AOF AI Universal Orchestration System types ───────────────────────────────
+
+export type TaskCategory =
+  | 'coding'
+  | 'image_generation'
+  | 'image_editing'
+  | 'research'
+  | 'writing'
+  | 'mathematics'
+  | 'science'
+  | 'data_analysis'
+  | 'education'
+  | 'business'
+  | 'translation'
+  | 'ui_design'
+  | 'ux_design'
+  | 'product_design'
+  | 'video'
+  | 'audio'
+  | 'multi_step';
+
+export type AgentType = 'coding' | 'research' | 'writing' | 'math' | 'vision' | 'chief';
+
+export interface ChiefPlan {
+  intent: string;
+  categories: TaskCategory[];
+  agents: AgentType[];
+  subtasks: string[];
+  strategy: string;
+  expandedPrompt: string;
+}
+
+export interface QualityScore {
+  score: number; // 0-100
+  issues: string[];
+  passed: boolean; // score >= 90
+}
+
+export interface OrchestrationResult {
+  response: string;
+  categories: TaskCategory[];
+  agentsUsed: AgentType[];
+  qualityScore: number;
+  iterations: number;
+}
+
+export interface ResearchResult {
+  answer: string;
+  sources: string[];
+  confidence: 'high' | 'medium' | 'low';
+}
+
+export interface WritingResult {
+  content: string;
+  wordCount: number;
+  tone: string;
+}
+
+export interface MathResult {
+  solution: string;
+  steps: string[];
+  verified: boolean;
+}
+
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;
@@ -55,12 +119,49 @@ export interface CodeFile {
 // Session phase for the two-mode system (TDD §5 — Planning → Generation).
 export type SessionPhase = 'planning' | 'generation';
 
+// Structured metadata produced by the Context Engine v2 (core/context-engine.ts).
+export interface ContextMeta {
+  projectType: string;
+  relevantFiles: string[];
+  conventions: string[];
+  fileCount: number;
+}
+
+// Architect Agent output (core/architect.ts) — the design stage before planning.
+export interface ArchitectDecision {
+  approach: string;        // short design approach / pattern
+  newFiles: string[];      // files that should be created
+  modifyFiles: string[];   // existing files that should be modified
+  risks: string[];         // architectural concerns flagged up-front
+  techStack: string;
+  raw: string;
+}
+
+// Impact Analysis Engine output (core/impact.ts).
+export interface ImpactRisk {
+  file: string;
+  level: 'high' | 'med' | 'low';
+  reason: string;
+  affects: string[];       // files that import / depend on this one
+}
+
+export interface ImpactReport {
+  risks: ImpactRisk[];
+  affectedFiles: string[];
+  summary: string;
+  skipped?: boolean;       // true when there was no dependency graph to analyse
+}
+
 // The Blackboard — shared working memory every agent reads/writes.
 export interface Blackboard {
   sessionId: string;
   task: string;
   mode: Mode;
   context: string;
+  contextMeta?: ContextMeta;
+  architect?: ArchitectDecision;  // design stage output
+  impact?: ImpactReport;          // pre-flight risk analysis
+  docs?: CodeFile[];              // generated documentation files
   plan: PlanStep[];
   planText: string;
   files: CodeFile[];
@@ -70,6 +171,7 @@ export interface Blackboard {
   iterations: number;
   log: AgentEvent[];
   agentRuns?: AgentRun[];   // which provider actually served each agent call (DARS)
+  failureNotes?: string[];  // L4: validation/review failures seen this run (fed to memory)
 }
 
 // Record of one agent call after DARS resolution (TDD §5.3 / §8 agent_logs).

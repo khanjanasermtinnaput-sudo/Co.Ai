@@ -2,6 +2,7 @@ import { execFileSync, execSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import ts from 'typescript';
 import type { CodeFile, ValidationResult } from '../types.js';
 
 /**
@@ -21,6 +22,12 @@ export function validateFiles(files: CodeFile[]): ValidationResult[] {
         break;
       case 'python':
         results.push(checkPython(f));
+        break;
+      case 'go':
+        results.push(checkGo(f));
+        break;
+      case 'rust':
+        results.push(checkRust(f));
         break;
       case 'json':
         results.push(checkJson(f));
@@ -53,25 +60,32 @@ function checkJs(f: CodeFile): ValidationResult {
 }
 
 function checkTs(f: CodeFile): ValidationResult {
-  // Quick structural check: parse as text for obvious issues (balanced braces, no bare syntax errors)
-  // Full tsc would need a tsconfig; this is a lightweight gate.
-  let dir: string | undefined;
+  // Grounded TS syntax check via the real TypeScript compiler. transpileModule
+  // parses the file and reports genuine syntax errors without needing a tsconfig,
+  // while accepting valid TS (type annotations, generics, ternaries, switch) that
+  // the old regex-stripping heuristic used to fail by mistake.
   try {
-    dir = mkdtempSync(join(tmpdir(), 'aof-ts-'));
-    // Strip type annotations for a quick JS parse (not perfect but catches obvious issues)
-    const stripped = f.content
-      .replace(/:\s*\w+(\[\])?(\s*\|[\s\w\[\]|]+)?/g, '')   // simple type annotations
-      .replace(/<[^>]+>/g, '')                                 // generics
-      .replace(/^(interface|type)\s+\w+[^{]*\{[^}]*\}/gm, '');// type/interface blocks
-    const jsFile = join(dir, 'check.mjs');
-    writeFileSync(jsFile, stripped, 'utf8');
-    execFileSync(process.execPath, ['--check', jsFile], { stdio: 'pipe' });
-    return { kind: 'syntax', passed: true, logs: `${f.path}: TS syntax OK (lightweight check)` };
+    const out = ts.transpileModule(f.content, {
+      fileName: f.path,
+      reportDiagnostics: true,
+      compilerOptions: {
+        module: ts.ModuleKind.ESNext,
+        target: ts.ScriptTarget.ES2022,
+        jsx: ts.JsxEmit.Preserve,
+        isolatedModules: false,
+      },
+    });
+    const errors = (out.diagnostics ?? []).filter((d) => d.category === ts.DiagnosticCategory.Error);
+    if (!errors.length) {
+      return { kind: 'syntax', passed: true, logs: `${f.path}: TS syntax OK` };
+    }
+    const msg = errors
+      .slice(0, 3)
+      .map((d) => ts.flattenDiagnosticMessageText(d.messageText, ' '))
+      .join(' · ');
+    return { kind: 'syntax', passed: false, logs: `${f.path}: ${msg}` };
   } catch (e: any) {
-    const msg = (e.stderr?.toString() || e.message || '').split('\n').slice(0, 4).join(' ');
-    return { kind: 'syntax', passed: false, logs: `${f.path}: possible syntax issue: ${msg}` };
-  } finally {
-    if (dir) rmSync(dir, { recursive: true, force: true });
+    return { kind: 'syntax', passed: false, logs: `${f.path}: ${e.message || 'TS parse error'}` };
   }
 }
 
@@ -79,7 +93,9 @@ function checkPython(f: CodeFile): ValidationResult {
   // Use python3 -m py_compile if available
   const python = findPython();
   if (!python) {
-    return { kind: 'skipped', passed: true, logs: `${f.path}: python3 not found, skipped` };
+    // Report skipped as not-passed so callers don't treat an unchecked file as
+    // syntactically valid (the file might still contain errors).
+    return { kind: 'skipped', passed: false, logs: `${f.path}: python3 not found — syntax not verified` };
   }
   let dir: string | undefined;
   try {
@@ -113,4 +129,59 @@ function findPython(): string | null {
     } catch { /* not found */ }
   }
   return null;
+}
+
+function checkGo(f: CodeFile): ValidationResult {
+  if (!commandExists('go')) {
+    return { kind: 'skipped', passed: true, logs: `${f.path}: go toolchain not found, skipped` };
+  }
+  let dir: string | undefined;
+  try {
+    dir = mkdtempSync(join(tmpdir(), 'aof-go-'));
+    // go vet needs a valid module; use go build -syntax-check approach via gofmt -e
+    const file = join(dir, 'check.go');
+    writeFileSync(file, f.content, 'utf8');
+    // gofmt -e reports parse/syntax errors; exit 0 = no errors
+    execFileSync('gofmt', ['-e', file], { stdio: 'pipe', timeout: 15_000 });
+    return { kind: 'syntax', passed: true, logs: `${f.path}: Go syntax OK` };
+  } catch (e: any) {
+    const msg = (e.stderr?.toString() || e.stdout?.toString() || e.message || '')
+      .split('\n').slice(0, 4).join(' ');
+    return { kind: 'syntax', passed: false, logs: `${f.path}: ${msg}` };
+  } finally {
+    if (dir) rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+function checkRust(f: CodeFile): ValidationResult {
+  if (!commandExists('rustc')) {
+    return { kind: 'skipped', passed: true, logs: `${f.path}: rustc not found, skipped` };
+  }
+  let dir: string | undefined;
+  try {
+    dir = mkdtempSync(join(tmpdir(), 'aof-rs-'));
+    const file = join(dir, 'check.rs');
+    writeFileSync(file, f.content, 'utf8');
+    // --emit=metadata only checks + produces tiny metadata, no binary output
+    execFileSync('rustc', ['--edition', '2021', '--emit=metadata', '--error-format=short', '-o', join(dir, 'out'), file], {
+      stdio: 'pipe',
+      timeout: 30_000,
+    });
+    return { kind: 'syntax', passed: true, logs: `${f.path}: Rust syntax OK` };
+  } catch (e: any) {
+    const stderr = e.stderr?.toString() || e.message || '';
+    const msg = stderr.split('\n').filter(Boolean).slice(0, 4).join(' ');
+    return { kind: 'syntax', passed: false, logs: `${f.path}: ${msg}` };
+  } finally {
+    if (dir) rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+function commandExists(cmd: string): boolean {
+  try {
+    execSync(`command -v ${cmd}`, { stdio: 'pipe' });
+    return true;
+  } catch {
+    return false;
+  }
 }

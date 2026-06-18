@@ -1,0 +1,217 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================================
+   Aof design system
+   Dark-first. Orange-gold accent (#F59E0B). Near-black canvas. Glass surfaces.
+   ========================================================================== */
+
+@layer base {
+  :root {
+    /* Light theme (secondary — Aof defaults to dark) */
+    --background: 0 0% 100%; /* pure white #FFFFFF */
+    --foreground: 0 0% 9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 9%;
+
+    --primary: 32 94% 44%; /* #D97706 — calmer amber, 50% less bright */
+    --primary-foreground: 30 60% 8%;
+
+    --secondary: 40 10% 94%;
+    --secondary-foreground: 0 0% 12%;
+
+    --muted: 40 8% 94%;
+    --muted-foreground: 0 0% 40%;
+
+    --accent: 40 12% 92%;
+    --accent-foreground: 0 0% 12%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+    --success: 152 58% 42%;
+    --success-foreground: 0 0% 100%;
+
+    --border: 40 10% 88%;
+    --input: 40 10% 86%;
+    --ring: 32 94% 44%;
+
+    --sidebar: 40 20% 97%;
+    --sidebar-foreground: 0 0% 20%;
+    --sidebar-border: 40 10% 88%;
+
+    --radius: 0.875rem;
+  }
+
+  .dark {
+    /* Dark theme (primary) — true-black canvas, warm orange-gold accent */
+    --background: 0 0% 0%; /* #000000 */
+    --foreground: 40 12% 96%;
+
+    --card: 0 0% 7%; /* #111111 */
+    --card-foreground: 40 10% 96%;
+    --popover: 0 0% 6%;
+    --popover-foreground: 40 10% 96%;
+
+    --primary: 32 94% 44%; /* #D97706 — calmer amber, 50% less bright */
+    --primary-foreground: 30 70% 6%;
+
+    --secondary: 0 0% 11%;
+    --secondary-foreground: 40 10% 92%;
+
+    --muted: 0 0% 11%;
+    --muted-foreground: 40 5% 60%;
+
+    --accent: 0 0% 13%;
+    --accent-foreground: 40 10% 96%;
+
+    --destructive: 0 72% 56%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 152 56% 46%;
+    --success-foreground: 0 0% 100%;
+
+    --border: 0 0% 14%;
+    --input: 0 0% 16%;
+    --ring: 32 94% 46%;
+
+    --sidebar: 0 0% 5%;
+    --sidebar-foreground: 40 6% 70%;
+    --sidebar-border: 0 0% 12%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
+    scrollbar-gutter: stable;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv11", "ss01";
+    font-variation-settings: normal;
+    text-rendering: optimizeLegibility;
+  }
+  ::selection {
+    background: hsl(var(--primary) / 0.28);
+    color: hsl(var(--foreground));
+  }
+
+  /* Quiet, premium scrollbars */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(0 0% 100% / 0.12) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background-color: hsl(0 0% 100% / 0.1);
+    border-radius: 999px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(0 0% 100% / 0.2);
+  }
+}
+
+@layer components {
+  /* Glass surface — translucent, blurred, soft border + inner highlight */
+  .glass {
+    background: linear-gradient(
+      180deg,
+      hsl(0 0% 100% / 0.045),
+      hsl(0 0% 100% / 0.015)
+    );
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    border: 1px solid hsl(0 0% 100% / 0.07);
+    box-shadow: var(--tw-shadow, 0 1px 0 0 hsl(0 0% 100% / 0.05) inset,
+        0 10px 30px -14px hsl(0 0% 0% / 0.7));
+  }
+  .dark .glass {
+    background: linear-gradient(
+      180deg,
+      hsl(0 0% 100% / 0.04),
+      hsl(0 0% 100% / 0.012)
+    );
+    border-color: hsl(0 0% 100% / 0.06);
+  }
+
+  .glass-strong {
+    background: hsl(0 0% 8% / 0.72);
+    backdrop-filter: blur(22px) saturate(150%);
+    -webkit-backdrop-filter: blur(22px) saturate(150%);
+    border: 1px solid hsl(0 0% 100% / 0.08);
+  }
+
+  /* Hairline gradient ring used on interactive cards */
+  .ring-hairline {
+    box-shadow: inset 0 0 0 1px hsl(0 0% 100% / 0.06);
+  }
+
+  /* Accent text gradient for the wordmark / hero */
+  .text-gradient-gold {
+    background: linear-gradient(
+      92deg,
+      hsl(38 92% 50%) 0%,
+      hsl(32 94% 44%) 50%,
+      hsl(26 90% 38%) 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  /* In light mode the wordmark reads better as solid foreground with a warm tint */
+  :root:not(.dark) .text-gradient-gold {
+    background: linear-gradient(
+      92deg,
+      hsl(32 94% 44%) 0%,
+      hsl(26 90% 38%) 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* Subtle animated grid + radial glow used behind the welcome hero */
+  .bg-grid {
+    background-image:
+      linear-gradient(to right, hsl(0 0% 100% / 0.025) 1px, transparent 1px),
+      linear-gradient(to bottom, hsl(0 0% 100% / 0.025) 1px, transparent 1px);
+    background-size: 56px 56px;
+    mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 30%, transparent 75%);
+  }
+
+  .focus-ring {
+    @apply outline-none ring-offset-2 ring-offset-background focus-visible:ring-2 focus-visible:ring-ring;
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  /* Smooth, GPU-friendly transitions for cards */
+  .transition-card {
+    transition:
+      transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 0.25s ease,
+      border-color 0.2s ease,
+      background-color 0.2s ease;
+  }
+  .text-balance {
+    text-wrap: balance;
+  }
+}

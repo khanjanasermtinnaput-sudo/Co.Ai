@@ -1,0 +1,159 @@
+/* ============================================================================
+   TAOTAO — in-chat pixel companion animations.
+   Transform/opacity only (GPU-accelerated), seamless loops, minimal.
+   Honors prefers-reduced-motion.
+   ========================================================================== */
+
+.tao-sprite {
+  display: block;
+  image-rendering: pixelated;
+  overflow: visible;
+}
+
+/* SVG groups animate around their own box. */
+.tao-body,
+.tao-ears,
+.tao-tail,
+.tao-eyelids {
+  transform-box: fill-box;
+}
+
+/* ── Idle life: breathing, ear-twitch, tail-wag, blink ─────────────────────── */
+
+.tao-alive .tao-body {
+  transform-origin: center bottom;
+  animation: tao-breathe 3.4s ease-in-out infinite;
+}
+.tao-alive .tao-ears {
+  transform-origin: center bottom;
+  animation: tao-ear-twitch 4.2s ease-in-out infinite;
+}
+.tao-alive .tao-tail {
+  transform-origin: bottom left;
+  animation: tao-tail-wag 2.8s ease-in-out infinite;
+}
+.tao-alive .tao-eyelids {
+  transform-origin: center top;
+  transform: scaleY(0);
+  animation: tao-blink 5.2s ease-in-out infinite;
+}
+
+@keyframes tao-breathe {
+  0%, 100% { transform: scaleY(1) translateY(0); }
+  50% { transform: scaleY(1.03) translateY(-0.2px); }
+}
+@keyframes tao-ear-twitch {
+  0%, 86%, 100% { transform: rotate(0deg); }
+  90% { transform: rotate(-6deg); }
+  94% { transform: rotate(4deg); }
+}
+@keyframes tao-tail-wag {
+  0%, 100% { transform: rotate(-7deg); }
+  50% { transform: rotate(9deg); }
+}
+@keyframes tao-blink {
+  0%, 92%, 100% { transform: scaleY(0); }
+  95%, 97% { transform: scaleY(1); }
+}
+
+/* ── Sitting bob (waiting) ─────────────────────────────────────────────────── */
+.tao-bob {
+  animation: tao-bob 3.2s ease-in-out infinite;
+}
+@keyframes tao-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+
+/* tiny hop when a message is sent / response lands */
+.tao-hop {
+  animation: tao-hop 0.5s ease-out;
+}
+@keyframes tao-hop {
+  0% { transform: translateY(0); }
+  45% { transform: translateY(-7px); }
+  100% { transform: translateY(0); }
+}
+
+/* ── Sad states (error / quota): slow breathing + folded ears ──────────────── */
+.tao-sad .tao-body {
+  animation: tao-sad-breathe 4.5s ease-in-out infinite;
+  transform-box: fill-box;
+}
+.tao-sad .tao-ears {
+  transform-origin: center bottom;
+  transform: scaleY(0.66) translateY(1px);
+}
+@keyframes tao-sad-breathe {
+  0%, 100% { transform: translateY(0) scaleY(1); }
+  50% { transform: translateY(0.4px) scaleY(0.99); }
+}
+
+/* ── Yarn ball thrown back and forth across the input box (processing) ─────── */
+.tao-yarn-cross {
+  position: absolute;
+  z-index: 2;
+  animation: tao-yarn-cross 1.5s ease-in-out infinite;
+}
+@keyframes tao-yarn-cross {
+  0%   { left: 12%; transform: translateY(0) rotate(0deg); }
+  25%  { transform: translateY(-150%) rotate(180deg); }
+  50%  { left: 80%; transform: translateY(0) rotate(360deg); }
+  75%  { transform: translateY(-150%) rotate(540deg); }
+  100% { left: 12%; transform: translateY(0) rotate(720deg); }
+}
+
+/* ── Effects: ZZZ, tears, sparkles ─────────────────────────────────────────── */
+.tao-zzz {
+  position: absolute;
+  font-family: var(--font-mono, monospace);
+  font-weight: 700;
+  color: rgba(147, 197, 253, 0.9);
+  pointer-events: none;
+  z-index: 2;
+  opacity: 0;
+  animation: tao-zzz 3s ease-in-out infinite;
+}
+@keyframes tao-zzz {
+  0% { opacity: 0; transform: translate(0, 0) scale(0.7); }
+  30% { opacity: 1; }
+  100% { opacity: 0; transform: translate(8px, -16px) scale(1.1); }
+}
+
+.tao-tear {
+  position: absolute;
+  width: 3px;
+  height: 5px;
+  border-radius: 0 60% 60% 60%;
+  background: linear-gradient(180deg, #7dd3fc, #38bdf8);
+  box-shadow: 0 0 5px rgba(56, 189, 248, 0.8);
+  pointer-events: none;
+  z-index: 3;
+  opacity: 0;
+  animation: tao-tear 2.2s ease-in infinite;
+}
+@keyframes tao-tear {
+  0% { opacity: 0; transform: translateY(0) scale(0.6); }
+  20% { opacity: 1; transform: translateY(2px) scale(1); }
+  100% { opacity: 0; transform: translateY(12px) scale(0.9); }
+}
+
+.tao-twinkle {
+  animation: tao-twinkle 1.8s ease-in-out infinite;
+}
+@keyframes tao-twinkle {
+  0%, 100% { opacity: 0; transform: scale(0.6) rotate(0deg); }
+  50% { opacity: 1; transform: scale(1.1) rotate(20deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tao-sprite *,
+  .tao-bob,
+  .tao-hop,
+  .tao-yarn-cross,
+  .tao-zzz,
+  .tao-tear,
+  .tao-twinkle {
+    animation: none !important;
+  }
+}
