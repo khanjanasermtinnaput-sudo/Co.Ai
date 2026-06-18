@@ -1,8 +1,8 @@
 {
-  "name": "aof-web",
+  "name": "nexora-web",
   "version": "0.1.0",
   "private": true,
-  "description": "Aof — professional AI platform homepage experience (Chat · Aof Code · Projects)",
+  "description": "Nexora — professional AI platform homepage experience (Chat · Nexora Code · Projects)",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

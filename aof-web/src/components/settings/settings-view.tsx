@@ -109,7 +109,7 @@ function AccountTab() {
     if (user) setName(user.name);
   }, [user]);
 
-  const email = user?.email ?? "you@aof.ai";
+  const email = user?.email ?? "you@nexora.ai";
 
   const save = async () => {
     setSaving(true);
@@ -140,7 +140,7 @@ function AccountTab() {
       <Card>
         <CardHeader>
           <CardTitle>Profile</CardTitle>
-          <CardDescription>How you appear across Aof.</CardDescription>
+          <CardDescription>How you appear across Nexora.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
@@ -194,7 +194,7 @@ function AppearanceTab() {
       <Card>
         <CardHeader>
           <CardTitle>Theme</CardTitle>
-          <CardDescription>Aof looks its best in the dark.</CardDescription>
+          <CardDescription>Nexora looks its best in the dark.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 gap-3">
@@ -219,7 +219,7 @@ function AppearanceTab() {
       <Card>
         <CardHeader>
           <CardTitle>Accent</CardTitle>
-          <CardDescription>The signature Aof orange-gold.</CardDescription>
+          <CardDescription>The signature Nexora orange-gold.</CardDescription>
         </CardHeader>
         <CardContent className="flex items-center gap-3">
           <span className="size-9 rounded-full bg-primary shadow-glow" />
@@ -360,7 +360,7 @@ function KeysTab() {
           <CardDescription>
             Bring your own keys. They&apos;re encrypted at rest and tied to your account —
             we never show them again or send them back to the browser. Leave everything blank
-            to run Aof in mock mode.
+            to run Nexora in mock mode.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

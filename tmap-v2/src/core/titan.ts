@@ -1,4 +1,4 @@
-// Aof Titan — the highest-level planning and architecture mode in AOF Code.
+// Nexora Titan — the highest-level planning and architecture mode in AOF Code.
 // STRICT CONTRACT: Titan NEVER writes code. Think First, Build Later.
 // Workflow: Discovery → Smart Questions → Deep Analysis → Multi-Plan →
 // Devil's Advocate → Self Review → Architecture → Risks → Planning Score →

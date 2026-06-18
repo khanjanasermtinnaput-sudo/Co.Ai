@@ -27,7 +27,7 @@ import { checkUserAccess } from "@/lib/access";
 import { useAuthStore } from "@/store/auth-store";
 import { useChatStore } from "@/store/chat-store";
 import { uid } from "@/lib/utils";
-import { formatErrorBlock, type AofProviderError, type FailoverNotice } from "@/lib/errors";
+import { formatErrorBlock, type NexoraProviderError, type FailoverNotice } from "@/lib/errors";
 import type {
   ChatMessageT,
   ClarifyQuestion,
@@ -74,7 +74,7 @@ interface CodeState {
   setMode: (m: CodeMode) => void;
 
   // ── Conversation-first workflow (RAA → brief → generate) ──────────────────
-  // Aof Code discusses the project first; TMAP only runs on an explicit trigger
+  // Nexora Code discusses the project first; TMAP only runs on an explicit trigger
   // (the Generate Code button or the /gencode command).
   convo: ChatMessageT[];
   brief: ProjectBrief | null;
@@ -106,7 +106,7 @@ interface CodeState {
   // ── Standard build (lite / 1.0 / pro) ─────────────────────────────────────
   buildLog: string;
   /** provider failure for the current build/plan/analyze/debug action */
-  buildError: AofProviderError | null;
+  buildError: NexoraProviderError | null;
   building: boolean;
   abort: AbortController | null;
   runBuild: (task: string) => Promise<void>;
@@ -148,7 +148,7 @@ function deriveBuildInput(
     .map((m) => `${m.role}: ${m.content}`)
     .join("\n");
   const firstUser = convo.find((m) => m.role === "user")?.content ?? "";
-  const task = firstUser.trim().slice(0, 120) || "project from Aof Code";
+  const task = firstUser.trim().slice(0, 120) || "project from Nexora Code";
   return { task, context: conversationToContext(transcript), briefText: transcript };
 }
 
@@ -238,13 +238,13 @@ export const useCodeStore = create<CodeState>()(
         convo: s.convo.map((m) => (m.id === assistantId ? { ...m, ...p } : m)),
       }));
     // A provider failure must surface as an error panel — never a fabricated reply.
-    const onError = (error: AofProviderError) => patch({ error, streaming: false });
+    const onError = (error: NexoraProviderError) => patch({ error, streaming: false });
     const onFailover = (failover: FailoverNotice) => patch({ failover });
 
     try {
       if (convState === "NORMAL_CHAT") {
         // ── NORMAL_CHAT: casual reply, no RAA, no brief update ────────────────
-        // Honour the shared Web Search preference so Aof Code answers can be
+        // Honour the shared Web Search preference so Nexora Code answers can be
         // grounded in live docs/web results too (spec §3 — every mode).
         await streamCodeChat(content, history, {
           onToken: append,
@@ -497,8 +497,8 @@ export const useCodeStore = create<CodeState>()(
     }),
     {
       // Project session memory — remember the conversation, brief and mode across
-      // reloads so Aof Code doesn't re-ask what's already been decided.
-      name: "aof.code",
+      // reloads so Nexora Code doesn't re-ask what's already been decided.
+      name: "nexora.code",
       partialize: (s) => ({ convo: s.convo, brief: s.brief, mode: s.mode, projectActive: s.projectActive }),
     },
   ),

@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
 // Point DB to temp dir before importing
-const tmpDir = mkdtempSync(join(tmpdir(), 'aof-db-test-'));
+const tmpDir = mkdtempSync(join(tmpdir(), 'nexora-db-test-'));
 process.env.AOF_DB_PATH = join(tmpDir, 'db.json');
 
 // Dynamic import after env is set

@@ -7,12 +7,12 @@ function att(kind: Attachment['kind'], name = 'file.txt'): Attachment {
   return { id: '1', kind, name, mime: 'text/plain', size: 100 };
 }
 
-// ── default → Aof Chat ────────────────────────────────────────────────────────
+// ── default → Nexora Chat ────────────────────────────────────────────────────────
 
 test('general question routes to chat', () => {
   const r = routeRequest('What is the capital of France?');
   assert.equal(r.target, 'chat');
-  assert.equal(r.label, 'Aof Chat');
+  assert.equal(r.label, 'Nexora Chat');
 });
 
 test('greeting routes to chat', () => {
@@ -25,12 +25,12 @@ test('empty-ish question routes to chat (default fallback)', () => {
   assert.equal(r.target, 'chat');
 });
 
-// ── code keywords → Aof Code ─────────────────────────────────────────────────
+// ── code keywords → Nexora Code ─────────────────────────────────────────────────
 
 test('explicit code keyword routes to code', () => {
   const r = routeRequest('write me some code');
   assert.equal(r.target, 'code');
-  assert.equal(r.label, 'Aof Code');
+  assert.equal(r.label, 'Nexora Code');
 });
 
 test('debug keyword routes to code', () => {
@@ -109,8 +109,8 @@ test('pdf attachment without coding ask routes to chat', () => {
 // ── routeLabel ────────────────────────────────────────────────────────────────
 
 test('routeLabel returns correct labels for all targets', () => {
-  assert.equal(routeLabel('chat'), 'Aof Chat');
-  assert.equal(routeLabel('code'), 'Aof Code');
+  assert.equal(routeLabel('chat'), 'Nexora Chat');
+  assert.equal(routeLabel('code'), 'Nexora Code');
   assert.equal(routeLabel('search'), 'Search Agent');
 });
 

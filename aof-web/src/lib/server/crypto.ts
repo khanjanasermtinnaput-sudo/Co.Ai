@@ -1,7 +1,7 @@
 // ── API-key encryption at rest (AES-256-GCM) ──────────────────────────────────
 // Server-only. Mirrors tmap-v2/src/server/crypto.ts so keys are protected the
 // same way across both surfaces. v2 ciphertexts derive the AES key with scrypt
-// (a slow KDF), so a leaked AOF_MASTER_KEY is far harder to brute-force than the
+// (a slow KDF), so a leaked NEXORA_MASTER_KEY is far harder to brute-force than the
 // old single-pass sha256. The plaintext key is never sent back to the browser.
 
 import { randomBytes, scryptSync, createCipheriv, createDecipheriv, createHash } from "node:crypto";
@@ -11,12 +11,12 @@ import { randomBytes, scryptSync, createCipheriv, createDecipheriv, createHash }
 const V2_PREFIX = "aof2";
 // Fixed application salt for stretching the master secret (per-record randomness
 // comes from the per-ciphertext IV; the salt just binds the KDF to this app).
-const KDF_SALT = Buffer.from("aof-master-key-kdf-v2", "utf8");
+const KDF_SALT = Buffer.from("nexora-master-key-kdf-v2", "utf8");
 
 function rawMasterKey(): string {
-  const raw = process.env.AOF_MASTER_KEY;
+  const raw = process.env.NEXORA_MASTER_KEY;
   if (!raw || raw.length < 16) {
-    throw new Error("AOF_MASTER_KEY missing or too short — set a long random value (recommended 32+ random bytes) in the environment");
+    throw new Error("NEXORA_MASTER_KEY missing or too short — set a long random value (recommended 32+ random bytes) in the environment");
   }
   return raw;
 }

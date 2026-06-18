@@ -27,7 +27,7 @@ export interface RunOpts {
   projectRoot?: string;
   // Skip context scan (e.g. when task is self-contained)
   skipContext?: boolean;
-  // Plan-only mode (Aof Code "Create Plan"): run Architect + Planner, then stop
+  // Plan-only mode (Nexora Code "Create Plan"): run Architect + Planner, then stop
   // before any code generation.
   planOnly?: boolean;
 }

@@ -75,9 +75,9 @@ export function CodeConversation({ mode }: { mode: Exclude<CodeMode, "titan"> })
               >
                 <Boxes className="size-7 text-primary" />
               </motion.div>
-              <h2 className="mt-5 text-xl font-semibold">Build with Aof Code</h2>
+              <h2 className="mt-5 text-xl font-semibold">Build with Nexora Code</h2>
               <p className="mt-2 max-w-md text-sm text-muted-foreground">
-                Describe your project and Aof will ask the right questions first —
+                Describe your project and Nexora will ask the right questions first —
                 like a senior engineer. When the brief is ready, hit{" "}
                 <span className="text-foreground">Generate Code</span>.
               </p>
@@ -167,7 +167,7 @@ export function CodeConversation({ mode }: { mode: Exclude<CodeMode, "titan"> })
             {debugMode && (
               <div className="mb-2 flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
                 <Bug className="size-3.5 shrink-0" />
-                Debug mode — paste your error or stack trace and Aof will diagnose the root cause
+                Debug mode — paste your error or stack trace and Nexora will diagnose the root cause
                 before proposing a fix.
               </div>
             )}
@@ -176,7 +176,7 @@ export function CodeConversation({ mode }: { mode: Exclude<CodeMode, "titan"> })
               placeholder={
                 debugMode
                   ? "Paste the error message or stack trace…"
-                  : "Describe your project, or answer Aof's questions…"
+                  : "Describe your project, or answer Nexora's questions…"
               }
               onSubmit={(v) => void send(v)}
               streaming={chatting}

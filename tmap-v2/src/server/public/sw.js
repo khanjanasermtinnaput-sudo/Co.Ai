@@ -1,4 +1,4 @@
-const CACHE = 'aof-code-v1';
+const CACHE = 'nexora-code-v1';
 const SHELL = [
   '/',
   '/index.html',

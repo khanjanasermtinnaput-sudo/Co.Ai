@@ -1,15 +1,15 @@
-// ── Domain types shared across the Aof frontend ───────────────────────────────
+// ── Domain types shared across the Nexora frontend ───────────────────────────────
 
-import type { AofProviderError, FailoverNotice, ModelNotice, SourcesNotice } from "./errors";
+import type { NexoraProviderError, FailoverNotice, ModelNotice, SourcesNotice } from "./errors";
 
 /** Top-level products surfaced in the sidebar. Titan is intentionally absent —
- *  it is a mode *inside* Aof Code, never a product on the homepage. */
+ *  it is a mode *inside* Nexora Code, never a product on the homepage. */
 export type ProductKey = "chat" | "code" | "projects" | "settings";
 
-/** Chat-with-Aof models shown in the chat header selector. */
+/** Chat-with-Nexora models shown in the chat header selector. */
 export type ChatModel = "lite" | "normal";
 
-/** Aof Code modes. `titan` only appears inside the Code workspace. */
+/** Nexora Code modes. `titan` only appears inside the Code workspace. */
 export type CodeMode = "lite" | "1.0" | "pro" | "titan";
 
 export type Role = "user" | "assistant" | "system";
@@ -26,7 +26,7 @@ export type RouteTarget = "chat" | "code" | "search";
 
 export interface RouteDecision {
   target: RouteTarget;
-  /** Human label shown on the routed reply, e.g. "Aof Code". */
+  /** Human label shown on the routed reply, e.g. "Nexora Code". */
   label: string;
   /** Short why-this-route explanation surfaced in the UI. */
   reason: string;
@@ -73,7 +73,7 @@ export interface ChatMessageT {
   /** structured Math/Learning payload — when present, rendered with a toggle */
   learning?: LearningAnswer;
   /** present when the AI provider failed — rendered as an error panel, never a reply */
-  error?: AofProviderError;
+  error?: NexoraProviderError;
   /** present when the route failed over to a different provider mid-request */
   failover?: FailoverNotice;
   /** which model actually answered — always present on a successful AI reply */
@@ -99,12 +99,12 @@ export interface Conversation {
   updatedAt: string;
 }
 
-// ── Aof Code — conversation-first workflow ────────────────────────────────────
-// Aof Code discusses a project (via the Requirements Architect / RAA) and builds
+// ── Nexora Code — conversation-first workflow ────────────────────────────────────
+// Nexora Code discusses a project (via the Requirements Architect / RAA) and builds
 // a structured brief BEFORE any code is generated. Generation (TMAP) only runs on
 // an explicit trigger (the Generate Code button or the /gencode command).
 
-/** Where the Aof Code workspace is in its lifecycle. */
+/** Where the Nexora Code workspace is in its lifecycle. */
 export type CodePhase = "conversation" | "generating" | "done";
 
 /** Structured project brief, accumulated from the RAA conversation. Mirrors the
@@ -148,7 +148,7 @@ export interface Project {
   pinned: boolean;
   updatedAt: string;
   createdAt: string;
-  /** how it was started — which Aof Code mode produced it */
+  /** how it was started — which Nexora Code mode produced it */
   mode?: CodeMode;
 }
 

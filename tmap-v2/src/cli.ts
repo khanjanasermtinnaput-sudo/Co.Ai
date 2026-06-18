@@ -80,7 +80,7 @@ function cmdDoctor() {
     console.log(c.yellow('No API key set — running in MOCK mode.'));
     console.log(`Add a key:  ${c.bold('copy .env.example .env')}  then edit ${c.bold('.env')}`);
   } else {
-    console.log(c.green('Ready. Try:  npm run aof -- gencode "build a todo CLI in JS"'));
+    console.log(c.green('Ready. Try:  npm run nexora -- gencode "build a todo CLI in JS"'));
   }
 }
 
@@ -116,7 +116,7 @@ function cmdContext() {
 
 async function cmdGencode(task: string, opts: { apply: boolean; mode?: string }) {
   if (!task) {
-    console.log(c.red('usage: aof gencode "<what to build>"'));
+    console.log(c.red('usage: nexora gencode "<what to build>"'));
     return;
   }
   banner();
@@ -135,7 +135,7 @@ async function cmdGencode(task: string, opts: { apply: boolean; mode?: string })
     return;
   }
 
-  const outDir = opts.apply ? process.cwd() : join(process.cwd(), 'aof-output');
+  const outDir = opts.apply ? process.cwd() : join(process.cwd(), 'nexora-output');
   let written = 0;
   for (const f of bb.files) {
     if (f.path.includes('..') || isAbsolute(f.path)) {
@@ -211,7 +211,7 @@ async function cmdFix(targetDir: string, opts: { apply: boolean }) {
     return;
   }
 
-  const outDir = opts.apply ? dir : join(process.cwd(), 'aof-fix-output');
+  const outDir = opts.apply ? dir : join(process.cwd(), 'nexora-fix-output');
   let written = 0;
   for (const f of bb.files) {
     if (f.path.includes('..') || isAbsolute(f.path)) {
@@ -300,7 +300,7 @@ async function cmdTitan(task: string, opts: { apply: boolean; mode?: string }) {
           console.log(c.dim(`mode: ${c.orange(mode)} (Titan → Pro by default)`));
           const bb = createBlackboard(build.task, mode, build.context);
           await runTMAP(bb, emit);
-          const outDir = opts.apply ? process.cwd() : join(process.cwd(), 'aof-output');
+          const outDir = opts.apply ? process.cwd() : join(process.cwd(), 'nexora-output');
           let written = 0;
           for (const f of bb.files) {
             if (f.path.includes('..') || isAbsolute(f.path)) {
@@ -326,8 +326,8 @@ async function cmdTitan(task: string, opts: { apply: boolean; mode?: string }) {
 }
 
 function cmdSessions() {
-  // List local .aof/sessions
-  const sessDir = join(process.cwd(), '.aof', 'sessions');
+  // List local .nexora/sessions
+  const sessDir = join(process.cwd(), '.nexora', 'sessions');
   if (!existsSync(sessDir)) {
     console.log(c.dim('No sessions found.'));
     return;
@@ -350,14 +350,14 @@ function help() {
   banner();
   console.log(`
 ${c.bold('Usage')}
-  npm run aof -- <command> [args]
+  npm run nexora -- <command> [args]
 
 ${c.bold('Commands')}
   ${c.orange('doctor')}                 check API keys, agents & project context
   ${c.orange('agents')}                 show role → model mapping
   ${c.orange('context')}                scan current directory and show project info
   ${c.orange('gencode')} "<task>"        run full TMAP pipeline and generate files
-        --apply              write files into project root (default: ./aof-output)
+        --apply              write files into project root (default: ./nexora-output)
         --mode=lite|normal|pro
   ${c.orange('titan')} ["<idea>"]         Titan Mode — interactive AI System Architect:
                          discovery → multi-plan → risks → approval gate → build
@@ -368,11 +368,11 @@ ${c.bold('Commands')}
   ${c.orange('sessions')}               list recent local sessions
 
 ${c.bold('Examples')}
-  npm run aof -- doctor
-  npm run aof -- gencode "build a REST API for a todo app in Node.js"
-  npm run aof -- review ./src
-  npm run aof -- fix ./src --apply
-  npm run aof -- sessions
+  npm run nexora -- doctor
+  npm run nexora -- gencode "build a REST API for a todo app in Node.js"
+  npm run nexora -- review ./src
+  npm run nexora -- fix ./src --apply
+  npm run nexora -- sessions
 `);
 }
 

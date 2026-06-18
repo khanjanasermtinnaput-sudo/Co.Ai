@@ -131,7 +131,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <header className="flex h-14 shrink-0 items-center border-b border-border/50 bg-background/80 px-6 backdrop-blur-sm">
             <div className="flex flex-1 items-center gap-2">
               <Shield className="size-4 text-amber-500" />
-              <span className="text-sm font-medium text-muted-foreground">Aof Admin Dashboard</span>
+              <span className="text-sm font-medium text-muted-foreground">Nexora Admin Dashboard</span>
             </div>
             <button type="button" className="rounded-lg p-2 text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors">
               <Bell className="size-4" />

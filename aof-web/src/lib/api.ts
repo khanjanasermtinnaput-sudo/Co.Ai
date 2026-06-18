@@ -1,9 +1,9 @@
-// ── Aof API client ────────────────────────────────────────────────────────────
+// ── Nexora API client ────────────────────────────────────────────────────────────
 // Thin, typed layer over the AI providers. Transparency is the rule: when a
 // provider fails, the failure is surfaced to the UI as a structured
-// `AofProviderError` (via `handlers.onError`) — it is NEVER hidden behind a fake
+// `NexoraProviderError` (via `handlers.onError`) — it is NEVER hidden behind a fake
 // "mock" reply. The offline mock engine still exists, but only runs when the app
-// is *explicitly* put in demo mode (`NEXT_PUBLIC_AOF_DEMO=1`); it is off by
+// is *explicitly* put in demo mode (`NEXT_PUBLIC_NEXORA_DEMO=1`); it is off by
 // default so the UI never appears to work when AI is actually down.
 
 import type { ProjectBrief, ResponseStyle, RouteDecision } from "./types";
@@ -21,16 +21,16 @@ import {
   classifyProviderError,
   decodeFrames,
   emptyResponseError,
-  isAofProviderError,
-  type AofProviderError,
+  isNexoraProviderError,
+  type NexoraProviderError,
 } from "./errors";
 import { parseBrief, summaryToBrief } from "./raa";
 
 /** Resolve the API base. Empty string means "same origin" (Next rewrite proxy). */
 export function getApiBase(): string | null {
-  const pub = process.env.NEXT_PUBLIC_AOF_API_BASE;
+  const pub = process.env.NEXT_PUBLIC_NEXORA_API_BASE;
   if (typeof pub === "string" && pub.length > 0) return pub.replace(/\/$/, "");
-  // When AOF_API_PROXY is set we rewrite /v1 at the edge → call same-origin.
+  // When NEXORA_API_PROXY is set we rewrite /v1 at the edge → call same-origin.
   if (process.env.NEXT_PUBLIC_AOF_SAME_ORIGIN === "1") return "";
   return null;
 }
@@ -41,10 +41,10 @@ export function isLive(): boolean {
 
 /** Explicit, opt-in offline demo — simulated responses, clearly not real AI. */
 export function isDemoMode(): boolean {
-  return process.env.NEXT_PUBLIC_AOF_DEMO === "1";
+  return process.env.NEXT_PUBLIC_NEXORA_DEMO === "1";
 }
 
-const TOKEN_KEY = "aof.token";
+const TOKEN_KEY = "nexora.token";
 
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -67,19 +67,19 @@ function isAbortError(e: unknown): boolean {
   return (e as { name?: string } | null)?.name === "AbortError";
 }
 
-/** Same-origin/network failure (the Aof server itself is unreachable). */
-function networkError(e: unknown): AofProviderError {
+/** Same-origin/network failure (the Nexora server itself is unreachable). */
+function networkError(e: unknown): NexoraProviderError {
   return classifyProviderError({
-    provider: "Aof",
+    provider: "Nexora",
     hint: "network",
     message: (e as Error)?.message ?? "request failed",
   });
 }
 
 /** The optional tmap-v2 backend is configured but unreachable / erroring. */
-function backendUnavailableError(detail: string, e?: unknown): AofProviderError {
+function backendUnavailableError(detail: string, e?: unknown): NexoraProviderError {
   const suffix = e ? ` (${(e as Error)?.message ?? String(e)})` : "";
-  return classifyProviderError({ provider: "Aof Backend", status: 502, message: `${detail}${suffix}` });
+  return classifyProviderError({ provider: "Nexora Backend", status: 502, message: `${detail}${suffix}` });
 }
 
 export interface SSEEvent {
@@ -135,25 +135,25 @@ export async function postSSE(
 }
 
 /**
- * Read Aof's own `/api/chat` response: a JSON error envelope when the request
+ * Read Nexora's own `/api/chat` response: a JSON error envelope when the request
  * failed before streaming, otherwise a plain-text token stream that may carry
  * in-band error / failover control frames. Routes everything to the handlers and
  * returns the accumulated text (used by RAA to parse a brief).
  */
-async function readAofStream(
+async function readNexoraStream(
   res: Response,
   handlers: StreamHandlers,
 ): Promise<{ errored: boolean; text: string }> {
   if (!res.ok) {
     const body = await res.json().catch(() => null);
-    const err = isAofProviderError(body)
+    const err = isNexoraProviderError(body)
       ? body
-      : classifyProviderError({ provider: "Aof", status: res.status, message: `Request failed (${res.status})` });
+      : classifyProviderError({ provider: "Nexora", status: res.status, message: `Request failed (${res.status})` });
     handlers.onError?.(err);
     return { errored: true, text: "" };
   }
   if (!res.body) {
-    handlers.onError?.(emptyResponseError("Aof"));
+    handlers.onError?.(emptyResponseError("Nexora"));
     return { errored: true, text: "" };
   }
 
@@ -223,7 +223,7 @@ export interface ChatRequest {
   searchMode?: "auto" | "off" | "force";
 }
 
-/** Stream a Chat-with-Aof reply. Live `/v1/chat` → real `/api/chat`; failures
+/** Stream a Chat-with-Nexora reply. Live `/v1/chat` → real `/api/chat`; failures
  *  surface as structured errors. Mock only in explicit demo mode. */
 export async function streamChat(
   message: string,
@@ -256,7 +256,7 @@ export async function streamChat(
     return;
   }
 
-  // Default: Aof's own provider route.
+  // Default: Nexora's own provider route.
   try {
     const res = await fetch("/api/chat", {
       method: "POST",
@@ -270,7 +270,7 @@ export async function streamChat(
       }),
       signal: handlers.signal,
     });
-    await readAofStream(res, handlers);
+    await readNexoraStream(res, handlers);
   } catch (e) {
     if (isAbortError(e)) return;
     handlers.onError?.(networkError(e));
@@ -292,14 +292,14 @@ async function streamViaChat(
       body: JSON.stringify({ message, agent }),
       signal: handlers.signal,
     });
-    await readAofStream(res, handlers);
+    await readNexoraStream(res, handlers);
   } catch (e) {
     if (isAbortError(e)) return;
     handlers.onError?.(networkError(e));
   }
 }
 
-/** Stream an Aof Code build. Live `/v1/run` (tmap-v2) when configured, otherwise a
+/** Stream an Nexora Code build. Live `/v1/run` (tmap-v2) when configured, otherwise a
  *  serverless single-pass generation via `/api/chat`. */
 export async function streamCodeRun(
   task: string,
@@ -331,9 +331,9 @@ export async function streamCodeRun(
   }
 }
 
-// ── Aof Code NORMAL_CHAT (no project active) ─────────────────────────────────
+// ── Nexora Code NORMAL_CHAT (no project active) ─────────────────────────────────
 
-/** Stream a NORMAL_CHAT reply within Aof Code (same-origin `/api/chat`). */
+/** Stream a NORMAL_CHAT reply within Nexora Code (same-origin `/api/chat`). */
 export async function streamCodeChat(
   message: string,
   history: ChatHistoryItem[],
@@ -351,14 +351,14 @@ export async function streamCodeChat(
       body: JSON.stringify({ message, agent: "code-chat", searchMode, history: history.slice(-20) }),
       signal: handlers.signal,
     });
-    await readAofStream(res, handlers);
+    await readNexoraStream(res, handlers);
   } catch (e) {
     if (isAbortError(e)) return;
     handlers.onError?.(networkError(e));
   }
 }
 
-// ── Aof Code requirements conversation (RAA) ──────────────────────────────────
+// ── Nexora Code requirements conversation (RAA) ──────────────────────────────────
 
 export interface RequirementsResult {
   /** structured brief, when the assistant produced one this turn */
@@ -416,7 +416,7 @@ export async function streamRequirements(
       body: JSON.stringify({ message, agent: "requirements", history: hist }),
       signal: handlers.signal,
     });
-    const { errored, text } = await readAofStream(res, handlers);
+    const { errored, text } = await readNexoraStream(res, handlers);
     if (errored) return none;
     const brief = parseBrief(text);
     return { brief, hasBrief: brief !== null };

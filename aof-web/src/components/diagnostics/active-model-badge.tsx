@@ -3,7 +3,7 @@
 // ── Active Model Panel ────────────────────────────────────────────────────────
 // Section 1 / Section 6 of the AOF transparency spec: every assistant reply
 // always shows which model actually answered, which provider it came from, and
-// what role it played — never hidden behind a generic "Aof replied" bubble.
+// what role it played — never hidden behind a generic "Nexora replied" bubble.
 
 import { Bot } from "lucide-react";
 import { cn } from "@/lib/utils";

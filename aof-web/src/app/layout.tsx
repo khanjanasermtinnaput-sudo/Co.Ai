@@ -18,14 +18,14 @@ const jetbrains = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Aof — The professional AI platform",
-    template: "%s · Aof",
+    default: "Nexora — The professional AI platform",
+    template: "%s · Nexora",
   },
   description:
-    "Aof is a professional AI platform. Chat with Aof, build software with Aof Code, and manage your Projects — all in one premium workspace.",
-  applicationName: "Aof",
-  keywords: ["Aof", "AI platform", "Aof Code", "AI assistant", "AI coding"],
-  authors: [{ name: "Aof" }],
+    "Nexora is a professional AI platform. Nexora Chat, build software with Nexora Code, and manage your Projects — all in one premium workspace.",
+  applicationName: "Nexora",
+  keywords: ["Nexora", "AI platform", "Nexora Code", "AI assistant", "AI coding"],
+  authors: [{ name: "Nexora" }],
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [
@@ -38,7 +38,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Aof",
+    title: "Nexora",
   },
 };
 

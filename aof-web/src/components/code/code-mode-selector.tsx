@@ -38,7 +38,7 @@ export function CodeModeSelector({
           type="button"
           className="group inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[15px] font-medium text-foreground transition-colors hover:bg-white/5"
         >
-          <span className="font-semibold">Aof Code</span>
+          <span className="font-semibold">Nexora Code</span>
           <span className="text-muted-foreground">·</span>
           <span className={cn(isTitan ? "text-gradient-gold font-semibold" : "text-primary")}>
             {current.name}
@@ -47,7 +47,7 @@ export function CodeModeSelector({
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-80">
-        <DropdownMenuLabel>Aof Code mode</DropdownMenuLabel>
+        <DropdownMenuLabel>Nexora Code mode</DropdownMenuLabel>
         <DropdownMenuSeparator />
         {CODE_MODES.map((m) => {
           const Icon = ICON[m.id];

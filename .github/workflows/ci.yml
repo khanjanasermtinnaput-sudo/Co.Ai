@@ -12,13 +12,13 @@ on:
       - 'claude/**'
 
 jobs:
-  # ── aof-web: Next.js TypeScript check ─────────────────────────────────────
+  # ── nexora-web: Next.js TypeScript check ─────────────────────────────────────
   typecheck-web:
-    name: aof-web / tsc
+    name: nexora-web / tsc
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: aof-web
+        working-directory: nexora-web
 
     steps:
       - uses: actions/checkout@v4
@@ -27,7 +27,7 @@ jobs:
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: aof-web/package-lock.json
+          cache-dependency-path: nexora-web/package-lock.json
 
       - name: Install dependencies
         run: npm ci

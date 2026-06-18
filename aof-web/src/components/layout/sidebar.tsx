@@ -115,7 +115,7 @@ export function Sidebar() {
       {/* ── Top: logo + new chat ─────────────────────────────────────────── */}
       <div className={cn("flex flex-col gap-3 p-3", expanded ? "items-stretch" : "items-center")}>
         <div className={cn("flex h-11 items-center", expanded ? "justify-between px-1" : "justify-center")}>
-          <Link href="/" aria-label="Aof home" className="inline-flex items-center">
+          <Link href="/" aria-label="Nexora home" className="inline-flex items-center">
             {expanded ? <Logo size={30} /> : <LogoMark size={30} />}
           </Link>
           {expanded && (

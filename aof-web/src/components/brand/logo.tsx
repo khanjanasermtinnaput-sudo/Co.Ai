@@ -6,12 +6,12 @@ interface LogoMarkProps {
   size?: number;
 }
 
-/** The Aof mark — the code-loop emblem, rendered as a rounded app-style tile. */
+/** The Nexora mark — the code-loop emblem, rendered as a rounded app-style tile. */
 export function LogoMark({ className, size = 32 }: LogoMarkProps) {
   return (
     <Image
-      src="/aof-logo.png"
-      alt="Aof"
+      src="/nexora-logo.png"
+      alt="Nexora"
       width={size}
       height={size}
       className={cn("shrink-0 rounded-[22%] object-cover", className)}
@@ -31,7 +31,7 @@ export function Logo({ showWordmark = true, className, size = 32 }: LogoProps) {
       <LogoMark size={size} />
       {showWordmark && (
         <span className="text-[17px] font-semibold tracking-tight">
-          <span className="text-gradient-gold">Aof</span>
+          <span className="text-gradient-gold">Nexora</span>
         </span>
       )}
     </span>

@@ -1,4 +1,4 @@
-// Project Analyst agent — assess a brief BEFORE building (Aof Code "Analyze Project").
+// Project Analyst agent — assess a brief BEFORE building (Nexora Code "Analyze Project").
 // Gives a senior-engineer read on feasibility, risks and recommendations. No code.
 
 import type { LLMCall } from '../types.js';

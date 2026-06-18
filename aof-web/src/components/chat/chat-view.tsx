@@ -59,7 +59,7 @@ export function ChatView() {
     lastMsg && lastMsg.role === "assistant" ? lastMsg.error : undefined;
   const mascotState: ComposerMascotState = streaming
     ? "processing"
-    : lastError?.code === "AOF_ERROR_004"
+    : lastError?.code === "NEXORA_ERROR_004"
       ? "quota"
       : lastError
         ? "error"
@@ -70,7 +70,7 @@ export function ChatView() {
       {/* header */}
       <div className="sticky top-0 z-10 flex h-14 items-center justify-between gap-3 border-b border-border/70 bg-background/70 px-3 backdrop-blur-xl sm:px-5">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="font-semibold text-foreground">Chat with Aof</span>
+          <span className="font-semibold text-foreground">Nexora Chat</span>
           <span className="hidden items-center gap-1 rounded-full border border-border bg-secondary/60 px-2 py-0.5 text-[11px] text-muted-foreground sm:inline-flex">
             <Wand2 className="size-3 text-primary" /> Auto-routed
           </span>
@@ -116,9 +116,9 @@ export function ChatView() {
             >
               <LogoMark size={30} />
             </motion.div>
-            <h2 className="mt-5 text-xl font-semibold">Chat with Aof</h2>
+            <h2 className="mt-5 text-xl font-semibold">Nexora Chat</h2>
             <p className="mt-2 max-w-sm text-sm text-muted-foreground">
-              Ask anything, attach images, PDFs or code — Aof picks the right agent
+              Ask anything, attach images, PDFs or code — Nexora picks the right agent
               automatically. Choose how detailed the answer should be above.
             </p>
             <div className="mt-6 flex flex-wrap justify-center gap-2">
@@ -145,7 +145,7 @@ export function ChatView() {
         <div className="mx-auto w-full max-w-3xl">
          <ComposerMascot state={mascotState}>
           <Composer
-            placeholder="Message Aof — or attach an image, PDF or code file…"
+            placeholder="Message Nexora — or attach an image, PDF or code file…"
             onSubmit={(v, atts) => void send(v, atts)}
             streaming={streaming}
             onStop={stop}
@@ -154,7 +154,7 @@ export function ChatView() {
               <div className="flex items-center gap-2">
                 <Sparkles className="size-3.5 text-primary/70" />
                 <span className="text-xs text-muted-foreground">
-                  Aof can make mistakes. Verify important info.
+                  Nexora can make mistakes. Verify important info.
                 </span>
               </div>
             }

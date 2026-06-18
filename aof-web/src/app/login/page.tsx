@@ -36,7 +36,7 @@ export default function LoginPage() {
         <div className="flex flex-col items-center text-center">
           <Logo size={40} />
           <h1 className="mt-6 text-xl font-semibold tracking-tight">
-            Sign in to Aof
+            Sign in to Nexora
           </h1>
           <p className="mt-1.5 text-sm text-muted-foreground">
             Continue with Google to build, save and pick up your projects from
@@ -63,7 +63,7 @@ export default function LoginPage() {
         </div>
 
         <p className="mt-7 text-center text-xs text-muted-foreground/80">
-          By continuing you agree to the Aof Terms &amp; Privacy.
+          By continuing you agree to the Nexora Terms &amp; Privacy.
         </p>
       </div>
     </main>

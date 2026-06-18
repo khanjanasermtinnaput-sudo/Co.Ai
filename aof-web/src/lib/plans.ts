@@ -1,20 +1,20 @@
 // ── Subscription plans & entitlements ─────────────────────────────────────────
-// Single source of truth for the Aof pricing tiers (spec: FREE / LITE / PRO /
+// Single source of truth for the Nexora pricing tiers (spec: FREE / LITE / PRO /
 // ADVANCED + GUEST) and the features each unlocks. checkUserAccess() and the
 // pricing UI both read from here so plan rules live in exactly one place.
 //
 // Enforcement is gated behind a launch switch (entitlementsEnforced): until a
 // billing provider is wired and users can actually upgrade, gating stays lenient
-// so signed-in users keep full access. Flip NEXT_PUBLIC_AOF_ENFORCE_PLANS=1 to
+// so signed-in users keep full access. Flip NEXT_PUBLIC_NEXORA_ENFORCE_PLANS=1 to
 // enforce per-plan limits once checkout is live.
 
 import { TIER_RANK, type UserTier } from "@/store/auth-store";
 
 export type Feature =
-  | "aof-api" // use Aof's shared provider keys at normal quota (FREE is heavily limited)
+  | "nexora-api" // use Nexora's shared provider keys at normal quota (FREE is heavily limited)
   | "projects" // save & manage projects
   | "export" // export HTML / ZIP / source
-  | "aof-code" // the Aof Code build workspace
+  | "nexora-code" // the Nexora Code build workspace
   | "tmap" // multi-agent TMAP pipeline
   | "raa" // requirements-architect conversation
   | "titan" // Titan architect mode
@@ -30,7 +30,7 @@ export type Feature =
   | "search-research"; // deep research sources
 
 export interface PlanLimits {
-  /** Messages/day when using Aof's shared keys. Infinity = effectively unlimited. */
+  /** Messages/day when using Nexora's shared keys. Infinity = effectively unlimited. */
   dailyMessages: number;
   /** Max saved projects (0 = cannot save). */
   maxProjects: number;
@@ -48,7 +48,7 @@ export interface Plan {
   limits: PlanLimits;
   /**
    * BYOK reward (spec §13): quota multiplier applied when the user supplies their
-   * own API key, since it offloads cost from Aof's infrastructure. Lower tiers get
+   * own API key, since it offloads cost from Nexora's infrastructure. Lower tiers get
    * a bigger boost (FREE 3x → ADVANCED 1.25x).
    */
   byokMultiplier: number;
@@ -60,14 +60,14 @@ export interface Plan {
 const FREE_FEATURES: Feature[] = [];
 const LITE_FEATURES: Feature[] = [
   ...FREE_FEATURES,
-  "aof-api",
+  "nexora-api",
   "projects",
   "export",
   "search-docs",
 ];
 const PRO_FEATURES: Feature[] = [
   ...LITE_FEATURES,
-  "aof-code",
+  "nexora-code",
   "tmap",
   "raa",
   "deploy",
@@ -111,7 +111,7 @@ export const PLANS: Record<UserTier, Plan> = {
       "Web Search (Google)",
       "Bring Your Own Key (Gemini, Llama)",
       "บันทึกประวัติแชตพื้นฐาน",
-      "API ของ Aof แบบจำกัด",
+      "API ของ Nexora แบบจำกัด",
     ],
   },
   LITE: {
@@ -126,7 +126,7 @@ export const PLANS: Record<UserTier, Plan> = {
     highlights: [
       "ทุกอย่างใน Free",
       "Gemini · Llama · DeepSeek · Qwen",
-      "ใช้ API ของ Aof ได้",
+      "ใช้ API ของ Nexora ได้",
       "Google + Documentation Search",
       "บันทึกโปรเจกต์ · Export HTML/ZIP",
     ],
@@ -142,7 +142,7 @@ export const PLANS: Record<UserTier, Plan> = {
     byokMultiplier: 1.5,
     highlights: [
       "ทุกอย่างใน Lite",
-      "Aof Code · TMAP · RAA",
+      "Nexora Code · TMAP · RAA",
       "OpenRouter + GitHub Integration",
       "Deploy + Live Preview + Workspace",
       "Web Search: GitHub · Reddit · Research",
@@ -176,7 +176,7 @@ export function planFor(tier: UserTier): Plan {
 
 /** True when per-plan enforcement is switched on (after billing goes live). */
 export function entitlementsEnforced(): boolean {
-  return process.env.NEXT_PUBLIC_AOF_ENFORCE_PLANS === "1";
+  return process.env.NEXT_PUBLIC_NEXORA_ENFORCE_PLANS === "1";
 }
 
 /**

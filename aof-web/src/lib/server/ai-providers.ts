@@ -1,4 +1,4 @@
-// ── Aof AI — server-side provider layer ───────────────────────────────────────
+// ── Nexora — server-side provider layer ───────────────────────────────────────
 // Owns everything that actually talks to an AI provider: the registry of runtime
 // providers, key detection, the streaming adapters, unified error extraction,
 // the "prime then stream" wrapper that converts an early provider failure into a
@@ -18,7 +18,7 @@ import {
   encodeErrorFrame,
   encodeFailoverFrame,
   encodeModelFrame,
-  type AofProviderError,
+  type NexoraProviderError,
   type FailoverNotice,
   type ModelNotice,
 } from "@/lib/errors";
@@ -160,8 +160,8 @@ interface ErrCtx {
   requestId: string;
 }
 
-/** Normalize anything a provider can throw into a classified AofProviderError. */
-export function toAofError(ctx: ErrCtx, thrown: unknown): AofProviderError {
+/** Normalize anything a provider can throw into a classified NexoraProviderError. */
+export function toNexoraError(ctx: ErrCtx, thrown: unknown): NexoraProviderError {
   const base = {
     provider: ctx.provider.label,
     model: ctx.model,
@@ -271,7 +271,7 @@ const OPENROUTER_MAX_ATTEMPTS = 3;
 const OPENROUTER_BACKOFF_MS = [300, 800];
 
 // Free OpenRouter models get saturated independently, so when the configured one is
-// overloaded Aof falls through to another free model — staying answerable with no
+// overloaded Nexora falls through to another free model — staying answerable with no
 // paid key. The configured OPENROUTER_MODEL is always tried first; override the whole
 // chain with OPENROUTER_MODELS (comma-separated).
 const OPENROUTER_FREE_FALLBACKS = [
@@ -329,8 +329,8 @@ async function openrouterConnect(
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKeyFor(meta, input.overrides)!}`,
-        "HTTP-Referer": "https://aof-web.vercel.app",
-        "X-Title": "Aof",
+        "HTTP-Referer": "https://nexora-web.vercel.app",
+        "X-Title": "Nexora",
       },
       body,
       signal: input.signal,
@@ -616,7 +616,7 @@ export function adapterFor(id: ProviderId): (input: AdapterInput) => AsyncGenera
 export interface PrimeResult {
   ok: boolean;
   /** Present when ok === false. */
-  error?: AofProviderError;
+  error?: NexoraProviderError;
   /** Present when ok === true. */
   stream?: ReadableStream<Uint8Array>;
   /** True when the user aborted while priming (no error should be shown). */
@@ -639,7 +639,7 @@ export async function primeAndStream(opts: {
       next = await gen.next();
     } catch (thrown) {
       if (isAbort(thrown)) return { ok: false, aborted: true };
-      return { ok: false, error: toAofError(ctx, thrown) };
+      return { ok: false, error: toNexoraError(ctx, thrown) };
     }
     if (next.done) {
       // Provider closed the stream without producing any content.
@@ -667,7 +667,7 @@ export async function primeAndStream(opts: {
             if (!isAbort(thrown)) {
               // Mid-stream failure after content already started: surface it as an
               // in-band error frame so the UI replaces the partial with an error.
-              controller.enqueue(encoder.encode(encodeErrorFrame(toAofError(ctx, thrown))));
+              controller.enqueue(encoder.encode(encodeErrorFrame(toNexoraError(ctx, thrown))));
             }
             break;
           }
@@ -770,9 +770,9 @@ export async function pingProvider(p: ProviderMeta, overrides?: KeyOverrides): P
       checkedAt: now(),
     };
   } catch (thrown) {
-    const error = toAofError({ provider: p, model, requestId }, thrown);
+    const error = toNexoraError({ provider: p, model, requestId }, thrown);
     // A rate-limit means the provider is reachable but throttled → DEGRADED.
-    const level: ProviderStatusLevel = error.code === "AOF_ERROR_005" ? "DEGRADED" : "DISCONNECTED";
+    const level: ProviderStatusLevel = error.code === "NEXORA_ERROR_005" ? "DEGRADED" : "DISCONNECTED";
     return {
       id: p.id,
       label: p.label,

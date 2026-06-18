@@ -536,7 +536,7 @@ function ApprovalPhase() {
         <Row label="Confidence" value={`${titan.confidence}%`} />
         <Row
           label="Build mode"
-          value={`Aof Code · ${getModelDisplayName("pro")} (multi-pass review)`}
+          value={`Nexora Code · ${getModelDisplayName("pro")} (multi-pass review)`}
           last
         />
       </div>

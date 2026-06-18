@@ -1,9 +1,9 @@
-// Aof PWA service worker — offline shell + safe runtime caching.
+// Nexora PWA service worker — offline shell + safe runtime caching.
 // IMPORTANT: API and streaming endpoints (/api/*, /v1/*) are NEVER cached, so the
 // AI provider error handling (live status, no fake answers) is never masked by a
 // stale cache.
-const CACHE = "aof-cache-v1";
-const SHELL = ["/", "/manifest.webmanifest", "/aof-logo.png", "/icon-192.png", "/icon-512.png"];
+const CACHE = "nexora-cache-v1";
+const SHELL = ["/", "/manifest.webmanifest", "/nexora-logo.png", "/icon-192.png", "/icon-512.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

@@ -6,7 +6,7 @@
 
 import { deriveSystemStatus, type ChecklistItem, type SystemHealth } from "@/lib/health";
 import { allProviders, isConfigured, pingProvider } from "@/lib/server/ai-providers";
-import { logAofError, runStartupCheckOnce } from "@/lib/server/ai-log";
+import { logNexoraError, runStartupCheckOnce } from "@/lib/server/ai-log";
 import { getUserFromRequest, isAdminConfigured } from "@/lib/server/supabase-admin";
 import { loadUserKeyOverrides } from "@/lib/server/keys-store";
 
@@ -21,7 +21,7 @@ export async function GET(req: Request): Promise<Response> {
 
   // Log any provider that came back unhealthy so the failure is recorded too.
   for (const p of providers) {
-    if (p.error && p.status === "DISCONNECTED") logAofError(p.error);
+    if (p.error && p.status === "DISCONNECTED") logNexoraError(p.error);
   }
 
   const checklist: ChecklistItem[] = [

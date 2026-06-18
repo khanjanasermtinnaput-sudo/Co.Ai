@@ -92,7 +92,7 @@ async function sb(path: string, init: RequestInit = {}): Promise<Response> {
 
 // ── File-based storage (fallback for local/dev) ───────────────────────────────
 const DB_PATH = process.env.AOF_DB_PATH
-  ?? (process.env.VERCEL ? '/tmp/aof-db.json' : join(process.cwd(), '.aof-server', 'db.json'));
+  ?? (process.env.VERCEL ? '/tmp/nexora-db.json' : join(process.cwd(), '.nexora-server', 'db.json'));
 
 // In production the file store lives on ephemeral disk (e.g. Vercel/Render free
 // /tmp) and is wiped on every redeploy/cold start — user accounts and their

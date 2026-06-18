@@ -1,14 +1,14 @@
-// ── Aof AI — server-side structured logging ───────────────────────────────────
+// ── Nexora — server-side structured logging ───────────────────────────────────
 // Every provider failure is logged here in a consistent, greppable format so an
-// operator can correlate a user-facing AOF_ERROR_xxx with the exact upstream
+// operator can correlate a user-facing NEXORA_ERROR_xxx with the exact upstream
 // status, request id and stack. Logs go to stderr/stdout (picked up by the host
 // platform). Secrets are already redacted on the error object.
 
-import type { AofProviderError } from "@/lib/errors";
+import type { NexoraProviderError } from "@/lib/errors";
 import { formatUtc, redact } from "@/lib/errors";
 
 /** Log a classified provider error in the canonical `[AOF ERROR]` block. */
-export function logAofError(error: AofProviderError): void {
+export function logNexoraError(error: NexoraProviderError): void {
   const lines = [
     "[AOF ERROR]",
     `Code: ${error.code}`,
@@ -25,7 +25,7 @@ export function logAofError(error: AofProviderError): void {
 }
 
 /** Log a non-error provider event (e.g. an announced failover). */
-export function logAofInfo(message: string): void {
+export function logNexoraInfo(message: string): void {
   console.info(`[AOF] ${formatUtc(new Date().toISOString())} ${message}`);
 }
 

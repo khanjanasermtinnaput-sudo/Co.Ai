@@ -11,7 +11,7 @@ const V2_PREFIX = 'aof2';
 // Fixed application salt for stretching the master secret. A static salt is fine
 // here: its job is to bind the KDF to this app, not to protect per-record data
 // (each ciphertext already has its own random IV).
-const KDF_SALT = Buffer.from('aof-master-key-kdf-v2', 'utf8');
+const KDF_SALT = Buffer.from('nexora-master-key-kdf-v2', 'utf8');
 
 // ── Password hashing (scrypt, no native deps) ─────────────────────────────────
 export function hashPassword(password: string): string {
@@ -29,15 +29,15 @@ export function verifyPassword(password: string, stored: string): boolean {
 }
 
 // ── API-key encryption at rest (AES-256-GCM) ──────────────────────────────────
-// Master key from env AOF_MASTER_KEY. New (v2) ciphertexts derive the 32-byte AES
+// Master key from env NEXORA_MASTER_KEY. New (v2) ciphertexts derive the 32-byte AES
 // key with scrypt (a slow KDF) so a leaked env value is far harder to brute-force
 // than the old single-pass sha256. The derived key is cached per process because
 // scrypt is intentionally expensive and /v1/me decrypts several keys per request.
 function rawMasterKey(): string {
-  const raw = process.env.AOF_MASTER_KEY;
+  const raw = process.env.NEXORA_MASTER_KEY;
   if (!raw || raw.length < 16) {
     throw new Error(
-      'AOF_MASTER_KEY missing or too short — set a long random value in .env ' +
+      'NEXORA_MASTER_KEY missing or too short — set a long random value in .env ' +
       '(recommended: 32+ random bytes, e.g. `node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"`)',
     );
   }

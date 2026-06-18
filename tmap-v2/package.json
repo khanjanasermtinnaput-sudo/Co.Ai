@@ -1,13 +1,13 @@
 {
-  "name": "@aof/code",
+  "name": "@nexora/code",
   "version": "0.1.0",
   "description": "AOF Code — TMAP v2 multi-agent coding assistant (MVP core)",
   "type": "module",
   "bin": {
-    "aof": "./src/cli.ts"
+    "nexora": "./src/cli.ts"
   },
   "scripts": {
-    "aof": "tsx src/cli.ts",
+    "nexora": "tsx src/cli.ts",
     "doctor": "tsx src/cli.ts doctor",
     "agents": "tsx src/cli.ts agents",
     "server": "tsx src/server/index.ts",

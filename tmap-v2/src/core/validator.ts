@@ -46,7 +46,7 @@ export function validateFiles(files: CodeFile[]): ValidationResult[] {
 function checkJs(f: CodeFile): ValidationResult {
   let dir: string | undefined;
   try {
-    dir = mkdtempSync(join(tmpdir(), 'aof-val-'));
+    dir = mkdtempSync(join(tmpdir(), 'nexora-val-'));
     const file = join(dir, 'check.mjs');
     writeFileSync(file, f.content, 'utf8');
     execFileSync(process.execPath, ['--check', file], { stdio: 'pipe' });
@@ -99,7 +99,7 @@ function checkPython(f: CodeFile): ValidationResult {
   }
   let dir: string | undefined;
   try {
-    dir = mkdtempSync(join(tmpdir(), 'aof-py-'));
+    dir = mkdtempSync(join(tmpdir(), 'nexora-py-'));
     const pyFile = join(dir, 'check.py');
     writeFileSync(pyFile, f.content, 'utf8');
     execFileSync(python, ['-m', 'py_compile', pyFile], { stdio: 'pipe', timeout: 10_000 });
@@ -137,7 +137,7 @@ function checkGo(f: CodeFile): ValidationResult {
   }
   let dir: string | undefined;
   try {
-    dir = mkdtempSync(join(tmpdir(), 'aof-go-'));
+    dir = mkdtempSync(join(tmpdir(), 'nexora-go-'));
     // go vet needs a valid module; use go build -syntax-check approach via gofmt -e
     const file = join(dir, 'check.go');
     writeFileSync(file, f.content, 'utf8');
@@ -159,7 +159,7 @@ function checkRust(f: CodeFile): ValidationResult {
   }
   let dir: string | undefined;
   try {
-    dir = mkdtempSync(join(tmpdir(), 'aof-rs-'));
+    dir = mkdtempSync(join(tmpdir(), 'nexora-rs-'));
     const file = join(dir, 'check.rs');
     writeFileSync(file, f.content, 'utf8');
     // --emit=metadata only checks + produces tiny metadata, no binary output

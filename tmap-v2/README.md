@@ -9,7 +9,7 @@ Multi-agent coding assistant ที่ทำงานจริง: **Planner →
 
 ## ติดตั้ง
 ```powershell
-cd C:\Users\khanj\aof-code
+cd C:\Users\khanj\nexora-code
 npm install
 ```
 
@@ -62,7 +62,7 @@ npm run doctor
 
 ```powershell
 # CLI — คุยกับ Titan แบบ interactive จนแผนผ่าน approval แล้วสร้างโค้ดต่อได้เลย
-npm run aof -- titan "อยากได้ระบบจองคิวร้านตัดผม"
+npm run nexora -- titan "อยากได้ระบบจองคิวร้านตัดผม"
 ```
 
 บนเว็บ: พิมพ์ `/titan` ในหน้า terminal แล้วคุยตามขั้นตอน
@@ -76,18 +76,18 @@ Planning Score → **Approval Gate** → Blueprint → TMAP
 
 ## ใช้งาน
 ```powershell
-# รัน pipeline เต็ม แล้วได้ไฟล์ออกมาที่ ./aof-output
-npm run aof -- gencode "build a REST API for a todo app in Node.js"
+# รัน pipeline เต็ม แล้วได้ไฟล์ออกมาที่ ./nexora-output
+npm run nexora -- gencode "build a REST API for a todo app in Node.js"
 
-# เขียนไฟล์ลงโปรเจกต์จริง (ไม่ใช่ aof-output)
-npm run aof -- gencode "..." --apply
+# เขียนไฟล์ลงโปรเจกต์จริง (ไม่ใช่ nexora-output)
+npm run nexora -- gencode "..." --apply
 
 # ดู role -> model
-npm run aof -- agents
+npm run nexora -- agents
 ```
 
 ### โหมด (คุมจำนวนรอบ critique loop / ต้นทุน)
-ตั้งใน `.env`: `AOF_MODE=lite|normal|pro`
+ตั้งใน `.env`: `NEXORA_MODE=lite|normal|pro`
 - `lite` = ไม่วน (เร็ว/ถูก) · `normal` = วนแก้ได้ 1 รอบ · `pro` = วนได้ถึง 3 รอบ
 
 ### override ชื่อโมเดล (ถ้าต้องการ)
@@ -108,7 +108,7 @@ src/
   types.ts             AgentMessage / Blackboard contracts
   providers/client.ts  OpenAI-compatible client (พูดได้ทุก vendor)
   core/
-    blackboard.ts      shared working memory + persist (.aof/sessions)
+    blackboard.ts      shared working memory + persist (.nexora/sessions)
     agents.ts          planner / coder / reviewer (prompts + parsing)
     validator.ts       grounded validation (รัน node --check จริง)
     orchestrator.ts    TMAP loop: plan→code→validate→review→critique

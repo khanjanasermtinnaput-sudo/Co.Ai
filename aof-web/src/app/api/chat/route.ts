@@ -1,6 +1,6 @@
-// ── Aof Chat — real LLM endpoint (server-side) ───────────────────────────────
+// ── Nexora Chat — real LLM endpoint (server-side) ───────────────────────────────
 // Provider priority: Anthropic (Claude) → OpenRouter. Every failure is detected,
-// classified into an AOF_ERROR_xxx, logged server-side, and surfaced to the user
+// classified into an NEXORA_ERROR_xxx, logged server-side, and surfaced to the user
 // — pre-stream failures as a JSON error envelope, mid-stream failures and
 // failover notices as in-band control frames. The route NEVER fabricates an
 // answer and NEVER silently swallows a provider failure.
@@ -13,8 +13,8 @@ import {
   missingKeyError,
   newRequestId,
   ERROR_CATALOG,
-  type AofErrorCode,
-  type AofProviderError,
+  type NexoraErrorCode,
+  type NexoraProviderError,
 } from "@/lib/errors";
 import { decideSearch, runSearch } from "@/lib/server/search/manager";
 import { buildSearchContext } from "@/lib/server/search/context-builder";
@@ -32,7 +32,7 @@ import {
   type ProviderMeta,
 } from "@/lib/server/ai-providers";
 import { bestModelFor, matchScore, ROLE_LABEL, routeOrder, type TaskCategory } from "@/lib/server/model-registry";
-import { logAofError, logAofInfo, runStartupCheckOnce } from "@/lib/server/ai-log";
+import { logNexoraError, logNexoraInfo, runStartupCheckOnce } from "@/lib/server/ai-log";
 import { checkRateLimit, applyRateLimitHeaders } from "@/lib/server/rate-limit";
 import { getUserFromRequest } from "@/lib/server/supabase-admin";
 import { loadUserKeyOverrides } from "@/lib/server/keys-store";
@@ -90,7 +90,7 @@ interface ChatBody {
   route?: RouteDecision;
   history?: ChatHistoryItem[];
   /** "chat" = general assistant; "requirements" = RAA (DISCOVERY); "code-chat" =
-   *  Aof Code NORMAL_CHAT; "code-gen"/"plan"/"analyze"/"debug" = serverless build
+   *  Nexora Code NORMAL_CHAT; "code-gen"/"plan"/"analyze"/"debug" = serverless build
    *  pipeline (used when the tmap-v2 backend is not configured). */
   agent?: Agent;
   /** Universal Search mode: "auto" (default) | "off" | "force". */
@@ -99,7 +99,7 @@ interface ChatBody {
 
 function buildSystem(style: ResponseStyle | undefined, route: RouteDecision | undefined): string {
   const persona =
-    "You are Aof, a friendly, knowledgeable AI assistant. Have natural conversations, " +
+    "You are Nexora, a friendly, knowledgeable AI assistant. Have natural conversations, " +
     "answer general questions, explain ideas clearly, and help the user think things through. " +
     "You can use Markdown when it helps readability.";
   const language =
@@ -147,22 +147,22 @@ function maxTokensFor(style: ResponseStyle | undefined): number {
 }
 
 /** Map an AOF error code onto a representative HTTP status for the JSON envelope. */
-function httpStatusFor(code: AofErrorCode): number {
+function httpStatusFor(code: NexoraErrorCode): number {
   switch (code) {
-    case "AOF_ERROR_001": // missing key
-    case "AOF_ERROR_013": // misconfiguration
+    case "NEXORA_ERROR_001": // missing key
+    case "NEXORA_ERROR_013": // misconfiguration
       return 503;
-    case "AOF_ERROR_002":
-    case "AOF_ERROR_003":
-    case "AOF_ERROR_010":
+    case "NEXORA_ERROR_002":
+    case "NEXORA_ERROR_003":
+    case "NEXORA_ERROR_010":
       return 401;
-    case "AOF_ERROR_004":
+    case "NEXORA_ERROR_004":
       return 402;
-    case "AOF_ERROR_005":
+    case "NEXORA_ERROR_005":
       return 429;
-    case "AOF_ERROR_008":
+    case "NEXORA_ERROR_008":
       return 504;
-    case "AOF_ERROR_009":
+    case "NEXORA_ERROR_009":
       return 400;
     default: // 006/007/011/012 — upstream/provider problems
       return 502;
@@ -175,10 +175,10 @@ const TEXT_HEADERS = {
 } as const;
 
 /** Return a structured error as a JSON response the client decodes into a panel. */
-function errorResponse(error: AofProviderError): Response {
+function errorResponse(error: NexoraProviderError): Response {
   return new Response(JSON.stringify(error), {
     status: httpStatusFor(error.code),
-    headers: { "Content-Type": "application/json; charset=utf-8", "X-Aof-Error": error.code },
+    headers: { "Content-Type": "application/json; charset=utf-8", "X-Nexora-Error": error.code },
   });
 }
 
@@ -201,15 +201,15 @@ export async function POST(req: Request): Promise<Response> {
   } catch (err) {
     // Last-resort guard: an unexpected throw must still become a structured error
     // envelope — never an opaque 500 the client can only render as a generic
-    // "Aof is unavailable" panel. This also logs the real stack for diagnosis.
+    // "Nexora is unavailable" panel. This also logs the real stack for diagnosis.
     const e = err as { message?: string; status?: number; stack?: string };
     const error = classifyProviderError({
-      provider: "Aof",
+      provider: "Nexora",
       message: e?.message ?? "Unexpected server error",
       status: typeof e?.status === "number" ? e.status : undefined,
       stack: e?.stack,
     });
-    logAofError(error);
+    logNexoraError(error);
     return errorResponse(error);
   }
 }
@@ -228,7 +228,7 @@ async function handleChat(req: Request): Promise<Response> {
     const headers = new Headers({ "Content-Type": "application/json; charset=utf-8" });
     applyRateLimitHeaders(headers, rl);
     const error = classifyProviderError({
-      provider: "Aof",
+      provider: "Nexora",
       message: `Rate limit exceeded. Try again in ${rl.retryAfterSec}s.`,
       status: 429,
     });
@@ -243,7 +243,7 @@ async function handleChat(req: Request): Promise<Response> {
     body = (await req.json()) as ChatBody;
   } catch {
     const error = classifyProviderError({
-      provider: "Aof",
+      provider: "Nexora",
       message: "Request body was not valid JSON.",
       hint: "config",
     });
@@ -276,7 +276,7 @@ async function handleChat(req: Request): Promise<Response> {
         const built = buildSearchContext(outcome);
         system = `${system}\n\n${built.systemAddon}`;
         sourcesFrame = encodeSourcesFrame(built.notice);
-        logAofInfo(`Search: ${outcome.provider} → ${outcome.hits.length} results (${decision.reason})`);
+        logNexoraInfo(`Search: ${outcome.provider} → ${outcome.hits.length} results (${decision.reason})`);
       }
     } catch {
       // Search is best-effort — never block the answer on it.
@@ -294,14 +294,14 @@ async function handleChat(req: Request): Promise<Response> {
     error.details =
       `No AI provider is configured. Set ${allProviders()
         .map((p) => p.envVar)
-        .join(" or ")} (or save a key in Settings → API Keys) so Aof can reach a provider.`;
-    logAofError(error);
+        .join(" or ")} (or save a key in Settings → API Keys) so Nexora can reach a provider.`;
+    logNexoraError(error);
     return errorResponse(error);
   }
 
   // ── Try each configured provider in priority order, announcing any failover. ──
   let pendingFailover: ReturnType<typeof makeFailoverNotice> | undefined;
-  let lastError: AofProviderError | undefined;
+  let lastError: NexoraProviderError | undefined;
 
   // Anthropic and OpenRouter keep their existing env-override + fallback-chain
   // model selection untouched; only the four newer providers pick a model from
@@ -339,7 +339,7 @@ async function handleChat(req: Request): Promise<Response> {
 
     if (result.ok && result.stream) {
       if (pendingFailover) {
-        logAofInfo(
+        logNexoraInfo(
           `Failover: ${pendingFailover.from} → ${pendingFailover.to} (${pendingFailover.reason})`,
         );
       }
@@ -348,7 +348,7 @@ async function handleChat(req: Request): Promise<Response> {
 
     // This provider failed before producing a token.
     lastError = result.error!;
-    logAofError(lastError);
+    logNexoraError(lastError);
 
     const next = providers[i + 1];
     if (next && ERROR_CATALOG[lastError.code].failoverWorthy) {

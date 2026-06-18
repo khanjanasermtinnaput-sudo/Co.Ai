@@ -21,7 +21,7 @@ import type {
   ResponseStyle,
   SearchMode,
 } from "@/lib/types";
-import type { AofProviderError } from "@/lib/errors";
+import type { NexoraProviderError } from "@/lib/errors";
 import { checkUserAccess } from "@/lib/access";
 import { useAuthStore } from "@/store/auth-store";
 import { useGuestStore } from "@/store/guest-store";
@@ -365,7 +365,7 @@ export const useChatStore = create<ChatState>()(
                     categories: result.categories,
                     agentStatus: undefined,
                   }),
-                onError: (error) => patchAssistant({ error: error as AofProviderError, streaming: false }),
+                onError: (error) => patchAssistant({ error: error as NexoraProviderError, streaming: false }),
                 signal: controller.signal,
               },
             );
@@ -439,7 +439,7 @@ export const useChatStore = create<ChatState>()(
       },
     }),
     {
-      name: "aof.chat",
+      name: "nexora.chat",
       partialize: (s) => ({
         style: s.style,
         searchMode: s.searchMode,

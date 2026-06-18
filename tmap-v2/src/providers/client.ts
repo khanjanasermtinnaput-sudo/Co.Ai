@@ -24,7 +24,7 @@ export async function chat(
   };
   // OpenRouter recommends these (optional) attribution headers.
   if (provider.mode === 'openrouter') {
-    headers['HTTP-Referer'] = 'https://github.com/aof-code';
+    headers['HTTP-Referer'] = 'https://github.com/nexora-code';
     headers['X-Title'] = 'AOF Code';
   }
 

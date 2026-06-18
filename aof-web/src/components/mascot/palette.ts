@@ -2,8 +2,8 @@
  * TAOTAO — color palette and emotion library.
  *
  * British Shorthair "blue" coat rendered in a cool blue-grey so TAOTAO sits
- * naturally on Aof AI's dark-navy / blue · purple · cyan surfaces, while the
- * eyes stay British-Shorthair amber (which also echoes Aof's gold accent).
+ * naturally on Nexora's dark-navy / blue · purple · cyan surfaces, while the
+ * eyes stay British-Shorthair amber (which also echoes Nexora's gold accent).
  */
 
 export const PALETTE = {

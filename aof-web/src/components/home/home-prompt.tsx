@@ -55,7 +55,7 @@ export function HomePrompt() {
               onClick={() => router.push("/code")}
               className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
-              <Code2 className="size-3.5" /> Switch to Aof Code
+              <Code2 className="size-3.5" /> Switch to Nexora Code
             </button>
           </div>
         }

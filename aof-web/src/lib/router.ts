@@ -30,8 +30,8 @@ export interface ClassificationResult {
 }
 
 const LABEL: Record<RouteTarget, string> = {
-  chat: "Aof Chat",
-  code: "Aof Code",
+  chat: "Nexora Chat",
+  code: "Nexora Code",
   search: "Search Agent",
 };
 
@@ -272,13 +272,13 @@ function countMatches(text: string, patterns: RegExp[]): number {
 export function routeRequest(text: string, attachments: Attachment[] = []): RouteDecision {
   const t = text.toLowerCase();
 
-  // Code/document files → Aof Code
+  // Code/document files → Nexora Code
   const codeFile = attachments.find((a) => a.kind === "code");
   if (codeFile) {
     return {
       target: "code",
       label: LABEL.code,
-      reason: `Analyzing ${codeFile.name} — file analysis runs in Aof Code.`,
+      reason: `Analyzing ${codeFile.name} — file analysis runs in Nexora Code.`,
       confidence: 100,
     };
   }
@@ -310,10 +310,10 @@ export function routeRequest(text: string, attachments: Attachment[] = []): Rout
 
     const confidence = categoryConfidence[primary] ?? 70;
     const reason = target === 'code'
-      ? `Detected ${primary.replace(/_/g, ' ')} task — routing to Aof Code.`
+      ? `Detected ${primary.replace(/_/g, ' ')} task — routing to Nexora Code.`
       : `Handling as ${classification.categories.slice(0, 2).map((c) => c.replace(/_/g, ' ')).join(' + ')} request.`;
 
-    // Images & PDFs without coding → Aof Chat
+    // Images & PDFs without coding → Nexora Chat
     const visual = attachments.find((a) => a.kind === "image" || a.kind === "pdf");
     if (visual && target !== 'code') {
       return {
@@ -327,11 +327,11 @@ export function routeRequest(text: string, attachments: Attachment[] = []): Rout
     return { target, label: LABEL[target], reason, confidence };
   }
 
-  // Default → Aof Chat
+  // Default → Nexora Chat
   return {
     target: "chat",
     label: LABEL.chat,
-    reason: "General question — handled by Aof Chat.",
+    reason: "General question — handled by Nexora Chat.",
     confidence: 70,
   };
 }

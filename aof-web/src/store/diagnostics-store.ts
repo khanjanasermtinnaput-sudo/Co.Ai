@@ -19,6 +19,6 @@ export const useDiagnosticsStore = create<DiagnosticsState>()(
       setDeveloperMode: (developerMode) => set({ developerMode }),
       toggleDeveloperMode: () => set((s) => ({ developerMode: !s.developerMode })),
     }),
-    { name: "aof.diagnostics" },
+    { name: "nexora.diagnostics" },
   ),
 );

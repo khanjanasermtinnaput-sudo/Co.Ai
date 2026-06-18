@@ -132,7 +132,7 @@ function EmptyState({ query, onCreate }: { query: string; onCreate: () => void }
       <p className="mt-1 max-w-xs text-sm text-muted-foreground">
         {query
           ? "Try a different search term."
-          : "Create your first project to start building with Aof."}
+          : "Create your first project to start building with Nexora."}
       </p>
       {!query && (
         <Button onClick={onCreate} className="mt-5">

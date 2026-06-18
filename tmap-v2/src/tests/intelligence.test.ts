@@ -14,7 +14,7 @@ import type { Blackboard } from '../types.js';
 // ── retrieval (BM25) ──────────────────────────────────────────────────────────
 
 function bm25Fixture(): string {
-  const root = mkdtempSync(join(tmpdir(), 'aof-bm25-'));
+  const root = mkdtempSync(join(tmpdir(), 'nexora-bm25-'));
   mkdirSync(join(root, 'src'));
   writeFileSync(join(root, 'src', 'auth.ts'), 'export function login(user, pin) { return authenticate(user, pin); }');
   writeFileSync(join(root, 'src', 'cart.ts'), 'export function addToCart(item) { return cart.push(item); }');

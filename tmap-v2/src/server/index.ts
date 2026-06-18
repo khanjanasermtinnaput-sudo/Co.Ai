@@ -35,7 +35,7 @@ const app = express();
 // ── SECURITY middleware ───────────────────────────────────────────────────────
 // Restrict CORS to known client origins; the wildcard default lets any site
 // send requests with a stolen token.
-const ALLOWED_ORIGINS = (process.env.AOF_ALLOWED_ORIGINS ?? '')
+const ALLOWED_ORIGINS = (process.env.NEXORA_ALLOWED_ORIGINS ?? '')
   .split(',')
   .map((o) => o.trim())
   .filter(Boolean);

@@ -1,11 +1,11 @@
-// ── Aof Code V4 — Conversation State Machine ─────────────────────────────────
+// ── Nexora Code V4 — Conversation State Machine ─────────────────────────────────
 // Implements the six-state model from the AOF CODE V4 collaborative prompt.
 // All functions are pure so they are trivially testable without mocks.
 //
 // States:
 //   NORMAL_CHAT    — casual conversation, tech Q&A, greetings (no project context)
 //   DISCOVERY      — understanding the user's goal (entry point for new projects)
-//   BRAINSTORMING  — thinking TOGETHER: Aof contributes ideas, directions, trade-offs
+//   BRAINSTORMING  — thinking TOGETHER: Nexora contributes ideas, directions, trade-offs
 //                    (behavioural mode WITHIN discovery — classifyTurn never returns
 //                    this; the persona handles the collaborative 50/50 behaviour)
 //   PLANNING       — designing architecture, components, structure
