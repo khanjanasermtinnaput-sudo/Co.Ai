@@ -1,7 +1,7 @@
 "use client";
 
 // ── Active Model Panel ────────────────────────────────────────────────────────
-// Section 1 / Section 6 of the AOF transparency spec: every assistant reply
+// Section 1 / Section 6 of the Nexora transparency spec: every assistant reply
 // always shows which model actually answered, which provider it came from, and
 // what role it played — never hidden behind a generic "Nexora replied" bubble.
 

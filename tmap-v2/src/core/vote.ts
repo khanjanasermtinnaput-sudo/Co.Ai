@@ -18,7 +18,7 @@ export interface VoteResult {
 // no-op in the previous implementation.
 const VOTE_TEMPS = [0.2, 0.5, 0.8];
 
-const JUDGE_SYS = `You are a code quality judge in AOF Code (TMAP v2).
+const JUDGE_SYS = `You are a code quality judge in Nexora Code (TMAP v2).
 Score each candidate implementation on:
 - accuracy / correctness (40%)
 - completeness vs the task (30%)

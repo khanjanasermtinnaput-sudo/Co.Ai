@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Nexora — App Icon (Light)
+  White background · 512 × 512 · SVG
+  Suitable for: light-mode apps, print, white-background contexts
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none" role="img" aria-label="Nexora">
+  <title>Nexora</title>
+  <defs>
+
+    <!-- Background: crisp white with very subtle cool tint at center -->
+    <radialGradient id="gBg" cx="50%" cy="45%" r="65%">
+      <stop offset="0%"   stop-color="#F0F4FF"/>
+      <stop offset="100%" stop-color="#FFFFFF"/>
+    </radialGradient>
+
+    <!-- Mark diagonal gradient -->
+    <linearGradient id="gMain" x1="106" y1="126" x2="406" y2="386" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#0891B2"/>
+      <stop offset="48%"  stop-color="#4F46E5"/>
+      <stop offset="100%" stop-color="#3730A3"/>
+    </linearGradient>
+
+    <!-- Center node radial -->
+    <radialGradient id="gCenter" cx="42%" cy="38%" r="68%">
+      <stop offset="0%"   stop-color="#EEF2FF"/>
+      <stop offset="35%"  stop-color="#818CF8"/>
+      <stop offset="100%" stop-color="#4338CA"/>
+    </radialGradient>
+
+    <!-- Subtle drop shadow for nodes -->
+    <filter id="fShadow" x="-60%" y="-60%" width="220%" height="220%">
+      <feDropShadow dx="0" dy="1" stdDeviation="3" flood-color="#4F46E5" flood-opacity="0.25"/>
+    </filter>
+
+    <filter id="fShadowCenter" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="2" stdDeviation="8" flood-color="#4338CA" flood-opacity="0.3"/>
+    </filter>
+
+  </defs>
+
+  <!-- ── Background ────────────────────────────────────────── -->
+  <rect width="512" height="512" rx="115" fill="url(#gBg)"/>
+  <rect width="512" height="512" rx="115"
+    stroke="#E0E7FF" stroke-width="1.5"/>
+
+  <!-- Ambient soft glow at center -->
+  <circle cx="256" cy="256" r="160" fill="#EEF2FF" opacity="0.6"/>
+
+  <!-- ── Mark ────────────────────────────────────────────────
+    Center: (256, 256)  Hex radius: 150
+    N1:(406,256) N2:(331,126) N3:(181,126)
+    N4:(106,256) N5:(181,386) N6:(331,386)
+  ───────────────────────────────────────────────────────── -->
+
+  <!-- Outer decorative ring -->
+  <circle cx="256" cy="256" r="197"
+    stroke="url(#gMain)" stroke-width="0.7" stroke-opacity="0.15"/>
+
+  <!-- Hexagonal ring -->
+  <polygon
+    points="406,256 331,126 181,126 106,256 181,386 331,386"
+    stroke="url(#gMain)" stroke-width="1.8" stroke-opacity="0.35"
+    stroke-linejoin="round"
+  />
+
+  <!-- Spokes to center -->
+  <g stroke="url(#gMain)" stroke-width="1.8" stroke-linecap="round" stroke-opacity="0.5">
+    <line x1="406" y1="256" x2="256" y2="256"/>
+    <line x1="331" y1="126" x2="256" y2="256"/>
+    <line x1="181" y1="126" x2="256" y2="256"/>
+    <line x1="106" y1="256" x2="256" y2="256"/>
+    <line x1="181" y1="386" x2="256" y2="256"/>
+    <line x1="331" y1="386" x2="256" y2="256"/>
+  </g>
+
+  <!-- Outer node soft fill (light mode: colored fill on white) -->
+  <circle cx="406" cy="256" r="11" fill="#0891B2" filter="url(#fShadow)"/>
+  <circle cx="331" cy="126" r="11" fill="#0891B2" filter="url(#fShadow)"/>
+  <circle cx="181" cy="126" r="11" fill="#06B6D4" filter="url(#fShadow)"/>
+  <circle cx="106" cy="256" r="11" fill="#6366F1" filter="url(#fShadow)"/>
+  <circle cx="181" cy="386" r="11" fill="#4F46E5" filter="url(#fShadow)"/>
+  <circle cx="331" cy="386" r="11" fill="#3730A3" filter="url(#fShadow)"/>
+
+  <!-- Center node -->
+  <circle cx="256" cy="256" r="32" fill="url(#gCenter)" filter="url(#fShadowCenter)"/>
+  <circle cx="247" cy="245" r="9" fill="white" opacity="0.7"/>
+
+</svg>

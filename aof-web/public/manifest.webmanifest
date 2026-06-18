@@ -1,7 +1,7 @@
 {
-  "name": "Nexora — The professional AI platform",
+  "name": "Nexora — Many Minds. One Intelligence.",
   "short_name": "Nexora",
-  "description": "Nexora Chat, build software with Nexora Code, and manage your Projects — all in one premium AI workspace.",
+  "description": "Next-generation Multi-Agent AI platform. Multiple AI minds collaborating as one unified intelligence.",
   "id": "/",
   "start_url": "/",
   "scope": "/",
@@ -10,10 +10,29 @@
   "orientation": "any",
   "background_color": "#0A0A0A",
   "theme_color": "#0A0A0A",
-  "categories": ["productivity", "developer", "utilities"],
+  "categories": ["productivity", "developer", "utilities", "ai"],
   "icons": [
-    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "/icon-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    { "src": "/favicon.svg",            "type": "image/svg+xml",   "sizes": "any",    "purpose": "any" },
+    { "src": "/brand/nexora-icon-dark.svg", "type": "image/svg+xml", "sizes": "any",  "purpose": "any" },
+    { "src": "/icon-192.png",           "type": "image/png",        "sizes": "192x192","purpose": "any" },
+    { "src": "/icon-512.png",           "type": "image/png",        "sizes": "512x512","purpose": "any" },
+    { "src": "/icon-maskable.png",      "type": "image/png",        "sizes": "512x512","purpose": "maskable" }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Nexora Chat",
+      "short_name": "Chat",
+      "description": "Open Nexora Chat",
+      "url": "/chat",
+      "icons": [{ "src": "/favicon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Nexora Code",
+      "short_name": "Code",
+      "description": "Build software with Nexora Code",
+      "url": "/code",
+      "icons": [{ "src": "/favicon.svg", "sizes": "any" }]
+    }
   ]
 }

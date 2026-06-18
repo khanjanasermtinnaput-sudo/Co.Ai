@@ -21,7 +21,7 @@ npm run dev                  # http://localhost:3000
 ```
 
 Set at least one AI provider key (`ANTHROPIC_API_KEY` or `OPENROUTER_API_KEY`).
-**Nexora never fakes AI** — with no key it surfaces a clear `AOF_ERROR_001` panel
+**Nexora never fakes AI** — with no key it surfaces a clear `NEXORA_ERROR_001` panel
 telling you exactly what to add. For a keyless local UI demo, opt in explicitly
 with `NEXT_PUBLIC_NEXORA_DEMO=1` (clearly-labelled simulated responses).
 
@@ -33,7 +33,7 @@ Copy `.env.example` → `.env.local` and set one of:
 ```bash
 # Same-origin via Next rewrite (recommended for prod):
 NEXORA_API_PROXY=http://localhost:8787
-NEXT_PUBLIC_AOF_SAME_ORIGIN=1
+NEXT_PUBLIC_NEXORA_SAME_ORIGIN=1
 
 # …or call the backend directly (dev / cross-origin):
 NEXT_PUBLIC_NEXORA_API_BASE=http://localhost:8787
@@ -51,14 +51,14 @@ and shown to the user as a structured panel — never a fake answer, never a sil
 fallback.
 
 - **Error model** — `src/lib/errors.ts` classifies any failure into one of 13
-  codes (`AOF_ERROR_001`–`AOF_ERROR_013`: missing/invalid/expired key, quota,
+  codes (`NEXORA_ERROR_001`–`NEXORA_ERROR_013`: missing/invalid/expired key, quota,
   rate-limit, provider-unavailable, network, timeout, invalid-model, auth, empty
   response, unknown, configuration). Each carries **Provider · Problem · Details ·
   Solution · Timestamp**.
 - **Server route** — `src/app/api/chat/route.ts` "primes" the provider (pulls the
   first token) before committing to a 200 stream, so an auth/quota/model/network
   failure becomes a clean error envelope instead of a half-rendered fake. Failures
-  are logged as `[AOF ERROR]` blocks with request id, status, stack and body.
+  are logged as `[NEXORA ERROR]` blocks with request id, status, stack and body.
 - **Failover** — if the primary provider fails and a backup key is configured, the
   route fails over **and announces it**: the reply is prefixed with a "Primary
   provider failed — switched to …" notice. Failovers are never hidden.

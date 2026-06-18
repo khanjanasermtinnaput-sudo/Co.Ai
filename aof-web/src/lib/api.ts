@@ -31,7 +31,7 @@ export function getApiBase(): string | null {
   const pub = process.env.NEXT_PUBLIC_NEXORA_API_BASE;
   if (typeof pub === "string" && pub.length > 0) return pub.replace(/\/$/, "");
   // When NEXORA_API_PROXY is set we rewrite /v1 at the edge → call same-origin.
-  if (process.env.NEXT_PUBLIC_AOF_SAME_ORIGIN === "1") return "";
+  if (process.env.NEXT_PUBLIC_NEXORA_SAME_ORIGIN === "1") return "";
   return null;
 }
 
@@ -520,7 +520,7 @@ export async function streamDebug(input: DebugInput, handlers: StreamHandlers): 
   }
 }
 
-// ── AOF AI Universal Orchestration ───────────────────────────────────────────
+// ── Nexora Universal Orchestration ───────────────────────────────────────────
 
 export interface OrchestrationEvent {
   role: string;
@@ -541,7 +541,7 @@ export interface OrchestrationHandlers {
 }
 
 /**
- * Stream a universal orchestration request through the AOF AI Chief Agent.
+ * Stream a universal orchestration request through the Nexora Chief Agent.
  * The Chief Agent classifies intent, expands the prompt, delegates to specialized
  * agents, runs a quality review loop, and returns the best possible response.
  */

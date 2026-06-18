@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 
 // Point DB to temp dir before importing
 const tmpDir = mkdtempSync(join(tmpdir(), 'nexora-db-test-'));
-process.env.AOF_DB_PATH = join(tmpDir, 'db.json');
+process.env.NEXORA_DB_PATH = join(tmpDir, 'db.json');
 
 // Dynamic import after env is set
 const { createUser, findUserByUsername, findUserById, setUserKey, deleteUserKey,

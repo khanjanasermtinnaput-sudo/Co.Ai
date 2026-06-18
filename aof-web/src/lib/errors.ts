@@ -11,7 +11,7 @@
 // exact same classification + serialization runs on the API route and in the UI.
 
 // ── Error codes ───────────────────────────────────────────────────────────────
-// Numbering follows the AOF spec's ERROR CODES list (001–012). 013 is added for
+// Numbering follows the Nexora spec's ERROR CODES list (001–012). 013 is added for
 // "Configuration Error", which the DETECTION list names but the codes list left
 // unnumbered.
 
@@ -43,7 +43,7 @@ interface CatalogEntry {
   failoverWorthy: boolean;
 }
 
-/** The canonical meaning of every AOF error code. */
+/** The canonical meaning of every Nexora error code. */
 export const ERROR_CATALOG: Record<NexoraErrorCode, CatalogEntry> = {
   NEXORA_ERROR_001: {
     problem: "API Key Missing",
@@ -174,7 +174,7 @@ export function redact(text: string | undefined): string | undefined {
 
 // ── Classification ──────────────────────────────────────────────────────────
 // Maps any provider failure (HTTP status, SDK error type, or thrown Error) onto
-// the correct AOF error code. Kept deliberately defensive: status codes are the
+// the correct Nexora error code. Kept deliberately defensive: status codes are the
 // strongest signal, message/type text refines ambiguous cases (401 invalid vs.
 // expired, 429 quota vs. rate-limit, 404 model vs. provider-down).
 
@@ -417,14 +417,14 @@ export function makeSourcesNotice(provider: string, query: string, sources: Cita
 // response instead (see `errorResponse` in the route).
 
 const NUL = String.fromCharCode(0);
-const ERR_OPEN = NUL + "AOF_ERR" + NUL;
-const ERR_CLOSE = NUL + "/AOF_ERR" + NUL;
-const FO_OPEN = NUL + "AOF_FO" + NUL;
-const FO_CLOSE = NUL + "/AOF_FO" + NUL;
-const MN_OPEN = NUL + "AOF_MN" + NUL;
-const MN_CLOSE = NUL + "/AOF_MN" + NUL;
-const SRC_OPEN = NUL + "AOF_SRC" + NUL;
-const SRC_CLOSE = NUL + "/AOF_SRC" + NUL;
+const ERR_OPEN = NUL + "NEXORA_ERR" + NUL;
+const ERR_CLOSE = NUL + "/NEXORA_ERR" + NUL;
+const FO_OPEN = NUL + "NEXORA_FO" + NUL;
+const FO_CLOSE = NUL + "/NEXORA_FO" + NUL;
+const MN_OPEN = NUL + "NEXORA_MN" + NUL;
+const MN_CLOSE = NUL + "/NEXORA_MN" + NUL;
+const SRC_OPEN = NUL + "NEXORA_SRC" + NUL;
+const SRC_CLOSE = NUL + "/NEXORA_SRC" + NUL;
 
 export function encodeErrorFrame(error: NexoraProviderError): string {
   return ERR_OPEN + JSON.stringify(error) + ERR_CLOSE;
@@ -528,7 +528,7 @@ function partialSentinelTail(buffer: string): string {
 
 // ── Display helpers ───────────────────────────────────────────────────────────
 
-/** Format an ISO timestamp as `YYYY-MM-DD HH:MM:SS UTC` (matches AOF log style). */
+/** Format an ISO timestamp as `YYYY-MM-DD HH:MM:SS UTC` (matches Nexora log style). */
 export function formatUtc(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
@@ -539,7 +539,7 @@ export function formatUtc(iso: string): string {
   );
 }
 
-/** Render the canonical AOF_ERROR block (used in copy-to-clipboard + plain text). */
+/** Render the canonical NEXORA_ERROR block (used in copy-to-clipboard + plain text). */
 export function formatErrorBlock(e: NexoraProviderError): string {
   return [
     e.code,

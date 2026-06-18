@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Nexora — Monochrome Logo (White on Dark)
+  Dark background · 800 × 200 · SVG
+  Single-color version for contexts where gradient isn't appropriate
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 200" fill="none" role="img" aria-label="Nexora">
+  <title>Nexora</title>
+
+  <!-- Background -->
+  <rect width="800" height="200" rx="16" fill="#0A0A0A"/>
+
+  <!-- ══════ MARK — white monochrome, center (100,100), r=72 ══════
+    N1:(172,100) N2:(136,38) N3:(64,38)
+    N4:(28,100)  N5:(64,162) N6:(136,162)
+  ══════════════════════════════════════════════════════════════ -->
+
+  <!-- Outer ring -->
+  <circle cx="100" cy="100" r="93" stroke="white" stroke-width="0.5" stroke-opacity="0.12"/>
+
+  <!-- Hex ring -->
+  <polygon
+    points="172,100 136,38 64,38 28,100 64,162 136,162"
+    stroke="white" stroke-width="1.2" stroke-opacity="0.3"
+    stroke-linejoin="round"
+  />
+
+  <!-- Spokes -->
+  <g stroke="white" stroke-width="1.2" stroke-linecap="round" stroke-opacity="0.38">
+    <line x1="172" y1="100" x2="100" y2="100"/>
+    <line x1="136" y1="38"  x2="100" y2="100"/>
+    <line x1="64"  y1="38"  x2="100" y2="100"/>
+    <line x1="28"  y1="100" x2="100" y2="100"/>
+    <line x1="64"  y1="162" x2="100" y2="100"/>
+    <line x1="136" y1="162" x2="100" y2="100"/>
+  </g>
+
+  <!-- Outer nodes -->
+  <circle cx="172" cy="100" r="5.5" fill="white" opacity="0.7"/>
+  <circle cx="136" cy="38"  r="5.5" fill="white" opacity="0.7"/>
+  <circle cx="64"  cy="38"  r="5.5" fill="white" opacity="0.7"/>
+  <circle cx="28"  cy="100" r="5.5" fill="white" opacity="0.7"/>
+  <circle cx="64"  cy="162" r="5.5" fill="white" opacity="0.7"/>
+  <circle cx="136" cy="162" r="5.5" fill="white" opacity="0.7"/>
+
+  <!-- Center node -->
+  <circle cx="100" cy="100" r="15.5" fill="white"/>
+  <circle cx="96"  cy="96"  r="4.5"  fill="#0A0A0A" opacity="0.3"/>
+
+  <!-- ══════ WORDMARK ══════ -->
+  <text
+    x="198" y="96"
+    font-family="'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif"
+    font-size="52"
+    font-weight="300"
+    letter-spacing="7"
+    fill="white"
+  >NEXORA</text>
+
+  <!-- Tagline -->
+  <text
+    x="200" y="128"
+    font-family="'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif"
+    font-size="13"
+    font-weight="300"
+    letter-spacing="2.8"
+    fill="white"
+    fill-opacity="0.38"
+  >MANY MINDS. ONE INTELLIGENCE.</text>
+
+</svg>

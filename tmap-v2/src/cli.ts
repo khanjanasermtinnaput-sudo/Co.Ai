@@ -26,7 +26,7 @@ const ROLE_COLOR: Record<string, (s: string) => string> = {
 };
 
 function banner() {
-  console.log(c.bold(`AOF ${c.orange('Code')}  ${c.dim('· TMAP v2 multi-agent')}`));
+  console.log(c.bold(`Nexora ${c.orange('Code')}  ${c.dim('· TMAP v2 multi-agent')}`));
 }
 
 function makeEmit() {

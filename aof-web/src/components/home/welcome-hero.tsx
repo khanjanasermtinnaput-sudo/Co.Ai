@@ -40,6 +40,24 @@ export function WelcomeHero() {
       >
         {BRAND.welcomeSub}
       </motion.p>
+
+      <motion.p
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.55, delay: 0.18, ease: [0.22, 1, 0.36, 1] }}
+        className="mt-2 max-w-lg text-balance text-sm text-muted-foreground/70"
+      >
+        {BRAND.description}
+      </motion.p>
+
+      <motion.p
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.55, delay: 0.24, ease: [0.22, 1, 0.36, 1] }}
+        className="mt-4 max-w-lg text-balance text-xs text-muted-foreground/50"
+      >
+        {BRAND.about}
+      </motion.p>
     </div>
   );
 }

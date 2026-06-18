@@ -7,7 +7,7 @@ import { join } from 'node:path';
 // Point the memory layer at a temp dir BEFORE importing the module under test.
 // (No SUPABASE_URL in the test env → exercises the file backend.)
 const MEM_DIR = mkdtempSync(join(tmpdir(), 'nexora-mem-'));
-process.env.AOF_MEMORY_DIR = MEM_DIR;
+process.env.NEXORA_MEMORY_DIR = MEM_DIR;
 delete process.env.SUPABASE_URL;
 delete process.env.SUPABASE_SERVICE_ROLE_KEY;
 

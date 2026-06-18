@@ -233,7 +233,7 @@ test("a frame split across many chunks is still decoded, never leaked as text", 
   assert.equal(r.errors.length, 1);
   assert.equal(r.errors[0].code, "NEXORA_ERROR_006");
   // The control delimiter must never appear in the user-visible text.
-  assert.doesNotMatch(r.text, /AOF_ERR/);
+  assert.doesNotMatch(r.text, /NEXORA_ERR/);
 });
 
 test("failover frame then content, char-by-char, decodes cleanly", () => {

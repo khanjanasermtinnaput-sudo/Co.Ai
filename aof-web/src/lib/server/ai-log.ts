@@ -7,10 +7,10 @@
 import type { NexoraProviderError } from "@/lib/errors";
 import { formatUtc, redact } from "@/lib/errors";
 
-/** Log a classified provider error in the canonical `[AOF ERROR]` block. */
+/** Log a classified provider error in the canonical `[NEXORA ERROR]` block. */
 export function logNexoraError(error: NexoraProviderError): void {
   const lines = [
-    "[AOF ERROR]",
+    "[NEXORA ERROR]",
     `Code: ${error.code}`,
     `Provider: ${error.provider}${error.model ? `   Model: ${error.model}` : ""}`,
     `Time: ${formatUtc(error.timestamp)}`,
@@ -26,12 +26,12 @@ export function logNexoraError(error: NexoraProviderError): void {
 
 /** Log a non-error provider event (e.g. an announced failover). */
 export function logNexoraInfo(message: string): void {
-  console.info(`[AOF] ${formatUtc(new Date().toISOString())} ${message}`);
+  console.info(`[NEXORA] ${formatUtc(new Date().toISOString())} ${message}`);
 }
 
 // ── Startup check ─────────────────────────────────────────────────────────────
 // Logged once per server process the first time an AI route is hit, mirroring the
-// AOF startup banner: which keys loaded, database status, overall system status.
+// Nexora startup banner: which keys loaded, database status, overall system status.
 
 let startupLogged = false;
 
@@ -43,7 +43,7 @@ export interface StartupItem {
 export function runStartupCheckOnce(items: StartupItem[], systemStatus: string): void {
   if (startupLogged) return;
   startupLogged = true;
-  const lines = ["[AOF STARTUP CHECK]", ""];
+  const lines = ["[NEXORA STARTUP CHECK]", ""];
   for (const it of items) lines.push(`${it.ok ? "✅" : "❌"} ${it.label}`);
   lines.push("", `System Status: ${systemStatus}`);
   console.info(lines.join("\n"));

@@ -1,6 +1,6 @@
-// ── AOF AI Universal Router ─────────────────────────────────────────────────
+// ── Nexora Universal Router ─────────────────────────────────────────────────
 // Classifies all user requests into one of 16 task categories and routes them
-// to the appropriate AOF AI system. Users never need to select a mode manually.
+// to the appropriate Nexora system. Users never need to select a mode manually.
 
 import type { Attachment, RouteDecision, RouteTarget } from "./types";
 

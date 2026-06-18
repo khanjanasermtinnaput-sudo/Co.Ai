@@ -39,11 +39,11 @@ import { loadUserKeyOverrides } from "@/lib/server/keys-store";
 import type { ResponseStyle, RouteDecision } from "@/lib/types";
 import {
   RAA_SYSTEM,
-  AOF_CODE_CHAT_SYSTEM,
-  AOF_CODE_GEN_SYSTEM,
-  AOF_PLAN_SYSTEM,
-  AOF_ANALYZE_SYSTEM,
-  AOF_DEBUG_SYSTEM,
+  NEXORA_CODE_CHAT_SYSTEM,
+  NEXORA_CODE_GEN_SYSTEM,
+  NEXORA_PLAN_SYSTEM,
+  NEXORA_ANALYZE_SYSTEM,
+  NEXORA_DEBUG_SYSTEM,
 } from "@/lib/raa";
 
 /** Agents that do not need the tmap-v2 backend: a single-pass LLM call via the
@@ -59,15 +59,15 @@ function agentConfig(
     case "requirements":
       return { system: RAA_SYSTEM, temperature: 0.5, maxTokens: 1200 };
     case "code-chat":
-      return { system: AOF_CODE_CHAT_SYSTEM, temperature: 0.7, maxTokens: 800 };
+      return { system: NEXORA_CODE_CHAT_SYSTEM, temperature: 0.7, maxTokens: 800 };
     case "code-gen":
-      return { system: AOF_CODE_GEN_SYSTEM, temperature: 0.4, maxTokens: 4000 };
+      return { system: NEXORA_CODE_GEN_SYSTEM, temperature: 0.4, maxTokens: 4000 };
     case "plan":
-      return { system: AOF_PLAN_SYSTEM, temperature: 0.5, maxTokens: 2000 };
+      return { system: NEXORA_PLAN_SYSTEM, temperature: 0.5, maxTokens: 2000 };
     case "analyze":
-      return { system: AOF_ANALYZE_SYSTEM, temperature: 0.5, maxTokens: 2000 };
+      return { system: NEXORA_ANALYZE_SYSTEM, temperature: 0.5, maxTokens: 2000 };
     case "debug":
-      return { system: AOF_DEBUG_SYSTEM, temperature: 0.4, maxTokens: 2500 };
+      return { system: NEXORA_DEBUG_SYSTEM, temperature: 0.4, maxTokens: 2500 };
     default:
       return { system: buildSystem(style, route), temperature: 0.7, maxTokens: maxTokensFor(style) };
   }
@@ -146,7 +146,7 @@ function maxTokensFor(style: ResponseStyle | undefined): number {
   return 1000;
 }
 
-/** Map an AOF error code onto a representative HTTP status for the JSON envelope. */
+/** Map an Nexora error code onto a representative HTTP status for the JSON envelope. */
 function httpStatusFor(code: NexoraErrorCode): number {
   switch (code) {
     case "NEXORA_ERROR_001": // missing key

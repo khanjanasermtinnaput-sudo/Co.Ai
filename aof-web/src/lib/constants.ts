@@ -223,9 +223,13 @@ export const TITAN_PHASES: TitanPhase[] = [
 
 export const BRAND = {
   name: "Nexora",
-  tagline: "The professional AI platform",
-  welcome: "Welcome to Nexora",
-  welcomeSub: "What would you like to do today?",
+  tagline: "Many Minds. One Intelligence.",
+  welcome: "Nexora",
+  welcomeSub: "Many Minds. One Intelligence.",
+  description:
+    "Next-generation Multi-Agent AI platform that combines multiple AI minds into one intelligent system.",
+  about:
+    "Nexora is built on the belief that many minds working together can achieve more than a single model alone.",
   composerPlaceholder: "Ask anything or start a project...",
 } as const;
 

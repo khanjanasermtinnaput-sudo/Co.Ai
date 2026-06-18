@@ -1,7 +1,7 @@
-# AOF Code — TMAP v2 (MVP core)
+# Nexora Code — TMAP v2 (MVP core)
 
 Multi-agent coding assistant ที่ทำงานจริง: **Planner → Coder → Validator → Reviewer + critique loop**
-อิงสถาปัตยกรรมใน [`AOF_CODE_TDD.md`](./AOF_CODE_TDD.md). โค้ดทั้งหมดเรียกโมเดลจริงด้วย API key ของคุณ
+อิงสถาปัตยกรรมใน [`NEXORA_CODE_TDD.md`](./NEXORA_CODE_TDD.md). โค้ดทั้งหมดเรียกโมเดลจริงด้วย API key ของคุณ
 ถ้าไม่ใส่ key จะรันใน **mock mode** (เดโมออฟไลน์) ได้
 
 ## ความต้องการ

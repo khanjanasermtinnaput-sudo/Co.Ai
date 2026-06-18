@@ -1,0 +1,260 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Nexora — App Icon (Premium / Marketing)
+  1024 × 1024 · SVG
+  Suitable for App Store, Google Play, desktop launchers, social media
+  Maximum detail and visual quality version
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" fill="none" role="img" aria-label="Nexora">
+  <title>Nexora</title>
+  <defs>
+
+    <!-- ── Backgrounds ────────────────────────────────────── -->
+    <radialGradient id="gBg" cx="40%" cy="35%" r="75%">
+      <stop offset="0%"   stop-color="#1C1240"/>
+      <stop offset="45%"  stop-color="#110D2E"/>
+      <stop offset="100%" stop-color="#0A0A0A"/>
+    </radialGradient>
+
+    <!-- Subtle inner glow background layer -->
+    <radialGradient id="gBgGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#4F46E5" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#4F46E5" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- ── Mark Gradients ─────────────────────────────────── -->
+
+    <!-- Main diagonal: cyan → indigo -->
+    <linearGradient id="gMain" x1="162" y1="196" x2="862" y2="828" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#06B6D4"/>
+      <stop offset="40%"  stop-color="#6366F1"/>
+      <stop offset="100%" stop-color="#4F46E5"/>
+    </linearGradient>
+
+    <!-- Outer ring: subtle cyan tint -->
+    <linearGradient id="gRing" x1="162" y1="200" x2="862" y2="824" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#22D3EE" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="#4F46E5" stop-opacity="0.22"/>
+    </linearGradient>
+
+    <!-- Center node: white core → indigo rim -->
+    <radialGradient id="gCenter" cx="40%" cy="36%" r="72%">
+      <stop offset="0%"   stop-color="#FFFFFF"/>
+      <stop offset="28%"  stop-color="#E0E7FF"/>
+      <stop offset="60%"  stop-color="#818CF8"/>
+      <stop offset="100%" stop-color="#4338CA"/>
+    </radialGradient>
+
+    <!-- ── Node Gradients (per-node fine-tuning) ──────────── -->
+    <radialGradient id="gN1" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#67E8F9"/>
+      <stop offset="100%" stop-color="#06B6D4"/>
+    </radialGradient>
+    <radialGradient id="gN2" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#67E8F9"/>
+      <stop offset="100%" stop-color="#06B6D4"/>
+    </radialGradient>
+    <radialGradient id="gN3" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#A5F3FC"/>
+      <stop offset="100%" stop-color="#22D3EE"/>
+    </radialGradient>
+    <radialGradient id="gN4" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#C7D2FE"/>
+      <stop offset="100%" stop-color="#818CF8"/>
+    </radialGradient>
+    <radialGradient id="gN5" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#A5B4FC"/>
+      <stop offset="100%" stop-color="#6366F1"/>
+    </radialGradient>
+    <radialGradient id="gN6" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#818CF8"/>
+      <stop offset="100%" stop-color="#4F46E5"/>
+    </radialGradient>
+
+    <!-- ── Filters ────────────────────────────────────────── -->
+
+    <!-- Outer node glow (cyan tint) -->
+    <filter id="fGlowCyan" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="12" result="blur"/>
+      <feFlood flood-color="#06B6D4" flood-opacity="0.65" result="fc"/>
+      <feComposite in="fc" in2="blur" operator="in" result="glow"/>
+      <feMerge><feMergeNode in="glow"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+
+    <!-- Outer node glow (indigo tint) -->
+    <filter id="fGlowIndigo" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="12" result="blur"/>
+      <feFlood flood-color="#6366F1" flood-opacity="0.6" result="fc"/>
+      <feComposite in="fc" in2="blur" operator="in" result="glow"/>
+      <feMerge><feMergeNode in="glow"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+
+    <!-- Center node glow (large, dramatic) -->
+    <filter id="fGlowCenter" x="-160%" y="-160%" width="420%" height="420%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="38" result="blur1"/>
+      <feFlood flood-color="#6366F1" flood-opacity="0.4" result="fc1"/>
+      <feComposite in="fc1" in2="blur1" operator="in" result="glow1"/>
+
+      <feGaussianBlur in="SourceAlpha" stdDeviation="16" result="blur2"/>
+      <feFlood flood-color="#FFFFFF"   flood-opacity="0.15" result="fc2"/>
+      <feComposite in="fc2" in2="blur2" operator="in" result="glow2"/>
+
+      <feMerge>
+        <feMergeNode in="glow1"/>
+        <feMergeNode in="glow2"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Soft line glow -->
+    <filter id="fLineSoft" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+
+  </defs>
+
+  <!-- ════════════════════════════════════════════════════════
+       BACKGROUND LAYERS
+  ════════════════════════════════════════════════════════ -->
+
+  <!-- Main background: deep dark with purple tint -->
+  <rect width="1024" height="1024" rx="230" fill="url(#gBg)"/>
+
+  <!-- Inner ambient glow layer -->
+  <circle cx="512" cy="512" r="420" fill="url(#gBgGlow)"/>
+
+  <!-- Subtle outer border -->
+  <rect width="1024" height="1024" rx="230"
+    stroke="white" stroke-width="1.5" stroke-opacity="0.04"/>
+
+  <!-- ════════════════════════════════════════════════════════
+       MARK GEOMETRY
+       Center: (512, 512)  Hex outer radius: 300
+       Inner orbit radius: 150 (midpoints — optional)
+
+       Hex node positions:
+       N1 right:        (812, 512)
+       N2 upper-right:  (662, 252)  512+150=662  512-259.8≈252
+       N3 upper-left:   (362, 252)  512-150=362
+       N4 left:         (212, 512)
+       N5 lower-left:   (362, 772)
+       N6 lower-right:  (662, 772)
+
+       (300*cos60=150, 300*sin60=259.8)
+  ════════════════════════════════════════════════════════ -->
+
+  <!-- ── Outermost orbit ring (decorative, very subtle) ──── -->
+  <circle cx="512" cy="512" r="390"
+    stroke="url(#gRing)" stroke-width="1" stroke-dasharray="6 18"/>
+
+  <!-- ── Secondary orbit ring ──────────────────────────── -->
+  <circle cx="512" cy="512" r="310"
+    stroke="url(#gRing)" stroke-width="0.8"/>
+
+  <!-- ── Hexagonal ring (main structure) ───────────────── -->
+  <polygon
+    points="812,512 662,252 362,252 212,512 362,772 662,772"
+    stroke="url(#gMain)" stroke-width="2.5" stroke-opacity="0.38"
+    stroke-linejoin="round"
+    filter="url(#fLineSoft)"
+  />
+
+  <!-- ── Inner hexagonal ring (half-size, rotated 30°) ─── -->
+  <!--
+    Inner hex at r=150, rotated 30° from main
+    P1: (512+150*cos30°, 512-150*sin30°) = (512+130, 512-75) = (642, 437)
+    P2: (512, 512-150) = (512, 362)
+    P3: (512-130, 437) = (382, 437)
+    P4: (382, 587)
+    P5: (512, 662)
+    P6: (642, 587)
+  -->
+  <polygon
+    points="642,437 512,362 382,437 382,587 512,662 642,587"
+    stroke="url(#gMain)" stroke-width="1.2" stroke-opacity="0.18"
+    stroke-linejoin="round"
+  />
+
+  <!-- ── Spokes: outer nodes → center ──────────────────── -->
+  <g stroke="url(#gMain)" stroke-width="2.2" stroke-linecap="round"
+     stroke-opacity="0.55" filter="url(#fLineSoft)">
+    <line x1="812" y1="512" x2="512" y2="512"/>
+    <line x1="662" y1="252" x2="512" y2="512"/>
+    <line x1="362" y1="252" x2="512" y2="512"/>
+    <line x1="212" y1="512" x2="512" y2="512"/>
+    <line x1="362" y1="772" x2="512" y2="512"/>
+    <line x1="662" y1="772" x2="512" y2="512"/>
+  </g>
+
+  <!-- ── Cross-hex connections (skip-1, subtle depth layer) -->
+  <g stroke="url(#gMain)" stroke-width="1.0" stroke-opacity="0.12">
+    <!-- N1 → N3, N2 → N4, N3 → N5, N4 → N6, N5 → N1, N6 → N2 -->
+    <line x1="812" y1="512" x2="362" y2="252"/>
+    <line x1="662" y1="252" x2="212" y2="512"/>
+    <line x1="362" y1="252" x2="362" y2="772"/>
+    <line x1="212" y1="512" x2="662" y2="772"/>
+    <line x1="362" y1="772" x2="812" y2="512"/>
+    <line x1="662" y1="772" x2="662" y2="252"/>
+  </g>
+
+  <!-- ── Inner ring connections (inner hex → outer nodes) ─ -->
+  <g stroke="url(#gMain)" stroke-width="1.0" stroke-opacity="0.14">
+    <line x1="642" y1="437" x2="812" y2="512"/>
+    <line x1="642" y1="437" x2="662" y2="252"/>
+    <line x1="512" y1="362" x2="662" y2="252"/>
+    <line x1="512" y1="362" x2="362" y2="252"/>
+    <line x1="382" y1="437" x2="362" y2="252"/>
+    <line x1="382" y1="437" x2="212" y2="512"/>
+    <line x1="382" y1="587" x2="212" y2="512"/>
+    <line x1="382" y1="587" x2="362" y2="772"/>
+    <line x1="512" y1="662" x2="362" y2="772"/>
+    <line x1="512" y1="662" x2="662" y2="772"/>
+    <line x1="642" y1="587" x2="662" y2="772"/>
+    <line x1="642" y1="587" x2="812" y2="512"/>
+  </g>
+
+  <!-- ── Outer node halos (large, diffuse glow behind nodes) -->
+  <g opacity="0.22">
+    <circle cx="812" cy="512" r="55" fill="#06B6D4"/>
+    <circle cx="662" cy="252" r="55" fill="#06B6D4"/>
+    <circle cx="362" cy="252" r="55" fill="#22D3EE"/>
+    <circle cx="212" cy="512" r="55" fill="#818CF8"/>
+    <circle cx="362" cy="772" r="55" fill="#6366F1"/>
+    <circle cx="662" cy="772" r="55" fill="#4F46E5"/>
+  </g>
+
+  <!-- ── Outer nodes: 6 independent AI minds ───────────── -->
+  <circle cx="812" cy="512" r="20" fill="url(#gN1)" filter="url(#fGlowCyan)"/>
+  <circle cx="662" cy="252" r="20" fill="url(#gN2)" filter="url(#fGlowCyan)"/>
+  <circle cx="362" cy="252" r="20" fill="url(#gN3)" filter="url(#fGlowCyan)"/>
+  <circle cx="212" cy="512" r="20" fill="url(#gN4)" filter="url(#fGlowIndigo)"/>
+  <circle cx="362" cy="772" r="20" fill="url(#gN5)" filter="url(#fGlowIndigo)"/>
+  <circle cx="662" cy="772" r="20" fill="url(#gN6)" filter="url(#fGlowIndigo)"/>
+
+  <!-- Inner hex nodes (smaller, subtle) -->
+  <circle cx="642" cy="437" r="7.5" fill="#06B6D4" opacity="0.55"/>
+  <circle cx="512" cy="362" r="7.5" fill="#22D3EE" opacity="0.55"/>
+  <circle cx="382" cy="437" r="7.5" fill="#818CF8" opacity="0.55"/>
+  <circle cx="382" cy="587" r="7.5" fill="#6366F1" opacity="0.55"/>
+  <circle cx="512" cy="662" r="7.5" fill="#6366F1" opacity="0.55"/>
+  <circle cx="642" cy="587" r="7.5" fill="#4F46E5" opacity="0.55"/>
+
+  <!-- ── Center node: One Unified Intelligence ─────────── -->
+
+  <!-- Outermost aura (very diffuse) -->
+  <circle cx="512" cy="512" r="120" fill="#4F46E5" opacity="0.08"/>
+
+  <!-- Mid aura ring -->
+  <circle cx="512" cy="512" r="80" fill="#6366F1" opacity="0.1"/>
+
+  <!-- Main center node -->
+  <circle cx="512" cy="512" r="54" fill="url(#gCenter)" filter="url(#fGlowCenter)"/>
+
+  <!-- Specular highlight (creates 3D depth) -->
+  <ellipse cx="496" cy="493" rx="16" ry="13" fill="white" opacity="0.38"/>
+
+  <!-- Tiny catchlight -->
+  <circle cx="490" cy="487" r="5" fill="white" opacity="0.65"/>
+
+</svg>

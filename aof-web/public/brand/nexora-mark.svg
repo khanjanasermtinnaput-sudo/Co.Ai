@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Nexora — Brand Mark (Icon Only)
+  Transparent background · 400 × 400 · SVG
+  "Many Minds. One Intelligence."
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" fill="none" role="img" aria-label="Nexora">
+  <title>Nexora</title>
+  <defs>
+
+    <!-- ── Gradients ─────────────────────────────────────────── -->
+
+    <!-- Main diagonal gradient: cyan (top-left) → indigo (bottom-right) -->
+    <linearGradient id="gMain" x1="82" y1="98" x2="318" y2="302" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#06B6D4"/>
+      <stop offset="48%"  stop-color="#6366F1"/>
+      <stop offset="100%" stop-color="#4F46E5"/>
+    </linearGradient>
+
+    <!-- Center node: radial white → indigo -->
+    <radialGradient id="gCenter" cx="42%" cy="38%" r="68%">
+      <stop offset="0%"   stop-color="#FFFFFF"/>
+      <stop offset="35%"  stop-color="#C7D2FE"/>
+      <stop offset="100%" stop-color="#4F46E5"/>
+    </radialGradient>
+
+    <!-- ── Filters ───────────────────────────────────────────── -->
+
+    <!-- Glow for outer nodes -->
+    <filter id="fGlowNode" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="6" result="blur"/>
+      <feFlood flood-color="#6366F1" flood-opacity="0.55" result="fc"/>
+      <feComposite in="fc" in2="blur" operator="in" result="glow"/>
+      <feMerge><feMergeNode in="glow"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+
+    <!-- Strong glow for center node -->
+    <filter id="fGlowCenter" x="-130%" y="-130%" width="360%" height="360%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="18" result="blur"/>
+      <feFlood flood-color="#6366F1" flood-opacity="0.42" result="fc"/>
+      <feComposite in="fc" in2="blur" operator="in" result="glow"/>
+      <feMerge><feMergeNode in="glow"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+
+    <!-- Cyan glow for top nodes -->
+    <filter id="fGlowCyan" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="5" result="blur"/>
+      <feFlood flood-color="#06B6D4" flood-opacity="0.6" result="fc"/>
+      <feComposite in="fc" in2="blur" operator="in" result="glow"/>
+      <feMerge><feMergeNode in="glow"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+
+  </defs>
+
+  <!-- ── Decorative outer ring ─────────────────────────────── -->
+  <circle cx="200" cy="200" r="154"
+    stroke="url(#gMain)" stroke-width="0.7" stroke-opacity="0.16"/>
+
+  <!-- ── Hexagonal ring (6 outer nodes connected) ───────────── -->
+  <!--
+    Hex positions (center 200,200 · radius 118):
+    N1 right      (318, 200)
+    N2 upper-right(259,  98)
+    N3 upper-left (141,  98)
+    N4 left       ( 82, 200)
+    N5 lower-left (141, 302)
+    N6 lower-right(259, 302)
+  -->
+  <polygon
+    points="318,200 259,98 141,98 82,200 141,302 259,302"
+    stroke="url(#gMain)" stroke-width="1.5" stroke-opacity="0.38"
+    stroke-linejoin="round"
+  />
+
+  <!-- ── Spokes: each outer node → center ───────────────────── -->
+  <g stroke="url(#gMain)" stroke-width="1.5" stroke-linecap="round" stroke-opacity="0.58">
+    <line x1="318" y1="200" x2="200" y2="200"/>
+    <line x1="259" y1="98"  x2="200" y2="200"/>
+    <line x1="141" y1="98"  x2="200" y2="200"/>
+    <line x1="82"  y1="200" x2="200" y2="200"/>
+    <line x1="141" y1="302" x2="200" y2="200"/>
+    <line x1="259" y1="302" x2="200" y2="200"/>
+  </g>
+
+  <!-- ── Outer node halos (soft blur behind sharp nodes) ───── -->
+  <g opacity="0.28">
+    <circle cx="318" cy="200" r="26" fill="#06B6D4"/>
+    <circle cx="259" cy="98"  r="26" fill="#06B6D4"/>
+    <circle cx="141" cy="98"  r="26" fill="#22D3EE"/>
+    <circle cx="82"  cy="200" r="26" fill="#818CF8"/>
+    <circle cx="141" cy="302" r="26" fill="#6366F1"/>
+    <circle cx="259" cy="302" r="26" fill="#4F46E5"/>
+  </g>
+
+  <!-- ── Outer nodes: 6 independent AI minds ───────────────── -->
+  <circle cx="318" cy="200" r="9" fill="#06B6D4" filter="url(#fGlowCyan)"/>
+  <circle cx="259" cy="98"  r="9" fill="#06B6D4" filter="url(#fGlowCyan)"/>
+  <circle cx="141" cy="98"  r="9" fill="#22D3EE" filter="url(#fGlowCyan)"/>
+  <circle cx="82"  cy="200" r="9" fill="#818CF8" filter="url(#fGlowNode)"/>
+  <circle cx="141" cy="302" r="9" fill="#6366F1" filter="url(#fGlowNode)"/>
+  <circle cx="259" cy="302" r="9" fill="#4F46E5" filter="url(#fGlowNode)"/>
+
+  <!-- ── Center node: One Unified Intelligence ─────────────── -->
+  <!-- Outer aura ring -->
+  <circle cx="200" cy="200" r="40" fill="#5B21B6" opacity="0.14"/>
+  <!-- Main center node -->
+  <circle cx="200" cy="200" r="25" fill="url(#gCenter)" filter="url(#fGlowCenter)"/>
+  <!-- Inner specular highlight -->
+  <circle cx="193" cy="192" r="7.5" fill="white" opacity="0.48"/>
+
+</svg>

@@ -525,7 +525,7 @@ app.post('/v1/run', requireAuth, async (req: AuthedRequest, res) => {
   res.end();
 });
 
-// ── ORCHESTRATE — AOF AI Universal Chief Agent (SSE stream) ──────────────────
+// ── ORCHESTRATE — Nexora Universal Chief Agent (SSE stream) ──────────────────
 app.post('/v1/orchestrate', requireAuth, async (req: AuthedRequest, res) => {
   const message = String(req.body?.message ?? '').trim();
   const history: ChatMessage[] = Array.isArray(req.body?.history) ? req.body.history : [];
@@ -626,5 +626,5 @@ export default app;
 
 if (!process.env.VERCEL) {
   const PORT = Number(process.env.PORT || 8787);
-  app.listen(PORT, () => console.log(`AOF Code → http://localhost:${PORT}`));
+  app.listen(PORT, () => console.log(`Nexora Code → http://localhost:${PORT}`));
 }

@@ -1,4 +1,4 @@
-# AOF Code — Technical Design Document (TMAP v2)
+# Nexora Code — Technical Design Document (TMAP v2)
 
 > **Technology Multi-AI Agent Processing** — Production architecture
 > Revision 3 · 2026-06-17 · *อิง source จริงใน `tmap-v2/` — sync ให้ตรงโค้ดที่เดินหน้าไปไกลกว่า rev 2 มาก*
@@ -35,9 +35,9 @@
 
 ## 1. Executive Summary
 
-AOF Code คือ AI Coding Assistant ที่ใช้สถาปัตยกรรม **TMAP (Technology Multi-AI Agent Processing)** — AI หลายตัว (Gemini, DeepSeek, Qwen, Llama) ทำงานร่วมกันโดยแต่ละตัวมีบทบาทเฉพาะ (Planner / Coder / Reviewer / Validator) และ **สลับหน้าที่กันได้อัตโนมัติเมื่อตัวใดตัวหนึ่งล่ม** เป้าหมายคือระบบที่ฉลาดกว่า AI ตัวเดียว และ **ไม่ดับแม้ provider บางเจ้าจะล่ม โควต้าหมด หรือ rate limit**
+Nexora Code คือ AI Coding Assistant ที่ใช้สถาปัตยกรรม **TMAP (Technology Multi-AI Agent Processing)** — AI หลายตัว (Gemini, DeepSeek, Qwen, Llama) ทำงานร่วมกันโดยแต่ละตัวมีบทบาทเฉพาะ (Planner / Coder / Reviewer / Validator) และ **สลับหน้าที่กันได้อัตโนมัติเมื่อตัวใดตัวหนึ่งล่ม** เป้าหมายคือระบบที่ฉลาดกว่า AI ตัวเดียว และ **ไม่ดับแม้ provider บางเจ้าจะล่ม โควต้าหมด หรือ rate limit**
 
-**สถานะปัจจุบัน (rev 3):** AOF Code **ไม่ใช่ mock อีกต่อไป** และเดินหน้าไกลกว่า MVP มาก — backend จริง (Express, deploy Vercel), เรียกโมเดลจริงผ่าน OpenAI-compatible client + **DARS failover**, TMAP loop จริง (Architect→Plan→Code→Validate→Review→critique→Document) พร้อม **voting** ใน pro mode, **Context Engine** อ่านทั้งโปรเจกต์, **persistent memory** ข้าม session, validation จริงหลายภาษา (JS/TS/Python/Go/Rust/JSON), auth จริง (PIN scrypt + JWT 7d + refresh + lockout), DB 5 ตาราง, และ surface เพิ่ม (Chief Agent, Titan, RAA, Debugger, Analyzer) งานของ revision 3 คือ **sync เอกสารให้ตรงโค้ดที่ทำเกินกว่า rev 2 ระบุ** แล้วชี้ gap ที่เหลือจริง
+**สถานะปัจจุบัน (rev 3):** Nexora Code **ไม่ใช่ mock อีกต่อไป** และเดินหน้าไกลกว่า MVP มาก — backend จริง (Express, deploy Vercel), เรียกโมเดลจริงผ่าน OpenAI-compatible client + **DARS failover**, TMAP loop จริง (Architect→Plan→Code→Validate→Review→critique→Document) พร้อม **voting** ใน pro mode, **Context Engine** อ่านทั้งโปรเจกต์, **persistent memory** ข้าม session, validation จริงหลายภาษา (JS/TS/Python/Go/Rust/JSON), auth จริง (PIN scrypt + JWT 7d + refresh + lockout), DB 5 ตาราง, และ surface เพิ่ม (Chief Agent, Titan, RAA, Debugger, Analyzer) งานของ revision 3 คือ **sync เอกสารให้ตรงโค้ดที่ทำเกินกว่า rev 2 ระบุ** แล้วชี้ gap ที่เหลือจริง
 
 **Gap ที่เหลือจริง (rev 3 — หลายข้อใน rev 2 ปิดไปแล้ว):**
 1. **Sandbox execution หลายภาษา** — validation รัน syntax/compile check จริงแล้ว (JS/TS/Python/Go/Rust/JSON) แต่ยังไม่ execute โค้ดใน isolated sandbox (E2B/Firecracker) — ดู §7.3

@@ -28,7 +28,7 @@ export interface ImagePromptSpec {
   fullPrompt: string;
 }
 
-const VISION_ANALYSIS_SYS = `You are the Vision Agent in AOF AI — an expert image analyst and visual director.
+const VISION_ANALYSIS_SYS = `You are the Vision Agent in Nexora — an expert image analyst and visual director.
 
 When analyzing images or generating image specifications:
 1. Extract: subject, environment, lighting, camera angle, color palette, mood, composition

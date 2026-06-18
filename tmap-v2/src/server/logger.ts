@@ -1,4 +1,4 @@
-// Structured logging for AOF Code server.
+// Structured logging for Nexora Code server.
 // Writes JSON lines to stderr so log aggregators can parse them easily.
 
 export type LogLevel = 'info' | 'warn' | 'error' | 'debug';
@@ -25,7 +25,7 @@ export const logger = {
   warn:  (msg: string, fields?: Record<string, unknown>) => log('warn',  msg, fields),
   error: (msg: string, fields?: Record<string, unknown>) => log('error', msg, fields),
   debug: (msg: string, fields?: Record<string, unknown>) => {
-    if (process.env.AOF_DEBUG === '1') log('debug', msg, fields);
+    if (process.env.NEXORA_DEBUG === '1') log('debug', msg, fields);
   },
 };
 

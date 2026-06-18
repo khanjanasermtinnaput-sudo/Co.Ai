@@ -1,8 +1,8 @@
-# Render.com blueprint — deploy AOF Code server.
+# Render.com blueprint — deploy Nexora Code server.
 # JWT_SECRET / NEXORA_MASTER_KEY are auto-generated (you never type secrets).
 # NOTE: free plan has ephemeral disk → the file DB (.nexora-server/db.json) resets
 #       on each redeploy. For real multi-user use, switch db.ts to PostgreSQL
-#       (see AOF_CODE_TDD.md §6) or attach a paid persistent Disk.
+#       (see NEXORA_CODE_TDD.md §6) or attach a paid persistent Disk.
 services:
   - type: web
     name: nexora-code

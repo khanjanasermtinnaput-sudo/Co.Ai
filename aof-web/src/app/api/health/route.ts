@@ -40,7 +40,7 @@ export async function GET(req: Request): Promise<Response> {
   const status = deriveSystemStatus(providers);
   const anyConnected = providers.some((p) => p.status === "CONNECTED");
 
-  // Emit the startup checklist once per process, matching the AOF banner format.
+  // Emit the startup checklist once per process, matching the Nexora banner format.
   runStartupCheckOnce(
     checklist.map((c) => ({ label: `${c.label} ${c.note ?? ""}`.trim(), ok: c.ok })),
     status,

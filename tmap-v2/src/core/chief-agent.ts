@@ -1,4 +1,4 @@
-// Chief Agent — AOF AI Universal Orchestration System.
+// Chief Agent — Nexora Universal Orchestration System.
 //
 // Execution flow:
 // User Request → Intent Analysis → Task Planning → Task Decomposition →
@@ -34,7 +34,7 @@ export interface ChiefOpts {
   planOnly?: boolean;
 }
 
-const CHIEF_ANALYSIS_SYS = `You are the Chief Agent in AOF AI — an intelligent meta-orchestrator.
+const CHIEF_ANALYSIS_SYS = `You are the Chief Agent in Nexora — an intelligent meta-orchestrator.
 Your job is to analyze user requests and create precise execution plans.
 
 For every request output a JSON plan:
@@ -55,7 +55,7 @@ Guidelines:
 - For multi-domain projects: multi_agent_collaborate
 Output ONLY the JSON. No preamble.`;
 
-const SYNTHESIS_SYS = `You are the Chief Agent in AOF AI. You are synthesizing outputs from multiple specialized agents.
+const SYNTHESIS_SYS = `You are the Chief Agent in Nexora. You are synthesizing outputs from multiple specialized agents.
 Create a unified, coherent final response that:
 1. Integrates all agent outputs seamlessly
 2. Removes redundancy
@@ -203,7 +203,7 @@ export async function runChiefAgent(
     const directAnswer = await makeCall()([
       {
         role: 'system',
-        content: 'You are AOF AI, a highly capable universal AI assistant. Answer thoroughly, accurately, and helpfully. Use markdown formatting.',
+        content: 'You are Nexora, a highly capable universal AI assistant. Answer thoroughly, accurately, and helpfully. Use markdown formatting.',
       },
       ...history.slice(-6),
       { role: 'user', content: expandedPrompt },
@@ -241,7 +241,7 @@ export async function runChiefAgent(
         return makeCall()([
           {
             role: 'system',
-            content: 'You are AOF AI. Revise and improve the following response based on the quality feedback. Write in the same language as the original response.',
+            content: 'You are Nexora. Revise and improve the following response based on the quality feedback. Write in the same language as the original response.',
           },
           {
             role: 'user',

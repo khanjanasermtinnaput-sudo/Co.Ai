@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>AOF Code</title>
+<title>Nexora Code</title>
 <meta name="theme-color" content="#080808">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="AOF Code">
+<meta name="apple-mobile-web-app-title" content="Nexora Code">
 <meta name="description" content="Multi-agent AI code generation assistant">
 <link rel="manifest" href="/manifest.json">
 <link rel="apple-touch-icon" href="/icons/icon.svg">
@@ -18,7 +18,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 <style>
 /* ═══════════════════════════════════════════════════════════════════
-   AOF CODE — PREMIUM DESIGN SYSTEM v3.0
+   NEXORA CODE — PREMIUM DESIGN SYSTEM v3.0
    ═══════════════════════════════════════════════════════════════════ */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -1394,7 +1394,7 @@ select.fld {
 <!-- ── AUTH MODAL ──────────────────────────────────────────────── -->
 <div id="auth-overlay" class="modal-overlay">
   <div class="modal-box">
-    <div class="modal-title">AOF <span>Code</span></div>
+    <div class="modal-title">Nexora <span>Code</span></div>
     <div class="modal-sub">เข้าสู่ระบบด้วยชื่อผู้ใช้ + PIN (ตัวเลข 4–8 หลัก)</div>
     <div class="auth-tabs">
       <button class="auth-tab active" id="tab-login" onclick="switchAuth('login')">เข้าสู่ระบบ</button>
@@ -1446,9 +1446,9 @@ select.fld {
 
 <!-- ── PWA INSTALL BANNER ─────────────────────────────────────── -->
 <div id="pwa-banner">
-  <img src="/icons/icon.svg" alt="AOF Code">
+  <img src="/icons/icon.svg" alt="Nexora Code">
   <div class="pwa-info">
-    <div class="pwa-info-title">AOF Code</div>
+    <div class="pwa-info-title">Nexora Code</div>
     <div class="pwa-info-sub">ติดตั้งเป็นแอปบนอุปกรณ์นี้</div>
   </div>
   <button id="pwa-install-btn" onclick="doPwaInstall()">ติดตั้ง</button>
@@ -1459,7 +1459,7 @@ select.fld {
 <div id="titlebar">
   <div class="tb-left">
     <div class="tb-logo">
-      <span class="logo-nexora">AOF</span>
+      <span class="logo-nexora">Nexora</span>
       <span class="logo-code">&nbsp;Code</span>
     </div>
   </div>
@@ -1501,7 +1501,7 @@ select.fld {
           <div class="mi-desc">วนแก้ได้ 3 รอบ · ละเอียดสุด</div>
         </div>
         <div class="mi-option" onclick="selectModel('titan')" style="border-top:1px solid var(--border,rgba(255,255,255,0.08))">
-          <div class="mi-name" style="color:var(--accent)">⬢ AOF Titan <span style="font-size:10px;font-weight:700">highest</span></div>
+          <div class="mi-name" style="color:var(--accent)">⬢ Nexora Titan <span style="font-size:10px;font-weight:700">highest</span></div>
           <div class="mi-desc">AI System Architect — วางแผนลึก + Approval Gate แล้วสร้างด้วย Pro</div>
         </div>
       </div>
@@ -1593,7 +1593,7 @@ select.fld {
     <div id="input-bar">
       <div id="cmd-ac"></div>
       <div class="input-wrap">
-        <span class="input-prompt" id="input-prompt">C:\AOF&gt;</span>
+        <span class="input-prompt" id="input-prompt">C:\NEXORA&gt;</span>
         <input type="text" id="cmd-input"
                placeholder="อธิบายสิ่งที่คุณต้องการสร้าง..."
                autocomplete="off" spellcheck="false" disabled>
@@ -1611,7 +1611,7 @@ select.fld {
     <!-- Brand header -->
     <div class="sidebar-brand">
       <div class="sidebar-brand-logo">
-        <span class="logo-nexora">AOF</span><span class="logo-code"> Code</span>
+        <span class="logo-nexora">Nexora</span><span class="logo-code"> Code</span>
       </div>
       <span class="sidebar-brand-tag">v2.0</span>
     </div>
@@ -2002,7 +2002,7 @@ async function boot(){
   state.chatHistory=[]; state.reqSummary=null; state.phase='planning';
   setPhase('planning');
   writeBlank();
-  writeLine('AOF Code v2.0  -  Multi-Agent Code Generation System');
+  writeLine('Nexora Code v2.0  -  Multi-Agent Code Generation System');
   writeLine('<span class="t-dim">──────────────────────────────────────────────────────────</span>');
   writeBlank();
   await sleep(120);
@@ -2054,7 +2054,7 @@ async function runCmd(raw){
   body.querySelectorAll('.cursor').forEach(c=>c.parentElement.remove());
 
   writeBlank();
-  writeLine(`<span class="t-prompt">C:\\AOF&gt;</span> ${escHtml(raw)}`);
+  writeLine(`<span class="t-prompt">C:\\NEXORA&gt;</span> ${escHtml(raw)}`);
   writeBlank();
 
   if(raw.startsWith('/')){
@@ -2553,7 +2553,7 @@ function cmdExportHtml(){
 
 // ── INFO COMMANDS ─────────────────────────────────────────────────────────────
 async function cmdAgents(){
-  writeLine('AOF Agent Squad  (TMAP v2)');
+  writeLine('Nexora Agent Squad  (TMAP v2)');
   writeLine('<span class="t-dim">──────────────────────────────────────────────────────────</span>');
   writeBlank();
   const rows=[

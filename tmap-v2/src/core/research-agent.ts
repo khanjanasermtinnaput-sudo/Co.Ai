@@ -3,7 +3,7 @@
 
 import type { LLMCall, ResearchResult } from '../types.js';
 
-const RESEARCH_SYS = `You are the Research Agent in AOF AI — a world-class research analyst.
+const RESEARCH_SYS = `You are the Research Agent in Nexora — a world-class research analyst.
 
 Your job:
 1. Thoroughly answer the user's question with accurate, well-structured information

@@ -1,12 +1,65 @@
-<svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none" role="img" aria-label="Nexora">
+  <title>Nexora</title>
   <defs>
-    <linearGradient id="g" x1="6" y1="4" x2="34" y2="36" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#FBBF24"/>
-      <stop offset="0.5" stop-color="#F59E0B"/>
-      <stop offset="1" stop-color="#EA7A0C"/>
+    <radialGradient id="gBg" cx="40%" cy="35%" r="70%">
+      <stop offset="0%"   stop-color="#1a1535"/>
+      <stop offset="100%" stop-color="#0A0A0A"/>
+    </radialGradient>
+    <linearGradient id="gMain" x1="5" y1="5" x2="35" y2="35" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#06B6D4"/>
+      <stop offset="50%"  stop-color="#6366F1"/>
+      <stop offset="100%" stop-color="#4F46E5"/>
     </linearGradient>
+    <radialGradient id="gCenter" cx="40%" cy="36%" r="70%">
+      <stop offset="0%"   stop-color="#FFFFFF"/>
+      <stop offset="40%"  stop-color="#A5B4FC"/>
+      <stop offset="100%" stop-color="#4F46E5"/>
+    </radialGradient>
+    <filter id="fGlow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="1.8" result="blur"/>
+      <feFlood flood-color="#6366F1" flood-opacity="0.6" result="fc"/>
+      <feComposite in="fc" in2="blur" operator="in" result="glow"/>
+      <feMerge><feMergeNode in="glow"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
   </defs>
-  <rect x="1" y="1" width="38" height="38" rx="11" fill="#0A0A0A"/>
-  <rect x="2" y="2" width="36" height="36" rx="10" fill="url(#g)" fill-opacity="0.16" stroke="url(#g)" stroke-opacity="0.5" stroke-width="1.4"/>
-  <path d="M13 28 L20 12 L27 28 M16.2 22.5 H23.8" stroke="url(#g)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Background -->
+  <rect width="40" height="40" rx="9" fill="url(#gBg)"/>
+
+  <!--
+    Hex mark: center (20,20), radius=11.5
+    N1:(31.5,20) N2:(25.75,10) N3:(14.25,10)
+    N4:(8.5,20)  N5:(14.25,30) N6:(25.75,30)
+    (11.5*0.5=5.75, 11.5*0.866=9.96≈10)
+  -->
+
+  <!-- Hex ring -->
+  <polygon
+    points="31.5,20 25.75,10 14.25,10 8.5,20 14.25,30 25.75,30"
+    stroke="url(#gMain)" stroke-width="0.8" stroke-opacity="0.4"
+    stroke-linejoin="round"
+  />
+
+  <!-- Spokes -->
+  <g stroke="url(#gMain)" stroke-width="0.8" stroke-linecap="round" stroke-opacity="0.5">
+    <line x1="31.5"  y1="20" x2="20" y2="20"/>
+    <line x1="25.75" y1="10" x2="20" y2="20"/>
+    <line x1="14.25" y1="10" x2="20" y2="20"/>
+    <line x1="8.5"   y1="20" x2="20" y2="20"/>
+    <line x1="14.25" y1="30" x2="20" y2="20"/>
+    <line x1="25.75" y1="30" x2="20" y2="20"/>
+  </g>
+
+  <!-- Outer nodes -->
+  <circle cx="31.5"  cy="20" r="1.8" fill="#06B6D4"/>
+  <circle cx="25.75" cy="10" r="1.8" fill="#06B6D4"/>
+  <circle cx="14.25" cy="10" r="1.8" fill="#22D3EE"/>
+  <circle cx="8.5"   cy="20" r="1.8" fill="#818CF8"/>
+  <circle cx="14.25" cy="30" r="1.8" fill="#6366F1"/>
+  <circle cx="25.75" cy="30" r="1.8" fill="#4F46E5"/>
+
+  <!-- Center node -->
+  <circle cx="20" cy="20" r="5" fill="url(#gCenter)" filter="url(#fGlow)"/>
+  <circle cx="18.5" cy="18.5" r="1.5" fill="white" opacity="0.5"/>
+
 </svg>

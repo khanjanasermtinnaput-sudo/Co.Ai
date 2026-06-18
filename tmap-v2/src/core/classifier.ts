@@ -1,4 +1,4 @@
-// Task Classifier — maps user input to one or more of the 16 AOF AI categories.
+// Task Classifier — maps user input to one or more of the 16 Nexora categories.
 // Multiple categories may be assigned simultaneously for multi-step projects.
 
 import type { TaskCategory } from '../types.js';

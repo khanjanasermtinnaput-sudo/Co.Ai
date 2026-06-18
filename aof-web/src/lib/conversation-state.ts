@@ -1,5 +1,5 @@
 // ── Nexora Code V4 — Conversation State Machine ─────────────────────────────────
-// Implements the six-state model from the AOF CODE V4 collaborative prompt.
+// Implements the six-state model from the Nexora Code V4 collaborative prompt.
 // All functions are pure so they are trivially testable without mocks.
 //
 // States:

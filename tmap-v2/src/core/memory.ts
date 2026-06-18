@@ -47,7 +47,7 @@ const MAX_DECISIONS = 20;
 const MAX_FAILURES = 15;
 
 function memoryDir(): string {
-  return process.env.AOF_MEMORY_DIR
+  return process.env.NEXORA_MEMORY_DIR
     ?? (process.env.VERCEL ? '/tmp/nexora-memory' : join(process.cwd(), '.nexora-server', 'memory'));
 }
 

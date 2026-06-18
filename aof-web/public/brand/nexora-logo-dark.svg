@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Nexora — Full Logo (Dark Mode)
+  Dark background · 800 × 200 · SVG
+  Mark + Wordmark + Tagline — horizontal lockup
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 200" fill="none" role="img" aria-label="Nexora — Many Minds. One Intelligence.">
+  <title>Nexora — Many Minds. One Intelligence.</title>
+  <defs>
+
+    <!-- Background -->
+    <radialGradient id="gBg" cx="18%" cy="50%" r="80%">
+      <stop offset="0%"   stop-color="#111028"/>
+      <stop offset="100%" stop-color="#0A0A0A"/>
+    </radialGradient>
+
+    <!-- Mark gradient (mapped to mark area: center at 100,100, r=72) -->
+    <linearGradient id="gMark" x1="28" y1="37" x2="172" y2="163" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#06B6D4"/>
+      <stop offset="48%"  stop-color="#6366F1"/>
+      <stop offset="100%" stop-color="#4F46E5"/>
+    </linearGradient>
+
+    <!-- Wordmark gradient (left-to-right subtle) -->
+    <linearGradient id="gWordmark" x1="195" y1="0" x2="560" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#E0E7FF"/>
+    </linearGradient>
+
+    <!-- Center node -->
+    <radialGradient id="gCenter" cx="42%" cy="38%" r="68%">
+      <stop offset="0%"   stop-color="#FFFFFF"/>
+      <stop offset="35%"  stop-color="#C7D2FE"/>
+      <stop offset="100%" stop-color="#4F46E5"/>
+    </radialGradient>
+
+    <!-- Node glow -->
+    <filter id="fGlowNode" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="5" result="blur"/>
+      <feFlood flood-color="#6366F1" flood-opacity="0.5" result="fc"/>
+      <feComposite in="fc" in2="blur" operator="in" result="glow"/>
+      <feMerge><feMergeNode in="glow"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+
+    <filter id="fGlowCyan" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="4" result="blur"/>
+      <feFlood flood-color="#06B6D4" flood-opacity="0.55" result="fc"/>
+      <feComposite in="fc" in2="blur" operator="in" result="glow"/>
+      <feMerge><feMergeNode in="glow"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+
+    <filter id="fGlowCenter" x="-150%" y="-150%" width="400%" height="400%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="13" result="blur"/>
+      <feFlood flood-color="#6366F1" flood-opacity="0.38" result="fc"/>
+      <feComposite in="fc" in2="blur" operator="in" result="glow"/>
+      <feMerge><feMergeNode in="glow"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+
+  </defs>
+
+  <!-- ── Background ────────────────────────────────────────── -->
+  <rect width="800" height="200" rx="16" fill="url(#gBg)"/>
+
+  <!-- Subtle ambient glow behind mark -->
+  <circle cx="100" cy="100" r="90" fill="#4F46E5" opacity="0.05"/>
+
+  <!-- ═══════════════════════════════════════════════════════
+       MARK — center at (100, 100), hex radius = 72
+       N1:(172,100) N2:(136,37.7) N3:(64,37.7)
+       N4:(28,100)  N5:(64,162.3) N6:(136,162.3)
+  ═══════════════════════════════════════════════════════ -->
+
+  <!-- Outer decorative ring -->
+  <circle cx="100" cy="100" r="93"
+    stroke="url(#gMark)" stroke-width="0.5" stroke-opacity="0.15"/>
+
+  <!-- Hex ring -->
+  <polygon
+    points="172,100 136,38 64,38 28,100 64,162 136,162"
+    stroke="url(#gMark)" stroke-width="1.2" stroke-opacity="0.4"
+    stroke-linejoin="round"
+  />
+
+  <!-- Spokes -->
+  <g stroke="url(#gMark)" stroke-width="1.2" stroke-linecap="round" stroke-opacity="0.55">
+    <line x1="172" y1="100" x2="100" y2="100"/>
+    <line x1="136" y1="38"  x2="100" y2="100"/>
+    <line x1="64"  y1="38"  x2="100" y2="100"/>
+    <line x1="28"  y1="100" x2="100" y2="100"/>
+    <line x1="64"  y1="162" x2="100" y2="100"/>
+    <line x1="136" y1="162" x2="100" y2="100"/>
+  </g>
+
+  <!-- Node halos -->
+  <g opacity="0.25">
+    <circle cx="172" cy="100" r="17" fill="#06B6D4"/>
+    <circle cx="136" cy="38"  r="17" fill="#06B6D4"/>
+    <circle cx="64"  cy="38"  r="17" fill="#22D3EE"/>
+    <circle cx="28"  cy="100" r="17" fill="#818CF8"/>
+    <circle cx="64"  cy="162" r="17" fill="#6366F1"/>
+    <circle cx="136" cy="162" r="17" fill="#4F46E5"/>
+  </g>
+
+  <!-- Outer nodes -->
+  <circle cx="172" cy="100" r="5.5" fill="#06B6D4" filter="url(#fGlowCyan)"/>
+  <circle cx="136" cy="38"  r="5.5" fill="#06B6D4" filter="url(#fGlowCyan)"/>
+  <circle cx="64"  cy="38"  r="5.5" fill="#22D3EE" filter="url(#fGlowCyan)"/>
+  <circle cx="28"  cy="100" r="5.5" fill="#818CF8" filter="url(#fGlowNode)"/>
+  <circle cx="64"  cy="162" r="5.5" fill="#6366F1" filter="url(#fGlowNode)"/>
+  <circle cx="136" cy="162" r="5.5" fill="#4F46E5" filter="url(#fGlowNode)"/>
+
+  <!-- Center node -->
+  <circle cx="100" cy="100" r="25"  fill="#5B21B6" opacity="0.12"/>
+  <circle cx="100" cy="100" r="15.5" fill="url(#gCenter)" filter="url(#fGlowCenter)"/>
+  <circle cx="96"  cy="96"  r="4.5" fill="white"  opacity="0.48"/>
+
+  <!-- ═══════════════════════════════════════════════════════
+       WORDMARK — "NEXORA"
+  ═══════════════════════════════════════════════════════ -->
+  <text
+    x="198" y="96"
+    font-family="'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif"
+    font-size="52"
+    font-weight="300"
+    letter-spacing="7"
+    fill="url(#gWordmark)"
+  >NEXORA</text>
+
+  <!-- Tagline -->
+  <text
+    x="200" y="128"
+    font-family="'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif"
+    font-size="13"
+    font-weight="300"
+    letter-spacing="2.8"
+    fill="white"
+    fill-opacity="0.42"
+  >MANY MINDS. ONE INTELLIGENCE.</text>
+
+</svg>

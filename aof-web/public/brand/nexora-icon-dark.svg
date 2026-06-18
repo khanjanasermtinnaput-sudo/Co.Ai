@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Nexora — App Icon (Dark)
+  Dark background · 512 × 512 · SVG
+  Suitable for: App Store, Google Play, PWA, desktop shortcut
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none" role="img" aria-label="Nexora">
+  <title>Nexora</title>
+  <defs>
+
+    <!-- Background: near-black with deep blue-purple tint -->
+    <radialGradient id="gBg" cx="44%" cy="38%" r="72%">
+      <stop offset="0%"   stop-color="#161032"/>
+      <stop offset="65%"  stop-color="#0D0B1E"/>
+      <stop offset="100%" stop-color="#0A0A0A"/>
+    </radialGradient>
+
+    <!-- Mark diagonal gradient -->
+    <linearGradient id="gMain" x1="110" y1="128" x2="402" y2="384" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#06B6D4"/>
+      <stop offset="48%"  stop-color="#6366F1"/>
+      <stop offset="100%" stop-color="#4F46E5"/>
+    </linearGradient>
+
+    <!-- Center node radial -->
+    <radialGradient id="gCenter" cx="42%" cy="38%" r="68%">
+      <stop offset="0%"   stop-color="#FFFFFF"/>
+      <stop offset="35%"  stop-color="#C7D2FE"/>
+      <stop offset="100%" stop-color="#4F46E5"/>
+    </radialGradient>
+
+    <!-- Filters -->
+    <filter id="fGlowNode" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="7" result="blur"/>
+      <feFlood flood-color="#6366F1" flood-opacity="0.5" result="fc"/>
+      <feComposite in="fc" in2="blur" operator="in" result="glow"/>
+      <feMerge><feMergeNode in="glow"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+
+    <filter id="fGlowCyan" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="6" result="blur"/>
+      <feFlood flood-color="#06B6D4" flood-opacity="0.6" result="fc"/>
+      <feComposite in="fc" in2="blur" operator="in" result="glow"/>
+      <feMerge><feMergeNode in="glow"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+
+    <filter id="fGlowCenter" x="-130%" y="-130%" width="360%" height="360%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="22" result="blur"/>
+      <feFlood flood-color="#6366F1" flood-opacity="0.4" result="fc"/>
+      <feComposite in="fc" in2="blur" operator="in" result="glow"/>
+      <feMerge><feMergeNode in="glow"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+
+  </defs>
+
+  <!-- ── Background (rounded square) ──────────────────────── -->
+  <rect width="512" height="512" rx="115" fill="url(#gBg)"/>
+
+  <!-- Very subtle border -->
+  <rect width="512" height="512" rx="115"
+    stroke="white" stroke-width="0.8" stroke-opacity="0.04"/>
+
+  <!-- ── Ambient glow in background ─────────────────────────  -->
+  <circle cx="256" cy="256" r="180" fill="#4F46E5" opacity="0.06"/>
+
+  <!-- ── Mark: hex nodes + spokes ───────────────────────────
+    Center: (256, 256)  Hex radius: 150
+    N1: (406, 256)
+    N2: (331, 126)  256+75=331  256-129.9≈126
+    N3: (181, 126)  256-75=181
+    N4: (106, 256)
+    N5: (181, 386)
+    N6: (331, 386)
+  ─────────────────────────────────────────────────────────── -->
+
+  <!-- Outer decorative ring -->
+  <circle cx="256" cy="256" r="197"
+    stroke="url(#gMain)" stroke-width="0.7" stroke-opacity="0.14"/>
+
+  <!-- Hexagonal ring -->
+  <polygon
+    points="406,256 331,126 181,126 106,256 181,386 331,386"
+    stroke="url(#gMain)" stroke-width="1.8" stroke-opacity="0.38"
+    stroke-linejoin="round"
+  />
+
+  <!-- Spokes to center -->
+  <g stroke="url(#gMain)" stroke-width="1.8" stroke-linecap="round" stroke-opacity="0.58">
+    <line x1="406" y1="256" x2="256" y2="256"/>
+    <line x1="331" y1="126" x2="256" y2="256"/>
+    <line x1="181" y1="126" x2="256" y2="256"/>
+    <line x1="106" y1="256" x2="256" y2="256"/>
+    <line x1="181" y1="386" x2="256" y2="256"/>
+    <line x1="331" y1="386" x2="256" y2="256"/>
+  </g>
+
+  <!-- Node halos -->
+  <g opacity="0.28">
+    <circle cx="406" cy="256" r="32" fill="#06B6D4"/>
+    <circle cx="331" cy="126" r="32" fill="#06B6D4"/>
+    <circle cx="181" cy="126" r="32" fill="#22D3EE"/>
+    <circle cx="106" cy="256" r="32" fill="#818CF8"/>
+    <circle cx="181" cy="386" r="32" fill="#6366F1"/>
+    <circle cx="331" cy="386" r="32" fill="#4F46E5"/>
+  </g>
+
+  <!-- Outer nodes -->
+  <circle cx="406" cy="256" r="11" fill="#06B6D4" filter="url(#fGlowCyan)"/>
+  <circle cx="331" cy="126" r="11" fill="#06B6D4" filter="url(#fGlowCyan)"/>
+  <circle cx="181" cy="126" r="11" fill="#22D3EE" filter="url(#fGlowCyan)"/>
+  <circle cx="106" cy="256" r="11" fill="#818CF8" filter="url(#fGlowNode)"/>
+  <circle cx="181" cy="386" r="11" fill="#6366F1" filter="url(#fGlowNode)"/>
+  <circle cx="331" cy="386" r="11" fill="#4F46E5" filter="url(#fGlowNode)"/>
+
+  <!-- Center node -->
+  <circle cx="256" cy="256" r="50" fill="#5B21B6" opacity="0.12"/>
+  <circle cx="256" cy="256" r="32" fill="url(#gCenter)" filter="url(#fGlowCenter)"/>
+  <circle cx="247" cy="245" r="10" fill="white" opacity="0.46"/>
+
+</svg>

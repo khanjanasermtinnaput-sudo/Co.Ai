@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Nexora — Full Logo (Light Mode)
+  White background · 800 × 200 · SVG
+  Mark + Wordmark + Tagline — horizontal lockup
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 200" fill="none" role="img" aria-label="Nexora — Many Minds. One Intelligence.">
+  <title>Nexora — Many Minds. One Intelligence.</title>
+  <defs>
+
+    <!-- Background -->
+    <radialGradient id="gBg" cx="18%" cy="50%" r="80%">
+      <stop offset="0%"   stop-color="#EEF2FF"/>
+      <stop offset="100%" stop-color="#FFFFFF"/>
+    </radialGradient>
+
+    <!-- Mark gradient -->
+    <linearGradient id="gMark" x1="28" y1="37" x2="172" y2="163" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#0891B2"/>
+      <stop offset="48%"  stop-color="#4F46E5"/>
+      <stop offset="100%" stop-color="#3730A3"/>
+    </linearGradient>
+
+    <!-- Center node -->
+    <radialGradient id="gCenter" cx="42%" cy="38%" r="68%">
+      <stop offset="0%"   stop-color="#EEF2FF"/>
+      <stop offset="35%"  stop-color="#818CF8"/>
+      <stop offset="100%" stop-color="#4338CA"/>
+    </radialGradient>
+
+    <!-- Wordmark: dark charcoal -->
+    <linearGradient id="gWordmark" x1="195" y1="0" x2="560" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#0F0A1E"/>
+      <stop offset="100%" stop-color="#1E1B4B"/>
+    </linearGradient>
+
+    <filter id="fShadow" x="-80%" y="-80%" width="260%" height="260%">
+      <feDropShadow dx="0" dy="1" stdDeviation="3" flood-color="#4F46E5" flood-opacity="0.2"/>
+    </filter>
+
+    <filter id="fShadowCenter" x="-80%" y="-80%" width="260%" height="260%">
+      <feDropShadow dx="0" dy="2" stdDeviation="7" flood-color="#4338CA" flood-opacity="0.25"/>
+    </filter>
+
+  </defs>
+
+  <!-- ── Background ────────────────────────────────────────── -->
+  <rect width="800" height="200" rx="16" fill="url(#gBg)"/>
+  <rect width="800" height="200" rx="16" stroke="#E0E7FF" stroke-width="1.2"/>
+
+  <!-- ═══════════════════════════════════════════════════════
+       MARK — center at (100, 100), hex radius = 72
+  ═══════════════════════════════════════════════════════ -->
+
+  <!-- Outer decorative ring -->
+  <circle cx="100" cy="100" r="93"
+    stroke="url(#gMark)" stroke-width="0.5" stroke-opacity="0.12"/>
+
+  <!-- Hex ring -->
+  <polygon
+    points="172,100 136,38 64,38 28,100 64,162 136,162"
+    stroke="url(#gMark)" stroke-width="1.2" stroke-opacity="0.3"
+    stroke-linejoin="round"
+  />
+
+  <!-- Spokes -->
+  <g stroke="url(#gMark)" stroke-width="1.2" stroke-linecap="round" stroke-opacity="0.45">
+    <line x1="172" y1="100" x2="100" y2="100"/>
+    <line x1="136" y1="38"  x2="100" y2="100"/>
+    <line x1="64"  y1="38"  x2="100" y2="100"/>
+    <line x1="28"  y1="100" x2="100" y2="100"/>
+    <line x1="64"  y1="162" x2="100" y2="100"/>
+    <line x1="136" y1="162" x2="100" y2="100"/>
+  </g>
+
+  <!-- Outer nodes (solid, on light bg) -->
+  <circle cx="172" cy="100" r="5.5" fill="#0891B2" filter="url(#fShadow)"/>
+  <circle cx="136" cy="38"  r="5.5" fill="#0891B2" filter="url(#fShadow)"/>
+  <circle cx="64"  cy="38"  r="5.5" fill="#06B6D4" filter="url(#fShadow)"/>
+  <circle cx="28"  cy="100" r="5.5" fill="#6366F1" filter="url(#fShadow)"/>
+  <circle cx="64"  cy="162" r="5.5" fill="#4F46E5" filter="url(#fShadow)"/>
+  <circle cx="136" cy="162" r="5.5" fill="#3730A3" filter="url(#fShadow)"/>
+
+  <!-- Center node -->
+  <circle cx="100" cy="100" r="15.5" fill="url(#gCenter)" filter="url(#fShadowCenter)"/>
+  <circle cx="96"  cy="96"  r="4.5"  fill="white" opacity="0.65"/>
+
+  <!-- ═══════════════════════════════════════════════════════
+       WORDMARK
+  ═══════════════════════════════════════════════════════ -->
+  <text
+    x="198" y="96"
+    font-family="'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif"
+    font-size="52"
+    font-weight="300"
+    letter-spacing="7"
+    fill="url(#gWordmark)"
+  >NEXORA</text>
+
+  <!-- Tagline -->
+  <text
+    x="200" y="128"
+    font-family="'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif"
+    font-size="13"
+    font-weight="300"
+    letter-spacing="2.8"
+    fill="#1E1B4B"
+    fill-opacity="0.4"
+  >MANY MINDS. ONE INTELLIGENCE.</text>
+
+</svg>
