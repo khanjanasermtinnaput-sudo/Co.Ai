@@ -18,14 +18,14 @@ const jetbrains = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Aof — The professional AI platform",
-    template: "%s · Aof",
+    default: "CoAgentix — The professional AI platform",
+    template: "%s · CoAgentix",
   },
   description:
-    "Aof is a professional AI platform. Chat with Aof, build software with Aof Code, and manage your Projects — all in one premium workspace.",
-  applicationName: "Aof",
-  keywords: ["Aof", "AI platform", "Aof Code", "AI assistant", "AI coding"],
-  authors: [{ name: "Aof" }],
+    "CoAgentix is a professional AI platform. Chat with CoAI, build software with CoAgentix Code, and manage your Projects — all in one premium workspace.",
+  applicationName: "CoAgentix",
+  keywords: ["CoAgentix", "AI platform", "CoAgentix Code", "AI assistant", "AI coding"],
+  authors: [{ name: "CoAgentix" }],
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [
@@ -38,7 +38,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Aof",
+    title: "CoAgentix",
   },
 };
 

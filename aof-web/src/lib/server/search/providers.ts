@@ -7,7 +7,7 @@
 
 import type { SearchHit, SearchProvider, SearchOptions } from "./types";
 
-const UA = "AofSearch/1.0 (+https://aof.ai)";
+const UA = "CoAgentixSearch/1.0 (+https://coagentix.ai)";
 const DEFAULT_TIMEOUT_MS = 6000;
 
 /** fetch with a hard timeout, merged with any caller abort signal. */

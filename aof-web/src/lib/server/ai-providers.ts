@@ -330,7 +330,7 @@ async function openrouterConnect(
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKeyFor(meta, input.overrides)!}`,
         "HTTP-Referer": "https://aof-web.vercel.app",
-        "X-Title": "Aof",
+        "X-Title": "CoAgentix",
       },
       body,
       signal: input.signal,

@@ -1,4 +1,4 @@
-# AOF Code — TMAP v2 (MVP core)
+# CoAgentix Code — TMAP v2 (MVP core)
 
 Multi-agent coding assistant ที่ทำงานจริง: **Planner → Coder → Validator → Reviewer + critique loop**
 อิงสถาปัตยกรรมใน [`AOF_CODE_TDD.md`](./AOF_CODE_TDD.md). โค้ดทั้งหมดเรียกโมเดลจริงด้วย API key ของคุณ

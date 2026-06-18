@@ -1,7 +1,7 @@
 {
   "name": "@aof/code",
   "version": "0.1.0",
-  "description": "AOF Code — TMAP v2 multi-agent coding assistant (MVP core)",
+  "description": "CoAgentix Code — TMAP v2 multi-agent coding assistant (MVP core)",
   "type": "module",
   "bin": {
     "aof": "./src/cli.ts"

@@ -194,7 +194,7 @@ function AppearanceTab() {
       <Card>
         <CardHeader>
           <CardTitle>Theme</CardTitle>
-          <CardDescription>Aof looks its best in the dark.</CardDescription>
+          <CardDescription>CoAgentix looks its best in the dark.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 gap-3">

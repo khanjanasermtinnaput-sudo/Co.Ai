@@ -30,8 +30,8 @@ export interface ClassificationResult {
 }
 
 const LABEL: Record<RouteTarget, string> = {
-  chat: "Aof Chat",
-  code: "Aof Code",
+  chat: "CoAgentix Chat",
+  code: "CoAgentix Code",
   search: "Search Agent",
 };
 

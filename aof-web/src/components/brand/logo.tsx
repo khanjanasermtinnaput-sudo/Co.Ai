@@ -11,7 +11,7 @@ export function LogoMark({ className, size = 32 }: LogoMarkProps) {
   return (
     <Image
       src="/aof-logo.png"
-      alt="Aof"
+      alt="CoAgentix"
       width={size}
       height={size}
       className={cn("shrink-0 rounded-[22%] object-cover", className)}
@@ -31,7 +31,7 @@ export function Logo({ showWordmark = true, className, size = 32 }: LogoProps) {
       <LogoMark size={size} />
       {showWordmark && (
         <span className="text-[17px] font-semibold tracking-tight">
-          <span className="text-gradient-gold">Aof</span>
+          <span className="text-gradient-gold">CoAgentix</span>
         </span>
       )}
     </span>

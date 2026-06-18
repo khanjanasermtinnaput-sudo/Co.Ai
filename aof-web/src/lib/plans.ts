@@ -142,7 +142,7 @@ export const PLANS: Record<UserTier, Plan> = {
     byokMultiplier: 1.5,
     highlights: [
       "ทุกอย่างใน Lite",
-      "Aof Code · TMAP · RAA",
+      "CoAgentix Code · TMAP · RAA",
       "OpenRouter + GitHub Integration",
       "Deploy + Live Preview + Workspace",
       "Web Search: GitHub · Reddit · Research",

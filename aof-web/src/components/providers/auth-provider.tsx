@@ -29,8 +29,8 @@ interface AuthContextValue {
 /** Stand-in identity used when no backend is configured, so the UI still works. */
 const DEMO_USER: AuthUser = {
   id: "demo",
-  email: "you@aof.ai",
-  name: "Aof User",
+  email: "you@coagentix.ai",
+  name: "CoAgentix User",
   tier: "FREE",
 };
 
@@ -55,7 +55,7 @@ function toAuthUser(session: Session | null): AuthUser | null {
   const meta = (u.user_metadata ?? {}) as Record<string, string | undefined>;
   const email = u.email ?? meta.email ?? "";
   const name =
-    meta.full_name || meta.name || (email ? email.split("@")[0] : "Aof User");
+    meta.full_name || meta.name || (email ? email.split("@")[0] : "CoAgentix User");
   return {
     id: u.id,
     email,

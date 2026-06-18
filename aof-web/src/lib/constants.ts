@@ -26,7 +26,7 @@ export interface NavItem {
 export const PRIMARY_NAV: NavItem[] = [
   {
     key: "chat",
-    label: "Chat with Aof",
+    label: "CoAgentix Chat",
     href: "/",
     icon: MessageSquare,
     description: "General AI assistant",
@@ -40,7 +40,7 @@ export const PRIMARY_NAV: NavItem[] = [
   },
   {
     key: "code",
-    label: "Aof Code",
+    label: "CoAgentix Code",
     href: "/code",
     icon: Code2,
     description: "Build software",
@@ -63,7 +63,7 @@ export const QUICK_ACTIONS: QuickAction[] = [
     key: "chat",
     emoji: "💬",
     icon: MessageSquare,
-    title: "Chat with Aof",
+    title: "CoAgentix Chat",
     description: "General AI assistant for everyday tasks.",
     href: "/",
     accent: "from-amber-400/25 to-orange-500/10",
@@ -72,7 +72,7 @@ export const QUICK_ACTIONS: QuickAction[] = [
     key: "code",
     emoji: "💻",
     icon: Code2,
-    title: "Aof Code",
+    title: "CoAgentix Code",
     description: "Build websites, apps, games and software.",
     href: "/code",
     accent: "from-sky-400/25 to-blue-500/10",
@@ -222,9 +222,9 @@ export const TITAN_PHASES: TitanPhase[] = [
 ];
 
 export const BRAND = {
-  name: "Aof",
-  tagline: "The professional AI platform",
-  welcome: "Welcome to Aof",
+  name: "CoAgentix",
+  tagline: "Many Minds. One Intelligence.",
+  welcome: "Welcome to CoAgentix",
   welcomeSub: "What would you like to do today?",
   composerPlaceholder: "Ask anything or start a project...",
 } as const;

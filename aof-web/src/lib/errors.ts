@@ -77,7 +77,7 @@ export const ERROR_CATALOG: Record<AofErrorCode, CatalogEntry> = {
   },
   AOF_ERROR_007: {
     problem: "Network Failure",
-    solution: "Aof could not reach the provider. Check the server's network/DNS and retry.",
+    solution: "CoAgentix could not reach the provider. Check the server's network/DNS and retry.",
     failoverWorthy: true,
   },
   AOF_ERROR_008: {
@@ -107,7 +107,7 @@ export const ERROR_CATALOG: Record<AofErrorCode, CatalogEntry> = {
   },
   AOF_ERROR_013: {
     problem: "Configuration Error",
-    solution: "Aof is misconfigured for this provider. Review your environment configuration.",
+    solution: "CoAgentix is misconfigured for this provider. Review your environment configuration.",
     failoverWorthy: false,
   },
 };

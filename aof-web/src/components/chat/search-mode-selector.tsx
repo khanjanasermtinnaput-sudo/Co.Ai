@@ -12,7 +12,7 @@ interface ModeOption {
 }
 
 export const SEARCH_MODES: ModeOption[] = [
-  { id: "auto", label: "Auto", icon: Sparkles, hint: "Aof searches the web when the question needs fresh info" },
+  { id: "auto", label: "Auto", icon: Sparkles, hint: "CoAI searches the web when the question needs fresh info" },
   { id: "off", label: "Off", icon: Power, hint: "Never search — answer from the model's knowledge" },
   { id: "force", label: "Force", icon: Globe, hint: "Always search the web before answering" },
 ];

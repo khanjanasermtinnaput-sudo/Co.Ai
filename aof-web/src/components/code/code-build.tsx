@@ -41,9 +41,9 @@ export function CodeBuild({ mode }: { mode: Exclude<CodeMode, "titan"> }) {
               >
                 <Boxes className="size-7 text-primary" />
               </motion.div>
-              <h2 className="mt-5 text-xl font-semibold">Build with Aof Code</h2>
+              <h2 className="mt-5 text-xl font-semibold">Build with CoAgentix Code</h2>
               <p className="mt-2 max-w-md text-sm text-muted-foreground">
-                {info.tagline} mode — {info.description} Describe what you want and Aof
+                {info.tagline} mode — {info.description} Describe what you want and CoAI
                 will plan, generate and review it.
               </p>
               <div className="mt-6 grid w-full gap-2 sm:grid-cols-2">
