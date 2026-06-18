@@ -4,8 +4,8 @@ import { randomUUID } from 'node:crypto';
 import type { Blackboard, Mode, AgentEvent } from '../types.js';
 
 // Vercel: /var/task is read-only; use /tmp instead.
-const AOF_DIR = process.env.VERCEL ? '/tmp/.nexora' : join(process.cwd(), '.nexora');
-const SESSIONS_DIR = join(AOF_DIR, 'sessions');
+const NEXORA_DIR = process.env.VERCEL ? '/tmp/.nexora' : join(process.cwd(), '.nexora');
+const SESSIONS_DIR = join(NEXORA_DIR, 'sessions');
 
 export function createBlackboard(task: string, mode: Mode, context = ''): Blackboard {
   return {
