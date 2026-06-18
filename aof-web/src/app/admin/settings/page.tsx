@@ -31,7 +31,7 @@ export default function SettingsPage() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
-  const [roles, setRoles] = useState<Array<{ user_id: string; role: string; email: string | null }>>([]);
+  const [roles, setRoles] = useState<Array<{ user_id: string; role: string; email: string | null; granted_at?: string }>>([]);
 
   async function loadData() {
     setLoading(true);
@@ -160,7 +160,7 @@ export default function SettingsPage() {
                       }[r.role] ?? "")}>{r.role}</Badge>
                     </td>
                     <td className="px-4 py-3 text-[12px] text-muted-foreground">
-                      {(r as { granted_at?: string }).granted_at ? new Date((r as { granted_at: string }).granted_at).toLocaleDateString() : "—"}
+                      {r.granted_at ? new Date(r.granted_at).toLocaleDateString() : "—"}
                     </td>
                     <td className="px-2 py-3">
                       {r.role !== "OWNER" && (
