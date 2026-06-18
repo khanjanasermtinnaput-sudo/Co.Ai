@@ -12,7 +12,7 @@ on:
       - main
       - 'claude/**'
     paths:
-      - 'nexora-web/**'
+      - 'aof-web/**'
       - '.github/workflows/vercel-deploy.yml'
   workflow_dispatch:
 
@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: nexora-web
+        working-directory: aof-web
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
