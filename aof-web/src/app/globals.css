@@ -157,24 +157,25 @@
     box-shadow: inset 0 0 0 1px hsl(0 0% 100% / 0.06);
   }
 
-  /* Accent text gradient for the wordmark / hero */
+  /* Nexora brand gradient — cyan → indigo (dark mode) */
   .text-gradient-gold {
     background: linear-gradient(
       92deg,
-      hsl(38 92% 50%) 0%,
-      hsl(32 94% 44%) 50%,
-      hsl(26 90% 38%) 100%
+      #06B6D4 0%,
+      #6366F1 52%,
+      #4F46E5 100%
     );
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
   }
-  /* In light mode the wordmark reads better as solid foreground with a warm tint */
+  /* Light mode: deeper contrast, indigo range */
   :root:not(.dark) .text-gradient-gold {
     background: linear-gradient(
       92deg,
-      hsl(32 94% 44%) 0%,
-      hsl(26 90% 38%) 100%
+      #0891B2 0%,
+      #4F46E5 55%,
+      #3730A3 100%
     );
     -webkit-background-clip: text;
     background-clip: text;

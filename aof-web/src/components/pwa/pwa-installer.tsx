@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import Image from "next/image";
 import { Download, Share, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { LogoMark } from "@/components/brand/logo";
 
 /** The `beforeinstallprompt` event isn't in the standard DOM lib types. */
 interface BeforeInstallPromptEvent extends Event {
@@ -124,13 +124,7 @@ export function PwaInstaller() {
           aria-label="Install Nexora"
         >
           <div className="flex w-full max-w-md items-center gap-3 rounded-2xl border border-border/70 bg-card/95 p-3 pr-2.5 shadow-2xl backdrop-blur supports-[backdrop-filter]:bg-card/80">
-            <Image
-              src="/nexora-logo.png"
-              alt="Nexora"
-              width={44}
-              height={44}
-              className="size-11 shrink-0 rounded-[22%] object-cover"
-            />
+            <LogoMark size={44} className="shrink-0" />
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold leading-tight">ติดตั้งแอป Nexora</p>
               {iosHint ? (
