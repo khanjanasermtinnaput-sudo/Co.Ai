@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 // randomUUID is available in both Node.js and Edge runtimes
 
 import { createServerClient } from "@supabase/ssr";
+import { assessBotRisk } from "@/lib/server/bot-protection";
 
 // Routes that require a valid Supabase session.
 const PROTECTED_PREFIXES = ["/admin", "/api/admin"];
@@ -43,6 +44,31 @@ export async function middleware(request: NextRequest) {
   const correlationId =
     request.headers.get("x-correlation-id") ?? crypto.randomUUID();
   const requestId = crypto.randomUUID();
+
+  // ── Bot protection ─────────────────────────────────────────────────────────
+  // Score-based heuristic check on API mutations. Skip CSP report (sent by
+  // browser with unusual headers) and same-origin / server-to-server calls.
+  const BOT_SKIP = /^\/api\/(csp-report|health)/;
+  if (
+    pathname.startsWith("/api/") &&
+    !CSRF_SAFE_METHODS.has(request.method) &&
+    !BOT_SKIP.test(pathname)
+  ) {
+    const risk = assessBotRisk(request as unknown as Request);
+    if (risk.blocked) {
+      return new NextResponse(
+        JSON.stringify({ error: "forbidden", code: "BOT_DETECTED" }),
+        {
+          status: 403,
+          headers: {
+            "Content-Type":     "application/json",
+            "X-Correlation-ID": correlationId,
+            "X-Bot-Score":      risk.score.toString(),
+          },
+        },
+      );
+    }
+  }
 
   // ── CSRF check ─────────────────────────────────────────────────────────────
   // Reject state-mutating requests from untrusted cross-origin pages.

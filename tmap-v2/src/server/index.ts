@@ -37,6 +37,9 @@ import { handleCliAuth, handleCliStatus } from './cli-auth.js';
 import { correlationMiddleware } from './correlation.js';
 import { prometheusMiddleware, registry } from './prometheus.js';
 import { buildHealthReport } from './health.js';
+import { botProtectionMiddleware } from './bot-protection.js';
+import { rateLimitMiddleware } from './rate-limit-redis.js';
+import { logAuditEvent, AuditAction, getClientIp } from './audit.js';
 import * as SentryNode from '@sentry/node';
 
 const PROVIDERS: ProviderKeyName[] = ['openrouter', 'gemini', 'deepseek', 'qwen', 'llama'];
@@ -97,6 +100,15 @@ app.use(correlationMiddleware());
 // ── PROMETHEUS metrics ────────────────────────────────────────────────────────
 app.use(prometheusMiddleware());
 
+// ── BOT PROTECTION ────────────────────────────────────────────────────────────
+// Score-based UA heuristics; skip health + metrics (server-to-server callers).
+app.use(botProtectionMiddleware({ skipPaths: /^\/(v1\/health|v1\/metrics)/ }));
+
+// ── REDIS RATE LIMITING ───────────────────────────────────────────────────────
+// Global IP-based sliding window — 120 req/min per IP for all /v1/ routes.
+// Auth routes get a tighter 10 req/min limit applied below.
+app.use('/v1/', rateLimitMiddleware(120, 60, 'global'));
+
 // ── REQUEST LOGGING middleware ────────────────────────────────────────────────
 app.use((req, _res, next) => {
   incRequest();
@@ -122,6 +134,9 @@ const MAX_BRIEF   = 10_000;
 function tooLong(value: string, limit: number): boolean {
   return Buffer.byteLength(value, 'utf8') > limit;
 }
+
+// Tighter rate limit on auth endpoints (10/min per IP)
+app.use('/v1/auth/', rateLimitMiddleware(10, 60, 'auth'));
 
 // ── AUTH ──────────────────────────────────────────────────────────────────────
 app.post('/v1/auth/register', async (req, res) => {
@@ -168,6 +183,12 @@ app.post('/v1/auth/login', async (req, res) => {
     if (!user || !verifyPassword(String(pin ?? '').trim(), user.pinHash)) {
       if (uname) {
         const info = recordFailure(uname, clientIp);
+        await logAuditEvent({
+          actorId: user?.id ?? null, actorIp: clientIp, action: AuditAction.AUTH_FAILED,
+          outcome: 'failure', severity: 'warn',
+          metadata: { username: uname, blocked: info.blocked },
+          userAgent: req.headers['user-agent'] as string,
+        });
         const detail = info.blocked
           ? ` — ลองผิดเกินกำหนด บัญชีถูกล็อก ${Math.ceil(info.retryAfterSec / 60)} นาที`
           : info.remaining > 0
@@ -179,6 +200,10 @@ app.post('/v1/auth/login', async (req, res) => {
     }
 
     recordSuccess(uname, clientIp);
+    await logAuditEvent({
+      actorId: user.id, actorIp: clientIp, action: AuditAction.AUTH_LOGIN,
+      outcome: 'success', userAgent: req.headers['user-agent'] as string,
+    });
     return res.json({ token: signToken(user.id), username: user.username });
   } catch (e) {
     logger.error('login_error', { error: (e as Error).message });

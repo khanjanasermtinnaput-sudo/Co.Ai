@@ -12,6 +12,8 @@ import {
   isAdminConfigured,
 } from "@/lib/server/supabase-admin";
 import { encryptSecret, maskKey } from "@/lib/server/crypto";
+import { logAuditEvent, AuditAction, getClientIp } from "@/lib/server/audit";
+import { getCorrelationId } from "@/lib/server/correlation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -73,6 +75,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "key-too-short" }, { status: 400 });
   }
 
+  const ip = getClientIp(req);
+  const correlationId = getCorrelationId(req);
+  const preview = maskKey(key);
+
   const { error: dbErr } = await getAdminSupabase()
     .from("provider_keys")
     .upsert(
@@ -80,14 +86,21 @@ export async function POST(req: Request) {
         user_id: user.id,
         provider: body.provider,
         encrypted_key: encryptSecret(key),
-        key_preview: maskKey(key),
+        key_preview: preview,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "user_id,provider" },
     );
 
   if (dbErr) return NextResponse.json({ error: "save-failed" }, { status: 500 });
-  return NextResponse.json({ ok: true, provider: body.provider, preview: maskKey(key) });
+
+  await logAuditEvent({
+    actorId: user.id, actorIp: ip, action: AuditAction.KEY_CREATED,
+    resourceType: "provider_key", resourceId: body.provider as string, correlationId,
+    metadata: { preview },
+  });
+
+  return NextResponse.json({ ok: true, provider: body.provider, preview });
 }
 
 export async function DELETE(req: Request) {
@@ -99,6 +112,9 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ error: "unknown-provider" }, { status: 400 });
   }
 
+  const ip = getClientIp(req);
+  const correlationId = getCorrelationId(req);
+
   const { error: dbErr } = await getAdminSupabase()
     .from("provider_keys")
     .delete()
@@ -106,5 +122,11 @@ export async function DELETE(req: Request) {
     .eq("provider", provider);
 
   if (dbErr) return NextResponse.json({ error: "delete-failed" }, { status: 500 });
+
+  await logAuditEvent({
+    actorId: user.id, actorIp: ip, action: AuditAction.KEY_DELETED,
+    resourceType: "provider_key", resourceId: provider, correlationId,
+  });
+
   return NextResponse.json({ ok: true });
 }

@@ -6,12 +6,15 @@ const CSP = [
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com",
   "img-src 'self' data: blob: https:",
-  // Allow OTLP telemetry + Sentry ingestion + AI providers
-  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.anthropic.com https://openrouter.ai https://generativelanguage.googleapis.com https://api.deepseek.com https://dashscope.aliyuncs.com https://api.groq.com https://api.tavily.com https://www.googleapis.com https://*.sentry.io https://o*.ingest.sentry.io",
+  // Allow OTLP telemetry + Sentry ingestion + AI providers + Cloudflare Turnstile
+  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.anthropic.com https://openrouter.ai https://generativelanguage.googleapis.com https://api.deepseek.com https://dashscope.aliyuncs.com https://api.groq.com https://api.tavily.com https://www.googleapis.com https://*.sentry.io https://o*.ingest.sentry.io https://challenges.cloudflare.com",
+  "frame-src https://challenges.cloudflare.com",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
   "upgrade-insecure-requests",
+  // CSP violation reporting — browser POSTs to /api/csp-report
+  "report-uri /api/csp-report",
 ].join("; ");
 
 const SECURITY_HEADERS = [
