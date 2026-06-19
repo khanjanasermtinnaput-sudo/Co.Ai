@@ -14,6 +14,8 @@ export interface CoaiConfig {
   tier: string;
   apiBase: string;
   savedAt: string;
+  deviceFingerprint?: string; // zero trust: hardware fingerprint at login time
+  lastVerified?: string;      // zero trust: last successful server-side token check
 }
 
 export function loadConfig(): CoaiConfig | null {

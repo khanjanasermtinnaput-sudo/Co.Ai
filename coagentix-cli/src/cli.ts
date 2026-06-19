@@ -8,9 +8,27 @@ import { cwd } from "node:process";
 import { hostname } from "node:os";
 
 import { loadConfig, saveConfig, clearConfig, requireLogin, defaultApiBase, isLoggedIn } from "./auth.js";
+import { enforceZeroTrust, generateDeviceFingerprint, recordAudit } from "./zero-trust.js";
 import { CoaiApiClient } from "./api.js";
 import { scanRepository, buildRepoContext } from "./repo.js";
-import { parseCodeBlocks, createSnapshot, applyChanges, fileExists } from "./files.js";
+import { parseCodeBlocks, applyChanges, fileExists } from "./files.js";
+import { generatePatch, validatePatch, createCheckpoint, rollbackCheckpoint, listCheckpoints } from "./patch.js";
+import { runBuildValidation, printValidationReport } from "./build-validator.js";
+import { getOrBuildGraph, summarizeGraph } from "./knowledge-graph.js";
+import { detectArchitecture, printArchReport } from "./arch-detector.js";
+import { recordOwnership, getFileHistory, getRecentChanges, printOwnershipHistory } from "./ownership.js";
+import { generateTests, runTests, printTestResults } from "./test-generator.js";
+import { securityGateCheck, aiSecurityReview, printSecurityReport } from "./security-agent.js";
+import { runDebate, printDebateResult } from "./debate.js";
+import { selectTier, printCostPlan } from "./cost-optimizer.js";
+import { computeReliability, printReliabilityScore } from "./reliability.js";
+import { listTasks, readTaskOutput, cancelTask, deleteTask } from "./background.js";
+import { generateDoc, getDocPath, printDocTypes } from "./docs-agent.js";
+import {
+  saveSession, loadSession, appendSessionHistory, clearSession,
+  snapshotWorkspace, restoreWorkspace, listWorkspaceSnapshots,
+  getRecoverySummary, printRecoverySummary,
+} from "./disaster-recovery.js";
 import { getGit, isGitRepo, getCurrentBranch, createBranch, stageAll, commit as gitCommit, push, pull, getLog } from "./git.js";
 import { previewAndConfirm, printSuccess, printError, printInfo, printWarning, askYesNo } from "./safety.js";
 import { startInteractiveSession } from "./interactive.js";
@@ -23,9 +41,12 @@ const ROOT    = cwd();
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function makeClient(): CoaiApiClient {
+async function makeClient(action: string): Promise<CoaiApiClient> {
   const cfg = requireLogin();
-  return new CoaiApiClient(cfg);
+  const fingerprint = generateDeviceFingerprint();
+  const api = new CoaiApiClient(cfg, fingerprint);
+  await enforceZeroTrust(api, cfg, action);
+  return api;
 }
 
 async function streamToChanges(
@@ -64,7 +85,11 @@ async function streamToChanges(
   return { changes, summary };
 }
 
-async function applyWithConfirm(changes: FileChange[], summary: string): Promise<void> {
+async function applyWithConfirm(
+  changes: FileChange[],
+  summary: string,
+  opts: { prompt?: string; agentAction?: string; userId?: string } = {},
+): Promise<void> {
   if (changes.length === 0) {
     console.log(chalk.dim("\nNo file changes proposed."));
     if (summary) {
@@ -74,15 +99,74 @@ async function applyWithConfirm(changes: FileChange[], summary: string): Promise
     return;
   }
 
+  // Security gate: static analysis before showing diff
+  const secReport = securityGateCheck(ROOT, changes);
+  printSecurityReport(secReport);
+  if (!secReport.passed) {
+    printError("Security gate blocked: resolve critical/high findings before applying.");
+    return;
+  }
+
+  // Reliability score: show before asking user to approve
+  const reliability = computeReliability(changes, summary, { root: ROOT, securityPassed: secReport.passed });
+  printReliabilityScore(reliability);
+  if (reliability.recommendation === "reject") {
+    printError("Reliability score too low — changes blocked. Review and retry.");
+    return;
+  }
+
+  // Generate patch
+  const patch = generatePatch(changes, opts);
+
+  // Validate patch (path safety, protected files, content checks)
+  const validation = validatePatch(ROOT, patch);
+  if (!validation.valid) {
+    printError("Patch validation failed:");
+    for (const e of validation.errors) console.error(chalk.red(`  ✗ ${e}`));
+    return;
+  }
+  for (const w of validation.warnings) printWarning(w);
+
+  // Show diff and require user approval
   const confirmed = await previewAndConfirm(changes);
   if (!confirmed) { printInfo("Discarded."); return; }
 
-  const sid = createSnapshot(ROOT, changes);
+  // Create checkpoint BEFORE applying
+  const cp = createCheckpoint(ROOT, patch);
+
+  // Apply
   applyChanges(ROOT, changes);
-  printSuccess(`${changes.length} file(s) applied. Snapshot: ${sid}`);
+
+  // Run build validation; auto-rollback on failure
+  const buildSpinner = startSpinner("Running build validation…");
+  const report = await runBuildValidation(ROOT);
+  buildSpinner.stop();
+
+  if (!report.passed) {
+    printValidationReport(report);
+    printWarning("Build validation failed — rolling back…");
+    rollbackCheckpoint(cp.id);
+    printError(`Rolled back to checkpoint ${cp.id}. No changes were applied.`);
+    return;
+  }
+
+  printValidationReport(report);
+
+  // Record session history for recovery
+  appendSessionHistory(opts.agentAction ?? "apply", "ok");
+
+  // Record ownership for every changed file
+  recordOwnership(changes, {
+    agentAction: opts.agentAction ?? "unknown",
+    userId: opts.userId ?? "local",
+    prompt: opts.prompt ?? "",
+    checkpointId: cp.id,
+  });
+
+  printSuccess(`${changes.length} file(s) applied. Checkpoint: ${cp.id}`);
 
   if (summary) {
-    console.log(chalk.bold("\nGit summary:"));
+    console.log(chalk.bold("\nSummary:"));
     console.log(chalk.dim(summary));
   }
 }
@@ -106,7 +190,7 @@ program
       process.exit(1);
     }
 
-    const api = makeClient();
+    const api = await makeClient("run");
 
     if (!task) {
       // Interactive REPL mode
@@ -118,20 +202,24 @@ program
     const repoInfo = await scanRepository(ROOT);
     const context  = await buildRepoContext(ROOT, repoInfo, 30_000);
 
+    // Smart cost optimization: select model tier based on task complexity
+    const plan = selectTier(task, context.length, { titan: opts?.titan, model: opts?.model });
+    printCostPlan(plan);
+
     const { changes, summary } = await streamToChanges(
       api,
-      opts?.titan ? "/v1/titan" : "/v1/run",
+      plan.endpoint,
       {
         task,
         context,
-        mode: opts?.titan ? "titan" : "pro",
-        model: opts?.model,
+        mode: plan.mode,
+        model: plan.model,
         repoInfo: { framework: repoInfo.framework, language: repoInfo.language },
       },
-      `[${opts?.titan ? "titan" : "tmap"}] ${task.slice(0, 60)}…`,
+      `[${plan.tier}] ${task.slice(0, 60)}…`,
     );
 
-    await applyWithConfirm(changes, summary);
+    await applyWithConfirm(changes, summary, { agentAction: "run", prompt: task });
   });
 
 // ── coai login ────────────────────────────────────────────────────────────────
@@ -164,7 +252,19 @@ program
         jwt: "", userId: "", email: "", tier: "", apiBase, savedAt: "",
       });
       const result = await tmpClient.cliAuth(token, `${hostname()} (${process.platform})`);
-      saveConfig({ jwt: result.jwt, userId: result.userId, email: result.email, tier: result.tier, apiBase, savedAt: new Date().toISOString() });
+      const fingerprint = generateDeviceFingerprint();
+      saveConfig({
+        jwt: result.jwt,
+        userId: result.userId,
+        email: result.email,
+        tier: result.tier,
+        apiBase,
+        savedAt: new Date().toISOString(),
+        deviceFingerprint: fingerprint,
+        lastVerified: new Date().toISOString(),
+      });
+      recordAudit({ ts: new Date().toISOString(), userId: result.userId, action: "login", result: "ok", device: fingerprint });
+      saveSession({ id: result.userId, cwd: ROOT, history: [] });
       spinner.succeed(chalk.green("Authenticated!"));
       console.log(chalk.dim(`  Account: ${result.email} · ${result.tier}`));
       console.log(chalk.dim(`  Run ${brand("coai")} to start.\n`));
@@ -234,7 +334,7 @@ program
   .description("AI code review of the current repository")
   .option("--file <path>", "Review a specific file only")
   .action(async (opts: { file?: string }) => {
-    const api = makeClient();
+    const api = await makeClient("review");
     const repoInfo = await scanRepository(ROOT);
     const context  = await buildRepoContext(ROOT, repoInfo, 30_000);
 
@@ -270,7 +370,7 @@ program
   .command("fix [description]")
   .description("Fix a bug or error in the repository")
   .action(async (description?: string) => {
-    const api = makeClient();
+    const api = await makeClient("fix");
     const repoInfo = await scanRepository(ROOT);
     const context  = await buildRepoContext(ROOT, repoInfo, 30_000);
 
@@ -294,7 +394,7 @@ program
   .description("Generate a complete project or feature")
   .option("--stack <stack>", "Tech stack (e.g. next,tailwind,supabase)")
   .action(async (description?: string, opts?: { stack?: string }) => {
-    const api = makeClient();
+    const api = await makeClient("generate");
 
     const rl = createInterface({ input: process.stdin, output: process.stdout });
     const task = description ?? await new Promise<string>((resolve) => {
@@ -323,7 +423,7 @@ program
   .command("explain [file]")
   .description("Explain the project architecture or a specific file")
   .action(async (file?: string) => {
-    const api = makeClient();
+    const api = await makeClient("explain");
     const repoInfo = await scanRepository(ROOT);
     const context  = await buildRepoContext(ROOT, repoInfo, 30_000);
 
@@ -357,7 +457,7 @@ program
   .command("refactor [description]")
   .description("Refactor code for clarity, performance, or architecture")
   .action(async (description?: string) => {
-    const api = makeClient();
+    const api = await makeClient("refactor");
     const repoInfo = await scanRepository(ROOT);
     const context  = await buildRepoContext(ROOT, repoInfo, 30_000);
 
@@ -388,7 +488,7 @@ program
 
     let msg = message;
     if (!msg) {
-      const api = makeClient();
+      const api = await makeClient("commit");
       const spinner = startSpinner("Generating commit message…");
       const repoInfo = await scanRepository(ROOT);
       const context  = await buildRepoContext(ROOT, repoInfo, 10_000);
@@ -480,6 +580,408 @@ program
     } catch (err) {
       spinner.fail(String(err));
     }
+  });
+
+// ── coai docs ─────────────────────────────────────────────────────────────────
+
+program
+  .command("docs [type]")
+  .description("Generate or update documentation (readme|architecture|api|changelog|migration)")
+  .action(async (type?: string) => {
+    if (!type) {
+      printDocTypes();
+      return;
+    }
+
+    const validTypes = ["readme", "architecture", "api", "changelog", "migration"] as const;
+    type DocTypeInput = typeof validTypes[number];
+    if (!validTypes.includes(type as DocTypeInput)) {
+      printError(`Unknown doc type: ${type}. Valid: ${validTypes.join(", ")}`);
+      return;
+    }
+
+    const api      = await makeClient("docs");
+    const repoInfo = await scanRepository(ROOT);
+    const context  = await buildRepoContext(ROOT, repoInfo, 20_000);
+    const arch     = detectArchitecture(ROOT);
+    const graph    = await getOrBuildGraph(ROOT);
+
+    const spinner = startSpinner(`Generating ${type}…`);
+    let content = "";
+    try {
+      content = await generateDoc(api, ROOT, { type: type as DocTypeInput, arch, graph }, context);
+      spinner.succeed(`${type} generated`);
+    } catch (err) {
+      spinner.fail(String(err));
+      return;
+    }
+
+    const docPath = getDocPath(ROOT, type as DocTypeInput);
+    const { existsSync } = await import("node:fs");
+    const { relative } = await import("node:path");
+    const changes: FileChange[] = [{
+      op: existsSync(docPath) ? "edit" : "create",
+      path: relative(ROOT, docPath),
+      content,
+    }];
+
+    await applyWithConfirm(changes, "", { agentAction: "docs", prompt: `Generate ${type}` });
+  });
+
+// ── coai tasks ────────────────────────────────────────────────────────────────
+
+program
+  .command("tasks [id]")
+  .description("List background tasks or inspect/cancel a specific task")
+  .option("--cancel", "Cancel the specified task")
+  .option("--delete", "Delete the task record")
+  .option("--output", "Show task output")
+  .action(async (id?: string, opts?: { cancel?: boolean; delete?: boolean; output?: boolean }) => {
+    if (id) {
+      if (opts?.cancel) {
+        const ok = cancelTask(id);
+        ok ? printSuccess(`Task ${id} cancelled`) : printError(`Could not cancel task ${id}`);
+        return;
+      }
+      if (opts?.delete) {
+        deleteTask(id);
+        printSuccess(`Task ${id} deleted`);
+        return;
+      }
+      if (opts?.output) {
+        console.log(chalk.bold(`\n  Output: ${id}`));
+        console.log(chalk.dim("─".repeat(60)));
+        console.log(readTaskOutput(id));
+        return;
+      }
+    }
+
+    const tasks = listTasks();
+    if (tasks.length === 0) { printInfo("No background tasks."); return; }
+
+    console.log(chalk.bold(`\n  Background Tasks (${tasks.length})`));
+    console.log(chalk.dim("─".repeat(70)));
+
+    for (const t of tasks.slice(0, 30)) {
+      const statusColor =
+        t.status === "completed" ? chalk.green :
+        t.status === "running"   ? chalk.cyan :
+        t.status === "failed"    ? chalk.red :
+        t.status === "cancelled" ? chalk.dim : chalk.yellow;
+
+      const ts  = chalk.dim(t.createdAt.replace("T", " ").slice(0, 19));
+      const st  = statusColor(t.status.padEnd(10));
+      const lbl = chalk.bold(t.label.slice(0, 40));
+      const pid = t.pid ? chalk.dim(`pid:${t.pid}`) : "";
+      console.log(`  ${ts}  ${st} ${lbl}  ${chalk.dim(t.id)} ${pid}`);
+    }
+
+    console.log(chalk.dim("\n  coai tasks <id> --output   Show output"));
+    console.log(chalk.dim("  coai tasks <id> --cancel   Cancel running task\n"));
+  });
+
+// ── coai debate ───────────────────────────────────────────────────────────────
+
+program
+  .command("debate <task>")
+  .description("Run multi-agent debate (Architect → Reviewer → Security → Performance) before implementing")
+  .action(async (task: string) => {
+    const api      = await makeClient("debate");
+    const repoInfo = await scanRepository(ROOT);
+    const context  = await buildRepoContext(ROOT, repoInfo, 20_000);
+
+    console.log(chalk.bold("\n  Initiating Multi-Agent Debate…"));
+    console.log(chalk.dim(`  Task: ${task}\n`));
+
+    const spinner = startSpinner("Architect proposing…");
+
+    try {
+      const result = await runDebate(api, task, context, (role) => {
+        spinner.text = `${role} agent running…`;
+      });
+      spinner.succeed("Debate complete");
+      printDebateResult(result);
+
+      if (result.approved) {
+        const ok = await askYesNo("Proceed with implementation using final plan? (Y/n)");
+        if (ok) {
+          const { changes, summary } = await streamToChanges(
+            api, program.opts()?.titan ? "/v1/titan" : "/v1/run",
+            { task: result.finalPlan, context, mode: "pro" },
+            "Implementing approved plan…",
+          );
+          await applyWithConfirm(changes, summary, { agentAction: "debate-implement", prompt: task });
+        }
+      }
+    } catch (err) {
+      spinner.fail(String(err));
+    }
+  });
+
+// ── coai security ─────────────────────────────────────────────────────────────
+
+program
+  .command("security")
+  .description("Full AI security review of the repository")
+  .action(async () => {
+    const api      = await makeClient("security");
+    const repoInfo = await scanRepository(ROOT);
+    const context  = await buildRepoContext(ROOT, repoInfo, 30_000);
+
+    const spinner = startSpinner("Running AI security review…");
+    let report = "";
+    try {
+      report = await aiSecurityReview(api, context);
+      spinner.succeed("Security review complete");
+    } catch (err) {
+      spinner.fail(String(err));
+      return;
+    }
+
+    console.log(chalk.bold("\nSecurity Review Report:"));
+    console.log(chalk.dim("─".repeat(60)));
+    console.log(report);
+  });
+
+// ── coai test ─────────────────────────────────────────────────────────────────
+
+program
+  .command("test [file]")
+  .description("Generate and run tests for a file (or run existing tests)")
+  .option("--generate", "Generate tests using AI before running")
+  .option("--type <types>", "Test types: unit,integration,api,component", "unit")
+  .action(async (file?: string, opts?: { generate?: boolean; type?: string }) => {
+    const api     = await makeClient("test");
+    const cfg     = requireLogin();
+    const repoInfo = await scanRepository(ROOT);
+    const arch     = detectArchitecture(ROOT);
+
+    if (file && opts?.generate) {
+      const context = await buildRepoContext(ROOT, repoInfo, 20_000);
+      const types   = (opts.type ?? "unit").split(",") as Array<"unit" | "integration" | "api" | "component">;
+
+      const spinner = startSpinner(`Generating ${types.join("+")} tests for ${file}…`);
+      let testContent = "";
+      try {
+        testContent = await generateTests(api, ROOT, {
+          targetFile: file,
+          testTypes: types,
+          framework: arch.framework,
+        }, context);
+        spinner.succeed("Tests generated");
+      } catch (err) {
+        spinner.fail(String(err));
+        return;
+      }
+
+      const ext      = file.match(/\.(tsx?|jsx?)$/) ? file.replace(/\.(tsx?|jsx?)$/, ".test.$1") : file + ".test.ts";
+      const testFile = ext.replace(/\.test\.(tsx?)$/, ".test.$1");
+      const testPath = file.replace(/\.(tsx?|jsx?)$/, ".test.$&".replace(".$&", "." + file.split(".").pop()));
+
+      const changes: FileChange[] = [{ op: "create", path: testPath, content: testContent }];
+      await applyWithConfirm(changes, "", {
+        agentAction: "test-generate",
+        userId: cfg.userId,
+        prompt: `Generate tests for ${file}`,
+      });
+    }
+
+    // Run existing tests
+    const spinner2 = startSpinner("Running tests…");
+    const result = runTests(ROOT);
+    spinner2.stop();
+    printTestResults(result);
+  });
+
+// ── coai history ──────────────────────────────────────────────────────────────
+
+program
+  .command("history [file]")
+  .description("Show change history (all files or a specific file)")
+  .option("--lines <n>", "Number of recent entries to show", "20")
+  .action(async (file?: string, opts?: { lines?: string }) => {
+    const n = parseInt(opts?.lines ?? "20", 10);
+    const entries = file ? getFileHistory(file) : getRecentChanges(n);
+    printOwnershipHistory(entries.slice(0, n));
+  });
+
+// ── coai analyze ──────────────────────────────────────────────────────────────
+
+program
+  .command("analyze")
+  .description("Analyze project architecture and build knowledge graph")
+  .action(async () => {
+    const spinner = startSpinner("Analyzing project architecture…");
+    const graph = await getOrBuildGraph(ROOT);
+    const arch  = detectArchitecture(ROOT, graph);
+    spinner.succeed("Analysis complete");
+
+    printArchReport(arch);
+
+    console.log(chalk.bold("  Knowledge Graph"));
+    console.log(chalk.dim("─".repeat(55)));
+    console.log("  " + summarizeGraph(graph).replace(/\n/g, "\n  "));
+    console.log();
+  });
+
+// ── coai checkpoint ───────────────────────────────────────────────────────────
+
+program
+  .command("checkpoint [id]")
+  .description("List checkpoints or rollback to a specific checkpoint")
+  .option("--rollback", "Rollback to the specified checkpoint")
+  .action(async (id?: string, opts?: { rollback?: boolean }) => {
+    if (opts?.rollback && id) {
+      const ok = await askYesNo(chalk.yellow(`Rollback to checkpoint ${id}? This will overwrite current files. (y/N)`), false);
+      if (!ok) { printInfo("Rollback cancelled."); return; }
+      try {
+        rollbackCheckpoint(id);
+        printSuccess(`Rolled back to checkpoint ${id}`);
+      } catch (err) {
+        printError(String(err));
+      }
+      return;
+    }
+
+    const checkpoints = listCheckpoints();
+    if (checkpoints.length === 0) {
+      printInfo("No checkpoints found.");
+      return;
+    }
+
+    console.log(chalk.bold(`\n  Checkpoints (${checkpoints.length})`));
+    console.log(chalk.dim("─".repeat(70)));
+    for (const cp of checkpoints.slice(0, 20)) {
+      const ts      = chalk.dim(cp.createdAt.replace("T", " ").slice(0, 19));
+      const fileCount = chalk.bold(String(cp.patch.changes.length).padStart(3)) + " file(s)";
+      const action  = chalk.cyan(cp.patch.agentAction ?? "manual");
+      console.log(`  ${ts}  ${fileCount}  ${action}  ${chalk.dim(cp.id)}`);
+    }
+    console.log(chalk.dim("\n  To rollback: coai checkpoint <id> --rollback\n"));
+  });
+
+// ── coai audit ────────────────────────────────────────────────────────────────
+
+program
+  .command("audit")
+  .description("View enterprise audit dashboard: sessions, commands, agent actions, security events")
+  .option("--lines <n>",      "Number of recent entries to show", "50")
+  .option("--filter <text>",  "Filter by action name or result")
+  .option("--json",           "Output as JSON")
+  .action(async (opts: { lines?: string; filter?: string; json?: boolean }) => {
+    const { join }      = await import("node:path");
+    const { homedir }   = await import("node:os");
+    const { readFileSync, existsSync } = await import("node:fs");
+
+    const auditFile = join(homedir(), ".coai", "audit.log");
+    if (!existsSync(auditFile)) { printInfo("No audit log found yet."); return; }
+
+    const n   = parseInt(opts.lines ?? "50", 10);
+    const raw = readFileSync(auditFile, "utf8").trim().split("\n");
+
+    type AuditRow = { ts: string; userId: string; action: string; result: string; device?: string; details?: Record<string, unknown> };
+    let entries = raw
+      .map((line): AuditRow | null => { try { return JSON.parse(line) as AuditRow; } catch { return null; } })
+      .filter((e): e is AuditRow => e !== null);
+
+    if (opts.filter) {
+      const f = opts.filter.toLowerCase();
+      entries = entries.filter((e) => e.action.toLowerCase().includes(f) || e.result.toLowerCase().includes(f));
+    }
+
+    entries = entries.slice(-n);
+
+    if (opts.json) { console.log(JSON.stringify(entries, null, 2)); return; }
+
+    // Summary statistics
+    const total    = entries.length;
+    const okCount  = entries.filter((e) => e.result === "ok").length;
+    const denied   = entries.filter((e) => e.result === "denied").length;
+    const errors   = entries.filter((e) => e.result === "error").length;
+    const actions  = [...new Set(entries.map((e) => e.action))];
+
+    console.log(chalk.bold("\n  Enterprise Audit Dashboard"));
+    console.log(chalk.dim("─".repeat(72)));
+    console.log(`  Total: ${chalk.bold(String(total))}  OK: ${chalk.green(String(okCount))}  Denied: ${chalk.red(String(denied))}  Errors: ${chalk.yellow(String(errors))}`);
+    console.log(`  Actions: ${chalk.dim(actions.join(", "))}`);
+    console.log(chalk.dim("─".repeat(72)));
+
+    for (const e of entries) {
+      const ts     = chalk.dim(e.ts.replace("T", " ").slice(0, 19));
+      const res    = e.result === "ok" ? chalk.green("ok    ") : e.result === "denied" ? chalk.red("DENIED") : chalk.yellow("ERROR ");
+      const action = chalk.bold(e.action.padEnd(14));
+      const device = e.device ? chalk.dim(e.device.slice(0, 8) + "…") : "        ";
+      const detail = e.details ? chalk.dim(JSON.stringify(e.details).slice(0, 40)) : "";
+      console.log(`  ${ts}  ${res}  ${device}  ${action}  ${detail}`);
+    }
+
+    // Security events summary
+    const securityEvents = entries.filter((e) => e.result === "denied" || (e.details && JSON.stringify(e.details).includes("security")));
+    if (securityEvents.length > 0) {
+      console.log(chalk.red.bold(`\n  ⚠ ${securityEvents.length} security event(s) detected`));
+    }
+    console.log();
+  });
+
+// ── coai recover ──────────────────────────────────────────────────────────────
+
+program
+  .command("recover")
+  .description("Disaster recovery: session, workspace, checkpoint recovery")
+  .option("--status",            "Show recovery status")
+  .option("--snapshot [label]",  "Create a workspace snapshot")
+  .option("--restore <id>",      "Restore a workspace snapshot by ID")
+  .option("--list-snapshots",    "List all workspace snapshots")
+  .option("--clear-session",     "Clear the saved session")
+  .action(async (opts: {
+    status?: boolean;
+    snapshot?: string | boolean;
+    restore?: string;
+    listSnapshots?: boolean;
+    clearSession?: boolean;
+  }) => {
+    if (opts.clearSession) {
+      clearSession();
+      printSuccess("Session cleared.");
+      return;
+    }
+
+    if (opts.listSnapshots) {
+      const snapshots = listWorkspaceSnapshots();
+      if (snapshots.length === 0) { printInfo("No workspace snapshots."); return; }
+      console.log(chalk.bold(`\n  Workspace Snapshots (${snapshots.length})`));
+      console.log(chalk.dim("─".repeat(60)));
+      for (const ws of snapshots) {
+        const ts = chalk.dim(ws.createdAt.replace("T", " ").slice(0, 19));
+        console.log(`  ${ts}  ${chalk.cyan(ws.label.padEnd(25))}  ${chalk.dim(ws.id)}`);
+      }
+      console.log();
+      return;
+    }
+
+    if (opts.restore) {
+      const ok = await askYesNo(chalk.yellow(`Restore workspace snapshot ${opts.restore}? This will overwrite current files. (y/N)`), false);
+      if (!ok) { printInfo("Restore cancelled."); return; }
+      try {
+        restoreWorkspace(opts.restore, ROOT);
+        printSuccess(`Workspace restored from snapshot ${opts.restore}`);
+      } catch (err) {
+        printError(String(err));
+      }
+      return;
+    }
+
+    if (opts.snapshot !== undefined) {
+      const label = typeof opts.snapshot === "string" ? opts.snapshot : `snapshot-${new Date().toISOString().slice(0, 10)}`;
+      const spinner = startSpinner(`Creating workspace snapshot: ${label}…`);
+      const ws = snapshotWorkspace(ROOT, label);
+      spinner.succeed(`Snapshot created: ${ws.id}  (${ws.files.length} files)`);
+      return;
+    }
+
+    // Default: show recovery status
+    const summary = getRecoverySummary();
+    printRecoverySummary(summary);
   });
 
 // ── main ─────────────────────────────────────────────────────────────────────

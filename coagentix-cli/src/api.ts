@@ -14,14 +14,16 @@ export type StreamEvent = {
 };
 
 export class CoaiApiClient {
-  constructor(private cfg: CoaiConfig) {}
+  constructor(private cfg: CoaiConfig, private deviceFingerprint?: string) {}
 
   private headers(): Record<string, string> {
-    return {
+    const h: Record<string, string> = {
       Authorization: `Bearer ${this.cfg.jwt}`,
       "Content-Type": "application/json",
       "User-Agent": `coagentix-cli/1.0.0 Node/${process.version}`,
     };
+    if (this.deviceFingerprint) h["X-Device-Fingerprint"] = this.deviceFingerprint;
+    return h;
   }
 
   private url(path: string): string {
