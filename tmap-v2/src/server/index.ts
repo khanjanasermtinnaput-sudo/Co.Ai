@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import './telemetry.js'; // must load before express to patch HTTP instrumentation
 import express from 'express';
 import cors from 'cors';
 import { fileURLToPath } from 'node:url';
@@ -33,6 +34,10 @@ import {
   searchImageMemories, imageMemoriesToContext, clearImageMemories, purgeExpiredImageMemories,
 } from '../core/image-memory.js';
 import { handleCliAuth, handleCliStatus } from './cli-auth.js';
+import { correlationMiddleware } from './correlation.js';
+import { prometheusMiddleware, registry } from './prometheus.js';
+import { buildHealthReport } from './health.js';
+import * as SentryNode from '@sentry/node';
 
 const PROVIDERS: ProviderKeyName[] = ['openrouter', 'gemini', 'deepseek', 'qwen', 'llama'];
 
@@ -83,6 +88,14 @@ const jsonParser = express.json({ limit: '1mb' });
 const imageJsonParser = express.json({ limit: process.env.IMAGE_JSON_LIMIT || '14mb' });
 app.use((req, res, next) =>
   (req.path === '/v1/image/analyze' ? imageJsonParser : jsonParser)(req, res, next));
+
+// ── CORRELATION IDs ───────────────────────────────────────────────────────────
+// Injects X-Correlation-ID / X-Request-ID into AsyncLocalStorage so every log
+// line emitted during a request automatically includes them.
+app.use(correlationMiddleware());
+
+// ── PROMETHEUS metrics ────────────────────────────────────────────────────────
+app.use(prometheusMiddleware());
 
 // ── REQUEST LOGGING middleware ────────────────────────────────────────────────
 app.use((req, _res, next) => {
@@ -719,14 +732,43 @@ app.get('/v1/cli/status', requireAuth, async (req: AuthedRequest, res) => {
 });
 
 // ── HEALTH + METRICS ─────────────────────────────────────────────────────────
-app.get('/v1/health', (_req, res) => {
-  res.json(globalHealth.snapshot());
+
+// Full dependency health check (Redis, Supabase, queues, providers)
+app.get('/v1/health', async (_req, res) => {
+  try {
+    const [depHealth, providerHealth] = await Promise.all([
+      buildHealthReport(),
+      Promise.resolve(globalHealth.snapshot()),
+    ]);
+    res.json({ ...depHealth, providers: providerHealth });
+  } catch (err) {
+    res.status(503).json({ status: 'fail', error: (err as Error).message });
+  }
 });
 
-// Metrics are internal counters — restrict to authenticated users only so
-// they are not exposed to anonymous scrapers.
+// In-memory counters (request/error/token stats) — auth required
 app.get('/v1/metrics', requireAuth, (_req: AuthedRequest, res) => {
   res.json(getMetrics());
+});
+
+// Prometheus text-format metrics endpoint for Grafana/Prometheus scraping.
+// Optionally protect with a scrape token via PROMETHEUS_SCRAPE_TOKEN env var.
+app.get('/v1/metrics/prometheus', async (req, res) => {
+  const scrapeToken = process.env.PROMETHEUS_SCRAPE_TOKEN;
+  if (scrapeToken) {
+    const authHeader = req.headers.authorization ?? '';
+    const provided   = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+    if (provided !== scrapeToken) {
+      res.status(401).set('WWW-Authenticate', 'Bearer realm="metrics"').end();
+      return;
+    }
+  }
+  try {
+    const metrics = await registry.metrics();
+    res.set('Content-Type', registry.contentType).send(metrics);
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
 });
 
 // ── static ────────────────────────────────────────────────────────────────────
@@ -738,8 +780,15 @@ app.use((_req, res) => {
   res.status(404).json({ error: 'not found' });
 });
 
+// Sentry must handle errors before the generic error handler so it captures
+// the full exception context (request, user, breadcrumbs).
+if (process.env.SENTRY_DSN) {
+  app.use(SentryNode.expressErrorHandler());
+}
+
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  logger.error('unhandled_error', { error: err.message });
+  logger.error('unhandled_error', { error: err.message, stack: err.stack?.split('\n')[1]?.trim() });
+  incError();
   res.status(500).json({ error: 'internal server error' });
 });
 
