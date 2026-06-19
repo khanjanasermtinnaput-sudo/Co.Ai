@@ -3,7 +3,10 @@
 import { readFileSync, statSync, existsSync } from "node:fs";
 import { join, relative, extname } from "node:path";
 import { glob } from "glob";
-import ignore from "ignore";
+import * as ignoreLib from "ignore";
+// CJS interop: ignore package exports a factory as module.exports
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const ignore = (ignoreLib as any).default ?? ignoreLib;
 
 export interface RepoInfo {
   root: string;

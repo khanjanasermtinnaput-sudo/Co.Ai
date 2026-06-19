@@ -1,6 +1,6 @@
 // Git integration via simple-git
 
-import simpleGit, { type SimpleGit } from "simple-git";
+import { simpleGit, type SimpleGit } from "simple-git";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 
