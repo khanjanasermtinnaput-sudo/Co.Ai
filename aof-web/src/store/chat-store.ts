@@ -2,7 +2,8 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { toast } from "sonner";
 import { uid } from "@/lib/utils";
-import { streamChat, streamOrchestrate, isLive, type ChatHistoryItem } from "@/lib/api";
+import { analyzeImage, streamChat, streamOrchestrate, isLive, type ChatHistoryItem } from "@/lib/api";
+import { useImageMemoryStore } from "@/store/image-memory-store";
 import { routeRequest } from "@/lib/router";
 import { composeLearningReply, isLearningProblem } from "@/lib/mock";
 import {
@@ -313,6 +314,25 @@ export const useChatStore = create<ChatState>()(
           .filter((m) => m.role !== "system" && m.id !== assistantId)
           .slice(-40)
           .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
+
+        // ── Image analysis (Steps 1-9 of image pipeline) ──────────────────────
+        // Analyze image attachments before streaming so getImageContextForQuery()
+        // inside streamChat() finds the context in localStorage automatically.
+        const imageAttachments = (attachments ?? []).filter(
+          (a) => a.kind === "image" && a.dataUrl,
+        );
+        if (imageAttachments.length) {
+          await Promise.allSettled(
+            imageAttachments.map(async (a) => {
+              try {
+                const memory = await analyzeImage(a.dataUrl!, content || a.name);
+                useImageMemoryStore.getState().addMemory(memory);
+              } catch {
+                // analysis failure must never block the chat turn
+              }
+            }),
+          );
+        }
 
         const controller = new AbortController();
         set({ abort: controller });

@@ -359,8 +359,20 @@ app.post('/v1/chat', requireAuth, async (req: AuthedRequest, res) => {
     return r.text;
   };
 
+  // Step 10: inject relevant image memories as context before the LLM call
+  let imageCtx = '';
   try {
-    const result = await runRAA(call, history, message);
+    const ranked = await searchImageMemories(u.id, message, 3);
+    imageCtx = imageMemoriesToContext(ranked);
+    if (imageCtx) emit('raa', 'image memory: found relevant image context', 'status');
+  } catch { /* best-effort */ }
+
+  const historyWithCtx: ChatMessage[] = imageCtx
+    ? [{ role: 'system' as const, content: imageCtx }, ...history]
+    : history;
+
+  try {
+    const result = await runRAA(call, historyWithCtx, message);
     send({ role: 'raa', kind: 'output', text: result.text });
     send({ role: 'raa', kind: 'done', hasSummary: result.hasSummary, summary: result.summary ?? null });
   } catch (e) {
@@ -552,7 +564,15 @@ app.post('/v1/run', requireAuth, async (req: AuthedRequest, res) => {
     }
   } catch { /* memory is best-effort */ }
 
-  const fullContext = [context, memCtx].filter(Boolean).join('\n\n');
+  // Step 10: inject relevant image memories alongside project memory
+  let imageCtx = '';
+  try {
+    const ranked = await searchImageMemories(u.id, task, 3);
+    imageCtx = imageMemoriesToContext(ranked);
+    if (imageCtx) send({ role: 'system', kind: 'status', text: 'image memory: found relevant image context' });
+  } catch { /* best-effort */ }
+
+  const fullContext = [context, memCtx, imageCtx].filter(Boolean).join('\n\n');
   const bb = createBlackboard(task, mode, fullContext);
 
   // Create session record immediately so it appears in history

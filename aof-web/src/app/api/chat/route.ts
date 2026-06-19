@@ -95,6 +95,8 @@ interface ChatBody {
   agent?: Agent;
   /** Universal Search mode: "auto" (default) | "off" | "force". */
   searchMode?: string;
+  /** Client-side image memory context injected from localStorage (Step 10 of image pipeline). */
+  imageContext?: string;
 }
 
 function buildSystem(style: ResponseStyle | undefined, route: RouteDecision | undefined): string {
@@ -261,6 +263,11 @@ async function handleChat(req: Request): Promise<Response> {
 
   const { system: baseSystem, temperature, maxTokens } = agentConfig(body.agent, body.style, body.route);
   let system = baseSystem;
+
+  // ── Image Memory Context (Step 10) ────────────────────────────────────────────
+  // Client passes pre-ranked localStorage image context; append to system prompt.
+  const imgCtx = String(body.imageContext ?? "").trim();
+  if (imgCtx) system = `${system}\n\n${imgCtx}`;
 
   // ── Universal Search ─────────────────────────────────────────────────────────
   // Ground the answer in live web results when the query needs fresh information.

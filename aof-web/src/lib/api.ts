@@ -7,6 +7,7 @@
 // default so the UI never appears to work when AI is actually down.
 
 import type { ProjectBrief, ResponseStyle, RouteDecision } from "./types";
+import { getImageContextForQuery, type LocalImageMemory } from "./image-memory";
 import {
   mockChat,
   mockCodeChat,
@@ -265,6 +266,7 @@ export async function streamChat(
   }
 
   // Default: Coagentix's own provider route.
+  const imageContext = getImageContextForQuery(message);
   try {
     const res = await fetch("/api/chat", {
       method: "POST",
@@ -275,6 +277,7 @@ export async function streamChat(
         route: req.route,
         searchMode: req.searchMode ?? "auto",
         history: req.history.map((h) => ({ role: h.role, content: h.content })),
+        ...(imageContext ? { imageContext } : {}),
       }),
       signal: handlers.signal,
     });
@@ -614,6 +617,30 @@ export async function streamOrchestrate(
     if ((e as { name?: string })?.name === "AbortError") return;
     handlers.onError?.(backendUnavailableError("Orchestration backend (/v1/orchestrate) is unreachable.", e));
   }
+}
+
+// ── Image Understanding ───────────────────────────────────────────────────────
+
+/**
+ * Analyze an image via the image understanding pipeline (Steps 1-9).
+ * Returns a LocalImageMemory record ready to be saved via `useImageMemoryStore.addMemory()`.
+ * Throws if no vision-capable provider is configured or the server returns an error.
+ */
+export async function analyzeImage(
+  imageData: string,
+  question?: string,
+): Promise<LocalImageMemory> {
+  const res = await fetch("/api/image/analyze", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ image: imageData, question }),
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error ?? `Image analysis failed (${res.status})`);
+  }
+  const data = (await res.json()) as { memory: LocalImageMemory };
+  return data.memory;
 }
 
 // ── Health ────────────────────────────────────────────────────────────────────
