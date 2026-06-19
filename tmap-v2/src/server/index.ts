@@ -32,6 +32,7 @@ import {
   toRecord, storeImageMemory, findImageByHash, listImageMemories,
   searchImageMemories, imageMemoriesToContext, clearImageMemories, purgeExpiredImageMemories,
 } from '../core/image-memory.js';
+import { handleCliAuth, handleCliStatus } from './cli-auth.js';
 
 const PROVIDERS: ProviderKeyName[] = ['openrouter', 'gemini', 'deepseek', 'qwen', 'llama'];
 
@@ -359,20 +360,8 @@ app.post('/v1/chat', requireAuth, async (req: AuthedRequest, res) => {
     return r.text;
   };
 
-  // Step 10: inject relevant image memories as context before the LLM call
-  let imageCtx = '';
   try {
-    const ranked = await searchImageMemories(u.id, message, 3);
-    imageCtx = imageMemoriesToContext(ranked);
-    if (imageCtx) emit('raa', 'image memory: found relevant image context', 'status');
-  } catch { /* best-effort */ }
-
-  const historyWithCtx: ChatMessage[] = imageCtx
-    ? [{ role: 'system' as const, content: imageCtx }, ...history]
-    : history;
-
-  try {
-    const result = await runRAA(call, historyWithCtx, message);
+    const result = await runRAA(call, history, message);
     send({ role: 'raa', kind: 'output', text: result.text });
     send({ role: 'raa', kind: 'done', hasSummary: result.hasSummary, summary: result.summary ?? null });
   } catch (e) {
@@ -564,15 +553,7 @@ app.post('/v1/run', requireAuth, async (req: AuthedRequest, res) => {
     }
   } catch { /* memory is best-effort */ }
 
-  // Step 10: inject relevant image memories alongside project memory
-  let imageCtx = '';
-  try {
-    const ranked = await searchImageMemories(u.id, task, 3);
-    imageCtx = imageMemoriesToContext(ranked);
-    if (imageCtx) send({ role: 'system', kind: 'status', text: 'image memory: found relevant image context' });
-  } catch { /* best-effort */ }
-
-  const fullContext = [context, memCtx, imageCtx].filter(Boolean).join('\n\n');
+  const fullContext = [context, memCtx].filter(Boolean).join('\n\n');
   const bb = createBlackboard(task, mode, fullContext);
 
   // Create session record immediately so it appears in history
@@ -720,6 +701,21 @@ app.post('/v1/orchestrate', requireAuth, async (req: AuthedRequest, res) => {
     send({ role: 'chief', kind: 'error', text: (e as Error).message });
   }
   res.end();
+});
+
+// ── CLI AUTH ──────────────────────────────────────────────────────────────────
+// POST /v1/cli/auth — exchange raw CLI token for a tmap-v2 JWT (Advanced only)
+app.post('/v1/cli/auth', async (req, res) => {
+  try {
+    await handleCliAuth(req, res);
+  } catch (e) {
+    res.status(500).json({ error: (e as Error).message });
+  }
+});
+
+// GET /v1/cli/status — quick auth check used by `coai status`
+app.get('/v1/cli/status', requireAuth, async (req: AuthedRequest, res) => {
+  await handleCliStatus(req, res);
 });
 
 // ── HEALTH + METRICS ─────────────────────────────────────────────────────────

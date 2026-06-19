@@ -1,0 +1,63 @@
+// ── /api/cli/devices ──────────────────────────────────────────────────────────
+// Active CLI session (device) management.
+//   GET    → list active devices (sessions) for the signed-in user
+//   DELETE → logout all CLI sessions
+
+import { NextResponse } from "next/server";
+import { getAdminSupabase, getUserFromRequest, isAdminConfigured } from "@/lib/server/supabase-admin";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+async function requireAdvanced(req: Request) {
+  if (!isAdminConfigured()) {
+    return { error: NextResponse.json({ error: "backend-not-configured" }, { status: 503 }) };
+  }
+  const user = await getUserFromRequest(req);
+  if (!user) {
+    return { error: NextResponse.json({ error: "unauthorized" }, { status: 401 }) };
+  }
+  const tier = (user.app_metadata?.tier as string | undefined) ?? "FREE";
+  if (tier !== "ADVANCED") {
+    return { error: NextResponse.json({ error: "advanced-required" }, { status: 403 }) };
+  }
+  return { user };
+}
+
+export async function GET(req: Request) {
+  const { user, error } = await requireAdvanced(req);
+  if (error) return error;
+
+  const { data, error: dbErr } = await getAdminSupabase()
+    .from("cli_sessions")
+    .select("id, device_name, ip_address, created_at, last_active_at")
+    .eq("user_id", user.id)
+    .order("last_active_at", { ascending: false })
+    .limit(20);
+
+  if (dbErr) return NextResponse.json({ error: "load-failed" }, { status: 500 });
+
+  return NextResponse.json({
+    devices: (data ?? []).map((d) => ({
+      id: d.id,
+      name: d.device_name ?? "Unknown device",
+      ip: d.ip_address,
+      createdAt: d.created_at,
+      lastActiveAt: d.last_active_at,
+    })),
+  });
+}
+
+export async function DELETE(req: Request) {
+  const { user, error } = await requireAdvanced(req);
+  if (error) return error;
+
+  const { error: dbErr } = await getAdminSupabase()
+    .from("cli_sessions")
+    .delete()
+    .eq("user_id", user.id);
+
+  if (dbErr) return NextResponse.json({ error: "logout-failed" }, { status: 500 });
+
+  return NextResponse.json({ ok: true });
+}

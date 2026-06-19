@@ -1,0 +1,38 @@
+{
+  "name": "coagentix-cli",
+  "version": "1.0.0",
+  "description": "Coagentix Code CLI — AI coding agent for your terminal (Advanced subscribers)",
+  "keywords": ["ai", "cli", "coding", "coagentix"],
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "coai": "./bin/coai.js"
+  },
+  "main": "./dist/cli.js",
+  "files": [
+    "bin",
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/cli.ts",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "commander": "^12.1.0",
+    "glob": "^11.0.0",
+    "ignore": "^5.3.2",
+    "inquirer": "^9.3.7",
+    "ora": "^8.1.1",
+    "simple-git": "^3.27.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
