@@ -166,7 +166,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Authentication required" }, { status: 401 });
   }
 
-  const rl = await checkRateLimit(user.id, "image-analyze", { requests: 20, windowMs: 60_000 });
+  const rl = await checkRateLimit(user.id, "api");
   if (!rl.allowed) {
     const res = NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
     applyRateLimitHeaders(res.headers, rl);
