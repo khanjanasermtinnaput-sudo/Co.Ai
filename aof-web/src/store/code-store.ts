@@ -27,7 +27,7 @@ import { checkUserAccess } from "@/lib/access";
 import { useAuthStore } from "@/store/auth-store";
 import { useChatStore } from "@/store/chat-store";
 import { uid } from "@/lib/utils";
-import { formatErrorBlock, type AofProviderError, type FailoverNotice } from "@/lib/errors";
+import { formatErrorBlock, type CgntxProviderError, type FailoverNotice } from "@/lib/errors";
 import type {
   ChatMessageT,
   ClarifyQuestion,
@@ -106,7 +106,7 @@ interface CodeState {
   // ── Standard build (lite / 1.0 / pro) ─────────────────────────────────────
   buildLog: string;
   /** provider failure for the current build/plan/analyze/debug action */
-  buildError: AofProviderError | null;
+  buildError: CgntxProviderError | null;
   building: boolean;
   abort: AbortController | null;
   runBuild: (task: string) => Promise<void>;
@@ -238,7 +238,7 @@ export const useCodeStore = create<CodeState>()(
         convo: s.convo.map((m) => (m.id === assistantId ? { ...m, ...p } : m)),
       }));
     // A provider failure must surface as an error panel — never a fabricated reply.
-    const onError = (error: AofProviderError) => patch({ error, streaming: false });
+    const onError = (error: CgntxProviderError) => patch({ error, streaming: false });
     const onFailover = (failover: FailoverNotice) => patch({ failover });
 
     try {
@@ -498,7 +498,7 @@ export const useCodeStore = create<CodeState>()(
     {
       // Project session memory — remember the conversation, brief and mode across
       // reloads so Coagentix Code doesn't re-ask what's already been decided.
-      name: "aof.code",
+      name: "cgntx.code",
       partialize: (s) => ({ convo: s.convo, brief: s.brief, mode: s.mode, projectActive: s.projectActive }),
     },
   ),

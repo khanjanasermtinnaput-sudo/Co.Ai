@@ -30,8 +30,8 @@ export interface DarsContext {
   onLog?: (entry: AgentLogEntry) => void;
 }
 
-const PER_CALL_TIMEOUT = Number(process.env.AOF_CALL_TIMEOUT_MS || 45_000);
-const MAX_FAILOVER = Number(process.env.AOF_MAX_FAILOVER || 4);
+const PER_CALL_TIMEOUT = Number(process.env.CGNTX_CALL_TIMEOUT_MS || 45_000);
+const MAX_FAILOVER = Number(process.env.CGNTX_MAX_FAILOVER || 4);
 
 export interface DarsResult {
   text: string;

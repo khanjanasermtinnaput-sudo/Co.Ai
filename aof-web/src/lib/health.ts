@@ -3,7 +3,7 @@
 // route produces a `SystemHealth`; the status panel renders it. Kept free of
 // server-only imports so the UI can use the same types and helpers.
 
-import type { AofProviderError } from "./errors";
+import type { CgntxProviderError } from "./errors";
 
 /** Per-provider connectivity state. */
 export type ProviderStatusLevel = "CONNECTED" | "DEGRADED" | "DISCONNECTED" | "UNKNOWN";
@@ -24,7 +24,7 @@ export interface ProviderHealth {
   /** Active model id for this provider. */
   model?: string;
   /** Structured error, present when DISCONNECTED/DEGRADED due to a failure. */
-  error?: AofProviderError;
+  error?: CgntxProviderError;
   checkedAt: string;
 }
 

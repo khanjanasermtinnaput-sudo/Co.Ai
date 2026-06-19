@@ -1,5 +1,5 @@
 -- ── Admin System Migration ────────────────────────────────────────────────────
--- Creates all tables needed for the Aof Admin Dashboard.
+-- Creates all tables needed for the Coagentix Admin Dashboard.
 -- All tables have RLS enabled with NO policies — every access goes through
 -- Next.js API routes using the service-role key (supabase-admin.ts).
 --
@@ -113,14 +113,14 @@ create index if not exists redeem_code_uses_code_idx on public.redeem_code_uses(
 
 -- ── 5. beta_access ────────────────────────────────────────────────────────────
 -- Per-user beta feature grants. A row here means the user has been granted access.
--- Features: titan-beta | cli-beta | aof-code-beta | experimental-models | early-access
+-- Features: titan-beta | cli-beta | coagentix-code-beta | experimental-models | early-access
 create table if not exists public.beta_access (
   id          uuid        not null default gen_random_uuid() primary key,
   user_id     uuid        not null references auth.users(id) on delete cascade,
   feature     text        not null check (feature in (
                 'titan-beta',
                 'cli-beta',
-                'aof-code-beta',
+                'coagentix-code-beta',
                 'experimental-models',
                 'early-access'
               )),
@@ -204,7 +204,7 @@ create index if not exists system_logs_target_idx     on public.system_logs(targ
 -- ── 8. announcements ──────────────────────────────────────────────────────────
 -- Platform-wide messages displayed in specified app locations to targeted tiers.
 -- type:     maintenance | feature | beta | promotion | info
--- show_on:  JSON array of "homepage" | "dashboard" | "chat" | "aof-code"
+-- show_on:  JSON array of "homepage" | "dashboard" | "chat" | "coagentix-code"
 -- target_tiers: JSON array of UserTier values; null = show to everyone
 create table if not exists public.announcements (
   id            uuid        not null default gen_random_uuid() primary key,
@@ -262,9 +262,9 @@ create table if not exists public.api_usage_metrics (
   -- error classification when success = false
   error_code        text,
   error_message     text,
-  -- which Aof feature triggered the request (e.g. "chat", "aof-code", "titan")
+  -- which Coagentix feature triggered the request (e.g. "chat", "coagentix-code", "titan")
   feature           text,
-  -- route_target from the Aof router (e.g. "chat", "code", "search")
+  -- route_target from the Coagentix router (e.g. "chat", "code", "search")
   route_target      text,
   created_at        timestamptz not null default now()
 );

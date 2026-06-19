@@ -18,7 +18,7 @@ import {
   encodeErrorFrame,
   encodeFailoverFrame,
   encodeModelFrame,
-  type AofProviderError,
+  type CgntxProviderError,
   type FailoverNotice,
   type ModelNotice,
 } from "@/lib/errors";
@@ -160,8 +160,8 @@ interface ErrCtx {
   requestId: string;
 }
 
-/** Normalize anything a provider can throw into a classified AofProviderError. */
-export function toAofError(ctx: ErrCtx, thrown: unknown): AofProviderError {
+/** Normalize anything a provider can throw into a classified CgntxProviderError. */
+export function toCgntxError(ctx: ErrCtx, thrown: unknown): CgntxProviderError {
   const base = {
     provider: ctx.provider.label,
     model: ctx.model,
@@ -329,7 +329,7 @@ async function openrouterConnect(
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKeyFor(meta, input.overrides)!}`,
-        "HTTP-Referer": "https://aof-web.vercel.app",
+        "HTTP-Referer": "https://coagentix.app",
         "X-Title": "CoAgentix",
       },
       body,
@@ -616,7 +616,7 @@ export function adapterFor(id: ProviderId): (input: AdapterInput) => AsyncGenera
 export interface PrimeResult {
   ok: boolean;
   /** Present when ok === false. */
-  error?: AofProviderError;
+  error?: CgntxProviderError;
   /** Present when ok === true. */
   stream?: ReadableStream<Uint8Array>;
   /** True when the user aborted while priming (no error should be shown). */
@@ -639,7 +639,7 @@ export async function primeAndStream(opts: {
       next = await gen.next();
     } catch (thrown) {
       if (isAbort(thrown)) return { ok: false, aborted: true };
-      return { ok: false, error: toAofError(ctx, thrown) };
+      return { ok: false, error: toCgntxError(ctx, thrown) };
     }
     if (next.done) {
       // Provider closed the stream without producing any content.
@@ -667,7 +667,7 @@ export async function primeAndStream(opts: {
             if (!isAbort(thrown)) {
               // Mid-stream failure after content already started: surface it as an
               // in-band error frame so the UI replaces the partial with an error.
-              controller.enqueue(encoder.encode(encodeErrorFrame(toAofError(ctx, thrown))));
+              controller.enqueue(encoder.encode(encodeErrorFrame(toCgntxError(ctx, thrown))));
             }
             break;
           }
@@ -770,9 +770,9 @@ export async function pingProvider(p: ProviderMeta, overrides?: KeyOverrides): P
       checkedAt: now(),
     };
   } catch (thrown) {
-    const error = toAofError({ provider: p, model, requestId }, thrown);
+    const error = toCgntxError({ provider: p, model, requestId }, thrown);
     // A rate-limit means the provider is reachable but throttled → DEGRADED.
-    const level: ProviderStatusLevel = error.code === "AOF_ERROR_005" ? "DEGRADED" : "DISCONNECTED";
+    const level: ProviderStatusLevel = error.code === "CGNTX_ERROR_005" ? "DEGRADED" : "DISCONNECTED";
     return {
       id: p.id,
       label: p.label,

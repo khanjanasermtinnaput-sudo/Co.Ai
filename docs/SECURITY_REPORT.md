@@ -26,11 +26,11 @@
 | B-05 | `aof-web/src/lib/errors.ts` | Stream frame sentinels: `AOF_ERR/AOF_FO/AOF_MN/AOF_SRC` → `CGNTX_ERR/CGNTX_FO/CGNTX_MN/CGNTX_SRC` |
 | B-06 | `aof-web/src/lib/errors.ts` | User-facing text: `"Aof cannot authenticate"` → `"Coagentix cannot authenticate"`, `"Aof is misconfigured"` → `"Coagentix is misconfigured"` |
 | B-07 | `aof-web/src/lib/raa.ts` | Comments/docstrings updated to Coagentix branding |
-| B-08 | `aof-web/src/lib/constants.ts` | Comment `"Aof Code modes"` → `"Coagentix Code modes"` |
+| B-08 | `aof-web/src/lib/constants.ts` | Comment `"Coagentix modes"` → `"Coagentix Code modes"` |
 | B-09 | `aof-web/src/lib/types.ts` | Domain-types header comment updated |
-| B-10 | `tmap-v2/src/core/raa.ts` | Persona: `"You are Aof Code"` → `"You are CoAgentix Code"`, `"Aof thinking"` → `"CoAI thinking"`, `"AOF Code (TMAP v2)"` → `"Coagentix TMAP v2"` |
-| B-11 | `tmap-v2/src/server/index.ts` | Comment: `"AOF AI Universal Chief Agent"` → `"Coagentix Universal Chief Agent"`, console.log `"AOF Code →"` → `"Coagentix →"` |
-| B-12 | `tmap-v2/src/types.ts` | Comment: `"AOF AI Universal Orchestration"` → `"Coagentix Universal Orchestration"` |
+| B-10 | `tmap-v2/src/core/raa.ts` | Persona: `"You are Coagentix"` → `"You are CoAgentix Code"`, `"Aof thinking"` → `"CoAI thinking"`, `"Coagentix (TMAP v2)"` → `"Coagentix TMAP v2"` |
+| B-11 | `tmap-v2/src/server/index.ts` | Comment: `"Co.AI Universal Chief Agent"` → `"Coagentix Universal Chief Agent"`, console.log `"Coagentix →"` → `"Coagentix →"` |
+| B-12 | `tmap-v2/src/types.ts` | Comment: `"Co.AI Universal Orchestration"` → `"Coagentix Universal Orchestration"` |
 | B-13 | `tmap-v2/package.json` | Package name: `"@aof/code"` → `"@coagentix/code"` |
 | B-14 | `aof-web/src/tests/errors.test.ts` | Updated test assertions for new kind values and frame sentinel |
 
@@ -62,7 +62,7 @@
 |----|---------------|----------|--------|
 | V-001 | No HTTP Security Headers | `next.config.mjs` | Fixed (prior session) |
 | V-002 | Client-only admin auth gate | `middleware.ts` | Fixed (prior session) |
-| V-003 | AOF_MASTER_KEY branding confusion | `crypto.ts` | Fixed (prior session) |
+| V-003 | CGNTX_MASTER_KEY branding confusion | `crypto.ts` | Fixed (prior session) |
 
 ### HIGH — Fixed ✅
 
@@ -88,7 +88,7 @@
 |----|---------------|----------|--------|
 | V-009 | Env var inconsistency | `plans.ts` | Fixed (prior session) |
 | V-010 | Package name `"aof-web"` | `package.json` | Fixed (prior session) |
-| V-011 | "Aof Admin Dashboard" UI text | Admin pages | Fixed (prior session) |
+| V-011 | "Coagentix Admin Dashboard" UI text | Admin pages | Fixed (prior session) |
 | V-012 | TOKEN_KEY `"aof.token"` | Store | Fixed (prior session) |
 | V-016 | No security headers on tmap-v2 | `tmap-v2/server/index.ts` | **Fixed this session** |
 
@@ -99,7 +99,7 @@
 | V-014 | Rate limit falls back to in-memory on single instance | MEDIUM | Ensure `NEXT_PUBLIC_SUPABASE_URL` is always set in production for DB-backed `increment_rate_limit` RPC |
 | V-017 | File upload MIME type not verified server-side | LOW | Verify magic bytes for uploaded files if they are processed server-side |
 | V-018 | Google OAuth only — no email/password | LOW | Add email/password auth via Supabase Auth for users without Google accounts |
-| V-020 | `.aof/sessions/` JSON files committed to repo | LOW | These contain session history data. They are gitignored in tmap-v2/.gitignore but may have been committed before the rule. Run `git rm -r --cached tmap-v2/.aof/` and recommit. |
+| V-020 | `.coagentix/sessions/` JSON files committed to repo | LOW | These contain session history data. They are gitignored in tmap-v2/.gitignore but may have been committed before the rule. Run `git rm -r --cached tmap-v2/.aof/` and recommit. |
 | V-021 | No dependency vulnerability scanning in CI | MEDIUM | Add `npm audit --audit-level=high` step to CI pipeline |
 | V-022 | No secret scanning in CI | MEDIUM | Add `git-secrets` or `trufflehog` to the pre-commit hook or CI |
 | V-023 | JWT 7-day TTL with no revocation list | LOW | Add a `jti` (JWT ID) claim + blocklist table to support immediate session revocation on logout |
@@ -140,7 +140,7 @@
 
 ## Remaining Issues (All Open Items)
 
-1. `.aof/sessions/*.json` committed to repo — git-remove these (V-020)
+1. `.coagentix/sessions/*.json` committed to repo — git-remove these (V-020)
 2. No `npm audit` step in CI (V-021)
 3. No secret scanning (`trufflehog` / `gitleaks`) (V-022)
 4. JWT has no revocation mechanism (V-023)
@@ -161,7 +161,7 @@
 2. **JWT revocation** — add `jti` + `jti_blocklist` table; call `invalidateToken()` on logout
 3. **`npm audit` in CI** — block merges with high/critical vulnerabilities (`--audit-level=high`)
 4. **Secret scanning** — add `trufflehog` or `gitleaks` to CI; add `.git-secrets` pre-commit hook
-5. **Remove committed session files** — `git rm -r --cached tmap-v2/.aof/`; update root `.gitignore`
+5. **Remove committed session files** — `git rm -r --cached tmap-v2/.coagentix/`; update root `.gitignore`
 6. **GDPR/PDPA data export API** — `GET /api/user/data` returns all user data as downloadable JSON
 7. **GDPR/PDPA account deletion API** — `DELETE /api/user` hard-deletes all rows; triggers cascade
 8. **Email verification** via Supabase Auth email templates — currently users can sign up with an unverified email

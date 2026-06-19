@@ -1,6 +1,6 @@
 // ── Coagentix Chat — real LLM endpoint (server-side) ─────────────────────────
 // Provider priority: Anthropic (Claude) → OpenRouter. Every failure is detected,
-// classified into an AOF_ERROR_xxx, logged server-side, and surfaced to the user
+// classified into a CGNTX_ERROR_xxx, logged server-side, and surfaced to the user
 // — pre-stream failures as a JSON error envelope, mid-stream failures and
 // failover notices as in-band control frames. The route NEVER fabricates an
 // answer and NEVER silently swallows a provider failure.
@@ -13,8 +13,8 @@ import {
   missingKeyError,
   newRequestId,
   ERROR_CATALOG,
-  type AofErrorCode,
-  type AofProviderError,
+  type CgntxErrorCode,
+  type CgntxProviderError,
 } from "@/lib/errors";
 import { decideSearch, runSearch } from "@/lib/server/search/manager";
 import { buildSearchContext } from "@/lib/server/search/context-builder";
@@ -32,18 +32,18 @@ import {
   type ProviderMeta,
 } from "@/lib/server/ai-providers";
 import { bestModelFor, matchScore, ROLE_LABEL, routeOrder, type TaskCategory } from "@/lib/server/model-registry";
-import { logAofError, logAofInfo, runStartupCheckOnce } from "@/lib/server/ai-log";
+import { logCgntxError, logCgntxInfo, runStartupCheckOnce } from "@/lib/server/ai-log";
 import { checkRateLimit, applyRateLimitHeaders } from "@/lib/server/rate-limit";
 import { getUserFromRequest } from "@/lib/server/supabase-admin";
 import { loadUserKeyOverrides } from "@/lib/server/keys-store";
 import type { ResponseStyle, RouteDecision } from "@/lib/types";
 import {
   RAA_SYSTEM,
-  AOF_CODE_CHAT_SYSTEM,
-  AOF_CODE_GEN_SYSTEM,
-  AOF_PLAN_SYSTEM,
-  AOF_ANALYZE_SYSTEM,
-  AOF_DEBUG_SYSTEM,
+  CGNTX_CODE_CHAT_SYSTEM,
+  CGNTX_CODE_GEN_SYSTEM,
+  CGNTX_PLAN_SYSTEM,
+  CGNTX_ANALYZE_SYSTEM,
+  CGNTX_DEBUG_SYSTEM,
 } from "@/lib/raa";
 
 /** Agents that do not need the tmap-v2 backend: a single-pass LLM call via the
@@ -59,15 +59,15 @@ function agentConfig(
     case "requirements":
       return { system: RAA_SYSTEM, temperature: 0.5, maxTokens: 1200 };
     case "code-chat":
-      return { system: AOF_CODE_CHAT_SYSTEM, temperature: 0.7, maxTokens: 800 };
+      return { system: CGNTX_CODE_CHAT_SYSTEM, temperature: 0.7, maxTokens: 800 };
     case "code-gen":
-      return { system: AOF_CODE_GEN_SYSTEM, temperature: 0.4, maxTokens: 4000 };
+      return { system: CGNTX_CODE_GEN_SYSTEM, temperature: 0.4, maxTokens: 4000 };
     case "plan":
-      return { system: AOF_PLAN_SYSTEM, temperature: 0.5, maxTokens: 2000 };
+      return { system: CGNTX_PLAN_SYSTEM, temperature: 0.5, maxTokens: 2000 };
     case "analyze":
-      return { system: AOF_ANALYZE_SYSTEM, temperature: 0.5, maxTokens: 2000 };
+      return { system: CGNTX_ANALYZE_SYSTEM, temperature: 0.5, maxTokens: 2000 };
     case "debug":
-      return { system: AOF_DEBUG_SYSTEM, temperature: 0.4, maxTokens: 2500 };
+      return { system: CGNTX_DEBUG_SYSTEM, temperature: 0.4, maxTokens: 2500 };
     default:
       return { system: buildSystem(style, route), temperature: 0.7, maxTokens: maxTokensFor(style) };
   }
@@ -148,23 +148,23 @@ function maxTokensFor(style: ResponseStyle | undefined): number {
   return 1000;
 }
 
-/** Map an AOF error code onto a representative HTTP status for the JSON envelope. */
-function httpStatusFor(code: AofErrorCode): number {
+/** Map a Coagentix error code onto a representative HTTP status for the JSON envelope. */
+function httpStatusFor(code: CgntxErrorCode): number {
   switch (code) {
-    case "AOF_ERROR_001": // missing key
-    case "AOF_ERROR_013": // misconfiguration
+    case "CGNTX_ERROR_001": // missing key
+    case "CGNTX_ERROR_013": // misconfiguration
       return 503;
-    case "AOF_ERROR_002":
-    case "AOF_ERROR_003":
-    case "AOF_ERROR_010":
+    case "CGNTX_ERROR_002":
+    case "CGNTX_ERROR_003":
+    case "CGNTX_ERROR_010":
       return 401;
-    case "AOF_ERROR_004":
+    case "CGNTX_ERROR_004":
       return 402;
-    case "AOF_ERROR_005":
+    case "CGNTX_ERROR_005":
       return 429;
-    case "AOF_ERROR_008":
+    case "CGNTX_ERROR_008":
       return 504;
-    case "AOF_ERROR_009":
+    case "CGNTX_ERROR_009":
       return 400;
     default: // 006/007/011/012 — upstream/provider problems
       return 502;
@@ -177,7 +177,7 @@ const TEXT_HEADERS = {
 } as const;
 
 /** Return a structured error as a JSON response the client decodes into a panel. */
-function errorResponse(error: AofProviderError): Response {
+function errorResponse(error: CgntxProviderError): Response {
   return new Response(JSON.stringify(error), {
     status: httpStatusFor(error.code),
     headers: { "Content-Type": "application/json; charset=utf-8", "X-Coagentix-Error": error.code },
@@ -211,7 +211,7 @@ export async function POST(req: Request): Promise<Response> {
       status: typeof e?.status === "number" ? e.status : undefined,
       stack: e?.stack,
     });
-    logAofError(error);
+    logCgntxError(error);
     return errorResponse(error);
   }
 }
@@ -283,7 +283,7 @@ async function handleChat(req: Request): Promise<Response> {
         const built = buildSearchContext(outcome);
         system = `${system}\n\n${built.systemAddon}`;
         sourcesFrame = encodeSourcesFrame(built.notice);
-        logAofInfo(`Search: ${outcome.provider} → ${outcome.hits.length} results (${decision.reason})`);
+        logCgntxInfo(`Search: ${outcome.provider} → ${outcome.hits.length} results (${decision.reason})`);
       }
     } catch {
       // Search is best-effort — never block the answer on it.
@@ -302,13 +302,13 @@ async function handleChat(req: Request): Promise<Response> {
       `No AI provider is configured. Set ${allProviders()
         .map((p) => p.envVar)
         .join(" or ")} (or save a key in Settings → API Keys) so Coagentix can reach a provider.`;
-    logAofError(error);
+    logCgntxError(error);
     return errorResponse(error);
   }
 
   // ── Try each configured provider in priority order, announcing any failover. ──
   let pendingFailover: ReturnType<typeof makeFailoverNotice> | undefined;
-  let lastError: AofProviderError | undefined;
+  let lastError: CgntxProviderError | undefined;
 
   // Anthropic and OpenRouter keep their existing env-override + fallback-chain
   // model selection untouched; only the four newer providers pick a model from
@@ -346,7 +346,7 @@ async function handleChat(req: Request): Promise<Response> {
 
     if (result.ok && result.stream) {
       if (pendingFailover) {
-        logAofInfo(
+        logCgntxInfo(
           `Failover: ${pendingFailover.from} → ${pendingFailover.to} (${pendingFailover.reason})`,
         );
       }
@@ -355,7 +355,7 @@ async function handleChat(req: Request): Promise<Response> {
 
     // This provider failed before producing a token.
     lastError = result.error!;
-    logAofError(lastError);
+    logCgntxError(lastError);
 
     const next = providers[i + 1];
     if (next && ERROR_CATALOG[lastError.code].failoverWorthy) {

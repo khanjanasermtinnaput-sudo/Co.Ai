@@ -1,4 +1,4 @@
-// Shared contracts for TMAP v2 (see AOF_CODE_TDD.md §4.1)
+// Shared contracts for TMAP v2 (see COAGENTIX_TDD.md §4.1)
 
 export type Role = 'planner' | 'coder' | 'reviewer' | 'validator';
 export type Mode = 'lite' | 'normal' | 'pro';

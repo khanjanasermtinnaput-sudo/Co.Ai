@@ -3,13 +3,13 @@
 @tailwind utilities;
 
 /* ============================================================================
-   Aof design system
+   Coagentix design system
    Dark-first. Orange-gold accent (#F59E0B). Near-black canvas. Glass surfaces.
    ========================================================================== */
 
 @layer base {
   :root {
-    /* Light theme (secondary — Aof defaults to dark) */
+    /* Light theme (secondary — Coagentix defaults to dark) */
     --background: 0 0% 100%; /* pure white #FFFFFF */
     --foreground: 0 0% 9%;
 

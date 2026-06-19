@@ -3,7 +3,7 @@
 // classified, logged, streamed and rendered across Coagentix.
 //
 // Design principle (non-negotiable): Coagentix must NEVER pretend AI is working
-// when it is not. Every provider failure becomes a structured `AofProviderError`
+// when it is not. Every provider failure becomes a structured `CgntxProviderError`
 // that tells the user *what* failed, *why*, *which provider*, and *how to fix
 // it* — then the assistant stops. No fake responses, no silent fallbacks.
 //
@@ -13,23 +13,23 @@
 // ── Error codes ───────────────────────────────────────────────────────────────
 // Numbering follows the COAGENTIX spec's ERROR CODES list (001–013).
 
-export const AOF_ERROR_CODES = [
-  "AOF_ERROR_001", // API Key Missing
-  "AOF_ERROR_002", // Invalid API Key
-  "AOF_ERROR_003", // Expired API Key
-  "AOF_ERROR_004", // Quota Exceeded
-  "AOF_ERROR_005", // Rate Limit Exceeded
-  "AOF_ERROR_006", // Provider Unavailable
-  "AOF_ERROR_007", // Network Failure
-  "AOF_ERROR_008", // Request Timeout
-  "AOF_ERROR_009", // Invalid Model
-  "AOF_ERROR_010", // Authentication Failure
-  "AOF_ERROR_011", // Empty Response
-  "AOF_ERROR_012", // Unknown Provider Error
-  "AOF_ERROR_013", // Configuration Error
+export const CGNTX_ERROR_CODES = [
+  "CGNTX_ERROR_001", // API Key Missing
+  "CGNTX_ERROR_002", // Invalid API Key
+  "CGNTX_ERROR_003", // Expired API Key
+  "CGNTX_ERROR_004", // Quota Exceeded
+  "CGNTX_ERROR_005", // Rate Limit Exceeded
+  "CGNTX_ERROR_006", // Provider Unavailable
+  "CGNTX_ERROR_007", // Network Failure
+  "CGNTX_ERROR_008", // Request Timeout
+  "CGNTX_ERROR_009", // Invalid Model
+  "CGNTX_ERROR_010", // Authentication Failure
+  "CGNTX_ERROR_011", // Empty Response
+  "CGNTX_ERROR_012", // Unknown Provider Error
+  "CGNTX_ERROR_013", // Configuration Error
 ] as const;
 
-export type AofErrorCode = (typeof AOF_ERROR_CODES)[number];
+export type CgntxErrorCode = (typeof CGNTX_ERROR_CODES)[number];
 
 interface CatalogEntry {
   /** Short human label, e.g. "Quota Exceeded". */
@@ -41,69 +41,69 @@ interface CatalogEntry {
   failoverWorthy: boolean;
 }
 
-/** The canonical meaning of every AOF error code. */
-export const ERROR_CATALOG: Record<AofErrorCode, CatalogEntry> = {
-  AOF_ERROR_001: {
+/** The canonical meaning of every Coagentix error code. */
+export const ERROR_CATALOG: Record<CgntxErrorCode, CatalogEntry> = {
+  CGNTX_ERROR_001: {
     problem: "API Key Missing",
     solution: "Add the provider's API key to your environment (.env.local) and restart.",
     failoverWorthy: true,
   },
-  AOF_ERROR_002: {
+  CGNTX_ERROR_002: {
     problem: "Invalid API Key",
     solution: "The key was rejected. Replace it with a valid key from the provider dashboard.",
     failoverWorthy: true,
   },
-  AOF_ERROR_003: {
+  CGNTX_ERROR_003: {
     problem: "Expired API Key",
     solution: "Generate a fresh API key in the provider dashboard and update your environment.",
     failoverWorthy: true,
   },
-  AOF_ERROR_004: {
+  CGNTX_ERROR_004: {
     problem: "Quota Exceeded",
     solution: "Your account is out of credit/quota. Add billing or wait for the quota to reset.",
     failoverWorthy: true,
   },
-  AOF_ERROR_005: {
+  CGNTX_ERROR_005: {
     problem: "Rate Limit Exceeded",
     solution: "Too many requests. Slow down and retry in a few seconds.",
     failoverWorthy: true,
   },
-  AOF_ERROR_006: {
+  CGNTX_ERROR_006: {
     problem: "Provider Unavailable",
     solution: "The provider is down or overloaded. Retry shortly or switch providers.",
     failoverWorthy: true,
   },
-  AOF_ERROR_007: {
+  CGNTX_ERROR_007: {
     problem: "Network Failure",
     solution: "CoAgentix could not reach the provider. Check the server's network/DNS and retry.",
     failoverWorthy: true,
   },
-  AOF_ERROR_008: {
+  CGNTX_ERROR_008: {
     problem: "Request Timeout",
     solution: "The provider took too long to respond. Retry, or reduce the request size.",
     failoverWorthy: true,
   },
-  AOF_ERROR_009: {
+  CGNTX_ERROR_009: {
     problem: "Invalid Model",
     solution: "The requested model name is wrong or not available to this key. Fix the model id.",
     failoverWorthy: true,
   },
-  AOF_ERROR_010: {
+  CGNTX_ERROR_010: {
     problem: "Authentication Failure",
     solution: "The provider refused the credentials. Verify the key and its permissions.",
     failoverWorthy: true,
   },
-  AOF_ERROR_011: {
+  CGNTX_ERROR_011: {
     problem: "Empty Response",
     solution: "The provider returned no content. Retry; if it persists, check the model/prompt.",
     failoverWorthy: true,
   },
-  AOF_ERROR_012: {
+  CGNTX_ERROR_012: {
     problem: "Unknown Provider Error",
     solution: "An unrecognized provider error occurred. Inspect the details and provider status.",
     failoverWorthy: true,
   },
-  AOF_ERROR_013: {
+  CGNTX_ERROR_013: {
     problem: "Configuration Error",
     solution: "CoAgentix is misconfigured for this provider. Review your environment configuration.",
     failoverWorthy: false,
@@ -112,10 +112,10 @@ export const ERROR_CATALOG: Record<AofErrorCode, CatalogEntry> = {
 
 // ── The error object ──────────────────────────────────────────────────────────
 
-export interface AofProviderError {
+export interface CgntxProviderError {
   /** Discriminant for the structured-error envelope. */
   readonly kind: "coagentix-provider-error";
-  code: AofErrorCode;
+  code: CgntxErrorCode;
   /** Short label, e.g. "Quota Exceeded". */
   problem: string;
   /** Display name of the provider that failed, e.g. "Claude (Anthropic)". */
@@ -143,7 +143,7 @@ export interface AofProviderError {
 }
 
 /** Type guard — used by stream readers and the UI to detect an error envelope. */
-export function isAofProviderError(v: unknown): v is AofProviderError {
+export function isCgntxProviderError(v: unknown): v is CgntxProviderError {
   return (
     typeof v === "object" &&
     v !== null &&
@@ -199,8 +199,8 @@ export interface ClassifyInput {
 // error-type is expected, and `(429).toLowerCase()` would throw mid-classification.
 const hay = (s?: unknown) => String(s ?? "").toLowerCase();
 
-/** Build a finished `AofProviderError` from a code + the input context. */
-function build(code: AofErrorCode, input: ClassifyInput, details: string, solution?: string): AofProviderError {
+/** Build a finished `CgntxProviderError` from a code + the input context. */
+function build(code: CgntxErrorCode, input: ClassifyInput, details: string, solution?: string): CgntxProviderError {
   const entry = ERROR_CATALOG[code];
   return {
     kind: "coagentix-provider-error",
@@ -219,7 +219,7 @@ function build(code: AofErrorCode, input: ClassifyInput, details: string, soluti
   };
 }
 
-export function classifyProviderError(input: ClassifyInput): AofProviderError {
+export function classifyProviderError(input: ClassifyInput): CgntxProviderError {
   const msg = hay(input.message);
   const type = hay(input.errorType);
   const both = `${type} ${msg}`;
@@ -229,28 +229,28 @@ export function classifyProviderError(input: ClassifyInput): AofProviderError {
   if (input.hint === "missing-key") {
     const env = input.envVar ?? `${input.provider.toUpperCase()}_API_KEY`;
     return build(
-      "AOF_ERROR_001",
+      "CGNTX_ERROR_001",
       input,
       `${env} is not set, so Coagentix cannot authenticate with ${input.provider}.`,
       `Add ${env} to .env.local (server-side) and restart the app.`,
     );
   }
   if (input.hint === "config") {
-    return build("AOF_ERROR_013", input, input.message || `Coagentix is misconfigured for ${input.provider}.`);
+    return build("CGNTX_ERROR_013", input, input.message || `Coagentix is misconfigured for ${input.provider}.`);
   }
   if (input.hint === "empty") {
     return build(
-      "AOF_ERROR_011",
+      "CGNTX_ERROR_011",
       input,
       `${input.provider} accepted the request but returned no content.`,
     );
   }
   if (input.hint === "timeout") {
-    return build("AOF_ERROR_008", input, `${input.provider} did not respond before the timeout elapsed.`);
+    return build("CGNTX_ERROR_008", input, `${input.provider} did not respond before the timeout elapsed.`);
   }
   if (input.hint === "network") {
     return build(
-      "AOF_ERROR_007",
+      "CGNTX_ERROR_007",
       input,
       `Coagentix could not establish a connection to ${input.provider}. ${input.message ?? ""}`.trim(),
     );
@@ -258,59 +258,59 @@ export function classifyProviderError(input: ClassifyInput): AofProviderError {
 
   // 2) Message/type-driven detection that should win over the status code.
   if (/abort|timed? ?out|etimedout|esockettimedout|deadline/.test(both)) {
-    return build("AOF_ERROR_008", input, `${input.provider} timed out: ${input.message ?? "no response in time"}.`);
+    return build("CGNTX_ERROR_008", input, `${input.provider} timed out: ${input.message ?? "no response in time"}.`);
   }
   if (/enotfound|econnrefused|econnreset|eai_again|fetch failed|network|dns|getaddrinfo|socket hang up/.test(both)) {
-    return build("AOF_ERROR_007", input, `Network error reaching ${input.provider}: ${input.message ?? "connection failed"}.`);
+    return build("CGNTX_ERROR_007", input, `Network error reaching ${input.provider}: ${input.message ?? "connection failed"}.`);
   }
 
   // 3) Status-code driven detection.
   if (typeof status === "number") {
     if (status === 401) {
-      if (/expire/.test(both)) return build("AOF_ERROR_003", input, `${input.provider} reports the API key has expired.`);
+      if (/expire/.test(both)) return build("CGNTX_ERROR_003", input, `${input.provider} reports the API key has expired.`);
       if (/invalid|incorrect|not.?valid|no.?such.?key/.test(both))
-        return build("AOF_ERROR_002", input, `${input.provider} rejected the API key as invalid.`);
-      return build("AOF_ERROR_010", input, `${input.provider} authentication failed (401).`);
+        return build("CGNTX_ERROR_002", input, `${input.provider} rejected the API key as invalid.`);
+      return build("CGNTX_ERROR_010", input, `${input.provider} authentication failed (401).`);
     }
     if (status === 403) {
       if (/quota|billing|credit|insufficient|exceeded/.test(both))
-        return build("AOF_ERROR_004", input, `${input.provider} denied the request for quota/billing reasons (403).`);
-      return build("AOF_ERROR_010", input, `${input.provider} denied access for these credentials (403).`);
+        return build("CGNTX_ERROR_004", input, `${input.provider} denied the request for quota/billing reasons (403).`);
+      return build("CGNTX_ERROR_010", input, `${input.provider} denied access for these credentials (403).`);
     }
     if (status === 404) {
       return build(
-        "AOF_ERROR_009",
+        "CGNTX_ERROR_009",
         input,
         `${input.provider} could not find the requested model${input.model ? ` "${input.model}"` : ""} (404).`,
       );
     }
-    if (status === 408) return build("AOF_ERROR_008", input, `${input.provider} request timed out (408).`);
+    if (status === 408) return build("CGNTX_ERROR_008", input, `${input.provider} request timed out (408).`);
     if (status === 429) {
       if (/quota|billing|credit|insufficient|monthly|spending|out of/.test(both))
-        return build("AOF_ERROR_004", input, `${input.provider} quota exhausted (429).`);
-      return build("AOF_ERROR_005", input, `${input.provider} rate limit exceeded (429). Retry shortly.`);
+        return build("CGNTX_ERROR_004", input, `${input.provider} quota exhausted (429).`);
+      return build("CGNTX_ERROR_005", input, `${input.provider} rate limit exceeded (429). Retry shortly.`);
     }
     if (status === 400 || status === 422) {
       if (/model/.test(both))
-        return build("AOF_ERROR_009", input, `${input.provider} rejected the model${input.model ? ` "${input.model}"` : ""} (${status}).`);
-      return build("AOF_ERROR_012", input, `${input.provider} rejected the request (${status}): ${input.message ?? "bad request"}.`);
+        return build("CGNTX_ERROR_009", input, `${input.provider} rejected the model${input.model ? ` "${input.model}"` : ""} (${status}).`);
+      return build("CGNTX_ERROR_012", input, `${input.provider} rejected the request (${status}): ${input.message ?? "bad request"}.`);
     }
-    if (status === 402) return build("AOF_ERROR_004", input, `${input.provider} requires payment / out of credit (402).`);
+    if (status === 402) return build("CGNTX_ERROR_004", input, `${input.provider} requires payment / out of credit (402).`);
     if (status >= 500) {
-      return build("AOF_ERROR_006", input, `${input.provider} is unavailable (${status})${/overload/.test(both) ? " — overloaded" : ""}.`);
+      return build("CGNTX_ERROR_006", input, `${input.provider} is unavailable (${status})${/overload/.test(both) ? " — overloaded" : ""}.`);
     }
   }
 
   // 4) Type-only signals (no/odd status).
-  if (/insufficient_quota|quota/.test(type)) return build("AOF_ERROR_004", input, `${input.provider} quota exhausted.`);
-  if (/rate_?limit|overloaded|too_many/.test(type)) return build("AOF_ERROR_005", input, `${input.provider} rate limit exceeded.`);
-  if (/invalid_api_key|authentication/.test(type)) return build("AOF_ERROR_002", input, `${input.provider} rejected the API key.`);
-  if (/permission/.test(type)) return build("AOF_ERROR_010", input, `${input.provider} authentication/permission failure.`);
-  if (/not_found|model/.test(type)) return build("AOF_ERROR_009", input, `${input.provider} model not found.`);
+  if (/insufficient_quota|quota/.test(type)) return build("CGNTX_ERROR_004", input, `${input.provider} quota exhausted.`);
+  if (/rate_?limit|overloaded|too_many/.test(type)) return build("CGNTX_ERROR_005", input, `${input.provider} rate limit exceeded.`);
+  if (/invalid_api_key|authentication/.test(type)) return build("CGNTX_ERROR_002", input, `${input.provider} rejected the API key.`);
+  if (/permission/.test(type)) return build("CGNTX_ERROR_010", input, `${input.provider} authentication/permission failure.`);
+  if (/not_found|model/.test(type)) return build("CGNTX_ERROR_009", input, `${input.provider} model not found.`);
 
   // 5) Nothing matched.
   return build(
-    "AOF_ERROR_012",
+    "CGNTX_ERROR_012",
     input,
     `${input.provider} returned an unrecognized error${status ? ` (status ${status})` : ""}: ${input.message ?? "no detail"}.`,
   );
@@ -318,15 +318,15 @@ export function classifyProviderError(input: ClassifyInput): AofProviderError {
 
 // ── Convenience builders ──────────────────────────────────────────────────────
 
-export function missingKeyError(provider: string, envVar: string, model?: string): AofProviderError {
+export function missingKeyError(provider: string, envVar: string, model?: string): CgntxProviderError {
   return classifyProviderError({ provider, envVar, model, hint: "missing-key" });
 }
 
-export function configError(provider: string, message: string): AofProviderError {
+export function configError(provider: string, message: string): CgntxProviderError {
   return classifyProviderError({ provider, message, hint: "config" });
 }
 
-export function emptyResponseError(provider: string, model?: string, requestId?: string): AofProviderError {
+export function emptyResponseError(provider: string, model?: string, requestId?: string): CgntxProviderError {
   return classifyProviderError({ provider, model, requestId, hint: "empty" });
 }
 
@@ -424,7 +424,7 @@ const MN_CLOSE = NUL + "/CGNTX_MN" + NUL;
 const SRC_OPEN = NUL + "CGNTX_SRC" + NUL;
 const SRC_CLOSE = NUL + "/CGNTX_SRC" + NUL;
 
-export function encodeErrorFrame(error: AofProviderError): string {
+export function encodeErrorFrame(error: CgntxProviderError): string {
   return ERR_OPEN + JSON.stringify(error) + ERR_CLOSE;
 }
 export function encodeFailoverFrame(notice: FailoverNotice): string {
@@ -440,7 +440,7 @@ export function encodeSourcesFrame(notice: SourcesNotice): string {
 export interface DecodedFrames {
   /** Plain text with all control frames removed. */
   text: string;
-  errors: AofProviderError[];
+  errors: CgntxProviderError[];
   failovers: FailoverNotice[];
   models: ModelNotice[];
   sources: SourcesNotice[];
@@ -463,7 +463,7 @@ const FRAME_SENTINELS: Record<FrameKind, { open: string; close: string }> = {
 };
 
 export function decodeFrames(buffer: string): DecodedFrames {
-  const errors: AofProviderError[] = [];
+  const errors: CgntxProviderError[] = [];
   const failovers: FailoverNotice[] = [];
   const models: ModelNotice[] = [];
   const sources: SourcesNotice[] = [];
@@ -496,7 +496,7 @@ export function decodeFrames(buffer: string): DecodedFrames {
     const json = buffer.slice(hit.idx + open.length, closeIdx);
     try {
       const parsed = JSON.parse(json);
-      if (hit.kind === "err" && isAofProviderError(parsed)) errors.push(parsed);
+      if (hit.kind === "err" && isCgntxProviderError(parsed)) errors.push(parsed);
       else if (hit.kind === "fo" && isFailoverNotice(parsed)) failovers.push(parsed);
       else if (hit.kind === "mn" && isModelNotice(parsed)) models.push(parsed);
       else if (hit.kind === "src" && isSourcesNotice(parsed)) sources.push(parsed);
@@ -538,7 +538,7 @@ export function formatUtc(iso: string): string {
 }
 
 /** Render the canonical COAGENTIX error block (used in copy-to-clipboard + plain text). */
-export function formatErrorBlock(e: AofProviderError): string {
+export function formatErrorBlock(e: CgntxProviderError): string {
   return [
     e.code,
     "",

@@ -42,7 +42,7 @@ const nextConfig = {
   // COAGENTIX_API_PROXY is set we proxy /v1 to it so the browser stays
   // same-origin (no CORS in production).
   async rewrites() {
-    const base = process.env.COAGENTIX_API_PROXY ?? process.env.AOF_API_PROXY;
+    const base = process.env.COAGENTIX_API_PROXY ?? process.env.CGNTX_API_PROXY;
     if (!base) return [];
     return [{ source: "/v1/:path*", destination: `${base}/v1/:path*` }];
   },

@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   primeAndStream,
-  toAofError,
+  toCgntxError,
   isAbort,
   openrouterTextStream,
   ProviderHttpError,
@@ -51,14 +51,14 @@ test("failure before the first token → ok:false with a classified error (no st
   const r = await primeAndStream({ ctx, gen: throwsBeforeToken() });
   assert.equal(r.ok, false);
   assert.equal(r.stream, undefined);
-  assert.equal(r.error?.code, "AOF_ERROR_002");
+  assert.equal(r.error?.code, "CGNTX_ERROR_002");
   assert.equal(r.error?.provider, PROVIDER_REGISTRY.anthropic.label);
 });
 
-test("provider closes with no content → AOF_ERROR_011 (empty response)", async () => {
+test("provider closes with no content → CGNTX_ERROR_011 (empty response)", async () => {
   const r = await primeAndStream({ ctx, gen: yieldsNothing() });
   assert.equal(r.ok, false);
-  assert.equal(r.error?.code, "AOF_ERROR_011");
+  assert.equal(r.error?.code, "CGNTX_ERROR_011");
 });
 
 test("successful stream replays every token", async () => {
@@ -69,7 +69,7 @@ test("successful stream replays every token", async () => {
 });
 
 test("prefix frame (failover) is emitted before the first token", async () => {
-  const notice = makeFailoverNotice("Claude (Anthropic)", "OpenRouter", "AOF_ERROR_006");
+  const notice = makeFailoverNotice("Claude (Anthropic)", "OpenRouter", "CGNTX_ERROR_006");
   const r = await primeAndStream({ ctx, gen: helloWorld(), prefixFrame: encodeFailoverFrame(notice) });
   assert.equal(r.ok, true);
   const decoded = decodeFrames(await readAll(r.stream!));
@@ -84,7 +84,7 @@ test("mid-stream failure after content → in-band error frame, partial text pre
   const decoded = decodeFrames(await readAll(r.stream!));
   assert.equal(decoded.text, "partial answer");
   assert.equal(decoded.errors.length, 1);
-  assert.equal(decoded.errors[0].code, "AOF_ERROR_006");
+  assert.equal(decoded.errors[0].code, "CGNTX_ERROR_006");
 });
 
 test("user abort while priming → aborted, no error surfaced", async () => {
@@ -94,17 +94,17 @@ test("user abort while priming → aborted, no error surfaced", async () => {
   assert.equal(r.error, undefined);
 });
 
-// ── toAofError / isAbort ────────────────────────────────────────────────────
+// ── toCgntxError / isAbort ────────────────────────────────────────────────────
 
-test("toAofError maps a ProviderHttpError by status", () => {
-  assert.equal(toAofError(ctx, new ProviderHttpError(429, "{}", "rate_limit")).code, "AOF_ERROR_005");
-  assert.equal(toAofError(ctx, new ProviderHttpError(404, "{}")).code, "AOF_ERROR_009");
-  assert.equal(toAofError(ctx, new ProviderHttpError(503, "{}")).code, "AOF_ERROR_006");
+test("toCgntxError maps a ProviderHttpError by status", () => {
+  assert.equal(toCgntxError(ctx, new ProviderHttpError(429, "{}", "rate_limit")).code, "CGNTX_ERROR_005");
+  assert.equal(toCgntxError(ctx, new ProviderHttpError(404, "{}")).code, "CGNTX_ERROR_009");
+  assert.equal(toCgntxError(ctx, new ProviderHttpError(503, "{}")).code, "CGNTX_ERROR_006");
 });
 
-test("toAofError treats connection-named errors as network", () => {
-  const e = toAofError(ctx, { name: "APIConnectionError", message: "connect ECONNREFUSED" });
-  assert.equal(e.code, "AOF_ERROR_007");
+test("toCgntxError treats connection-named errors as network", () => {
+  const e = toCgntxError(ctx, { name: "APIConnectionError", message: "connect ECONNREFUSED" });
+  assert.equal(e.code, "CGNTX_ERROR_007");
 });
 
 test("isAbort detects user/SDK aborts only", () => {

@@ -1,4 +1,4 @@
--- AOF Code — Supabase migration
+-- Coagentix — Supabase migration
 -- วิธีใช้: เปิด Supabase Dashboard → SQL Editor → วางทั้งหมด → Run
 --
 -- ACCESS MODEL (สำคัญ):

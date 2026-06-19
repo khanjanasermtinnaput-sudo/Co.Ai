@@ -1,4 +1,4 @@
-# TAOTAO — the in-chat Aof AI pixel mascot
+# TAOTAO — the in-chat Co.AI pixel mascot
 
 TAOTAO is a gray British Shorthair who **lives inside the chat**, not in a panel.
 There is no showcase page, no sidebar entry, no cards, no status screens — the
@@ -37,7 +37,7 @@ import { ComposerMascot } from "@/components/mascot";
 | `quota`      | one sad cat beside an empty food bowl, a tiny blue tear              |
 
 In the chat the state is derived from the store: `streaming → processing`,
-provider error `AOF_ERROR_004 → quota`, any other error `→ error`, else
+provider error `CGNTX_ERROR_004 → quota`, any other error `→ error`, else
 `waiting`.
 
 ### 2. Beside the AI message — `<TaotaoAvatar>`

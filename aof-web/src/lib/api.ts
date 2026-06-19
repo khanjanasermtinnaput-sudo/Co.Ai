@@ -1,9 +1,9 @@
 // ── Coagentix API client ──────────────────────────────────────────────────────
 // Thin, typed layer over the AI providers. Transparency is the rule: when a
 // provider fails, the failure is surfaced to the UI as a structured
-// `AofProviderError` (via `handlers.onError`) — it is NEVER hidden behind a fake
+// `CgntxProviderError` (via `handlers.onError`) — it is NEVER hidden behind a fake
 // "mock" reply. The offline mock engine still exists, but only runs when the app
-// is *explicitly* put in demo mode (`NEXT_PUBLIC_AOF_DEMO=1`); it is off by
+// is *explicitly* put in demo mode (`NEXT_PUBLIC_CGNTX_DEMO=1`); it is off by
 // default so the UI never appears to work when AI is actually down.
 
 import type { ProjectBrief, ResponseStyle, RouteDecision } from "./types";
@@ -22,8 +22,8 @@ import {
   classifyProviderError,
   decodeFrames,
   emptyResponseError,
-  isAofProviderError,
-  type AofProviderError,
+  isCgntxProviderError,
+  type CgntxProviderError,
 } from "./errors";
 import { parseBrief, summaryToBrief } from "./raa";
 
@@ -31,12 +31,12 @@ import { parseBrief, summaryToBrief } from "./raa";
 export function getApiBase(): string | null {
   const pub =
     process.env.NEXT_PUBLIC_COAGENTIX_API_BASE ??
-    process.env.NEXT_PUBLIC_AOF_API_BASE;
+    process.env.NEXT_PUBLIC_CGNTX_API_BASE;
   if (typeof pub === "string" && pub.length > 0) return pub.replace(/\/$/, "");
-  // When COAGENTIX_API_PROXY / AOF_API_PROXY is set we rewrite /v1 at the edge → same-origin.
+  // When COAGENTIX_API_PROXY / CGNTX_API_PROXY is set we rewrite /v1 at the edge → same-origin.
   if (
     process.env.NEXT_PUBLIC_COAGENTIX_SAME_ORIGIN === "1" ||
-    process.env.NEXT_PUBLIC_AOF_SAME_ORIGIN === "1"
+    process.env.NEXT_PUBLIC_CGNTX_SAME_ORIGIN === "1"
   ) return "";
   return null;
 }
@@ -49,7 +49,7 @@ export function isLive(): boolean {
 export function isDemoMode(): boolean {
   return (
     process.env.NEXT_PUBLIC_COAGENTIX_DEMO === "1" ||
-    process.env.NEXT_PUBLIC_AOF_DEMO === "1"
+    process.env.NEXT_PUBLIC_CGNTX_DEMO === "1"
   );
 }
 
@@ -77,7 +77,7 @@ function isAbortError(e: unknown): boolean {
 }
 
 /** Same-origin/network failure (the Coagentix server itself is unreachable). */
-function networkError(e: unknown): AofProviderError {
+function networkError(e: unknown): CgntxProviderError {
   return classifyProviderError({
     provider: "CoAgentix",
     hint: "network",
@@ -86,7 +86,7 @@ function networkError(e: unknown): AofProviderError {
 }
 
 /** The optional tmap-v2 backend is configured but unreachable / erroring. */
-function backendUnavailableError(detail: string, e?: unknown): AofProviderError {
+function backendUnavailableError(detail: string, e?: unknown): CgntxProviderError {
   const suffix = e ? ` (${(e as Error)?.message ?? String(e)})` : "";
   return classifyProviderError({ provider: "CoAgentix Backend", status: 502, message: `${detail}${suffix}` });
 }
@@ -149,13 +149,13 @@ export async function postSSE(
  * in-band error / failover control frames. Routes everything to the handlers and
  * returns the accumulated text (used by RAA to parse a brief).
  */
-async function readAofStream(
+async function readCgntxStream(
   res: Response,
   handlers: StreamHandlers,
 ): Promise<{ errored: boolean; text: string }> {
   if (!res.ok) {
     const body = await res.json().catch(() => null);
-    const err = isAofProviderError(body)
+    const err = isCgntxProviderError(body)
       ? body
       : classifyProviderError({ provider: "CoAgentix", status: res.status, message: `Request failed (${res.status})` });
     handlers.onError?.(err);
@@ -281,7 +281,7 @@ export async function streamChat(
       }),
       signal: handlers.signal,
     });
-    await readAofStream(res, handlers);
+    await readCgntxStream(res, handlers);
   } catch (e) {
     if (isAbortError(e)) return;
     handlers.onError?.(networkError(e));
@@ -303,7 +303,7 @@ async function streamViaChat(
       body: JSON.stringify({ message, agent }),
       signal: handlers.signal,
     });
-    await readAofStream(res, handlers);
+    await readCgntxStream(res, handlers);
   } catch (e) {
     if (isAbortError(e)) return;
     handlers.onError?.(networkError(e));
@@ -362,7 +362,7 @@ export async function streamCodeChat(
       body: JSON.stringify({ message, agent: "code-chat", searchMode, history: history.slice(-20) }),
       signal: handlers.signal,
     });
-    await readAofStream(res, handlers);
+    await readCgntxStream(res, handlers);
   } catch (e) {
     if (isAbortError(e)) return;
     handlers.onError?.(networkError(e));
@@ -427,7 +427,7 @@ export async function streamRequirements(
       body: JSON.stringify({ message, agent: "requirements", history: hist }),
       signal: handlers.signal,
     });
-    const { errored, text } = await readAofStream(res, handlers);
+    const { errored, text } = await readCgntxStream(res, handlers);
     if (errored) return none;
     const brief = parseBrief(text);
     return { brief, hasBrief: brief !== null };
@@ -552,7 +552,7 @@ export interface OrchestrationHandlers {
 }
 
 /**
- * Stream a universal orchestration request through the AOF AI Chief Agent.
+ * Stream a universal orchestration request through the Co.AI Chief Agent.
  * The Chief Agent classifies intent, expands the prompt, delegates to specialized
  * agents, runs a quality review loop, and returns the best possible response.
  */

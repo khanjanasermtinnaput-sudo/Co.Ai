@@ -3,7 +3,7 @@
 
 import type { LLMCall } from '../types.js';
 
-const ANALYZER_SYS = `You are the Project Analyst in AOF Code (TMAP v2).
+const ANALYZER_SYS = `You are the Project Analyst in Coagentix (TMAP v2).
 Given a project brief or description, give a senior engineer's assessment. You do NOT write code.
 
 Output EXACTLY these labelled sections, in this order, nothing else:

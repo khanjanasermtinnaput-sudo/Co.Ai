@@ -4,10 +4,10 @@
   "description": "CoAgentix Code — TMAP v2 multi-agent coding assistant (MVP core)",
   "type": "module",
   "bin": {
-    "aof": "./src/cli.ts"
+    "co": "./src/cli.ts"
   },
   "scripts": {
-    "aof": "tsx src/cli.ts",
+    "co": "tsx src/cli.ts",
     "doctor": "tsx src/cli.ts doctor",
     "agents": "tsx src/cli.ts agents",
     "server": "tsx src/server/index.ts",

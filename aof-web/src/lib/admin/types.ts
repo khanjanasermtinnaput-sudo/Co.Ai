@@ -39,7 +39,7 @@ export type AdminPermission =
 export type BetaFeature =
   | "titan-beta"
   | "cli-beta"
-  | "aof-code-beta"
+  | "coagentix-code-beta"
   | "experimental-models"
   | "early-access";
 
@@ -85,7 +85,7 @@ export type LogAction =
 // ── Announcement ──────────────────────────────────────────────────────────────
 
 export type AnnouncementType = "maintenance" | "feature" | "beta" | "promotion" | "info";
-export type AnnouncementLocation = "homepage" | "dashboard" | "chat" | "aof-code";
+export type AnnouncementLocation = "homepage" | "dashboard" | "chat" | "coagentix-code";
 
 // ── Database row types ────────────────────────────────────────────────────────
 

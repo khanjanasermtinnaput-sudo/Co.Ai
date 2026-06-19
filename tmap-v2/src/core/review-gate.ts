@@ -1,10 +1,10 @@
 // Quality Review Gate — scores outputs 0-100 and retries if score < 90.
-// This is the AOF AI self-correction layer that ensures quality before delivery.
+// This is the Co.AI self-correction layer that ensures quality before delivery.
 
 import type { LLMCall, QualityScore, TaskCategory } from '../types.js';
 import { categoryLabel } from './classifier.js';
 
-const REVIEWER_SYS = `You are the Quality Review Agent in AOF AI.
+const REVIEWER_SYS = `You are the Quality Review Agent in Co.AI.
 Your job is to objectively score a generated response against the user's original request.
 
 Evaluate across these dimensions:

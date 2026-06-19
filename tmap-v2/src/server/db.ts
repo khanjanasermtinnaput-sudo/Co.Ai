@@ -91,8 +91,8 @@ async function sb(path: string, init: RequestInit = {}): Promise<Response> {
 }
 
 // ── File-based storage (fallback for local/dev) ───────────────────────────────
-const DB_PATH = process.env.AOF_DB_PATH
-  ?? (process.env.VERCEL ? '/tmp/aof-db.json' : join(process.cwd(), '.aof-server', 'db.json'));
+const DB_PATH = process.env.CGNTX_DB_PATH
+  ?? (process.env.VERCEL ? '/tmp/cgntx-db.json' : join(process.cwd(), '.coagentix-server', 'db.json'));
 
 // In production the file store lives on ephemeral disk (e.g. Vercel/Render free
 // /tmp) and is wiped on every redeploy/cold start — user accounts and their
@@ -100,7 +100,7 @@ const DB_PATH = process.env.AOF_DB_PATH
 // (Supabase) is configured before relying on persistence.
 if (!useSupabase && process.env.NODE_ENV === 'production') {
   console.warn(
-    '[AOF][WARN] Supabase is NOT configured in production — falling back to the ephemeral ' +
+    '[CGNTX][WARN] Supabase is NOT configured in production — falling back to the ephemeral ' +
     `file DB at ${DB_PATH}. User accounts & encrypted keys will be LOST on redeploy/cold start. ` +
     'Set SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY for durable storage.',
   );

@@ -26,6 +26,6 @@ export const useGuestStore = create<GuestStore>()(
       reset: () => set({ messageCount: 0 }),
       remaining: () => Math.max(0, GUEST_LIMIT - get().messageCount),
     }),
-    { name: "aof.guest" },
+    { name: "cgntx.guest" },
   ),
 );

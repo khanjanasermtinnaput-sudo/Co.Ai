@@ -1,4 +1,4 @@
-const CACHE = 'aof-code-v1';
+const CACHE = 'cgntx-code-v1';
 const SHELL = [
   '/',
   '/index.html',

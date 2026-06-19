@@ -12,9 +12,9 @@ on:
       - 'claude/**'
 
 jobs:
-  # ── aof-web: Next.js TypeScript check ─────────────────────────────────────
+  # ── coagentix-web: Next.js TypeScript check ─────────────────────────────────────
   typecheck-web:
-    name: aof-web / tsc
+    name: coagentix-web / tsc
     runs-on: ubuntu-latest
     defaults:
       run:

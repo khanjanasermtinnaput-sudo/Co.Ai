@@ -175,7 +175,7 @@ function CreateCodeDialog({ onClose, onSuccess }: { onClose: () => void; onSucce
   function generateCode() {
     const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     const seg = () => Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
-    setCode(`AOF-${plan}-${seg()}-${seg()}`);
+    setCode(`CGNTX-${plan}-${seg()}-${seg()}`);
   }
 
   async function handleCreate() {
@@ -204,7 +204,7 @@ function CreateCodeDialog({ onClose, onSuccess }: { onClose: () => void; onSucce
         </h2>
         <div className="space-y-3">
           <div className="flex gap-2">
-            <Input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="AOF-PRO-XXXX" className="font-mono text-sm" />
+            <Input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="CGNTX-PRO-XXXX" className="font-mono text-sm" />
             <Button variant="outline" size="sm" onClick={generateCode} type="button">Auto</Button>
           </div>
           <Input value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Description (optional)" className="text-sm" />
