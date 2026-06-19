@@ -4,7 +4,7 @@
 // Live diagnostics for the AI providers, polled from /api/health. Shows the
 // per-provider health (🟢 CONNECTED / 🟡 DEGRADED / 🔴 DISCONNECTED / ⚪ UNKNOWN),
 // the aggregate system status and the startup-style checklist. This is how a user
-// answers "is it Aof, my key, the provider, my quota, or the network?".
+// answers "is it Coagentix, my key, the provider, my quota, or the network?".
 
 import { useCallback, useEffect, useState } from "react";
 import { RefreshCw, Activity, AlertOctagon } from "lucide-react";
@@ -68,7 +68,7 @@ export function ProviderStatusPanel() {
               <Activity className="size-4 text-primary" /> AI Providers
             </CardTitle>
             <CardDescription>
-              Live health of every AI provider Aof can use. Aof never hides a failure — if a
+              Live health of every AI provider Coagentix can use. Coagentix never hides a failure — if a
               provider is down, you&apos;ll see exactly why here.
             </CardDescription>
           </div>

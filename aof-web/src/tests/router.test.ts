@@ -7,7 +7,7 @@ function att(kind: Attachment['kind'], name = 'file.txt'): Attachment {
   return { id: '1', kind, name, mime: 'text/plain', size: 100 };
 }
 
-// ── default → Aof Chat ────────────────────────────────────────────────────────
+// ── default → Coagentix Chat ─────────────────────────────────────────────────
 
 test('general question routes to chat', () => {
   const r = routeRequest('What is the capital of France?');
@@ -25,7 +25,7 @@ test('empty-ish question routes to chat (default fallback)', () => {
   assert.equal(r.target, 'chat');
 });
 
-// ── code keywords → Aof Code ─────────────────────────────────────────────────
+// ── code keywords → Coagentix Code ───────────────────────────────────────────
 
 test('explicit code keyword routes to code', () => {
   const r = routeRequest('write me some code');

@@ -1,6 +1,6 @@
 "use client";
 
-// Shows which Aof model tier produced this reply, e.g. "[Ypertatos 1.0]".
+// Shows which Coagentix model tier produced this reply, e.g. "[Ypertatos 1.0]".
 // Always derived from getModelDisplayName so a future version bump
 // (Mikros 1.0 → Mikros 1.1) never requires touching this component.
 

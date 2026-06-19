@@ -124,7 +124,7 @@ test("non-string error fields (numeric code) classify without throwing", () => {
 
 test("every classified error carries the canonical fields", () => {
   const e = classifyProviderError({ provider: P, status: 429, model: "m" });
-  assert.equal(e.kind, "aof-provider-error");
+  assert.equal(e.kind, "coagentix-provider-error");
   assert.ok(e.code && e.problem && e.provider && e.details && e.solution && e.timestamp);
   assert.equal(e.provider, P);
   assert.equal(e.model, "m");
@@ -233,7 +233,7 @@ test("a frame split across many chunks is still decoded, never leaked as text", 
   assert.equal(r.errors.length, 1);
   assert.equal(r.errors[0].code, "AOF_ERROR_006");
   // The control delimiter must never appear in the user-visible text.
-  assert.doesNotMatch(r.text, /AOF_ERR/);
+  assert.doesNotMatch(r.text, /CGNTX_ERR/);
 });
 
 test("failover frame then content, char-by-char, decodes cleanly", () => {

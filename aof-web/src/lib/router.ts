@@ -1,6 +1,6 @@
-// ── AOF AI Universal Router ─────────────────────────────────────────────────
+// ── Coagentix Universal Router ───────────────────────────────────────────────
 // Classifies all user requests into one of 16 task categories and routes them
-// to the appropriate AOF AI system. Users never need to select a mode manually.
+// to the appropriate Coagentix AI system. Users never need to select a mode manually.
 
 import type { Attachment, RouteDecision, RouteTarget } from "./types";
 
@@ -272,13 +272,13 @@ function countMatches(text: string, patterns: RegExp[]): number {
 export function routeRequest(text: string, attachments: Attachment[] = []): RouteDecision {
   const t = text.toLowerCase();
 
-  // Code/document files → Aof Code
+  // Code/document files → Coagentix Code
   const codeFile = attachments.find((a) => a.kind === "code");
   if (codeFile) {
     return {
       target: "code",
       label: LABEL.code,
-      reason: `Analyzing ${codeFile.name} — file analysis runs in Aof Code.`,
+      reason: `Analyzing ${codeFile.name} — file analysis runs in Coagentix Code.`,
       confidence: 100,
     };
   }
@@ -310,10 +310,10 @@ export function routeRequest(text: string, attachments: Attachment[] = []): Rout
 
     const confidence = categoryConfidence[primary] ?? 70;
     const reason = target === 'code'
-      ? `Detected ${primary.replace(/_/g, ' ')} task — routing to Aof Code.`
+      ? `Detected ${primary.replace(/_/g, ' ')} task — routing to Coagentix Code.`
       : `Handling as ${classification.categories.slice(0, 2).map((c) => c.replace(/_/g, ' ')).join(' + ')} request.`;
 
-    // Images & PDFs without coding → Aof Chat
+    // Images & PDFs without coding → Coagentix Chat
     const visual = attachments.find((a) => a.kind === "image" || a.kind === "pdf");
     if (visual && target !== 'code') {
       return {
@@ -327,11 +327,11 @@ export function routeRequest(text: string, attachments: Attachment[] = []): Rout
     return { target, label: LABEL[target], reason, confidence };
   }
 
-  // Default → Aof Chat
+  // Default → Coagentix Chat
   return {
     target: "chat",
     label: LABEL.chat,
-    reason: "General question — handled by Aof Chat.",
+    reason: "General question — handled by Coagentix Chat.",
     confidence: 70,
   };
 }

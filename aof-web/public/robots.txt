@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+
+# Disallow admin and API routes
+Disallow: /admin/
+Disallow: /api/
+
+# Disallow auth callback
+Disallow: /auth/
+
+Sitemap: https://coagentix.app/sitemap.xml

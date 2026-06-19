@@ -3,7 +3,7 @@
 export type Role = 'planner' | 'coder' | 'reviewer' | 'validator';
 export type Mode = 'lite' | 'normal' | 'pro';
 
-// ── AOF AI Universal Orchestration System types ───────────────────────────────
+// ── Coagentix Universal Orchestration System types ───────────────────────────
 
 export type TaskCategory =
   | 'coding'
@@ -71,6 +71,27 @@ export interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;
 }
+
+// Multimodal message parts (OpenAI-compatible). Used ONLY by the Vision pipeline
+// to send an image alongside text to a vision-capable model. Kept separate from
+// ChatMessage so every existing text-only agent/call site stays unaffected.
+export interface TextContentPart {
+  type: 'text';
+  text: string;
+}
+export interface ImageContentPart {
+  type: 'image_url';
+  image_url: { url: string; detail?: 'low' | 'high' | 'auto' };
+}
+export type ContentPart = TextContentPart | ImageContentPart;
+
+export interface MultimodalMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string | ContentPart[];
+}
+
+// What the OpenAI-compatible client accepts — text-only or multimodal messages.
+export type AnyMessage = ChatMessage | MultimodalMessage;
 
 // Options passed to a single LLM call. `signal` lets DARS enforce a timeout.
 export interface ChatOpts {

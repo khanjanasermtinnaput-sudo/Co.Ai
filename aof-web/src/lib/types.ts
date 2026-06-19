@@ -1,15 +1,15 @@
-// ── Domain types shared across the Aof frontend ───────────────────────────────
+// ── Domain types shared across the Coagentix frontend ────────────────────────
 
 import type { AofProviderError, FailoverNotice, ModelNotice, SourcesNotice } from "./errors";
 
 /** Top-level products surfaced in the sidebar. Titan is intentionally absent —
- *  it is a mode *inside* Aof Code, never a product on the homepage. */
+ *  it is a mode *inside* Coagentix Code, never a product on the homepage. */
 export type ProductKey = "chat" | "code" | "projects" | "settings";
 
-/** Chat-with-Aof models shown in the chat header selector. */
+/** Chat models shown in the chat header selector. */
 export type ChatModel = "lite" | "normal";
 
-/** Aof Code modes. `titan` only appears inside the Code workspace. */
+/** Coagentix Code modes. `titan` only appears inside the Code workspace. */
 export type CodeMode = "lite" | "1.0" | "pro" | "titan";
 
 export type Role = "user" | "assistant" | "system";
@@ -26,7 +26,7 @@ export type RouteTarget = "chat" | "code" | "search";
 
 export interface RouteDecision {
   target: RouteTarget;
-  /** Human label shown on the routed reply, e.g. "Aof Code". */
+  /** Human label shown on the routed reply, e.g. "Coagentix Code". */
   label: string;
   /** Short why-this-route explanation surfaced in the UI. */
   reason: string;
@@ -99,12 +99,12 @@ export interface Conversation {
   updatedAt: string;
 }
 
-// ── Aof Code — conversation-first workflow ────────────────────────────────────
-// Aof Code discusses a project (via the Requirements Architect / RAA) and builds
-// a structured brief BEFORE any code is generated. Generation (TMAP) only runs on
-// an explicit trigger (the Generate Code button or the /gencode command).
+// ── Coagentix Code — conversation-first workflow ──────────────────────────────
+// Coagentix Code discusses a project (via the Requirements Architect / RAA) and
+// builds a structured brief BEFORE any code is generated. Generation (TMAP) only
+// runs on an explicit trigger (the Generate Code button or the /gencode command).
 
-/** Where the Aof Code workspace is in its lifecycle. */
+/** Where the Coagentix Code workspace is in its lifecycle. */
 export type CodePhase = "conversation" | "generating" | "done";
 
 /** Structured project brief, accumulated from the RAA conversation. Mirrors the
@@ -148,7 +148,7 @@ export interface Project {
   pinned: boolean;
   updatedAt: string;
   createdAt: string;
-  /** how it was started — which Aof Code mode produced it */
+  /** how it was started — which Coagentix Code mode produced it */
   mode?: CodeMode;
 }
 

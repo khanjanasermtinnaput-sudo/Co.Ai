@@ -1,4 +1,4 @@
-// Chief Agent — AOF AI Universal Orchestration System.
+// Chief Agent — Coagentix Universal Orchestration System.
 //
 // Execution flow:
 // User Request → Intent Analysis → Task Planning → Task Decomposition →

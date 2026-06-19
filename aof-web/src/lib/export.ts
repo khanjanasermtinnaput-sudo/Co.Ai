@@ -104,7 +104,7 @@ export function estimateTokens(text: string): number {
   return Math.max(1, Math.round(text.length / 4));
 }
 
-// ── Aof Code output export ────────────────────────────────────────────────────
+// ── Coagentix Code output export ─────────────────────────────────────────────
 
 export interface ExtractedFile {
   path: string;
@@ -183,7 +183,7 @@ function uniquePath(path: string, used: Set<string>): string {
   return `${stem}-${n}${ext}`;
 }
 
-/** Pull individual files out of Aof Code's generated output. Handles every
+/** Pull individual files out of Coagentix Code's generated output. Handles every
  *  format the pipeline can produce:
  *   - ```path=src/main.js          (live tmap-v2 Coder, agents.ts)
  *   - **`src/index.ts`** + block   (serverless AOF_CODE_GEN_SYSTEM, raa.ts)

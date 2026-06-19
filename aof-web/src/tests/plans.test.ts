@@ -12,13 +12,13 @@ import {
 import { evaluateFeature } from "../lib/access";
 
 function withEnforcement<T>(on: boolean, fn: () => T): T {
-  const prev = process.env.NEXT_PUBLIC_AOF_ENFORCE_PLANS;
-  process.env.NEXT_PUBLIC_AOF_ENFORCE_PLANS = on ? "1" : "";
+  const prev = process.env.NEXT_PUBLIC_COAGENTIX_ENFORCE_PLANS;
+  process.env.NEXT_PUBLIC_COAGENTIX_ENFORCE_PLANS = on ? "1" : "";
   try {
     return fn();
   } finally {
-    if (prev === undefined) delete process.env.NEXT_PUBLIC_AOF_ENFORCE_PLANS;
-    else process.env.NEXT_PUBLIC_AOF_ENFORCE_PLANS = prev;
+    if (prev === undefined) delete process.env.NEXT_PUBLIC_COAGENTIX_ENFORCE_PLANS;
+    else process.env.NEXT_PUBLIC_COAGENTIX_ENFORCE_PLANS = prev;
   }
 }
 
@@ -37,8 +37,8 @@ test("features are cumulative up the tiers", () => {
 });
 
 test("tier-specific features land on the right plan", () => {
-  assert.ok(PLANS.PRO.features.includes("aof-code"));
-  assert.ok(!PLANS.LITE.features.includes("aof-code"));
+  assert.ok(PLANS.PRO.features.includes("coagentix-code"));
+  assert.ok(!PLANS.LITE.features.includes("coagentix-code"));
   assert.ok(PLANS.ADVANCED.features.includes("titan"));
   assert.ok(!PLANS.PRO.features.includes("titan"));
 });
@@ -47,8 +47,8 @@ test("tier-specific features land on the right plan", () => {
 test("enforcement ON: FREE cannot use aof-code, PRO can", () => {
   withEnforcement(true, () => {
     assert.equal(entitlementsEnforced(), true);
-    assert.equal(hasFeature("FREE", "aof-code"), false);
-    assert.equal(hasFeature("PRO", "aof-code"), true);
+    assert.equal(hasFeature("FREE", "coagentix-code"), false);
+    assert.equal(hasFeature("PRO", "coagentix-code"), true);
     assert.equal(hasFeature("PRO", "titan"), false);
     assert.equal(hasFeature("ADVANCED", "titan"), true);
   });
@@ -56,9 +56,9 @@ test("enforcement ON: FREE cannot use aof-code, PRO can", () => {
 
 test("enforcement OFF: any signed-in tier is entitled, guests are not", () => {
   withEnforcement(false, () => {
-    assert.equal(hasFeature("FREE", "aof-code"), true);
+    assert.equal(hasFeature("FREE", "coagentix-code"), true);
     assert.equal(hasFeature("FREE", "titan"), true);
-    assert.equal(hasFeature("GUEST", "aof-code"), false);
+    assert.equal(hasFeature("GUEST", "coagentix-code"), false);
   });
 });
 
@@ -78,7 +78,7 @@ test("evaluateFeature points guests to login and FREE to an upgrade (enforced)",
 
 test("minTierForFeature resolves the cheapest unlocking tier", () => {
   assert.equal(minTierForFeature("projects"), "LITE");
-  assert.equal(minTierForFeature("aof-code"), "PRO");
+  assert.equal(minTierForFeature("coagentix-code"), "PRO");
   assert.equal(minTierForFeature("titan"), "ADVANCED");
 });
 

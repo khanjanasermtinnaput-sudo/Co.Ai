@@ -3,14 +3,14 @@ import {
   createCipheriv, createDecipheriv, createHash,
 } from 'node:crypto';
 
-// Ciphertext format version. v2 blobs are prefixed "aof2:" and use a scrypt-
-// derived key (KDF, brute-force resistant). Legacy blobs (no prefix, 3 hex
-// segments) used a plain sha256 derivation and are still decryptable so existing
+// Ciphertext format version. v3 blobs are prefixed "coagentix2:" and use a
+// scrypt-derived key (KDF, brute-force resistant). v2 blobs ("aof2:") and v1
+// legacy blobs (no prefix, 3 hex segments) are still decryptable so existing
 // stored keys keep working after the upgrade.
-const V2_PREFIX = 'aof2';
-// Fixed application salt for stretching the master secret. A static salt is fine
-// here: its job is to bind the KDF to this app, not to protect per-record data
-// (each ciphertext already has its own random IV).
+const V2_PREFIX = 'coagentix2';
+const LEGACY_V2_PREFIX = 'aof2';
+// KDF salt must stay stable — changing it makes all stored ciphertexts
+// undecryptable. Its role is to bind the KDF to this application.
 const KDF_SALT = Buffer.from('aof-master-key-kdf-v2', 'utf8');
 
 // ── Password hashing (scrypt, no native deps) ─────────────────────────────────
@@ -34,11 +34,11 @@ export function verifyPassword(password: string, stored: string): boolean {
 // than the old single-pass sha256. The derived key is cached per process because
 // scrypt is intentionally expensive and /v1/me decrypts several keys per request.
 function rawMasterKey(): string {
-  const raw = process.env.AOF_MASTER_KEY;
+  const raw = process.env.COAGENTIX_MASTER_KEY ?? process.env.AOF_MASTER_KEY;
   if (!raw || raw.length < 16) {
     throw new Error(
-      'AOF_MASTER_KEY missing or too short — set a long random value in .env ' +
-      '(recommended: 32+ random bytes, e.g. `node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"`)',
+      'COAGENTIX_MASTER_KEY missing or too short — set a long random value in .env ' +
+      '(recommended: 32+ random bytes, e.g. `openssl rand -hex 32`)',
     );
   }
   return raw;
@@ -71,7 +71,7 @@ export function decryptSecret(blob: string): string {
 
   // v2: "aof2:iv:tag:data" (scrypt key) | legacy: "iv:tag:data" (sha256 key)
   let key: Buffer, ivHex: string, tagHex: string, dataHex: string;
-  if (parts.length === 4 && parts[0] === V2_PREFIX) {
+  if (parts.length === 4 && (parts[0] === V2_PREFIX || parts[0] === LEGACY_V2_PREFIX)) {
     [, ivHex, tagHex, dataHex] = parts;
     key = masterKey();
   } else if (parts.length === 3) {

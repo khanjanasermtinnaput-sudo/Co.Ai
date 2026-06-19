@@ -140,7 +140,7 @@ function AccountTab() {
       <Card>
         <CardHeader>
           <CardTitle>Profile</CardTitle>
-          <CardDescription>How you appear across Aof.</CardDescription>
+          <CardDescription>How you appear across Coagentix.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
@@ -219,7 +219,7 @@ function AppearanceTab() {
       <Card>
         <CardHeader>
           <CardTitle>Accent</CardTitle>
-          <CardDescription>The signature Aof orange-gold.</CardDescription>
+          <CardDescription>The signature Coagentix orange-gold.</CardDescription>
         </CardHeader>
         <CardContent className="flex items-center gap-3">
           <span className="size-9 rounded-full bg-primary shadow-glow" />
@@ -360,7 +360,7 @@ function KeysTab() {
           <CardDescription>
             Bring your own keys. They&apos;re encrypted at rest and tied to your account —
             we never show them again or send them back to the browser. Leave everything blank
-            to run Aof in mock mode.
+            to run Coagentix in mock mode.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

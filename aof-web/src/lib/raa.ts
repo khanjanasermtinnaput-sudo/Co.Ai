@@ -1,8 +1,9 @@
-// ── Aof Code — Requirements Architect (RAA) helpers ───────────────────────────
-// Aof Code is conversation-first. Before any code is generated, the Requirements
-// Architect Agent (RAA) discusses the project and gathers requirements WITHOUT
-// writing code. This module mirrors the contract in tmap-v2/src/core/raa.ts so a
-// brief parses identically no matter which engine produced it:
+// ── Coagentix Code — Requirements Architect (RAA) helpers ────────────────────
+// Coagentix Code is conversation-first. Before any code is generated, the
+// Requirements Architect Agent (RAA) discusses the project and gathers
+// requirements WITHOUT writing code. This module mirrors the contract in
+// tmap-v2/src/core/raa.ts so a brief parses identically no matter which engine
+// produced it:
 //   • live tmap-v2 backend  → POST /v1/chat (real RAA + DARS failover)
 //   • same-origin LLM route → POST /api/chat?agent=requirements (uses RAA_SYSTEM)
 //   • offline demo          → the deterministic mock in lib/mock.ts
@@ -19,7 +20,7 @@ const SUMMARY_CLOSE = "===END SUMMARY===";
 export const GENCODE_HINT =
   "✅ พร้อมแล้ว — กดปุ่ม Generate Code หรือพิมพ์ /gencode เพื่อเริ่มสร้างโค้ด (หรือบอกถ้าต้องการแก้ Requirement)";
 
-/** NORMAL_CHAT persona — Aof Code when no project is active.
+/** NORMAL_CHAT persona — Coagentix Code when no project is active.
  *  Handles greetings, tech Q&A, and discussions naturally without triggering RAA.
  *  The state machine (conversation-state.ts) decides when to switch to RAA (DISCOVERY). */
 export const AOF_CODE_CHAT_SYSTEM = `You are CoAgentix Code — a senior software engineer available to talk through ideas and answer technical questions.
@@ -46,8 +47,8 @@ RESPONSE LANGUAGE: Always reply in the SAME LANGUAGE the user writes in.
 Thai input → Thai reply. English input → English reply.`;
 
 // ── Serverless build-pipeline personas ────────────────────────────────────────
-// When the tmap-v2 backend is not configured, Aof Code's build actions (Generate /
-// Plan / Analyze / Debug) run through the same /api/chat provider as a single-pass
+// When the tmap-v2 backend is not configured, Coagentix Code's build actions
+// (Generate / Plan / Analyze / Debug) run through the same /api/chat provider as a single-pass
 // LLM call. These prompts shape each action. They never fake output — a provider
 // failure still surfaces as a structured error.
 
@@ -92,8 +93,8 @@ Structure your answer:
 
 If the cause is ambiguous, state the most likely cause and what to check next. Reply in the SAME LANGUAGE the user writes in.`;
 
-/** RAA persona — AOF CODE V4 collaborative engineering.
- *  50/50 rule: Aof contributes ideas, directions and trade-offs BEFORE asking.
+/** RAA persona — Coagentix Code collaborative engineering.
+ *  50/50 rule: CoAI contributes ideas, directions and trade-offs BEFORE asking.
  *  Never a form. Never a questionnaire. A thinking partner. */
 export const RAA_SYSTEM = `You are CoAgentix Code — a senior software engineer and collaborative thinking partner. You work WITH the user, not merely respond TO them.
 

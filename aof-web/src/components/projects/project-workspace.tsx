@@ -189,10 +189,10 @@ function CodeTab() {
     <EmptyState
       icon={Code2}
       title="No code yet"
-      body="Generate and edit this project's code in the Aof Code workspace. Files you build there will show up here."
+      body="Generate and edit this project's code in the Coagentix Code workspace. Files you build there will show up here."
       cta={
         <Link href="/code" className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-sm font-medium text-primary-foreground">
-          <Code2 className="size-4" /> Open in Aof Code
+          <Code2 className="size-4" /> Open in Coagentix Code
         </Link>
       }
     />

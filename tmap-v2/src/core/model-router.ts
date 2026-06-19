@@ -59,11 +59,11 @@ export function routeToRole(
   const preferredRoles: Role[] = (primary && CATEGORY_ROLE_MAP[primary]) ?? ['planner'];
 
   // Pick the first role that has a healthy provider available
+  const healthByKey = Object.fromEntries(health.snapshot().map((h) => [h.key, h]));
   for (const role of preferredRoles) {
     const candidates = listProviderCandidates(role, creds);
     const healthy = candidates.filter((c) => {
-      const snap = health.snapshot();
-      const pHealth = snap[c.healthKey];
+      const pHealth = healthByKey[c.healthKey];
       return !pHealth || (pHealth.consecutiveFails ?? 0) < 3;
     });
     if (healthy.length > 0) {

@@ -133,7 +133,7 @@ export function resolveAll(): Record<Role, ResolvedProvider> {
 }
 
 export function currentMode(): Mode {
-  const m = (process.env.AOF_MODE || 'normal').toLowerCase();
+  const m = (process.env.COAGENTIX_MODE ?? process.env.AOF_MODE ?? 'normal').toLowerCase();
   return (['lite', 'normal', 'pro'].includes(m) ? m : 'normal') as Mode;
 }
 
@@ -197,6 +197,75 @@ export function resolveAllWith(creds: CredentialBag): Record<Role, ResolvedProvi
 
 export function bagHasAnyKey(creds: CredentialBag): boolean {
   return Boolean(creds.openrouter || creds.gemini || creds.deepseek || creds.qwen || creds.llama);
+}
+
+// ── Vision provider resolution (image OCR + analysis) ─────────────────────────
+// Only some vendors are multimodal. DeepSeek and Llama (Groq) are text-only, so
+// the image-reading step must pick a vision-capable model regardless of the
+// normal role→provider map. Preference: Gemini (cheap, strong vision) → OpenRouter
+// (Gemini route) → Qwen-VL. Model names are overridable via env.
+const VISION_MODELS: Partial<Record<string, string>> = {
+  gemini: process.env.GEMINI_VISION_MODEL?.trim() || 'gemini-2.5-flash',
+  qwen: process.env.QWEN_VISION_MODEL?.trim() || 'qwen-vl-plus',
+};
+const VISION_OPENROUTER_MODEL =
+  process.env.VISION_OPENROUTER_MODEL?.trim() || 'google/gemini-2.5-flash';
+
+/** Resolve a vision-capable provider from a user's credentials, or mock if none. */
+export function resolveVisionProviderWith(creds: CredentialBag): ResolvedProvider {
+  const role: Role = 'planner'; // role is just a label here
+
+  // 1) Direct keys for a multimodal vendor, in preference order.
+  for (const pk of ['gemini', 'qwen'] as const) {
+    const key = bagKey(pk, creds);
+    if (key) {
+      const def = PROVIDERS[pk];
+      return {
+        role, providerName: `${def.name} (vision)`, baseURL: def.baseURL, apiKey: key,
+        model: creds.models?.[pk] || VISION_MODELS[pk] || def.defaultModel, mode: 'direct',
+      };
+    }
+  }
+
+  // 2) OpenRouter covers vision via a Gemini route.
+  if (creds.openrouter?.trim()) {
+    return {
+      role, providerName: 'Gemini vision (via OpenRouter)', baseURL: OPENROUTER_BASE,
+      apiKey: creds.openrouter.trim(), model: VISION_OPENROUTER_MODEL, mode: 'openrouter',
+    };
+  }
+
+  // 3) No vision-capable key → mock (offline demo).
+  return { role, providerName: 'vision (mock)', baseURL: '', apiKey: '', model: 'mock', mode: 'mock' };
+}
+
+/** Resolve a vision provider from process.env (CLI / non-server path). */
+export function resolveVisionProvider(): ResolvedProvider {
+  return resolveVisionProviderWith(bagFromEnv());
+}
+
+/** All vision-capable providers a user's credentials can reach, in preference
+ *  order — lets the pipeline fail over (Gemini → Qwen-VL → OpenRouter). */
+export function listVisionProvidersWith(creds: CredentialBag): ResolvedProvider[] {
+  const role: Role = 'planner';
+  const out: ResolvedProvider[] = [];
+  for (const pk of ['gemini', 'qwen'] as const) {
+    const key = bagKey(pk, creds);
+    if (key) {
+      const def = PROVIDERS[pk];
+      out.push({
+        role, providerName: `${def.name} (vision)`, baseURL: def.baseURL, apiKey: key,
+        model: creds.models?.[pk] || VISION_MODELS[pk] || def.defaultModel, mode: 'direct',
+      });
+    }
+  }
+  if (creds.openrouter?.trim()) {
+    out.push({
+      role, providerName: 'Gemini vision (via OpenRouter)', baseURL: OPENROUTER_BASE,
+      apiKey: creds.openrouter.trim(), model: VISION_OPENROUTER_MODEL, mode: 'openrouter',
+    });
+  }
+  return out;
 }
 
 /** Build a CredentialBag from process.env so the CLI/env path also runs through DARS. */

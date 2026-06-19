@@ -122,7 +122,7 @@ export const CHAT_MODELS: ChatModelInfo[] = [
   },
 ];
 
-// ── Aof Code modes (Titan lives here only) ───────────────────────────────────
+// ── Coagentix Code modes (Titan lives here only) ─────────────────────────────
 export interface CodeModeInfo {
   id: CodeMode;
   name: string;

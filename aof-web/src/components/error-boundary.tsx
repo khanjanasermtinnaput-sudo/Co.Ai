@@ -24,7 +24,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
-    console.error("[Aof] Unhandled render error:", error, info.componentStack);
+    console.error("[Coagentix] Unhandled render error:", error, info.componentStack);
   }
 
   reset = () => this.setState({ hasError: false, error: undefined });

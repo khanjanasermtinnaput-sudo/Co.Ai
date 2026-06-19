@@ -1,4 +1,4 @@
-// ── Aof model branding — single source of truth for display names ────────────
+// ── Coagentix model branding — single source of truth for display names ──────
 // Internal IDs (ChatModel / CodeMode) are never renamed: they drive routing,
 // persistence and API contracts. Only the human-facing name is derived here,
 // so a future version bump (e.g. Mikros 1.0 → Mikros 1.1) touches one line.

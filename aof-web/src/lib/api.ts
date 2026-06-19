@@ -1,4 +1,4 @@
-// ── Aof API client ────────────────────────────────────────────────────────────
+// ── Coagentix API client ──────────────────────────────────────────────────────
 // Thin, typed layer over the AI providers. Transparency is the rule: when a
 // provider fails, the failure is surfaced to the UI as a structured
 // `AofProviderError` (via `handlers.onError`) — it is NEVER hidden behind a fake
@@ -28,10 +28,15 @@ import { parseBrief, summaryToBrief } from "./raa";
 
 /** Resolve the API base. Empty string means "same origin" (Next rewrite proxy). */
 export function getApiBase(): string | null {
-  const pub = process.env.NEXT_PUBLIC_AOF_API_BASE;
+  const pub =
+    process.env.NEXT_PUBLIC_COAGENTIX_API_BASE ??
+    process.env.NEXT_PUBLIC_AOF_API_BASE;
   if (typeof pub === "string" && pub.length > 0) return pub.replace(/\/$/, "");
-  // When AOF_API_PROXY is set we rewrite /v1 at the edge → call same-origin.
-  if (process.env.NEXT_PUBLIC_AOF_SAME_ORIGIN === "1") return "";
+  // When COAGENTIX_API_PROXY / AOF_API_PROXY is set we rewrite /v1 at the edge → same-origin.
+  if (
+    process.env.NEXT_PUBLIC_COAGENTIX_SAME_ORIGIN === "1" ||
+    process.env.NEXT_PUBLIC_AOF_SAME_ORIGIN === "1"
+  ) return "";
   return null;
 }
 
@@ -41,10 +46,13 @@ export function isLive(): boolean {
 
 /** Explicit, opt-in offline demo — simulated responses, clearly not real AI. */
 export function isDemoMode(): boolean {
-  return process.env.NEXT_PUBLIC_AOF_DEMO === "1";
+  return (
+    process.env.NEXT_PUBLIC_COAGENTIX_DEMO === "1" ||
+    process.env.NEXT_PUBLIC_AOF_DEMO === "1"
+  );
 }
 
-const TOKEN_KEY = "aof.token";
+const TOKEN_KEY = "coagentix.token";
 
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -67,7 +75,7 @@ function isAbortError(e: unknown): boolean {
   return (e as { name?: string } | null)?.name === "AbortError";
 }
 
-/** Same-origin/network failure (the Aof server itself is unreachable). */
+/** Same-origin/network failure (the Coagentix server itself is unreachable). */
 function networkError(e: unknown): AofProviderError {
   return classifyProviderError({
     provider: "CoAgentix",
@@ -135,7 +143,7 @@ export async function postSSE(
 }
 
 /**
- * Read Aof's own `/api/chat` response: a JSON error envelope when the request
+ * Read Coagentix's own `/api/chat` response: a JSON error envelope when the request
  * failed before streaming, otherwise a plain-text token stream that may carry
  * in-band error / failover control frames. Routes everything to the handlers and
  * returns the accumulated text (used by RAA to parse a brief).
@@ -223,7 +231,7 @@ export interface ChatRequest {
   searchMode?: "auto" | "off" | "force";
 }
 
-/** Stream a Chat-with-Aof reply. Live `/v1/chat` → real `/api/chat`; failures
+/** Stream a Chat-with-Coagentix reply. Live `/v1/chat` → real `/api/chat`; failures
  *  surface as structured errors. Mock only in explicit demo mode. */
 export async function streamChat(
   message: string,
@@ -256,7 +264,7 @@ export async function streamChat(
     return;
   }
 
-  // Default: Aof's own provider route.
+  // Default: Coagentix's own provider route.
   try {
     const res = await fetch("/api/chat", {
       method: "POST",
@@ -299,7 +307,7 @@ async function streamViaChat(
   }
 }
 
-/** Stream an Aof Code build. Live `/v1/run` (tmap-v2) when configured, otherwise a
+/** Stream a Coagentix Code build. Live `/v1/run` (tmap-v2) when configured, otherwise a
  *  serverless single-pass generation via `/api/chat`. */
 export async function streamCodeRun(
   task: string,
@@ -331,9 +339,9 @@ export async function streamCodeRun(
   }
 }
 
-// ── Aof Code NORMAL_CHAT (no project active) ─────────────────────────────────
+// ── Coagentix Code NORMAL_CHAT (no project active) ───────────────────────────
 
-/** Stream a NORMAL_CHAT reply within Aof Code (same-origin `/api/chat`). */
+/** Stream a NORMAL_CHAT reply within Coagentix Code (same-origin `/api/chat`). */
 export async function streamCodeChat(
   message: string,
   history: ChatHistoryItem[],
@@ -358,7 +366,7 @@ export async function streamCodeChat(
   }
 }
 
-// ── Aof Code requirements conversation (RAA) ──────────────────────────────────
+// ── Coagentix Code requirements conversation (RAA) ────────────────────────────
 
 export interface RequirementsResult {
   /** structured brief, when the assistant produced one this turn */
@@ -520,7 +528,7 @@ export async function streamDebug(input: DebugInput, handlers: StreamHandlers): 
   }
 }
 
-// ── AOF AI Universal Orchestration ───────────────────────────────────────────
+// ── Coagentix Universal Orchestration ────────────────────────────────────────
 
 export interface OrchestrationEvent {
   role: string;

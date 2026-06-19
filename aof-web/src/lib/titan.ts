@@ -1,5 +1,5 @@
 // ── Titan workflow content ────────────────────────────────────────────────────
-// Titan is the highest mode INSIDE Aof Code. Strict contract: think first, build
+// Titan is the highest mode INSIDE Coagentix Code. Strict contract: think first, build
 // later. It never generates code until the user approves a blueprint. This module
 // produces the gated, interactive content for the offline experience and mirrors
 // the enforced phase order in tmap-v2/src/core/titan.ts.

@@ -1,5 +1,5 @@
 /**
- * TAOTAO — the official Aof AI pixel mascot, living inside the chat.
+ * TAOTAO — the official Coagentix pixel mascot, living inside the chat.
  *
  *   <ComposerMascot state="processing"><Composer …/></ComposerMascot>  // on the input box
  *   <TaotaoAvatar message={m} isLast />                                 // beside the AI message

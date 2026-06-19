@@ -158,7 +158,7 @@ test('all three modes populate planText', async () => {
   }
 });
 
-// ── plan-only mode (Aof Code "Create Plan") ───────────────────────────────────
+// ── plan-only mode (Coagentix Code "Create Plan") ────────────────────────────
 
 test('planOnly produces a plan but generates no code', async () => {
   const result = await runTMAP(bb('normal'), noop, { skipContext: true, planOnly: true });

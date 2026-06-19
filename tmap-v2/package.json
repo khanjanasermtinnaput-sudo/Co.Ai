@@ -1,5 +1,5 @@
 {
-  "name": "@aof/code",
+  "name": "@coagentix/code",
   "version": "0.1.0",
   "description": "CoAgentix Code — TMAP v2 multi-agent coding assistant (MVP core)",
   "type": "module",

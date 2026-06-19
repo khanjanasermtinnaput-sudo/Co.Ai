@@ -65,7 +65,7 @@ function featureForAction(action: AccessAction, ctx: AccessContext): Feature | n
       return "deploy";
     case "premium-model":
       if (ctx.codeMode === "titan") return "titan";
-      if (ctx.codeMode && PREMIUM_CODE_MODES.has(ctx.codeMode)) return "aof-code";
+      if (ctx.codeMode && PREMIUM_CODE_MODES.has(ctx.codeMode)) return "coagentix-code";
       return null;
     default:
       return null;

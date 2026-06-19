@@ -6,7 +6,7 @@ interface LogoMarkProps {
   size?: number;
 }
 
-/** The Aof mark — the code-loop emblem, rendered as a rounded app-style tile. */
+/** The Coagentix mark — the code-loop emblem, rendered as a rounded app-style tile. */
 export function LogoMark({ className, size = 32 }: LogoMarkProps) {
   return (
     <Image

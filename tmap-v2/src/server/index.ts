@@ -27,15 +27,37 @@ import type { Mode, ChatMessage } from '../types.js';
 import { runChiefAgent } from '../core/chief-agent.js';
 import { chatWithDARS } from '../dars/run.js';
 import { globalHealth } from '../dars/health.js';
+import { runImagePipeline, processImage, type ImageUnderstanding } from '../core/image-pipeline.js';
+import {
+  toRecord, storeImageMemory, findImageByHash, listImageMemories,
+  searchImageMemories, imageMemoriesToContext, clearImageMemories, purgeExpiredImageMemories,
+} from '../core/image-memory.js';
 
 const PROVIDERS: ProviderKeyName[] = ['openrouter', 'gemini', 'deepseek', 'qwen', 'llama'];
 
 const app = express();
 
-// ── SECURITY middleware ───────────────────────────────────────────────────────
+// ── SECURITY HEADERS middleware ───────────────────────────────────────────────
+// Hardened response headers (equivalent to helmet defaults) — applied before
+// any route so every response inherits them, including error responses.
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  res.setHeader('Cross-Origin-Resource-Policy', 'same-site');
+  if (process.env.NODE_ENV === 'production') {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
+  }
+  next();
+});
+
+// ── CORS middleware ───────────────────────────────────────────────────────────
 // Restrict CORS to known client origins; the wildcard default lets any site
 // send requests with a stolen token.
-const ALLOWED_ORIGINS = (process.env.AOF_ALLOWED_ORIGINS ?? '')
+const ALLOWED_ORIGINS = (process.env.COAGENTIX_ALLOWED_ORIGINS ?? process.env.AOF_ALLOWED_ORIGINS ?? '')
   .split(',')
   .map((o) => o.trim())
   .filter(Boolean);
@@ -54,7 +76,12 @@ app.use(cors({
   },
   credentials: true,
 }));
-app.use(express.json({ limit: '1mb' }));
+// Image uploads (base64) need a larger limit than ordinary JSON requests; keep
+// every other route capped at 1mb to limit memory-exhaustion surface.
+const jsonParser = express.json({ limit: '1mb' });
+const imageJsonParser = express.json({ limit: process.env.IMAGE_JSON_LIMIT || '14mb' });
+app.use((req, res, next) =>
+  (req.path === '/v1/image/analyze' ? imageJsonParser : jsonParser)(req, res, next));
 
 // ── REQUEST LOGGING middleware ────────────────────────────────────────────────
 app.use((req, _res, next) => {
@@ -234,6 +261,72 @@ app.get('/v1/memory', requireAuth, async (req: AuthedRequest, res) => {
 
 app.delete('/v1/memory', requireAuth, async (req: AuthedRequest, res) => {
   await clearMemory(req.user!.id);
+  res.json({ ok: true });
+});
+
+// ── IMAGE UNDERSTANDING (TMAP vision pipeline) ────────────────────────────────
+// Upload an image → OCR + vision analysis + summarization → stored as reusable
+// memory so future questions are answered without re-reading it. Deduped by hash.
+app.post('/v1/image/analyze', requireAuth, async (req: AuthedRequest, res) => {
+  const data = String(req.body?.image ?? req.body?.data ?? '');
+  const question = String(req.body?.question ?? req.body?.hint ?? '').trim();
+  if (!data) return res.status(400).json({ error: 'image (base64 or data URL) required' });
+  if (question && tooLong(question, MAX_MESSAGE)) {
+    return res.status(413).json({ error: `question too long (max ${MAX_MESSAGE} bytes)` });
+  }
+
+  const u = req.user!;
+  const creds: CredentialBag = {};
+  for (const p of PROVIDERS) {
+    if (u.encryptedKeys[p]) (creds as Record<string, string>)[p] = decryptSecret(u.encryptedKeys[p]!);
+  }
+
+  const steps: string[] = [];
+  try {
+    // Step 1 (cheap, no tokens): process + hash, then check for a duplicate.
+    const processed = processImage({ data });
+    const existing = await findImageByHash(u.id, processed.imageHash);
+    if (existing) {
+      logger.info('image_cache_hit', { user: u.username, hash: processed.imageHash.slice(0, 12) });
+      return res.json({ cached: true, memory: existing });
+    }
+
+    const textCall = async (messages: ChatMessage[], opts = {}) => {
+      const r = await chatWithDARS('planner', messages, opts, {
+        creds, health: globalHealth, emit: () => {}, sessionId: 'image-' + u.id,
+      });
+      return r.text;
+    };
+
+    const understanding: ImageUnderstanding = await runImagePipeline({ data }, {
+      creds, textCall, userHint: question || undefined,
+      onStep: (s) => { steps.push(s); },
+    });
+
+    const record = await storeImageMemory(toRecord(u.id, understanding));
+    purgeExpiredImageMemories(u.id).catch(() => {}); // opportunistic housekeeping
+    logger.info('image_analyzed', { user: u.username, hash: record.imageHash.slice(0, 12), scene: understanding.vision.scene });
+
+    res.json({ cached: false, memory: record, understanding });
+  } catch (e) {
+    logger.error('image_analyze_error', { error: (e as Error).message, steps });
+    res.status(400).json({ error: (e as Error).message });
+  }
+});
+
+app.get('/v1/image/memories', requireAuth, async (req: AuthedRequest, res) => {
+  const q = String(req.query.q ?? '').trim();
+  const limit = Math.min(Number(req.query.limit) || 50, 200);
+  if (q) {
+    const ranked = await searchImageMemories(req.user!.id, q, Math.min(limit, 10));
+    return res.json({ query: q, results: ranked });
+  }
+  const memories = await listImageMemories(req.user!.id, limit);
+  res.json({ memories });
+});
+
+app.delete('/v1/image/memories', requireAuth, async (req: AuthedRequest, res) => {
+  await clearImageMemories(req.user!.id);
   res.json({ ok: true });
 });
 
@@ -525,7 +618,7 @@ app.post('/v1/run', requireAuth, async (req: AuthedRequest, res) => {
   res.end();
 });
 
-// ── ORCHESTRATE — AOF AI Universal Chief Agent (SSE stream) ──────────────────
+// ── ORCHESTRATE — Coagentix Universal Chief Agent (SSE stream) ───────────────
 app.post('/v1/orchestrate', requireAuth, async (req: AuthedRequest, res) => {
   const message = String(req.body?.message ?? '').trim();
   const history: ChatMessage[] = Array.isArray(req.body?.history) ? req.body.history : [];
@@ -554,9 +647,19 @@ app.post('/v1/orchestrate', requireAuth, async (req: AuthedRequest, res) => {
     if (memCtx) send({ role: 'chief', kind: 'status', text: 'memory: loading context from previous sessions' });
   } catch { /* best-effort */ }
 
+  // Image memory: pull in knowledge from images analyzed earlier that are
+  // relevant to this message, so we can answer without re-reading them (step 10).
+  let imgCtx = '';
+  try {
+    const ranked = await searchImageMemories(u.id, message, 3);
+    imgCtx = imageMemoriesToContext(ranked);
+    if (imgCtx) send({ role: 'chief', kind: 'status', text: `image memory: ${ranked.length} relevant image(s)` });
+  } catch { /* best-effort */ }
+
   // Prepend memory to history context if available
-  const enrichedHistory: ChatMessage[] = memCtx
-    ? [{ role: 'system' as const, content: memCtx }, ...history]
+  const systemContext = [memCtx, imgCtx].filter(Boolean).join('\n\n');
+  const enrichedHistory: ChatMessage[] = systemContext
+    ? [{ role: 'system' as const, content: systemContext }, ...history]
     : history;
 
   try {
@@ -604,7 +707,9 @@ app.get('/v1/health', (_req, res) => {
   res.json(globalHealth.snapshot());
 });
 
-app.get('/v1/metrics', (_req, res) => {
+// Metrics are internal counters — restrict to authenticated users only so
+// they are not exposed to anonymous scrapers.
+app.get('/v1/metrics', requireAuth, (_req: AuthedRequest, res) => {
   res.json(getMetrics());
 });
 
@@ -626,5 +731,5 @@ export default app;
 
 if (!process.env.VERCEL) {
   const PORT = Number(process.env.PORT || 8787);
-  app.listen(PORT, () => console.log(`AOF Code → http://localhost:${PORT}`));
+  app.listen(PORT, () => console.log(`Coagentix → http://localhost:${PORT}`));
 }

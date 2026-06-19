@@ -1,9 +1,9 @@
-// ── Aof AI — Provider Error Model (shared: server + client) ───────────────────
+// ── Coagentix — Provider Error Model (shared: server + client) ────────────────
 // The single source of truth for how AI-provider failures are represented,
-// classified, logged, streamed and rendered across Aof.
+// classified, logged, streamed and rendered across Coagentix.
 //
-// Design principle (non-negotiable): Aof must NEVER pretend AI is working when
-// it is not. Every provider failure becomes a structured `AofProviderError`
+// Design principle (non-negotiable): Coagentix must NEVER pretend AI is working
+// when it is not. Every provider failure becomes a structured `AofProviderError`
 // that tells the user *what* failed, *why*, *which provider*, and *how to fix
 // it* — then the assistant stops. No fake responses, no silent fallbacks.
 //
@@ -11,9 +11,7 @@
 // exact same classification + serialization runs on the API route and in the UI.
 
 // ── Error codes ───────────────────────────────────────────────────────────────
-// Numbering follows the AOF spec's ERROR CODES list (001–012). 013 is added for
-// "Configuration Error", which the DETECTION list names but the codes list left
-// unnumbered.
+// Numbering follows the COAGENTIX spec's ERROR CODES list (001–013).
 
 export const AOF_ERROR_CODES = [
   "AOF_ERROR_001", // API Key Missing
@@ -116,7 +114,7 @@ export const ERROR_CATALOG: Record<AofErrorCode, CatalogEntry> = {
 
 export interface AofProviderError {
   /** Discriminant for the structured-error envelope. */
-  readonly kind: "aof-provider-error";
+  readonly kind: "coagentix-provider-error";
   code: AofErrorCode;
   /** Short label, e.g. "Quota Exceeded". */
   problem: string;
@@ -149,7 +147,7 @@ export function isAofProviderError(v: unknown): v is AofProviderError {
   return (
     typeof v === "object" &&
     v !== null &&
-    (v as { kind?: unknown }).kind === "aof-provider-error" &&
+    (v as { kind?: unknown }).kind === "coagentix-provider-error" &&
     typeof (v as { code?: unknown }).code === "string"
   );
 }
@@ -205,7 +203,7 @@ const hay = (s?: unknown) => String(s ?? "").toLowerCase();
 function build(code: AofErrorCode, input: ClassifyInput, details: string, solution?: string): AofProviderError {
   const entry = ERROR_CATALOG[code];
   return {
-    kind: "aof-provider-error",
+    kind: "coagentix-provider-error",
     code,
     problem: entry.problem,
     provider: input.provider,
@@ -233,12 +231,12 @@ export function classifyProviderError(input: ClassifyInput): AofProviderError {
     return build(
       "AOF_ERROR_001",
       input,
-      `${env} is not set, so Aof cannot authenticate with ${input.provider}.`,
+      `${env} is not set, so Coagentix cannot authenticate with ${input.provider}.`,
       `Add ${env} to .env.local (server-side) and restart the app.`,
     );
   }
   if (input.hint === "config") {
-    return build("AOF_ERROR_013", input, input.message || `Aof is misconfigured for ${input.provider}.`);
+    return build("AOF_ERROR_013", input, input.message || `Coagentix is misconfigured for ${input.provider}.`);
   }
   if (input.hint === "empty") {
     return build(
@@ -254,7 +252,7 @@ export function classifyProviderError(input: ClassifyInput): AofProviderError {
     return build(
       "AOF_ERROR_007",
       input,
-      `Aof could not establish a connection to ${input.provider}. ${input.message ?? ""}`.trim(),
+      `Coagentix could not establish a connection to ${input.provider}. ${input.message ?? ""}`.trim(),
     );
   }
 
@@ -335,7 +333,7 @@ export function emptyResponseError(provider: string, model?: string, requestId?:
 // ── Failover notice ───────────────────────────────────────────────────────────
 
 export interface FailoverNotice {
-  readonly kind: "aof-failover";
+  readonly kind: "coagentix-failover";
   from: string;
   to: string;
   /** Why the primary was abandoned — usually the primary error's problem+code. */
@@ -347,11 +345,11 @@ export interface FailoverNotice {
 }
 
 export function isFailoverNotice(v: unknown): v is FailoverNotice {
-  return typeof v === "object" && v !== null && (v as { kind?: unknown }).kind === "aof-failover";
+  return typeof v === "object" && v !== null && (v as { kind?: unknown }).kind === "coagentix-failover";
 }
 
 export function makeFailoverNotice(from: string, to: string, reason: string, matchScore?: number): FailoverNotice {
-  return { kind: "aof-failover", from, to, reason, matchScore, timestamp: new Date().toISOString() };
+  return { kind: "coagentix-failover", from, to, reason, matchScore, timestamp: new Date().toISOString() };
 }
 
 // ── Active model notice (Section 1 / Section 6 transparency panel) ────────────
@@ -360,7 +358,7 @@ export function makeFailoverNotice(from: string, to: string, reason: string, mat
 // what lets the UI always show "Active Model" / "Current AI" without guessing.
 
 export interface ModelNotice {
-  readonly kind: "aof-model";
+  readonly kind: "coagentix-model";
   provider: string;
   model: string;
   /** Human task label, e.g. "Code Generation" (model-registry.ts ROLE_LABEL). */
@@ -369,11 +367,11 @@ export interface ModelNotice {
 }
 
 export function isModelNotice(v: unknown): v is ModelNotice {
-  return typeof v === "object" && v !== null && (v as { kind?: unknown }).kind === "aof-model";
+  return typeof v === "object" && v !== null && (v as { kind?: unknown }).kind === "coagentix-model";
 }
 
 export function makeModelNotice(provider: string, model: string, role: string): ModelNotice {
-  return { kind: "aof-model", provider, model, role, timestamp: new Date().toISOString() };
+  return { kind: "coagentix-model", provider, model, role, timestamp: new Date().toISOString() };
 }
 
 // ── Search sources notice (Universal Search citation system) ──────────────────
@@ -391,7 +389,7 @@ export interface Citation {
 }
 
 export interface SourcesNotice {
-  readonly kind: "aof-sources";
+  readonly kind: "coagentix-sources";
   /** The provider that ultimately served the results. */
   provider: string;
   /** The effective query that was searched. */
@@ -401,11 +399,11 @@ export interface SourcesNotice {
 }
 
 export function isSourcesNotice(v: unknown): v is SourcesNotice {
-  return typeof v === "object" && v !== null && (v as { kind?: unknown }).kind === "aof-sources";
+  return typeof v === "object" && v !== null && (v as { kind?: unknown }).kind === "coagentix-sources";
 }
 
 export function makeSourcesNotice(provider: string, query: string, sources: Citation[]): SourcesNotice {
-  return { kind: "aof-sources", provider, query, sources, retrievedAt: new Date().toISOString() };
+  return { kind: "coagentix-sources", provider, query, sources, retrievedAt: new Date().toISOString() };
 }
 
 // ── Wire protocol ─────────────────────────────────────────────────────────────
@@ -417,14 +415,14 @@ export function makeSourcesNotice(provider: string, query: string, sources: Cita
 // response instead (see `errorResponse` in the route).
 
 const NUL = String.fromCharCode(0);
-const ERR_OPEN = NUL + "AOF_ERR" + NUL;
-const ERR_CLOSE = NUL + "/AOF_ERR" + NUL;
-const FO_OPEN = NUL + "AOF_FO" + NUL;
-const FO_CLOSE = NUL + "/AOF_FO" + NUL;
-const MN_OPEN = NUL + "AOF_MN" + NUL;
-const MN_CLOSE = NUL + "/AOF_MN" + NUL;
-const SRC_OPEN = NUL + "AOF_SRC" + NUL;
-const SRC_CLOSE = NUL + "/AOF_SRC" + NUL;
+const ERR_OPEN = NUL + "CGNTX_ERR" + NUL;
+const ERR_CLOSE = NUL + "/CGNTX_ERR" + NUL;
+const FO_OPEN = NUL + "CGNTX_FO" + NUL;
+const FO_CLOSE = NUL + "/CGNTX_FO" + NUL;
+const MN_OPEN = NUL + "CGNTX_MN" + NUL;
+const MN_CLOSE = NUL + "/CGNTX_MN" + NUL;
+const SRC_OPEN = NUL + "CGNTX_SRC" + NUL;
+const SRC_CLOSE = NUL + "/CGNTX_SRC" + NUL;
 
 export function encodeErrorFrame(error: AofProviderError): string {
   return ERR_OPEN + JSON.stringify(error) + ERR_CLOSE;
@@ -539,7 +537,7 @@ export function formatUtc(iso: string): string {
   );
 }
 
-/** Render the canonical AOF_ERROR block (used in copy-to-clipboard + plain text). */
+/** Render the canonical COAGENTIX error block (used in copy-to-clipboard + plain text). */
 export function formatErrorBlock(e: AofProviderError): string {
   return [
     e.code,

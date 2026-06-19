@@ -1,4 +1,4 @@
-// ── Aof AI — Provider Health model (shared: server + client) ──────────────────
+// ── Coagentix — Provider Health model (shared: server + client) ───────────────
 // Types for the provider health-check + diagnostic status panel. The /api/health
 // route produces a `SystemHealth`; the status panel renders it. Kept free of
 // server-only imports so the UI can use the same types and helpers.

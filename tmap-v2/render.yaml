@@ -1,11 +1,10 @@
-# Render.com blueprint — deploy AOF Code server.
-# JWT_SECRET / AOF_MASTER_KEY are auto-generated (you never type secrets).
-# NOTE: free plan has ephemeral disk → the file DB (.aof-server/db.json) resets
-#       on each redeploy. For real multi-user use, switch db.ts to PostgreSQL
-#       (see AOF_CODE_TDD.md §6) or attach a paid persistent Disk.
+# Render.com blueprint — deploy Coagentix backend (tmap-v2).
+# JWT_SECRET / COAGENTIX_MASTER_KEY are auto-generated (you never type secrets).
+# NOTE: free plan has ephemeral disk — for persistent multi-user use, attach a
+#       Render Disk or switch db.ts to PostgreSQL.
 services:
   - type: web
-    name: aof-code
+    name: coagentix-backend
     runtime: node
     plan: free
     buildCommand: npm install
@@ -13,7 +12,7 @@ services:
     envVars:
       - key: JWT_SECRET
         generateValue: true
-      - key: AOF_MASTER_KEY
+      - key: COAGENTIX_MASTER_KEY
         generateValue: true
-      - key: AOF_MODE
+      - key: COAGENTIX_MODE
         value: normal

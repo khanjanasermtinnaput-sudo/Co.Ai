@@ -16,16 +16,25 @@ const jetbrains = JetBrains_Mono({
   display: "swap",
 });
 
+const SITE_URL = "https://coagentix.app";
+const OG_IMAGE = `${SITE_URL}/og-image.png`;
+
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: {
-    default: "CoAgentix — The professional AI platform",
-    template: "%s · CoAgentix",
+    default: "Coagentix — The professional AI platform",
+    template: "%s · Coagentix",
   },
   description:
-    "CoAgentix is a professional AI platform. Chat with CoAI, build software with CoAgentix Code, and manage your Projects — all in one premium workspace.",
-  applicationName: "CoAgentix",
-  keywords: ["CoAgentix", "AI platform", "CoAgentix Code", "AI assistant", "AI coding"],
-  authors: [{ name: "CoAgentix" }],
+    "Coagentix is a professional AI platform. Chat with CoAI, build software with Coagentix Code, and manage your Projects — all in one premium workspace.",
+  applicationName: "Coagentix",
+  keywords: [
+    "Coagentix", "CoAI", "Coagentix Code", "AI platform", "AI assistant",
+    "AI coding", "multi-agent AI", "AI development platform",
+  ],
+  authors: [{ name: "Coagentix", url: SITE_URL }],
+  creator: "Coagentix",
+  publisher: "Coagentix",
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [
@@ -38,8 +47,33 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "CoAgentix",
+    title: "Coagentix",
   },
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    url: SITE_URL,
+    siteName: "Coagentix",
+    title: "Coagentix — The professional AI platform",
+    description:
+      "Chat with CoAI, build software with Coagentix Code, and manage your Projects — all in one premium AI workspace.",
+    images: [{ url: OG_IMAGE, width: 1200, height: 630, alt: "Coagentix" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    site: "@coagentix",
+    creator: "@coagentix",
+    title: "Coagentix — The professional AI platform",
+    description:
+      "Chat with CoAI, build software with Coagentix Code, and manage your Projects — all in one premium AI workspace.",
+    images: [OG_IMAGE],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: { index: true, follow: true, "max-image-preview": "large" },
+  },
+  alternates: { canonical: SITE_URL },
 };
 
 export const viewport: Viewport = {

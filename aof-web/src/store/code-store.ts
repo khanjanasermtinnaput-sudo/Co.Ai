@@ -74,7 +74,7 @@ interface CodeState {
   setMode: (m: CodeMode) => void;
 
   // ── Conversation-first workflow (RAA → brief → generate) ──────────────────
-  // Aof Code discusses the project first; TMAP only runs on an explicit trigger
+  // Coagentix Code discusses the project first; TMAP only runs on an explicit trigger
   // (the Generate Code button or the /gencode command).
   convo: ChatMessageT[];
   brief: ProjectBrief | null;
@@ -148,7 +148,7 @@ function deriveBuildInput(
     .map((m) => `${m.role}: ${m.content}`)
     .join("\n");
   const firstUser = convo.find((m) => m.role === "user")?.content ?? "";
-  const task = firstUser.trim().slice(0, 120) || "project from Aof Code";
+  const task = firstUser.trim().slice(0, 120) || "project from Coagentix Code";
   return { task, context: conversationToContext(transcript), briefText: transcript };
 }
 
@@ -244,7 +244,7 @@ export const useCodeStore = create<CodeState>()(
     try {
       if (convState === "NORMAL_CHAT") {
         // ── NORMAL_CHAT: casual reply, no RAA, no brief update ────────────────
-        // Honour the shared Web Search preference so Aof Code answers can be
+        // Honour the shared Web Search preference so Coagentix Code answers can be
         // grounded in live docs/web results too (spec §3 — every mode).
         await streamCodeChat(content, history, {
           onToken: append,
@@ -497,7 +497,7 @@ export const useCodeStore = create<CodeState>()(
     }),
     {
       // Project session memory — remember the conversation, brief and mode across
-      // reloads so Aof Code doesn't re-ask what's already been decided.
+      // reloads so Coagentix Code doesn't re-ask what's already been decided.
       name: "aof.code",
       partialize: (s) => ({ convo: s.convo, brief: s.brief, mode: s.mode, projectActive: s.projectActive }),
     },

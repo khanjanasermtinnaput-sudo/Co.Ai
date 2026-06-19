@@ -1,4 +1,4 @@
-import type { ChatMessage, ResolvedProvider, ChatOpts } from '../types.js';
+import type { AnyMessage, ResolvedProvider, ChatOpts } from '../types.js';
 
 const MOCK_NOTE =
   '[mock] No API key configured. Set one in .env (run `npm run doctor`).';
@@ -10,7 +10,7 @@ const MOCK_NOTE =
  */
 export async function chat(
   provider: ResolvedProvider,
-  messages: ChatMessage[],
+  messages: AnyMessage[],
   opts: ChatOpts = {},
 ): Promise<string> {
   if (provider.mode === 'mock') {
@@ -60,8 +60,21 @@ export async function chat(
 }
 
 // Offline fallback so the pipeline still demonstrates end-to-end without keys.
-function mockReply(role: string, messages: ChatMessage[]): string {
-  const last = messages[messages.length - 1]?.content ?? '';
+function mockReply(role: string, messages: AnyMessage[]): string {
+  const rawLast = messages[messages.length - 1]?.content ?? '';
+  // Multimodal content arrives as a parts array — flatten to text for the mock.
+  const last = typeof rawLast === 'string'
+    ? rawLast
+    : rawLast.map((p) => (p.type === 'text' ? p.text : '[image]')).join(' ');
+  if (last.includes('"rawText"') || /image[_\s-]?(analysis|understanding)/i.test(last)) {
+    // Vision pipeline asked for a structured JSON read of an image.
+    return JSON.stringify({
+      rawText: `[mock] no vision model configured. ${MOCK_NOTE}`,
+      detectedLanguages: ['unknown'],
+      objects: [], scene: 'unknown', uiElements: [],
+      documentStructure: {}, confidence: 0,
+    });
+  }
   if (role === 'planner')
     return `1. entrypoint — main module\n2. core logic — feature implementation\n3. tests — basic coverage\n${MOCK_NOTE}`;
   if (role === 'coder')

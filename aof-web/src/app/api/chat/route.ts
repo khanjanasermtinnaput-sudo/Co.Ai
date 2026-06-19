@@ -1,4 +1,4 @@
-// ── Aof Chat — real LLM endpoint (server-side) ───────────────────────────────
+// ── Coagentix Chat — real LLM endpoint (server-side) ─────────────────────────
 // Provider priority: Anthropic (Claude) → OpenRouter. Every failure is detected,
 // classified into an AOF_ERROR_xxx, logged server-side, and surfaced to the user
 // — pre-stream failures as a JSON error envelope, mid-stream failures and
@@ -90,7 +90,7 @@ interface ChatBody {
   route?: RouteDecision;
   history?: ChatHistoryItem[];
   /** "chat" = general assistant; "requirements" = RAA (DISCOVERY); "code-chat" =
-   *  Aof Code NORMAL_CHAT; "code-gen"/"plan"/"analyze"/"debug" = serverless build
+   *  Coagentix Code NORMAL_CHAT; "code-gen"/"plan"/"analyze"/"debug" = serverless build
    *  pipeline (used when the tmap-v2 backend is not configured). */
   agent?: Agent;
   /** Universal Search mode: "auto" (default) | "off" | "force". */
@@ -99,7 +99,7 @@ interface ChatBody {
 
 function buildSystem(style: ResponseStyle | undefined, route: RouteDecision | undefined): string {
   const persona =
-    "You are Aof, a friendly, knowledgeable AI assistant. Have natural conversations, " +
+    "You are CoAI, a friendly, knowledgeable AI assistant. Have natural conversations, " +
     "answer general questions, explain ideas clearly, and help the user think things through. " +
     "You can use Markdown when it helps readability.";
   const language =
@@ -178,7 +178,7 @@ const TEXT_HEADERS = {
 function errorResponse(error: AofProviderError): Response {
   return new Response(JSON.stringify(error), {
     status: httpStatusFor(error.code),
-    headers: { "Content-Type": "application/json; charset=utf-8", "X-Aof-Error": error.code },
+    headers: { "Content-Type": "application/json; charset=utf-8", "X-Coagentix-Error": error.code },
   });
 }
 
@@ -201,7 +201,7 @@ export async function POST(req: Request): Promise<Response> {
   } catch (err) {
     // Last-resort guard: an unexpected throw must still become a structured error
     // envelope — never an opaque 500 the client can only render as a generic
-    // "Aof is unavailable" panel. This also logs the real stack for diagnosis.
+    // "Coagentix is unavailable" panel. This also logs the real stack for diagnosis.
     const e = err as { message?: string; status?: number; stack?: string };
     const error = classifyProviderError({
       provider: "CoAgentix",
@@ -294,7 +294,7 @@ async function handleChat(req: Request): Promise<Response> {
     error.details =
       `No AI provider is configured. Set ${allProviders()
         .map((p) => p.envVar)
-        .join(" or ")} (or save a key in Settings → API Keys) so Aof can reach a provider.`;
+        .join(" or ")} (or save a key in Settings → API Keys) so Coagentix can reach a provider.`;
     logAofError(error);
     return errorResponse(error);
   }

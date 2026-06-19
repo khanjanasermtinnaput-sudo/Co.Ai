@@ -145,7 +145,7 @@ export function ChatView() {
         <div className="mx-auto w-full max-w-3xl">
          <ComposerMascot state={mascotState}>
           <Composer
-            placeholder="Message Aof — or attach an image, PDF or code file…"
+            placeholder="Message CoAI — or attach an image, PDF or code file…"
             onSubmit={(v, atts) => void send(v, atts)}
             streaming={streaming}
             onStop={stop}
@@ -154,7 +154,7 @@ export function ChatView() {
               <div className="flex items-center gap-2">
                 <Sparkles className="size-3.5 text-primary/70" />
                 <span className="text-xs text-muted-foreground">
-                  Aof can make mistakes. Verify important info.
+                  CoAI can make mistakes. Verify important info.
                 </span>
               </div>
             }
