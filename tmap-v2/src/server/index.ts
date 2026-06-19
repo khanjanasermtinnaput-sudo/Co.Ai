@@ -747,5 +747,13 @@ export default app;
 
 if (!process.env.VERCEL) {
   const PORT = Number(process.env.PORT || 8787);
-  app.listen(PORT, () => console.log(`Coagentix → http://localhost:${PORT}`));
+  app.listen(PORT, async () => {
+    console.log(`Coagentix → http://localhost:${PORT}`);
+    // Start BullMQ workers + register scheduled jobs when Redis is configured
+    if (process.env.REDIS_URL ?? process.env.REDIS_HOST) {
+      const { startWorkers, registerScheduledJobs } = await import('./queue.js');
+      startWorkers();
+      await registerScheduledJobs();
+    }
+  });
 }
