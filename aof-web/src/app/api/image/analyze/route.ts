@@ -3,8 +3,8 @@
 //
 // Two execution paths:
 //   1. Live tmap-v2 backend → proxy to /v1/image/analyze (full 5-agent pipeline)
-//   2. Serverless (no tmap-v2) → call the vision model directly via the same
-//      provider chain used by /api/chat and return a compatible memory record
+//   2. Serverless (no tmap-v2) → direct vision API call (Anthropic → OpenRouter
+//      → Gemini) and return a compatible memory record
 //
 // The returned `memory` object is stored in the client's localStorage by
 // useImageMemoryStore so future messages can reference image context without
@@ -12,10 +12,8 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromRequest } from "@/lib/server/supabase-admin";
-import { adapterFor, isConfigured, primeAndStream } from "@/lib/server/ai-providers";
 import { checkRateLimit, applyRateLimitHeaders } from "@/lib/server/rate-limit";
-import { randomUUID } from "node:crypto";
-import { createHash } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
 
 export const maxDuration = 60;
 
@@ -35,46 +33,125 @@ const VISION_SYS = `You are the Vision Agent in Coagentix. Analyze the image com
 }
 Do not include markdown fences. Never invent text not visible in the image.`;
 
+function extractJson(text: string): Record<string, unknown> | null {
+  const match = text.match(/\{[\s\S]*\}/);
+  if (!match) return null;
+  try { return JSON.parse(match[0]) as Record<string, unknown>; } catch { return null; }
+}
+
+async function tryAnthropic(dataUrl: string, prompt: string): Promise<Record<string, unknown> | null> {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) return null;
+  const mime = dataUrl.match(/^data:([^;]+)/)?.[1] ?? "image/jpeg";
+  const b64 = dataUrl.replace(/^data:[^;]+;base64,/, "");
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": key,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: process.env.ANTHROPIC_MODEL ?? "claude-haiku-4-5-20251001",
+      max_tokens: 2000,
+      system: VISION_SYS,
+      messages: [{
+        role: "user",
+        content: [
+          { type: "text", text: prompt },
+          { type: "image", source: { type: "base64", media_type: mime, data: b64 } },
+        ],
+      }],
+    }),
+  });
+  if (!res.ok) return null;
+  const data = await res.json() as { content: Array<{ type: string; text?: string }> };
+  const text = data.content.find((b) => b.type === "text")?.text ?? "";
+  return extractJson(text);
+}
+
+async function tryOpenRouter(dataUrl: string, prompt: string): Promise<Record<string, unknown> | null> {
+  const key = process.env.OPENROUTER_API_KEY;
+  if (!key) return null;
+  // Use a vision-capable model; fall back to a known multimodal free model
+  const model = process.env.OPENROUTER_VISION_MODEL ?? "google/gemini-2.0-flash-exp:free";
+  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${key}`,
+    },
+    body: JSON.stringify({
+      model,
+      max_tokens: 2000,
+      temperature: 0.1,
+      messages: [
+        { role: "system", content: VISION_SYS },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: prompt },
+            { type: "image_url", image_url: { url: dataUrl, detail: "high" } },
+          ],
+        },
+      ],
+    }),
+  });
+  if (!res.ok) return null;
+  const data = await res.json() as { choices: Array<{ message: { content: string } }> };
+  const text = data.choices?.[0]?.message?.content ?? "";
+  return extractJson(text);
+}
+
+async function tryGemini(dataUrl: string, prompt: string): Promise<Record<string, unknown> | null> {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) return null;
+  const model = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
+  const mime = dataUrl.match(/^data:([^;]+)/)?.[1] ?? "image/jpeg";
+  const b64 = dataUrl.replace(/^data:[^;]+;base64,/, "");
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        system_instruction: { parts: [{ text: VISION_SYS }] },
+        contents: [{
+          parts: [
+            { text: prompt },
+            { inline_data: { mime_type: mime, data: b64 } },
+          ],
+        }],
+        generationConfig: { maxOutputTokens: 2000, temperature: 0.1 },
+      }),
+    },
+  );
+  if (!res.ok) return null;
+  const data = await res.json() as {
+    candidates: Array<{ content: { parts: Array<{ text: string }> } }>;
+  };
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+  return extractJson(text);
+}
+
 async function analyzeServerless(
   imageDataUrl: string,
   question: string,
 ): Promise<Record<string, unknown>> {
-  // Find a vision-capable provider
-  const visionProviders = ["anthropic", "openrouter", "gemini"];
-  for (const name of visionProviders) {
-    if (!isConfigured(name)) continue;
-    try {
-      const adapter = adapterFor(name);
-      if (!adapter) continue;
+  const prompt = "Analyze this image." + (question ? ` User context: ${question}` : "");
 
-      let text = "";
-      await primeAndStream(
-        name,
-        [
-          { role: "system", content: VISION_SYS },
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: "Analyze this image." + (question ? ` User context: ${question}` : ""),
-              },
-              { type: "image_url", image_url: { url: imageDataUrl, detail: "high" } },
-            ],
-          },
-        ],
-        { temperature: 0.1, maxTokens: 2000 },
-        (chunk) => { text += chunk; },
-      );
+  const result =
+    (await tryAnthropic(imageDataUrl, prompt).catch(() => null)) ??
+    (await tryOpenRouter(imageDataUrl, prompt).catch(() => null)) ??
+    (await tryGemini(imageDataUrl, prompt).catch(() => null));
 
-      const match = text.match(/\{[\s\S]*\}/);
-      if (match) return JSON.parse(match[0]) as Record<string, unknown>;
-    } catch { /* try next provider */ }
-  }
-  throw new Error("No vision-capable provider available. Add an API key in Settings.");
+  if (result) return result;
+  throw new Error(
+    "No vision-capable provider available. Add ANTHROPIC_API_KEY, OPENROUTER_API_KEY, or GEMINI_API_KEY in Settings.",
+  );
 }
 
-// ── Hash helper (works in both Node and Edge) ─────────────────────────────────
+// ── Hash helper ────────────────────────────────────────────────────────────────
 
 function hashBase64(b64: string): string {
   const bytes = Buffer.from(b64.replace(/^data:[^;]+;base64,/, ""), "base64");
@@ -84,13 +161,11 @@ function hashBase64(b64: string): string {
 // ── Route handler ─────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
-  // Auth
   const user = await getUserFromRequest(req);
   if (!user) {
     return NextResponse.json({ error: "Authentication required" }, { status: 401 });
   }
 
-  // Rate limit
   const rl = await checkRateLimit(user.id, "image-analyze", { requests: 20, windowMs: 60_000 });
   if (!rl.allowed) {
     const res = NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
@@ -117,9 +192,8 @@ export async function POST(req: NextRequest) {
 
   // Path 1: proxy to live tmap-v2 backend
   if (TMAP_URL) {
-    const tmapToken = req.cookies.get("tmap_token")?.value
-      ?? req.headers.get("x-tmap-token")
-      ?? "";
+    const tmapToken =
+      req.cookies.get("tmap_token")?.value ?? req.headers.get("x-tmap-token") ?? "";
     try {
       const upstream = await fetch(`${TMAP_URL}/v1/image/analyze`, {
         method: "POST",
@@ -129,10 +203,9 @@ export async function POST(req: NextRequest) {
         },
         body: JSON.stringify({ image: imageData, question }),
       });
-      const data = await upstream.json() as Record<string, unknown>;
+      const data = (await upstream.json()) as Record<string, unknown>;
       return NextResponse.json(data, { status: upstream.ok ? 200 : upstream.status });
     } catch (e) {
-      // tmap-v2 unreachable — fall through to serverless path
       console.warn("[image/analyze] tmap-v2 unreachable, falling back to serverless:", (e as Error).message);
     }
   }
@@ -140,7 +213,9 @@ export async function POST(req: NextRequest) {
   // Path 2: serverless direct vision call
   try {
     const imageHash = hashBase64(imageData);
-    const dataUrl = imageData.startsWith("data:") ? imageData : `data:image/jpeg;base64,${imageData}`;
+    const dataUrl = imageData.startsWith("data:")
+      ? imageData
+      : `data:image/jpeg;base64,${imageData}`;
 
     const result = await analyzeServerless(dataUrl, question);
 
@@ -154,8 +229,8 @@ export async function POST(req: NextRequest) {
       detailedSummary: String(result.detailedSummary ?? ""),
       reusableContext: String(result.reusableContext ?? ""),
       ocrText: String(result.ocrText ?? ""),
-      entities: Array.isArray(result.entities) ? result.entities as string[] : [],
-      keyPoints: Array.isArray(result.keyPoints) ? result.keyPoints as string[] : [],
+      entities: Array.isArray(result.entities) ? (result.entities as string[]) : [],
+      keyPoints: Array.isArray(result.keyPoints) ? (result.keyPoints as string[]) : [],
       scene: String(result.scene ?? ""),
       createdAt: new Date(now).toISOString(),
       expiresAt: new Date(now + 30 * 86_400_000).toISOString(),
