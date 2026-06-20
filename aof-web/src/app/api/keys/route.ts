@@ -27,12 +27,18 @@ function isProvider(v: unknown): v is Provider {
 /** 503 when the server lacks the env it needs, 401 when the caller isn't signed in. */
 async function requireUser(req: Request) {
   if (!isAdminConfigured()) {
+    console.error("[/api/keys] requireUser: admin Supabase not configured");
     return { error: formatError("API_500", { detail: "Keys backend not configured" }, 503) };
   }
+  const authHeader = req.headers.get("authorization") ?? req.headers.get("Authorization");
+  const tokenPrefix = authHeader?.startsWith("Bearer ") ? authHeader.slice(7, 23) : "(none)";
+  console.debug("[/api/keys] requireUser: Authorization header prefix =", tokenPrefix);
   const user = await getUserFromRequest(req);
   if (!user) {
+    console.warn("[/api/keys] requireUser: getUserFromRequest returned null — AUTH-401", { tokenPrefix });
     return { error: formatError("AUTH_401") };
   }
+  console.debug("[/api/keys] requireUser: authenticated user", user.id, user.email);
   return { user };
 }
 
