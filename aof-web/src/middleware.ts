@@ -56,8 +56,23 @@ export async function middleware(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  // If Supabase is not configured let the request through so local dev works.
-  if (!supabaseUrl || !supabaseAnonKey) return NextResponse.next();
+  // If Supabase is not configured: in development let the request through so
+  // local dev works without a backend (M-1). In production this is fail-closed —
+  // an unconfigured auth layer must NOT silently allow access to protected routes.
+  if (!supabaseUrl || !supabaseAnonKey) {
+    if (process.env.NODE_ENV === "production") {
+      if (pathname.startsWith("/api/")) {
+        return new NextResponse(
+          JSON.stringify({ error: "unavailable", message: "Auth backend not configured" }),
+          { status: 503, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      const loginUrl = new URL("/login", request.url);
+      loginUrl.searchParams.set("redirect", pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+    return NextResponse.next();
+  }
 
   const response = NextResponse.next();
 

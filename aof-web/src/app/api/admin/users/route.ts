@@ -46,6 +46,48 @@ export async function GET(req: Request) {
 
   const supabase = getAdminSupabase();
 
+  // ── Fast path (P-1): server-side filtering + pagination via RPC. ─────────────
+  // Falls back to the in-memory path below if the migration (0007) isn't applied
+  // yet or the function errors, so deploys never break the admin panel.
+  try {
+    const { data: rpcData, error: rpcErr } = await supabase.rpc("admin_list_users", {
+      p_search: search,
+      p_role: roleFilter,
+      p_plan: planFilter,
+      p_status: statusFilter,
+      p_page: page,
+      p_limit: limit,
+    });
+    if (!rpcErr && rpcData) {
+      const payload = rpcData as {
+        users: Array<{
+          id: string; email: string | null; name: string | null; avatar_url: string | null;
+          role: string; role_expires_at: string | null; plan: string; plan_expires_at: string | null;
+          banned_until: string | null; created_at: string; last_sign_in_at: string | null;
+        }>;
+        total: number;
+      };
+      const users = (payload.users ?? []).map((u) => ({
+        id: u.id,
+        email: u.email,
+        name: u.name,
+        avatarUrl: u.avatar_url,
+        role: u.role,
+        roleExpiresAt: u.role_expires_at,
+        plan: u.plan,
+        planExpiresAt: u.plan_expires_at,
+        bannedUntil: u.banned_until,
+        createdAt: u.created_at,
+        lastSignInAt: u.last_sign_in_at,
+      }));
+      const total = payload.total ?? users.length;
+      return NextResponse.json({ users, total, page, limit, totalPages: Math.ceil(total / limit) });
+    }
+    // rpcErr set (e.g. function missing) → fall through to the in-memory path.
+  } catch {
+    // Network/unexpected error → fall through to the in-memory path.
+  }
+
   // Fetch all users from auth.admin (Supabase paginates with per_page/page)
   // We load a large batch and filter client-side because auth.admin doesn't
   // support arbitrary SQL filters. For very large user bases this should be
