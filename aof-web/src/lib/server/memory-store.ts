@@ -296,7 +296,7 @@ export async function hybridSearch(
     for (const r of keyword.value) {
       if (!byId.has(r.id)) {
         // Treat keyword rank as a lower-confidence similarity score
-        byId.set(r.id, { ...r, similarity: r.rank * 0.6 });
+        byId.set(r.id, { ...r, similarity: r.rank * 0.6, metadata: {} });
       }
     }
   }
@@ -546,7 +546,7 @@ function touchMemoriesAsync(
   ids: string[]
 ): void {
   for (const id of ids) {
-    sb.rpc('touch_memory', { p_id: id }).then().catch();
+    void Promise.resolve(sb.rpc('touch_memory', { p_id: id })).then(null, () => {});
   }
 }
 

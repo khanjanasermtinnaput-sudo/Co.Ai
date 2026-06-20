@@ -18,8 +18,6 @@ export async function processTmapJob(job: Job<TmapJobData>): Promise<{ sessionId
   await publish(PubSubChannels.tmap(sessionId), { event: 'started', jobId: job.id });
 
   try {
-    // Resolve providers from credential bag
-    const { resolveAllWith } = await import('../../config.js');
     const credBag = {
       openrouter: creds.openrouter,
       gemini:     creds.gemini,
@@ -27,23 +25,27 @@ export async function processTmapJob(job: Job<TmapJobData>): Promise<{ sessionId
       qwen:       creds.qwen,
       llama:      creds.llama,
     };
-    const providers = resolveAllWith(credBag);
 
     await job.updateProgress(10);
-    await publish(PubSubChannels.tmap(sessionId), { event: 'resolving', providers: Object.keys(providers) });
+    await publish(PubSubChannels.tmap(sessionId), {
+      event: 'resolving',
+      providers: Object.keys(credBag).filter((k) => !!credBag[k as keyof typeof credBag]),
+    });
 
     // Delegate to the TMAP orchestrator
+    const { createBlackboard } = await import('../../core/blackboard.js');
     const { runTMAP } = await import('../../core/orchestrator.js');
 
-    const result = await runTMAP({
-      task,
-      mode:      mode as import('../../types.js').Mode,
-      providers,
-      onProgress: async (pct: number, phase: string) => {
-        await job.updateProgress(10 + Math.floor(pct * 0.85));
-        await publish(PubSubChannels.tmap(sessionId), { event: 'progress', phase, pct });
+    const bb = createBlackboard(task, mode as import('../../types.js').Mode);
+    bb.sessionId = sessionId;
+
+    const result = await runTMAP(
+      bb,
+      (role, text, kind = 'status') => {
+        void publish(PubSubChannels.tmap(sessionId), { event: 'progress', role, text, kind });
       },
-    });
+      { creds: credBag },
+    );
 
     await job.updateProgress(97);
 
@@ -51,7 +53,7 @@ export async function processTmapJob(job: Job<TmapJobData>): Promise<{ sessionId
     const { updateSession } = await import('../db.js');
     await updateSession(sessionId, {
       status:     'done',
-      summary:    result.plan?.slice(0, 500) ?? '',
+      summary:    result.planText?.slice(0, 500) ?? '',
       filesCount: result.files?.length ?? 0,
     });
 
@@ -59,7 +61,7 @@ export async function processTmapJob(job: Job<TmapJobData>): Promise<{ sessionId
     await publish(PubSubChannels.tmap(sessionId), {
       event:   'completed',
       jobId:   job.id,
-      summary: result.plan?.slice(0, 200) ?? '',
+      summary: result.planText?.slice(0, 200) ?? '',
     });
 
     return { sessionId };
