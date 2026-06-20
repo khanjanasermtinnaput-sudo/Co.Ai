@@ -12,7 +12,7 @@ import type { BackupManifest, BackupStatus } from '../types.js';
 const BACKUP_DIR = process.env.CGNTX_BACKUP_DIR
   ?? (process.env.VERCEL ? '/tmp/cgntx-backups' : '.coagentix-server/backups');
 
-const BACKUP_MASTER_KEY = process.env.COAGENTIX_MASTER_KEY ?? process.env.CGNTX_MASTER_KEY ?? '';
+const BACKUP_MASTER_KEY = process.env.COAGENTIX_MASTER_KEY ?? process.env.AOF_MASTER_KEY ?? '';
 
 function ensureBackupDir(): void {
   mkdirSync(BACKUP_DIR, { recursive: true });

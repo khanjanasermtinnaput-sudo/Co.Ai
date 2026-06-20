@@ -12,5 +12,5 @@ COPY src ./src
 ENV NODE_ENV=production
 EXPOSE 8787
 
-# JWT_SECRET and AOF_MASTER_KEY must be provided as environment variables.
+# JWT_SECRET and COAGENTIX_MASTER_KEY must be provided as environment variables.
 CMD ["npm", "run", "server"]
