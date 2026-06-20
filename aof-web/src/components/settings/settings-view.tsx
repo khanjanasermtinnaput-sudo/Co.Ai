@@ -46,6 +46,11 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ProviderStatusPanel } from "@/components/diagnostics/provider-status-panel";
+import {
+  SystemDiagnosticsPanel,
+  ErrorLogPanel,
+  DebugLogsPanel,
+} from "@/components/diagnostics/system-diagnostics";
 
 const PROVIDERS = [
   { id: "openrouter", label: "OpenRouter", hint: "One key powers every agent (recommended)" },
@@ -445,56 +450,16 @@ function KeysTab() {
 function DiagnosticsTab() {
   const developerMode = useDiagnosticsStore((s) => s.developerMode);
   const setDeveloperMode = useDiagnosticsStore((s) => s.setDeveloperMode);
-  const [authCheck, setAuthCheck] = useState<Record<string, unknown> | null>(null);
-  const [authChecking, setAuthChecking] = useState(false);
-
-  const runAuthCheck = async () => {
-    setAuthChecking(true);
-    setAuthCheck(null);
-    try {
-      const supabase = getSupabase();
-      const token = supabase ? (await supabase.auth.getSession()).data.session?.access_token : null;
-      const res = await fetch("/api/auth/check", {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      const json = await res.json();
-      setAuthCheck(json);
-    } catch (err) {
-      setAuthCheck({ ok: false, stage: "client-error", error: String(err) });
-    } finally {
-      setAuthChecking(false);
-    }
-  };
 
   return (
     <div className="space-y-4">
+      {/* Full system health with error codes */}
+      <SystemDiagnosticsPanel />
+
+      {/* AI provider health */}
       <ProviderStatusPanel />
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ShieldCheck className="size-4 text-primary" /> Auth Diagnostic
-          </CardTitle>
-          <CardDescription>
-            Checks whether your session token is accepted by the server. Useful for debugging 401 errors.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <Button variant="secondary" onClick={runAuthCheck} disabled={authChecking} className="gap-2">
-            <Activity className="size-4" />
-            {authChecking ? "Checking…" : "Run Auth Check"}
-          </Button>
-          {authCheck && (
-            <div className={`rounded-lg border p-3 text-xs font-mono whitespace-pre-wrap break-all ${
-              authCheck.ok ? "border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-400"
-                           : "border-destructive/30 bg-destructive/10 text-destructive"
-            }`}>
-              {JSON.stringify(authCheck, null, 2)}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
+      {/* Developer Mode toggle */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -515,6 +480,12 @@ function DiagnosticsTab() {
           <Switch checked={developerMode} onCheckedChange={setDeveloperMode} />
         </CardContent>
       </Card>
+
+      {/* Debug log category toggles */}
+      <DebugLogsPanel />
+
+      {/* In-session error log */}
+      <ErrorLogPanel />
     </div>
   );
 }
