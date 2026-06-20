@@ -17,7 +17,7 @@ export default function PrivacyPage() {
       <div className="mt-10 space-y-10 text-base leading-7">
         <Section title="1. Who we are">
           <p>
-            Coagentix ("we", "us", "our") operates the Coagentix platform at{" "}
+            Coagentix (&quot;we&quot;, &quot;us&quot;, &quot;our&quot;) operates the Coagentix platform at{" "}
             <a href="https://coagentix.app" className="text-primary hover:underline">coagentix.app</a>.
             This Privacy Policy describes how we collect, use, and protect your information when you
             use our services.
