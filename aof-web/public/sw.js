@@ -2,7 +2,7 @@
 // IMPORTANT: API and streaming endpoints (/api/*, /v1/*) are NEVER cached, so the
 // AI provider error handling (live status, no fake answers) is never masked by a
 // stale cache.
-const CACHE = "aof-cache-v1";
+const CACHE = "aof-cache-v2";
 const SHELL = ["/", "/manifest.webmanifest", "/aof-logo.png", "/icon-192.png", "/icon-512.png"];
 
 self.addEventListener("install", (event) => {
