@@ -294,15 +294,19 @@ function ThemeOption({
 }
 
 function KeysTab() {
-  const { configured } = useAuth();
+  const { configured, user, loading: authLoading } = useAuth();
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [previews, setPreviews] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
 
   // Load the masked previews of any keys already saved for this account.
+  // Wait until the auth state is fully resolved before fetching, so we never
+  // send a request without a valid session or silently swallow a "not-signed-in"
+  // error caused by a race between component mount and session initialisation.
   useEffect(() => {
-    if (!keysEnabled()) {
+    if (authLoading) return; // session not yet resolved — wait
+    if (!keysEnabled() || !user) {
       setLoading(false);
       return;
     }
@@ -312,14 +316,16 @@ function KeysTab() {
         if (!active) return;
         setPreviews(Object.fromEntries(keys.map((k) => [k.provider, k.preview])));
       })
-      .catch(() => {
-        /* not signed in yet / backend offline — just show empty inputs */
+      .catch((err) => {
+        if (!active) return;
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn("[KeysTab] loadKeys failed:", msg);
       })
       .finally(() => active && setLoading(false));
     return () => {
       active = false;
     };
-  }, []);
+  }, [authLoading, user]);
 
   const save = async (id: string) => {
     const value = drafts[id] ?? "";
@@ -386,6 +392,11 @@ function KeysTab() {
               and sign in to securely store them against your account.
             </p>
           )}
+          {configured && !authLoading && !user && (
+            <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-600 dark:text-amber-400">
+              Sign in to save your AI provider keys — they&apos;re encrypted and tied to your account.
+            </p>
+          )}
           {PROVIDERS.map((p, i) => {
             const saved = previews[p.id];
             return (
@@ -409,9 +420,9 @@ function KeysTab() {
                     placeholder={saved ? "Enter a new key to replace…" : "sk-…"}
                     value={drafts[p.id] ?? ""}
                     onChange={(e) => setDrafts((k) => ({ ...k, [p.id]: e.target.value }))}
-                    disabled={loading || busy[p.id]}
+                    disabled={loading || busy[p.id] || authLoading || (!user && configured)}
                   />
-                  <Button variant="secondary" onClick={() => save(p.id)} disabled={loading || busy[p.id]}>
+                  <Button variant="secondary" onClick={() => save(p.id)} disabled={loading || busy[p.id] || authLoading || (!user && configured)}>
                     {busy[p.id] ? "…" : saved ? "Replace" : "Save"}
                   </Button>
                   {saved && (
