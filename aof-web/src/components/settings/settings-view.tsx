@@ -31,6 +31,8 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/providers/auth-provider";
 import { getSupabase } from "@/lib/supabase/client";
 import { keysEnabled, loadKeys, saveKey, deleteKey } from "@/lib/keys";
+import { isAppError } from "@/lib/errors/api-error";
+import { showAppErrorToast, showErrorToast } from "@/components/error/error-toast";
 import { planFor, byokBonusLabel, tierAtLeast } from "@/lib/plans";
 import { usePlan } from "@/hooks/use-plan";
 import { PricingTable } from "@/components/billing/pricing-table";
@@ -348,10 +350,19 @@ function KeysTab() {
       setDrafts((d) => ({ ...d, [id]: "" }));
       toast.success(`${id} key saved`, { description: "Encrypted at rest — tied to your account." });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "unknown";
-      toast.error("Couldn't save key", {
-        description: msg === "not-signed-in" ? "Please sign in first." : msg,
-      });
+      if (isAppError(err)) {
+        showAppErrorToast(err, {
+          actionLabel: err.errorCode === "AUTH-401" ? "Sign In" : undefined,
+          onAction: err.errorCode === "AUTH-401" ? () => { window.location.href = "/login"; } : undefined,
+        });
+      } else {
+        const msg = err instanceof Error ? err.message : "unknown";
+        if (msg === "not-signed-in") {
+          showErrorToast("AUTH-401", { actionLabel: "Sign In", onAction: () => { window.location.href = "/login"; } });
+        } else {
+          toast.error("Couldn't save key", { description: msg });
+        }
+      }
     } finally {
       setBusy((b) => ({ ...b, [id]: false }));
     }
@@ -367,8 +378,12 @@ function KeysTab() {
         return next;
       });
       toast.success(`${id} key removed`);
-    } catch {
-      toast.error("Couldn't remove key");
+    } catch (err) {
+      if (isAppError(err)) {
+        showAppErrorToast(err);
+      } else {
+        showErrorToast("DB_500", { message: "Couldn't remove key." });
+      }
     } finally {
       setBusy((b) => ({ ...b, [id]: false }));
     }

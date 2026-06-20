@@ -5,6 +5,7 @@
 // save and never returned — reads only ever yield a masked preview.
 
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase/client";
+import { isAppError, parseErrorResponse } from "@/lib/errors/api-error";
 
 export interface StoredKey {
   provider: string;
@@ -59,8 +60,11 @@ export async function saveKey(provider: string, key: string): Promise<string> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ provider, key }),
   });
-  const json = (await res.json().catch(() => ({}))) as { preview?: string; error?: string };
-  if (!res.ok) throw new Error(json.error ?? `save-failed:${res.status}`);
+  if (!res.ok) {
+    const appErr = await parseErrorResponse(res);
+    throw appErr ?? new Error(`save-failed:${res.status}`);
+  }
+  const json = (await res.json().catch(() => ({}))) as { preview?: string };
   return json.preview ?? "";
 }
 
@@ -69,5 +73,8 @@ export async function deleteKey(provider: string): Promise<void> {
   const res = await authedFetch(`/api/keys?provider=${encodeURIComponent(provider)}`, {
     method: "DELETE",
   });
-  if (!res.ok) throw new Error(`delete-failed:${res.status}`);
+  if (!res.ok) {
+    const appErr = await parseErrorResponse(res);
+    throw appErr ?? new Error(`delete-failed:${res.status}`);
+  }
 }
