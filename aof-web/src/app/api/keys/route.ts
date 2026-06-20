@@ -12,6 +12,7 @@ import {
   isAdminConfigured,
 } from "@/lib/server/supabase-admin";
 import { encryptSecret, maskKey } from "@/lib/server/crypto";
+import { formatError } from "@/lib/errors/api-error";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,11 +27,11 @@ function isProvider(v: unknown): v is Provider {
 /** 503 when the server lacks the env it needs, 401 when the caller isn't signed in. */
 async function requireUser(req: Request) {
   if (!isAdminConfigured()) {
-    return { error: NextResponse.json({ error: "keys-backend-not-configured" }, { status: 503 }) };
+    return { error: formatError("API_500", { detail: "Keys backend not configured" }, 503) };
   }
   const user = await getUserFromRequest(req);
   if (!user) {
-    return { error: NextResponse.json({ error: "unauthorized" }, { status: 401 }) };
+    return { error: formatError("AUTH_401") };
   }
   return { user };
 }
@@ -44,7 +45,7 @@ export async function GET(req: Request) {
     .select("provider, key_preview, updated_at")
     .eq("user_id", user.id);
 
-  if (dbErr) return NextResponse.json({ error: "load-failed" }, { status: 500 });
+  if (dbErr) return formatError("DB_500", { detail: dbErr.message });
 
   const keys = (data ?? []).map((r) => ({
     provider: r.provider as Provider,
@@ -66,11 +67,11 @@ export async function POST(req: Request) {
   }
 
   if (!isProvider(body.provider)) {
-    return NextResponse.json({ error: "unknown-provider" }, { status: 400 });
+    return formatError("API_500", { detail: "Unknown provider" }, 400);
   }
   const key = typeof body.key === "string" ? body.key.trim() : "";
   if (key.length < 8) {
-    return NextResponse.json({ error: "key-too-short" }, { status: 400 });
+    return formatError("FILE_001", { message: "Key is too short — must be at least 8 characters.", detail: "key-too-short" }, 400);
   }
 
   const { error: dbErr } = await getAdminSupabase()
@@ -86,7 +87,7 @@ export async function POST(req: Request) {
       { onConflict: "user_id,provider" },
     );
 
-  if (dbErr) return NextResponse.json({ error: "save-failed" }, { status: 500 });
+  if (dbErr) return formatError("DB_500", { detail: dbErr.message });
   return NextResponse.json({ ok: true, provider: body.provider, preview: maskKey(key) });
 }
 
@@ -105,6 +106,6 @@ export async function DELETE(req: Request) {
     .eq("user_id", user.id)
     .eq("provider", provider);
 
-  if (dbErr) return NextResponse.json({ error: "delete-failed" }, { status: 500 });
+  if (dbErr) return formatError("DB_500", { detail: dbErr.message });
   return NextResponse.json({ ok: true });
 }
