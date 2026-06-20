@@ -4,6 +4,9 @@
 -- database. The API route calls this RPC and falls back to the in-memory path if
 -- the function is not present, so applying this migration is safe and reversible.
 --
+-- Implemented as a pure CTE (no temp table) so it is safe to call multiple times
+-- within one transaction / transaction-pooled connection.
+--
 -- SECURITY DEFINER is required to read auth.users. Execute is granted ONLY to
 -- service_role (the route uses the service-role client); anon/authenticated must
 -- never be able to call it.
@@ -16,20 +19,17 @@ create or replace function public.admin_list_users(
   p_page   int  default 1,
   p_limit  int  default 20
 ) returns jsonb
-language plpgsql
+language sql
 security definer
 set search_path = public
 as $$
-declare
-  v_limit  int := greatest(least(coalesce(p_limit, 20), 100), 1);
-  v_page   int := greatest(coalesce(p_page, 1), 1);
-  v_offset int := (v_page - 1) * v_limit;
-  v_search text := lower(coalesce(p_search, ''));
-  v_total  int;
-  v_rows   jsonb;
-begin
-  create temporary table _filtered on commit drop as
-  with base as (
+  with params as (
+    select
+      greatest(least(coalesce(p_limit, 20), 100), 1) as lim,
+      greatest(coalesce(p_page, 1), 1)               as pg,
+      lower(coalesce(p_search, ''))                  as q
+  ),
+  base as (
     select
       u.id,
       u.email,
@@ -51,32 +51,32 @@ begin
       order by granted_at desc
       limit 1
     ) s on true
+  ),
+  filtered as (
+    select b.* from base b, params p
+    where
+      ( p.q = ''
+        or lower(coalesce(b.email, '')) like '%' || p.q || '%'
+        or lower(coalesce(b.name, ''))  like '%' || p.q || '%'
+        or b.id::text                    like '%' || p.q || '%' )
+      and ( coalesce(p_role, '') = '' or b.role = p_role )
+      and ( coalesce(p_plan, '') = '' or b.plan = p_plan )
+      and ( coalesce(p_status, '') = ''
+            or (p_status = 'banned' and b.banned_until is not null)
+            or (p_status = 'active' and b.banned_until is null) )
+  ),
+  page_rows as (
+    select f.* from filtered f
+    order by f.created_at desc
+    offset (select (pg - 1) * lim from params)
+    limit  (select lim from params)
   )
-  select * from base b
-  where
-    ( v_search = ''
-      or lower(coalesce(b.email, '')) like '%' || v_search || '%'
-      or lower(coalesce(b.name, ''))  like '%' || v_search || '%'
-      or b.id::text                    like '%' || v_search || '%' )
-    and ( coalesce(p_role, '') = '' or b.role = p_role )
-    and ( coalesce(p_plan, '') = '' or b.plan = p_plan )
-    and ( coalesce(p_status, '') = ''
-          or (p_status = 'banned' and b.banned_until is not null)
-          or (p_status = 'active' and b.banned_until is null) );
-
-  select count(*) into v_total from _filtered;
-
-  select coalesce(jsonb_agg(t order by t.created_at desc), '[]'::jsonb)
-    into v_rows
-  from (
-    select * from _filtered
-    order by created_at desc
-    offset v_offset
-    limit v_limit
-  ) t;
-
-  return jsonb_build_object('users', v_rows, 'total', v_total, 'page', v_page, 'limit', v_limit);
-end;
+  select jsonb_build_object(
+    'users', coalesce((select jsonb_agg(to_jsonb(pr) order by pr.created_at desc) from page_rows pr), '[]'::jsonb),
+    'total', (select count(*) from filtered),
+    'page',  (select pg from params),
+    'limit', (select lim from params)
+  );
 $$;
 
 revoke all on function public.admin_list_users(text, text, text, text, int, int) from public, anon, authenticated;
