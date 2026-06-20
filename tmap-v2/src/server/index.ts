@@ -1502,7 +1502,32 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 
 export default app;
 
+/**
+ * Deploy preflight — assert critical secrets are present before accepting traffic.
+ * In production a missing secret aborts boot (fail-fast) so the service never runs
+ * in an insecure half-configured state; in dev it only warns so local runs work.
+ */
+function preflightEnv(): void {
+  const required: Array<{ name: string; ok: boolean }> = [
+    { name: "JWT_SECRET", ok: (process.env.JWT_SECRET?.length ?? 0) >= 16 },
+    {
+      name: "COAGENTIX_MASTER_KEY",
+      ok: ((process.env.COAGENTIX_MASTER_KEY ?? process.env.AOF_MASTER_KEY)?.length ?? 0) >= 16,
+    },
+  ];
+  const missing = required.filter((r) => !r.ok).map((r) => r.name);
+  if (missing.length === 0) return;
+
+  const msg = `[preflight] Missing/weak required env: ${missing.join(", ")} (need 16+ chars)`;
+  if (process.env.NODE_ENV === "production") {
+    console.error(`${msg} — refusing to start in production.`);
+    process.exit(1);
+  }
+  console.warn(`${msg} — continuing in non-production mode.`);
+}
+
 if (!process.env.VERCEL) {
+  preflightEnv();
   const PORT = Number(process.env.PORT || 8787);
   app.listen(PORT, async () => {
     console.log(`Coagentix → http://localhost:${PORT}`);

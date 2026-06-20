@@ -29,6 +29,11 @@ const SECURITY_HEADERS = [
 const nextConfig = {
   reactStrictMode: true,
 
+  // Enable src/instrumentation.ts (deploy preflight on server start).
+  experimental: {
+    instrumentationHook: true,
+  },
+
   async headers() {
     return [
       {
