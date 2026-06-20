@@ -120,7 +120,7 @@ test('a plan at/above 85% confidence is NOT blocked', async () => {
 });
 
 // ── REAL SELF REVIEW LOOP ─────────────────────────────────────────────────────
-test('self-review runs 5 passes and applies findings via a revision call', async () => {
+test('self-review runs 7 passes and applies findings via a revision call', async () => {
   let n = 0;
   const REVISED = PLAN_REPLY.replace('- ระบบต้อง scale ได้', '- ระบบต้อง scale ได้ (เพิ่ม rate limiting แล้ว)');
   const call = async (messages: ChatMessage[]) => {
@@ -128,23 +128,23 @@ test('self-review runs 5 passes and applies findings via a revision call', async
     if (n === 1) return PLAN_REPLY;                       // the plan turn
     const sys = messages[0].content;
     if (/Self-Review engine \(pass: Security\)/.test(sys)) return '- ควรเพิ่ม rate limiting ที่ API';
-    if (/Self-Review engine/.test(sys)) return 'OK';      // other 4 passes clean
+    if (/Self-Review engine/.test(sys)) return 'OK';      // other 6 passes clean
     return REVISED;                                       // the revision call
   };
   const events: string[] = [];
   const r = await runTitan(call, [], 'สร้างเว็บ', { emit: (_r, t) => events.push(t) });
-  assert.equal(n, 7);                                     // 1 plan + 5 passes + 1 revision
+  assert.equal(n, 9);                                     // 1 plan + 7 passes + 1 revision (Phase 4: +2 passes)
   assert.equal(r.hasPlan, true);
   assert.deepEqual(r.reviewFindings, ['[Security] ควรเพิ่ม rate limiting ที่ API']);
   assert.match(r.text, /rate limiting แล้ว/);             // revision applied
-  assert.ok(events.some((e) => /self-review pass 3\/5: Security/.test(e)));
+  assert.ok(events.some((e) => /self-review pass 5\/7: Security/.test(e)));  // Security is now pass 5/7
 });
 
 test('self-review with all passes clean leaves the plan unchanged', async () => {
   let n = 0;
   const call = async () => (++n === 1 ? PLAN_REPLY : 'OK');
   const r = await runTitan(call, [], 'สร้างเว็บ');
-  assert.equal(n, 6);                                     // 1 plan + 5 passes, no revision
+  assert.equal(n, 8);                                     // 1 plan + 7 passes, no revision (Phase 4: +2 passes)
   assert.equal(r.text, PLAN_REPLY);
   assert.equal(r.reviewFindings, undefined);
 });

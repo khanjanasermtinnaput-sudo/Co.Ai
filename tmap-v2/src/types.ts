@@ -173,6 +173,40 @@ export interface ImpactReport {
   skipped?: boolean;       // true when there was no dependency graph to analyse
 }
 
+// ── Phase 4: AI Intelligence types ───────────────────────────────────────────
+
+// Summary of one hallucination detection pass (core/hallucination-detector.ts)
+export interface Phase4HallucinationSummary {
+  detected: boolean;
+  issueCount: number;
+  confidence: number;
+  summary: string;
+}
+
+// Summary of one verification pass (core/verifier-agent.ts)
+export interface Phase4VerificationSummary {
+  passed: boolean;
+  issueCount: number;
+  summary: string;
+}
+
+// One reflection note from a failed iteration (core/reflection.ts)
+export interface Phase4ReflectionNote {
+  iterationNum: number;
+  rootCause: string;
+  patternTag: string;
+  coachingHint: string;
+  ts: number;
+}
+
+// Lightweight eval report stored on the blackboard (full report in eval-framework.ts)
+export interface Phase4EvalSummary {
+  overallScore: number;
+  grade: string;
+  passed: boolean;
+  summary: string;
+}
+
 // The Blackboard — shared working memory every agent reads/writes.
 export interface Blackboard {
   sessionId: string;
@@ -193,6 +227,12 @@ export interface Blackboard {
   log: AgentEvent[];
   agentRuns?: AgentRun[];   // which provider actually served each agent call (DARS)
   failureNotes?: string[];  // L4: validation/review failures seen this run (fed to memory)
+  // ── Phase 4 fields (all optional — won't break existing flows) ──────────────
+  p4Hallucination?: Phase4HallucinationSummary;
+  p4Verification?: Phase4VerificationSummary;
+  p4Reflections?: Phase4ReflectionNote[];
+  p4Eval?: Phase4EvalSummary;
+  p4SelfCritiqueNotes?: string[];
 }
 
 // Record of one agent call after DARS resolution (TDD §5.3 / §8 agent_logs).
@@ -249,4 +289,55 @@ export interface CostRecord {
   totalTokens: number;
   sessionCount: number;
   updatedAt: string;
+}
+
+// ── Phase 5: Sandbox & Developer Platform ─────────────────────────────────────
+
+export type SandboxLanguage = 'javascript' | 'typescript' | 'python' | 'bash';
+
+export interface SandboxInputFile {
+  path: string;
+  content: string;
+}
+
+export interface SandboxOptions {
+  language: SandboxLanguage;
+  code: string;
+  timeoutMs?: number;
+  maxOutputBytes?: number;
+  files?: SandboxInputFile[];
+}
+
+export interface SandboxResult {
+  success: boolean;
+  stdout: string;
+  stderr: string;
+  durationMs: number;
+  timedOut: boolean;
+  language: SandboxLanguage;
+  filesCreated?: string[];
+  error?: string;
+}
+
+export interface UsageQuota {
+  dailyTokens: number;
+  monthlyTokens: number;
+  dailyCostUsd: number;
+  monthlyCostUsd: number;
+  sandboxRunsPerDay: number;
+}
+
+export interface UsagePeriod {
+  tokens: number;
+  costUsd: number;
+  requests: number;
+  sandboxRuns: number;
+}
+
+export interface QuotaStatus {
+  ok: boolean;
+  reason?: string;
+  daily: UsagePeriod;
+  monthly: { tokens: number; costUsd: number; requests: number };
+  quota: UsageQuota;
 }

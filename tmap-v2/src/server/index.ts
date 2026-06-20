@@ -14,7 +14,13 @@ import {
   type ProviderKeyName,
 } from './db.js';
 import { checkLoginRate, recordFailure, recordSuccess } from './rateLimit.js';
-import { logger, incRequest, incError, incTmapRun, incTmapError, addTokens, incAgentCall, getMetrics } from './logger.js';
+import { logger, incRequest, incError, incTmapRun, incTmapError, addTokens, incAgentCall, getMetrics, incEvaluation, incSandboxRun, incQuotaViolation, incKeyRotation, incKeyValidation } from './logger.js';
+import { runInSandbox, SUPPORTED_LANGUAGES, SANDBOX_DEFAULT_TIMEOUT_MS, SANDBOX_MAX_TIMEOUT_MS, SANDBOX_DEFAULT_MAX_BYTES } from '../core/sandbox.js';
+import { checkQuota, checkSandboxQuota, recordUsage, recordSandboxRun, getUsageSummary, DEFAULT_QUOTA } from '../core/usage-tracker.js';
+import type { SandboxLanguage, SandboxOptions } from '../types.js';
+import { globalRoutingMetrics } from '../core/routing-metrics.js';
+import { evaluateOutput } from '../core/eval-framework.js';
+import type { Blackboard, CodeFile } from '../types.js';
 import { bagHasAnyKey, resolveAllWith, ROLE_PROVIDER, type CredentialBag } from '../config.js';
 import { createBlackboard } from '../core/blackboard.js';
 import { runTMAP } from '../core/orchestrator.js';
@@ -57,6 +63,11 @@ app.use((_req, res, next) => {
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
   res.setHeader('Cross-Origin-Resource-Policy', 'same-site');
+  // Content-Security-Policy: API-only server; no inline scripts/styles needed.
+  res.setHeader(
+    'Content-Security-Policy',
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'",
+  );
   if (process.env.NODE_ENV === 'production') {
     res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
   }
@@ -180,7 +191,11 @@ app.post('/v1/auth/login', async (req, res) => {
     }
 
     const user = uname ? await findUserByUsername(uname) : undefined;
-    if (!user || !verifyPassword(String(pin ?? '').trim(), user.pinHash)) {
+    // Always call verifyPassword (even when user not found) to prevent timing
+    // side-channel attacks that reveal whether a username exists.
+    const DUMMY_HASH = 'scrypt$' + '0'.repeat(32) + '$' + '0'.repeat(128);
+    const pinMatch = verifyPassword(String(pin ?? '').trim(), user?.pinHash ?? DUMMY_HASH);
+    if (!user || !pinMatch) {
       if (uname) {
         const info = recordFailure(uname, clientIp);
         await logAuditEvent({
@@ -794,6 +809,245 @@ app.get('/v1/metrics/prometheus', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }
+});
+
+// ── PHASE 4: AI INTELLIGENCE ENDPOINTS ───────────────────────────────────────
+
+// GET /v1/routing-metrics — adaptive routing performance data (auth required)
+app.get('/v1/routing-metrics', requireAuth, (_req: AuthedRequest, res) => {
+  res.json(globalRoutingMetrics.snapshot());
+});
+
+// POST /v1/evaluate — run the AI evaluation framework on provided output
+// Body: { task: string, files?: [{path,language,content}], reviewText?: string, iterations?: number }
+app.post('/v1/evaluate', requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    const { task, files, reviewText, iterations } = req.body ?? {};
+    if (!task || typeof task !== 'string') {
+      return res.status(400).json({ error: 'task (string) required' });
+    }
+    if (tooLong(task, MAX_TASK)) {
+      return res.status(413).json({ error: 'task too long' });
+    }
+
+    const u = req.user!;
+    // Build CredentialBag from the user's stored (encrypted) keys
+    const creds: CredentialBag = {};
+    for (const p of PROVIDERS) {
+      if (u.encryptedKeys[p]) (creds as Record<string, string>)[p] = decryptSecret(u.encryptedKeys[p]!);
+    }
+    if (!bagHasAnyKey(creds)) {
+      return res.status(402).json({ error: 'No AI API key configured. Add a key in settings.' });
+    }
+
+    const evalBb: Blackboard = {
+      sessionId: `eval-${Date.now()}`,
+      task: String(task).slice(0, MAX_TASK),
+      mode: 'normal',
+      context: '',
+      plan: [], planText: '',
+      files: Array.isArray(files) ? (files as CodeFile[]) : [],
+      review: [], reviewText: typeof reviewText === 'string' ? reviewText : '',
+      validations: [],
+      iterations: Number(iterations ?? 1),
+      log: [],
+    };
+
+    const ctx = { creds, health: globalHealth, emit: () => {}, sessionId: evalBb.sessionId };
+    const call = async (messages: import('../types.js').ChatMessage[]) => {
+      const r = await chatWithDARS('reviewer', messages, { temperature: 0.1 }, ctx);
+      return r.text;
+    };
+
+    const report = await evaluateOutput(call, evalBb, {
+      includeHallucination: true,
+      includeVerification: true,
+    });
+
+    incEvaluation();
+    logger.info('evaluation_run', { sessionId: evalBb.sessionId, score: report.overallScore, grade: report.grade });
+    return res.json(report);
+  } catch (e) {
+    logger.error('evaluation_error', { error: (e as Error).message });
+    return res.status(500).json({ error: 'evaluation failed' });
+  }
+});
+
+// GET /v1/benchmark/results — returns the last routing metrics snapshot as a
+// lightweight benchmark proxy (no real TMAP runs to avoid cost/latency).
+app.get('/v1/benchmark/results', requireAuth, (_req: AuthedRequest, res) => {
+  const snap = globalRoutingMetrics.snapshot();
+  const passRate = snap.metrics.length > 0
+    ? Math.round(snap.metrics.filter((m) => m.successRate >= 0.7).length / snap.metrics.length * 100)
+    : null;
+  res.json({
+    routingMetrics: snap.metrics,
+    summary: {
+      totalObservations: snap.records.length,
+      providerCount: snap.metrics.length,
+      avgSuccessRate: snap.metrics.length
+        ? Math.round(snap.metrics.reduce((s, m) => s + m.successRate, 0) / snap.metrics.length * 100) / 100
+        : null,
+      passRate,
+    },
+    ts: snap.ts,
+  });
+});
+
+// ── PHASE 5: SANDBOX & DEVELOPER PLATFORM ────────────────────────────────────
+
+// GET /v1/sandbox/capabilities — no auth; describes what the sandbox can run
+app.get('/v1/sandbox/capabilities', (_req, res) => {
+  res.json({
+    languages: SUPPORTED_LANGUAGES,
+    limits: {
+      defaultTimeoutMs: SANDBOX_DEFAULT_TIMEOUT_MS,
+      maxTimeoutMs: SANDBOX_MAX_TIMEOUT_MS,
+      defaultMaxOutputBytes: SANDBOX_DEFAULT_MAX_BYTES,
+      maxInputBytes: 100_000,
+    },
+    note: 'bash/shell execution is always rejected for security reasons.',
+  });
+});
+
+// POST /v1/sandbox/run — execute code in the secure sandbox
+// Body: { language, code, timeoutMs?, maxOutputBytes?, files? }
+app.post('/v1/sandbox/run', requireAuth, async (req: AuthedRequest, res) => {
+  const { language, code, timeoutMs, maxOutputBytes, files } = req.body ?? {};
+
+  if (!language || !SUPPORTED_LANGUAGES.includes(language as SandboxLanguage)) {
+    return res.status(400).json({
+      error: `language must be one of: ${SUPPORTED_LANGUAGES.join(', ')}`,
+    });
+  }
+  if (!code || typeof code !== 'string') {
+    return res.status(400).json({ error: 'code (string) required' });
+  }
+  if (Buffer.byteLength(code, 'utf8') > 100_000) {
+    return res.status(413).json({ error: 'code too large (max 100 000 bytes)' });
+  }
+
+  const u = req.user!;
+  const sbQuota = checkSandboxQuota(u.id);
+  if (!sbQuota.ok) {
+    incQuotaViolation();
+    return res.status(429).json({ error: sbQuota.reason });
+  }
+
+  const sbOpts: SandboxOptions = {
+    language: language as SandboxLanguage,
+    code,
+    timeoutMs: typeof timeoutMs === 'number' ? timeoutMs : undefined,
+    maxOutputBytes: typeof maxOutputBytes === 'number' ? maxOutputBytes : undefined,
+    files: Array.isArray(files) ? files : undefined,
+  };
+
+  const result = await runInSandbox(sbOpts);
+  recordSandboxRun(u.id);
+  incSandboxRun(!result.success);
+  logger.info('sandbox_run', {
+    user: u.username, language, success: result.success,
+    durationMs: result.durationMs, timedOut: result.timedOut,
+  });
+
+  return res.json(result);
+});
+
+// GET /v1/me/usage — detailed usage summary for the authenticated user
+app.get('/v1/me/usage', requireAuth, (req: AuthedRequest, res) => {
+  const summary = getUsageSummary(req.user!.id);
+  res.json(summary);
+});
+
+// GET /v1/me/quota — current quota status (are any limits exceeded?)
+app.get('/v1/me/quota', requireAuth, (req: AuthedRequest, res) => {
+  const status = checkQuota(req.user!.id);
+  res.json(status);
+});
+
+// POST /v1/me/keys/rotate — re-encrypt a stored key with a fresh IV.
+// This does NOT generate a new key at the provider — it just refreshes the
+// local ciphertext (useful as part of a key hygiene rotation procedure).
+app.post('/v1/me/keys/rotate', requireAuth, async (req: AuthedRequest, res) => {
+  const { provider } = req.body ?? {};
+  const u = req.user!;
+  if (!PROVIDERS.includes(provider)) {
+    return res.status(400).json({ error: `provider must be one of: ${PROVIDERS.join(', ')}` });
+  }
+  if (!u.encryptedKeys[provider as ProviderKeyName]) {
+    return res.status(404).json({ error: 'No key stored for this provider' });
+  }
+  try {
+    const plain = decryptSecret(u.encryptedKeys[provider as ProviderKeyName]!);
+    await setUserKey(u.id, provider as ProviderKeyName, encryptSecret(plain));
+    incKeyRotation();
+    logger.info('key_rotated', { user: u.username, provider });
+    return res.json({ ok: true, provider });
+  } catch {
+    return res.status(500).json({ error: 'Key rotation failed' });
+  }
+});
+
+// POST /v1/me/keys/validate — structural validation of a stored or provided key.
+// Does NOT make a live API call (avoids latency/cost); checks key format only.
+app.post('/v1/me/keys/validate', requireAuth, async (req: AuthedRequest, res) => {
+  const { provider, key: rawKey } = req.body ?? {};
+  const u = req.user!;
+  if (!PROVIDERS.includes(provider)) {
+    return res.status(400).json({ error: `provider must be one of: ${PROVIDERS.join(', ')}` });
+  }
+
+  let plain: string;
+  try {
+    if (rawKey && typeof rawKey === 'string') {
+      plain = rawKey.trim();
+    } else if (u.encryptedKeys[provider as ProviderKeyName]) {
+      plain = decryptSecret(u.encryptedKeys[provider as ProviderKeyName]!);
+    } else {
+      return res.status(404).json({ error: 'No key stored for this provider and none provided' });
+    }
+  } catch {
+    incKeyValidation(false);
+    return res.status(400).json({ valid: false, error: 'Could not read stored key' });
+  }
+
+  // Structural format checks (no live API call)
+  const validations: Record<string, (k: string) => boolean> = {
+    openrouter: (k) => k.startsWith('sk-or-') && k.length >= 20,
+    gemini:     (k) => k.startsWith('AIza') && k.length >= 20,
+    deepseek:   (k) => k.startsWith('sk-') && k.length >= 20,
+    qwen:       (k) => k.length >= 16,
+    llama:      (k) => k.length >= 16,
+  };
+
+  const validator = validations[provider] ?? ((k: string) => k.length >= 8);
+  const valid = validator(plain);
+  incKeyValidation(valid);
+  logger.info('key_validated', { user: u.username, provider, valid });
+  return res.json({ valid, provider, masked: maskKey(plain) });
+});
+
+// GET /v1/developer/health — extended health dump for developers/integrators
+app.get('/v1/developer/health', requireAuth, (_req: AuthedRequest, res) => {
+  const health = globalHealth.snapshot();
+  const metrics = getMetrics();
+  const quota = DEFAULT_QUOTA;
+  res.json({
+    status: 'ok',
+    uptime: metrics.uptimeSec,
+    darsHealth: health,
+    metrics: {
+      requests: metrics.requests,
+      tmapRuns: metrics.tmapRuns,
+      sandboxRuns: metrics.sandboxRuns,
+      evaluationsRun: metrics.evaluationsRun,
+    },
+    sandbox: {
+      supported: SUPPORTED_LANGUAGES,
+      defaultTimeoutMs: SANDBOX_DEFAULT_TIMEOUT_MS,
+    },
+    defaultQuota: quota,
+  });
 });
 
 // ── static ────────────────────────────────────────────────────────────────────

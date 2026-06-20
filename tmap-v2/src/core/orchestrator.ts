@@ -1,5 +1,5 @@
 import { bagFromEnv, type CredentialBag } from '../config.js';
-import type { Blackboard, ReviewIssue, Role, LLMCall } from '../types.js';
+import type { Blackboard, ReviewIssue, Role, LLMCall, TaskCategory } from '../types.js';
 import { runPlanner, runCoder, runReviewer } from './agents.js';
 import { validateFiles } from './validator.js';
 import { logEvent, persist } from './blackboard.js';
@@ -13,6 +13,12 @@ import { analyzeImpact, impactToContext } from './impact.js';
 import { runDocumenter } from './documenter.js';
 import type { DependencyGraph } from './context-engine.js';
 import { runCoderVote, letter } from './vote.js';
+// ── Phase 4: AI Intelligence imports ─────────────────────────────────────────
+import { detectHallucinations } from './hallucination-detector.js';
+import { selfCritiquePlan, selfCritiqueCode } from './self-critique.js';
+import { reflect, buildCoachingFromReflections, type ReflectionNote } from './reflection.js';
+import { verifyCodeFiles } from './verifier-agent.js';
+import { globalRoutingMetrics } from './routing-metrics.js';
 
 type Emit = (role: string, text: string, kind?: 'status' | 'output' | 'error') => void;
 
@@ -141,9 +147,26 @@ export async function runTMAP(
 
   const ctx: DarsContext = { creds, health, emit, sessionId: bb.sessionId };
 
+  // Phase 4: track which category the current run falls into for routing metrics
+  let p4Category: TaskCategory = 'coding';
+
   const callFor = (role: Role): LLMCall => async (messages, opts = {}) => {
     const startMs = Date.now();
-    const r = await chatWithDARS(role, messages, opts, ctx);
+    let success = true;
+    let r: Awaited<ReturnType<typeof chatWithDARS>>;
+    try {
+      r = await chatWithDARS(role, messages, opts, ctx);
+    } catch (e) {
+      success = false;
+      // Record failure before re-throwing
+      globalRoutingMetrics.record({
+        ts: Date.now(), role, provider: 'unknown', model: 'unknown',
+        category: p4Category, durationMs: Date.now() - startMs,
+        success: false, hallucinationDetected: false,
+        failureReason: (e as Error).message,
+      });
+      throw e;
+    }
     const durationMs = Date.now() - startMs;
 
     const inputTokens = estimateTokens(messages.reduce((s, m) => s + m.content, ''));
@@ -161,6 +184,17 @@ export async function runTMAP(
     await runOpts.onAgentCall?.(bb.sessionId, {
       role, provider: r.provider.providerName, model: r.provider.model,
       attempts: r.attempts, inputTokens, outputTokens, costUsd, durationMs,
+    });
+
+    // Phase 4: record routing outcome (hallucination flag updated later by detector)
+    globalRoutingMetrics.record({
+      ts: Date.now(), role,
+      provider: r.provider.providerName,
+      model: r.provider.model,
+      category: p4Category,
+      durationMs,
+      success,
+      hallucinationDetected: false, // updated by detector after code generation
     });
 
     return r.text;
@@ -223,6 +257,19 @@ export async function runTMAP(
     logEvent(bb, { role: 'planner', type: 'output', text: plan.raw });
     emit('planner', plan.raw, 'output');
 
+    // 1a) PHASE 4 — PLAN SELF-CRITIQUE (normal/pro, non-blocking)
+    if (smart) {
+      try {
+        const planCritique = await selfCritiquePlan(callFor('planner'), bb.task, bb.planText);
+        if (!planCritique.pass && planCritique.issues.length) {
+          bb.p4SelfCritiqueNotes = planCritique.issues;
+          emit('planner', `self-critique (${planCritique.severity}): ${planCritique.issues.join('; ')}`, 'status');
+        } else {
+          emit('planner', 'plan self-critique: OK', 'status');
+        }
+      } catch { /* non-fatal — self-critique is advisory only */ }
+    }
+
     // Plan-only mode: stop here, before any code generation.
     if (runOpts.planOnly) {
       emit('system', 'plan ready — generation skipped (plan-only)', 'status');
@@ -230,23 +277,62 @@ export async function runTMAP(
     }
 
     let critique: string | undefined;
+    const p4Reflections: ReflectionNote[] = [];
 
     for (let iter = 0; ; iter++) {
       bb.iterations = iter + 1;
 
-      // 2) CODE — pro mode uses voting (2 coders, reviewer picks best)
+      // 2) CODE — pro mode uses voting (3 coders, reviewer picks best)
       const useVoting = bb.mode === 'pro' && iter === 0;
       if (useVoting) {
         emit('coder', `generating code with consensus vote (${label('coder')} × 3)`, 'status');
         const vote = await runCoderVote(callFor('coder'), callFor('reviewer'), bb, critique);
         bb.files = vote.files;
-        emit('coder', `vote winner: candidate ${letter(vote.winnerIndex)}/${vote.candidateCount} — ${vote.reason}`, 'status');
+        const scoreInfo = vote.consensusScore != null ? ` · consensus score: ${vote.consensusScore}/10` : '';
+        emit('coder', `vote winner: candidate ${letter(vote.winnerIndex)}/${vote.candidateCount} — ${vote.reason}${scoreInfo}`, 'status');
       } else {
         emit('coder', `${iter === 0 ? 'generating code' : `revising (iteration ${iter + 1})`} (${label('coder')})`, 'status');
         bb.files = await runCoder(callFor('coder'), bb, critique);
       }
       logEvent(bb, { role: 'coder', type: 'output', text: bb.files.map((f) => f.path).join(', ') });
       emit('coder', `produced ${bb.files.length} file(s): ${bb.files.map((f) => f.path).join(', ')}`, 'output');
+
+      // 2a) PHASE 4 — CODE SELF-CRITIQUE (smart, first iteration only to avoid double cost)
+      if (smart && iter === 0 && bb.files.length > 0) {
+        try {
+          const codeCritique = await selfCritiqueCode(callFor('coder'), bb.task, bb.files, bb.planText);
+          if (!codeCritique.pass && codeCritique.severity !== 'minor' && codeCritique.issues.length) {
+            const extraCritique = `Code self-critique issues:\n${codeCritique.issues.map((i) => `- ${i}`).join('\n')}`;
+            critique = critique ? `${critique}\n\n${extraCritique}` : extraCritique;
+            emit('coder', `self-critique (${codeCritique.severity}): ${codeCritique.issues.length} issue(s)`, 'status');
+          } else {
+            emit('coder', 'code self-critique: OK', 'status');
+          }
+        } catch { /* non-fatal */ }
+      }
+
+      // 2b) PHASE 4 — HALLUCINATION DETECTION (static, always in smart mode)
+      if (smart && bb.files.length > 0) {
+        try {
+          const hReport = detectHallucinations(bb.files);
+          bb.p4Hallucination = {
+            detected: hReport.detected,
+            issueCount: hReport.issues.length,
+            confidence: hReport.confidence,
+            summary: hReport.summary,
+          };
+          if (hReport.detected) {
+            emit('validator', `hallucination detector: ${hReport.summary}`, 'error');
+            const highIssues = hReport.issues.filter((i) => i.severity === 'HIGH');
+            if (highIssues.length) {
+              const hallucinationCritique = `Hallucination issues found:\n${highIssues.map((i) => `- [${i.type}] ${i.file}: ${i.description}`).join('\n')}`;
+              critique = critique ? `${critique}\n\n${hallucinationCritique}` : hallucinationCritique;
+            }
+          } else {
+            emit('validator', `hallucination detector: ${hReport.summary}`, 'status');
+          }
+        } catch { /* non-fatal */ }
+      }
 
       // 3) VALIDATE
       emit('validator', 'validating (grounded)', 'status');
@@ -256,6 +342,19 @@ export async function runTMAP(
         emit('validator', `${v.passed ? 'PASS' : 'FAIL'} — ${v.logs}`, v.passed ? 'output' : 'error');
       }
       const validationFailed = bb.validations.some((v) => !v.passed);
+
+      // 3a) PHASE 4 — SEMANTIC VERIFICATION (static, smart mode)
+      if (smart && bb.files.length > 0) {
+        try {
+          const vReport = verifyCodeFiles(bb.files);
+          bb.p4Verification = {
+            passed: vReport.passed,
+            issueCount: vReport.issues.length,
+            summary: vReport.summary,
+          };
+          emit('validator', `verifier: ${vReport.summary}`, vReport.passed ? 'status' : 'error');
+        } catch { /* non-fatal */ }
+      }
 
       // 4) REVIEW
       emit('reviewer', `reviewing (${label('reviewer')})`, 'status');
@@ -276,7 +375,30 @@ export async function runTMAP(
       }
 
       if (iter < maxIter && (validationFailed || blocking.length)) {
-        critique = buildCritique(bb.validations.filter((v) => !v.passed).map((v) => v.logs), blocking);
+        // 4a) PHASE 4 — REFLECTION (smart mode: diagnose why and generate coaching)
+        if (smart) {
+          try {
+            const note = await reflect(callFor('planner'), bb, iter);
+            p4Reflections.push(note);
+            bb.p4Reflections = p4Reflections.map((n) => ({
+              iterationNum: n.iterationNum,
+              rootCause: n.rootCause,
+              patternTag: n.patternTag,
+              coachingHint: n.coachingHint,
+              ts: n.ts,
+            }));
+            if (note.coachingHint) {
+              emit('system', `reflection: ${note.rootCause} [${note.patternTag}]`, 'status');
+            }
+            const coaching = buildCoachingFromReflections(p4Reflections);
+            critique = [coaching, buildCritique(bb.validations.filter((v) => !v.passed).map((v) => v.logs), blocking)]
+              .filter(Boolean).join('\n\n');
+          } catch {
+            critique = buildCritique(bb.validations.filter((v) => !v.passed).map((v) => v.logs), blocking);
+          }
+        } else {
+          critique = buildCritique(bb.validations.filter((v) => !v.passed).map((v) => v.logs), blocking);
+        }
         emit('system', `issues found — looping back to Coder (iteration ${iter + 2}/${maxIter + 1})`, 'status');
         continue;
       }

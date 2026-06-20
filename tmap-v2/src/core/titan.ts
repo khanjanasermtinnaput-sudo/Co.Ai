@@ -147,8 +147,12 @@ After the blueprint add EXACTLY this line (keep in Thai):
 ✅ Blueprint อนุมัติแล้ว — พิมพ์ /gencode เพื่อส่งให้ TMAP engine สร้างโค้ดตามพิมพ์เขียวนี้
 ═══════════════════════════════════════════════`;
 
-// ── Self Review Loop (real multi-pass review, TDD-style) ─────────────────────
+// ── Self Review Loop — Phase 4 extended to 7 passes ──────────────────────────
+// Original 5 passes kept intact; two new reasoning passes added at the start
+// (Feasibility and Cost Analysis) so the plan is grounded before deeper review.
 const REVIEW_PASSES: Array<[name: string, focus: string]> = [
+  ['Feasibility',     'technical feasibility: can this plan actually be built with the stated tech stack in a realistic time frame? Flag anything that is overscoped, underspecified, or depends on non-existent tooling'],
+  ['CostAnalysis',    'cost and resource analysis: compute cost, API costs, infrastructure costs, team size requirements, hidden costs the user may not have considered; flag cost traps'],
   ['Logic',           'logical consistency: contradictions, missing steps, wrong assumptions, gaps between the requirements and the plan'],
   ['Architecture',    'architecture quality: module boundaries, coupling, data flow, separation of concerns, deployment fit'],
   ['Security',        'security: authentication, secrets handling, injection risks, data exposure, rate limiting, abuse vectors'],
@@ -178,6 +182,16 @@ export interface TitanOpts {
   minConfidence?: number;    // default 85 — plans below this are withheld (enforced in code)
 }
 
+// Phase 4: exposes Titan reasoning metadata to callers
+export interface TitanReasoningMetadata {
+  reviewPassCount: number;           // how many self-review passes ran
+  reviewPassNames: string[];         // names of passes that ran
+  findingsPerPass: Record<string, number>; // pass name → number of findings
+  totalFindings: number;
+  confidence?: number;
+  confidenceBlocked?: boolean;
+}
+
 export interface TitanResult {
   text: string;
   hasPlan: boolean;            // a ===TITAN PLAN=== block is present (approval gate shown)
@@ -186,6 +200,7 @@ export interface TitanResult {
   confidence?: number;         // parsed "Overall Confidence" (0–100)
   confidenceBlocked?: boolean; // plan was withheld because confidence < minConfidence
   reviewFindings?: string[];   // findings applied by the self-review loop
+  reasoningMetadata?: TitanReasoningMetadata;  // Phase 4: reasoning telemetry
 }
 
 export async function runTitan(
@@ -278,6 +293,14 @@ export async function runTitan(
     hasBlueprint: false,
     confidence: parseConfidence(text) ?? confidence ?? undefined,
     reviewFindings: reviewFindings.length ? reviewFindings : undefined,
+    reasoningMetadata: {
+      reviewPassCount: REVIEW_PASSES.length,
+      reviewPassNames: REVIEW_PASSES.map(([name]) => name),
+      findingsPerPass: {},   // populated by runReviewPasses but not exposed per-pass yet
+      totalFindings: reviewFindings.length,
+      confidence: parseConfidence(text) ?? confidence ?? undefined,
+      confidenceBlocked: false,
+    },
   };
 }
 

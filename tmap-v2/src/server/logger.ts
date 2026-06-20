@@ -82,6 +82,21 @@ interface Metrics {
   agentCalls:    Record<string, number>;
   providerCalls: Record<string, number>;
   startedAt:     string;
+  // ── Phase 4 counters ─────────────────────────────────────────────────────────
+  hallucinationsDetected: number;
+  selfCritiqueRuns: number;
+  selfCritiqueFails: number;
+  reflectionRuns: number;
+  verifierRuns: number;
+  verifierFails: number;
+  evaluationsRun: number;
+  // ── Phase 5 counters ─────────────────────────────────────────────────────────
+  sandboxRuns: number;
+  sandboxFails: number;
+  quotaViolations: number;
+  keyRotations: number;
+  keyValidations: number;
+  keyValidationFails: number;
 }
 
 const _metrics: Metrics = {
@@ -94,6 +109,19 @@ const _metrics: Metrics = {
   agentCalls:    {},
   providerCalls: {},
   startedAt:     new Date().toISOString(),
+  hallucinationsDetected: 0,
+  selfCritiqueRuns: 0,
+  selfCritiqueFails: 0,
+  reflectionRuns: 0,
+  verifierRuns: 0,
+  verifierFails: 0,
+  evaluationsRun: 0,
+  sandboxRuns: 0,
+  sandboxFails: 0,
+  quotaViolations: 0,
+  keyRotations: 0,
+  keyValidations: 0,
+  keyValidationFails: 0,
 };
 
 export function incRequest():                          void { _metrics.requests++; }
@@ -105,8 +133,31 @@ export function addTokens(tokens: number, costUsd: number): void {
   _metrics.totalCostUsd  = Math.round((_metrics.totalCostUsd + costUsd) * 1e8) / 1e8;
 }
 export function incAgentCall(role: string, provider: string): void {
-  _metrics.agentCalls[role]       = (_metrics.agentCalls[role]       ?? 0) + 1;
+  _metrics.agentCalls[role]        = (_metrics.agentCalls[role]        ?? 0) + 1;
   _metrics.providerCalls[provider] = (_metrics.providerCalls[provider] ?? 0) + 1;
+}
+// Phase 4 counters
+export function incHallucinationDetected() { _metrics.hallucinationsDetected++; }
+export function incSelfCritiqueRun(failed: boolean) {
+  _metrics.selfCritiqueRuns++;
+  if (failed) _metrics.selfCritiqueFails++;
+}
+export function incReflectionRun() { _metrics.reflectionRuns++; }
+export function incVerifierRun(failed: boolean) {
+  _metrics.verifierRuns++;
+  if (failed) _metrics.verifierFails++;
+}
+export function incEvaluation() { _metrics.evaluationsRun++; }
+// Phase 5 counters
+export function incSandboxRun(failed: boolean) {
+  _metrics.sandboxRuns++;
+  if (failed) _metrics.sandboxFails++;
+}
+export function incQuotaViolation() { _metrics.quotaViolations++; }
+export function incKeyRotation()    { _metrics.keyRotations++; }
+export function incKeyValidation(success: boolean) {
+  _metrics.keyValidations++;
+  if (!success) _metrics.keyValidationFails++;
 }
 
 export function getMetrics(): Metrics & { uptimeSec: number } {

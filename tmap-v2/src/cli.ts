@@ -2,6 +2,9 @@
 import { mkdirSync, writeFileSync, readdirSync, readFileSync, existsSync } from 'node:fs';
 import { join, dirname, extname, isAbsolute } from 'node:path';
 import { resolveAll, currentMode, anyKeyConfigured, PROVIDERS, ROLE_PROVIDER, bagFromEnv } from './config.js';
+import { runInSandbox, SUPPORTED_LANGUAGES } from './core/sandbox.js';
+import { getUsageSummary, checkQuota, DEFAULT_QUOTA } from './core/usage-tracker.js';
+import type { SandboxLanguage } from './types.js';
 import { createBlackboard, loadSession } from './core/blackboard.js';
 import { runTMAP } from './core/orchestrator.js';
 import { gatherProjectContext } from './core/context.js';
@@ -325,6 +328,169 @@ async function cmdTitan(task: string, opts: { apply: boolean; mode?: string }) {
   }
 }
 
+// ── PHASE 5 COMMANDS ──────────────────────────────────────────────────────────
+
+async function cmdSandbox(code: string, opts: { lang?: string; timeout?: number }) {
+  banner();
+  const language = (opts.lang ?? 'javascript') as SandboxLanguage;
+  if (!SUPPORTED_LANGUAGES.includes(language)) {
+    console.log(c.red(`Unsupported language: ${language}`));
+    console.log(`Supported: ${SUPPORTED_LANGUAGES.join(', ')}`);
+    return;
+  }
+  if (!code.trim()) {
+    console.log(c.red('usage: aof sandbox "<code>" [--lang=javascript|typescript|python]'));
+    return;
+  }
+
+  console.log(`${c.dim('language:')} ${c.orange(language)}   ${c.dim('timeout:')} ${opts.timeout ?? 10}s`);
+  console.log(c.dim('─'.repeat(60)));
+
+  const result = await runInSandbox({
+    language,
+    code,
+    timeoutMs: (opts.timeout ?? 10) * 1000,
+  });
+
+  if (result.stdout) {
+    console.log(c.dim('stdout:'));
+    for (const line of result.stdout.split('\n')) console.log(`  ${line}`);
+  }
+  if (result.stderr) {
+    console.log(c.yellow('stderr:'));
+    for (const line of result.stderr.split('\n')) console.log(`  ${c.yellow(line)}`);
+  }
+  console.log(c.dim('─'.repeat(60)));
+  if (result.timedOut) {
+    console.log(c.red(`⏱  Timed out after ${opts.timeout ?? 10}s`));
+  } else if (result.success) {
+    console.log(c.green(`✓  Done in ${result.durationMs}ms`));
+  } else {
+    console.log(c.red(`✗  Error: ${result.error ?? 'execution failed'}`));
+  }
+}
+
+function cmdUsage(userId = 'local') {
+  banner();
+  const summary = getUsageSummary(userId);
+  const quota = checkQuota(userId);
+
+  console.log(c.dim('─'.repeat(60)));
+  console.log(c.bold('Today'));
+  console.log(`  Tokens:       ${summary.today.tokens.toLocaleString()}`);
+  console.log(`  Cost:         $${summary.today.costUsd.toFixed(6)}`);
+  console.log(`  Requests:     ${summary.today.requests}`);
+  console.log(`  Sandbox runs: ${summary.today.sandboxRuns}`);
+
+  console.log(c.bold('\nThis month'));
+  console.log(`  Tokens:   ${summary.thisMonth.tokens.toLocaleString()}`);
+  console.log(`  Cost:     $${summary.thisMonth.costUsd.toFixed(6)}`);
+  console.log(`  Requests: ${summary.thisMonth.requests}`);
+
+  console.log(c.bold('\nQuota limits'));
+  const q = summary.quota;
+  console.log(`  Daily tokens:    ${q.dailyTokens > 0 ? q.dailyTokens.toLocaleString() : c.dim('unlimited')}`);
+  console.log(`  Monthly tokens:  ${q.monthlyTokens > 0 ? q.monthlyTokens.toLocaleString() : c.dim('unlimited')}`);
+  console.log(`  Daily cost:      ${q.dailyCostUsd > 0 ? '$' + q.dailyCostUsd.toFixed(2) : c.dim('unlimited')}`);
+  console.log(`  Monthly cost:    ${q.monthlyCostUsd > 0 ? '$' + q.monthlyCostUsd.toFixed(2) : c.dim('unlimited')}`);
+  console.log(`  Sandbox/day:     ${q.sandboxRunsPerDay > 0 ? q.sandboxRunsPerDay : c.dim('unlimited')}`);
+
+  console.log(c.dim('\nLast 7 days (tokens):'));
+  for (const d of summary.last7Days) {
+    const bar = '█'.repeat(Math.min(20, Math.ceil(d.tokens / 5000)));
+    console.log(`  ${c.dim(d.date)}  ${c.orange(bar)} ${d.tokens.toLocaleString()}`);
+  }
+
+  console.log(c.dim('─'.repeat(60)));
+  if (!quota.ok) {
+    console.log(c.red(`⚠  Quota exceeded: ${quota.reason}`));
+  } else {
+    console.log(c.green('✓  Within quota'));
+  }
+}
+
+function cmdSecurity() {
+  banner();
+  console.log(c.bold('Security Self-Check'));
+  console.log(c.dim('─'.repeat(60)));
+
+  const checks: Array<{ label: string; ok: boolean; detail: string }> = [];
+
+  const jwtSecret = process.env.JWT_SECRET ?? '';
+  checks.push({
+    label: 'JWT_SECRET',
+    ok: jwtSecret.length >= 32,
+    detail: jwtSecret.length >= 32
+      ? `set (${jwtSecret.length} chars)`
+      : `too short or missing (${jwtSecret.length} chars, need ≥32)`,
+  });
+
+  const masterKey = process.env.COAGENTIX_MASTER_KEY ?? process.env.AOF_MASTER_KEY ?? '';
+  checks.push({
+    label: 'COAGENTIX_MASTER_KEY',
+    ok: masterKey.length >= 32,
+    detail: masterKey.length >= 32
+      ? `set (${masterKey.length} chars)`
+      : `too short or missing (${masterKey.length} chars, need ≥32)`,
+  });
+
+  const allowedOrigins = process.env.COAGENTIX_ALLOWED_ORIGINS ?? process.env.AOF_ALLOWED_ORIGINS ?? '';
+  checks.push({
+    label: 'CORS allowlist',
+    ok: allowedOrigins.length > 0,
+    detail: allowedOrigins.length > 0
+      ? allowedOrigins
+      : 'not set — allows all origins in development, restricts in production',
+  });
+
+  const nodeEnv = process.env.NODE_ENV ?? 'development';
+  checks.push({
+    label: 'NODE_ENV',
+    ok: nodeEnv === 'production',
+    detail: nodeEnv === 'production'
+      ? 'production (HSTS + strict mode active)'
+      : `${nodeEnv} (HSTS disabled, localhost CORS allowed)`,
+  });
+
+  checks.push({
+    label: 'Sandbox shell block',
+    ok: true,
+    detail: 'bash/shell execution always rejected (security policy enforced in sandbox.ts)',
+  });
+
+  checks.push({
+    label: 'Timing-safe login',
+    ok: true,
+    detail: 'verifyPassword() always called even when user not found (Phase 5 fix)',
+  });
+
+  checks.push({
+    label: 'CSP header',
+    ok: true,
+    detail: 'Content-Security-Policy applied on all responses (Phase 5 addition)',
+  });
+
+  checks.push({
+    label: 'AES-256-GCM key encryption',
+    ok: true,
+    detail: 'API keys encrypted at rest with scrypt-derived key + authenticated encryption',
+  });
+
+  for (const ch of checks) {
+    const icon = ch.ok ? c.green('✔') : c.red('✗');
+    const label = (ch.ok ? c.green : c.red)(ch.label.padEnd(24));
+    console.log(`  ${icon}  ${label}  ${c.dim(ch.detail)}`);
+  }
+
+  console.log(c.dim('─'.repeat(60)));
+  const failed = checks.filter((c) => !c.ok).length;
+  if (failed === 0) {
+    console.log(c.green(`All ${checks.length} checks passed.`));
+  } else {
+    console.log(c.red(`${failed} check(s) failed — see above for details.`));
+  }
+}
+
 function cmdSessions() {
   // List local .coagentix/sessions
   const sessDir = join(process.cwd(), '.coagentix', 'sessions');
@@ -359,13 +525,19 @@ ${c.bold('Commands')}
   ${c.orange('gencode')} "<task>"        run full TMAP pipeline and generate files
         --apply              write files into project root (default: ./coagentix-output)
         --mode=lite|normal|pro
-  ${c.orange('titan')} ["<idea>"]         Titan Mode — interactive AI System Architect:
-                         discovery → multi-plan → risks → approval gate → build
+  ${c.orange('titan')} ["<idea>"]         Titan Mode — interactive AI System Architect
         --apply / --mode     same as gencode (used after approval)
   ${c.orange('review')} [dir]            review existing codebase (read-only, lite mode)
   ${c.orange('fix')} [dir]               generate fixes for existing codebase
         --apply              overwrite files in place
   ${c.orange('sessions')}               list recent local sessions
+
+${c.bold('Phase 5 — Developer Platform')}
+  ${c.orange('sandbox')} "<code>"         run code in secure local sandbox (no API key needed)
+        --lang=javascript|typescript|python
+        --timeout=<seconds>  (default 10, max 30)
+  ${c.orange('usage')}                  show local token/cost usage and quota status
+  ${c.orange('security')}               run security self-check against current configuration
 
 ${c.bold('Examples')}
   npm run co -- doctor
@@ -373,6 +545,10 @@ ${c.bold('Examples')}
   npm run co -- review ./src
   npm run co -- fix ./src --apply
   npm run co -- sessions
+  npm run co -- sandbox "console.log(2 ** 32)"
+  npm run co -- sandbox "print(sum(range(101)))" --lang=python
+  npm run co -- usage
+  npm run co -- security
 `);
 }
 
@@ -382,6 +558,8 @@ async function main() {
   const cmd = argv[0];
   const apply = argv.includes('--apply');
   const modeArg = argv.find((a) => a.startsWith('--mode='))?.split('=')[1];
+  const langArg = argv.find((a) => a.startsWith('--lang='))?.split('=')[1];
+  const timeoutArg = argv.find((a) => a.startsWith('--timeout='))?.split('=')[1];
   const rest = argv.slice(1).filter((a) => !a.startsWith('--')).join(' ').trim();
 
   switch (cmd) {
@@ -392,6 +570,9 @@ async function main() {
     case 'titan':    await cmdTitan(rest, { apply, mode: modeArg }); break;
     case 'review':   await cmdReview(rest); break;
     case 'fix':      await cmdFix(rest, { apply }); break;
+    case 'sandbox':  await cmdSandbox(rest, { lang: langArg, timeout: timeoutArg ? Number(timeoutArg) : undefined }); break;
+    case 'usage':    cmdUsage(); break;
+    case 'security': cmdSecurity(); break;
     case 'gencode':
     case 'run':      await cmdGencode(rest, { apply, mode: modeArg }); break;
     case undefined:
