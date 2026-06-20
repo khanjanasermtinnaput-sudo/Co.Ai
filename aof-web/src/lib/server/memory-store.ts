@@ -1,7 +1,7 @@
 // Long-term memory store — pgvector semantic retrieval + conversation recall (server-only)
-import { getAdminSupabase, isAdminConfigured } from './supabase-admin.js';
-import { embed, embedBatch, cosineSimilarity } from './embeddings.js';
-import { cacheKey, cacheGet, cacheSet, cacheDel } from './redis.js';
+import { getAdminSupabase, isAdminConfigured } from './supabase-admin';
+import { embed, embedBatch, cosineSimilarity } from './embeddings';
+import { cacheKey, cacheGet, cacheSet, cacheDel } from './redis';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
