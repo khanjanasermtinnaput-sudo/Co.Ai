@@ -21,7 +21,15 @@ async function authToken(): Promise<string | null> {
   const supabase = getSupabase();
   if (!supabase) return null;
   const { data } = await supabase.auth.getSession();
-  return data.session?.access_token ?? null;
+  if (!data.session) return null;
+  // If the access token expires within 60 seconds, proactively refresh it.
+  // Supabase's autoRefreshToken timer can miss its window when the tab was idle.
+  const expiresAt = (data.session.expires_at ?? 0) * 1000;
+  if (Date.now() >= expiresAt - 60_000) {
+    const { data: refreshed } = await supabase.auth.refreshSession();
+    return refreshed.session?.access_token ?? null;
+  }
+  return data.session.access_token;
 }
 
 async function authedFetch(input: string, init: RequestInit = {}): Promise<Response> {

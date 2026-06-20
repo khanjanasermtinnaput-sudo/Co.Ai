@@ -12,7 +12,11 @@ const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 /** True when the server has everything it needs to persist keys. */
 export function isAdminConfigured(): boolean {
-  return Boolean(SUPABASE_URL && SERVICE_ROLE_KEY);
+  const ok = Boolean(SUPABASE_URL && SERVICE_ROLE_KEY);
+  if (!ok) {
+    console.warn("[auth] Supabase admin not configured — missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
+  }
+  return ok;
 }
 
 let admin: SupabaseClient | null = null;
@@ -38,11 +42,26 @@ export function getAdminSupabase(): SupabaseClient {
  */
 export async function getUserFromRequest(req: Request): Promise<User | null> {
   const header = req.headers.get("authorization") ?? req.headers.get("Authorization");
-  if (!header?.startsWith("Bearer ")) return null;
+  if (!header?.startsWith("Bearer ")) {
+    console.warn("[auth] getUserFromRequest: missing or malformed Authorization header");
+    return null;
+  }
   const token = header.slice(7).trim();
-  if (!token) return null;
+  if (!token) {
+    console.warn("[auth] getUserFromRequest: empty token after Bearer prefix");
+    return null;
+  }
 
   const { data, error } = await getAdminSupabase().auth.getUser(token);
-  if (error || !data.user) return null;
+  if (error) {
+    // Log token prefix (safe — first 8 chars only) to correlate client/server
+    const prefix = token.slice(0, 8);
+    console.error(`[auth] getUserFromRequest: token validation failed (prefix=${prefix}):`, error.message, error.status);
+    return null;
+  }
+  if (!data.user) {
+    console.warn("[auth] getUserFromRequest: getUser returned no user and no error");
+    return null;
+  }
   return data.user;
 }
