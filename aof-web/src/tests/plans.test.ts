@@ -44,7 +44,7 @@ test("tier-specific features land on the right plan", () => {
 });
 
 // ── hasFeature with enforcement flag ──────────────────────────────────────────
-test("enforcement ON: FREE cannot use coagentix-code, PRO can", () => {
+test("enforcement ON: FREE cannot use aof-code, PRO can", () => {
   withEnforcement(true, () => {
     assert.equal(entitlementsEnforced(), true);
     assert.equal(hasFeature("FREE", "coagentix-code"), false);

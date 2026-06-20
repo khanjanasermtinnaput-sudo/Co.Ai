@@ -29,12 +29,12 @@ export function verifyPassword(password: string, stored: string): boolean {
 }
 
 // ── API-key encryption at rest (AES-256-GCM) ──────────────────────────────────
-// Master key from env CGNTX_MASTER_KEY. New (v2) ciphertexts derive the 32-byte AES
+// Master key from env AOF_MASTER_KEY. New (v2) ciphertexts derive the 32-byte AES
 // key with scrypt (a slow KDF) so a leaked env value is far harder to brute-force
 // than the old single-pass sha256. The derived key is cached per process because
 // scrypt is intentionally expensive and /v1/me decrypts several keys per request.
 function rawMasterKey(): string {
-  const raw = process.env.COAGENTIX_MASTER_KEY ?? process.env.CGNTX_MASTER_KEY;
+  const raw = process.env.COAGENTIX_MASTER_KEY ?? process.env.AOF_MASTER_KEY;
   if (!raw || raw.length < 16) {
     throw new Error(
       'COAGENTIX_MASTER_KEY missing or too short — set a long random value in .env ' +

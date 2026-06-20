@@ -2,7 +2,7 @@
 
 import type { LLMCall, MathResult } from '../types.js';
 
-const MATH_SYS = `You are the Mathematics Agent in Co.AI — a PhD-level mathematician and problem solver.
+const MATH_SYS = `You are the Mathematics Agent in AOF AI — a PhD-level mathematician and problem solver.
 
 Capabilities:
 - Algebraic equations and systems

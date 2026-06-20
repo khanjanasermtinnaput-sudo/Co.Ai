@@ -127,7 +127,7 @@ html, body {
   font-weight: 800;
   letter-spacing: -0.04em;
 }
-.tb-logo .logo-coagentix {
+.tb-logo .logo-aof {
   background: linear-gradient(135deg, #FF7A00 0%, #FF9933 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -754,7 +754,7 @@ html, body {
   letter-spacing: -0.04em;
   line-height: 1;
 }
-.sidebar-brand-logo .logo-coagentix {
+.sidebar-brand-logo .logo-aof {
   background: linear-gradient(135deg, #FF7A00, #FF9933);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -1459,7 +1459,7 @@ select.fld {
 <div id="titlebar">
   <div class="tb-left">
     <div class="tb-logo">
-      <span class="logo-coagentix">CoAgentix</span>
+      <span class="logo-aof">CoAgentix</span>
       <span class="logo-code">&nbsp;Code</span>
     </div>
   </div>
@@ -1611,7 +1611,7 @@ select.fld {
     <!-- Brand header -->
     <div class="sidebar-brand">
       <div class="sidebar-brand-logo">
-        <span class="logo-coagentix">CoAgentix</span><span class="logo-code"> Code</span>
+        <span class="logo-aof">CoAgentix</span><span class="logo-code"> Code</span>
       </div>
       <span class="sidebar-brand-tag">v2.0</span>
     </div>
@@ -1816,8 +1816,8 @@ const COMMANDS = [
 ];
 
 const state = {
-  token: localStorage.getItem('cgntx:token') || '',
-  user:  localStorage.getItem('cgntx:uname') || '',
+  token: localStorage.getItem('aof:token') || '',
+  user:  localStorage.getItem('aof:uname') || '',
   mode: 'normal',
   sessions: 0,
   projects: [],
@@ -1928,8 +1928,8 @@ async function doAuth(){
   try{
     const d = await api('/v1/auth/'+state.authMode, 'POST', { username, pin });
     state.token = d.token; state.user = d.username;
-    localStorage.setItem('cgntx:token', state.token);
-    localStorage.setItem('cgntx:uname', state.user);
+    localStorage.setItem('aof:token', state.token);
+    localStorage.setItem('aof:uname', state.user);
     authMsg('','info');
     document.getElementById('auth-overlay').classList.remove('open');
     document.getElementById('cmd-input').disabled = false;
@@ -1956,7 +1956,7 @@ function showAuth(){
 
 async function cmdLogout(){
   state.token=''; state.user=''; state.files=[]; state.sessions=0;
-  localStorage.removeItem('cgntx:token'); localStorage.removeItem('cgntx:uname');
+  localStorage.removeItem('aof:token'); localStorage.removeItem('aof:uname');
   document.getElementById('terminal-body').innerHTML='';
   syncUser();
   showAuth();
@@ -2515,7 +2515,7 @@ async function cmdExport(arg=''){
   const zip=new JSZip();
   for(const f of state.files){ zip.file(f.path, f.content||''); }
   const blob=await zip.generateAsync({type:'blob'});
-  const name=(state.lastTask||'coagentix-code').replace(/[^a-z0-9]+/gi,'-').slice(0,40)+'.zip';
+  const name=(state.lastTask||'aof-code').replace(/[^a-z0-9]+/gi,'-').slice(0,40)+'.zip';
   saveAs(blob, name);
   writeLine('<span class="t-green">Exported → '+escHtml(name)+'</span>');
   writeLine('<span class="t-dim">  Tip: <span class="t-orange">/export html</span> → bundle ทุกไฟล์เป็น index.html ไฟล์เดียว</span>');
@@ -2835,7 +2835,7 @@ async function init(){
   }catch(e){
     if(e.status === 401){
       state.token=''; state.user='';
-      localStorage.removeItem('cgntx:token'); localStorage.removeItem('cgntx:uname');
+      localStorage.removeItem('aof:token'); localStorage.removeItem('aof:uname');
       syncUser();
     }
     const body=document.getElementById('terminal-body');

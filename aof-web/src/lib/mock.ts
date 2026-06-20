@@ -10,7 +10,7 @@ import type {
   ResponseStyle,
   RouteDecision,
 } from "./types";
-import type { CgntxProviderError, FailoverNotice, ModelNotice, SourcesNotice } from "./errors";
+import type { AofProviderError, FailoverNotice, ModelNotice, SourcesNotice } from "./errors";
 import { GENCODE_HINT } from "./raa";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -24,7 +24,7 @@ export interface StreamHandlers {
   onToken: (chunk: string) => void;
   signal?: AbortSignal;
   /** Called when a provider fails — the caller must show an error, not fake a reply. */
-  onError?: (error: CgntxProviderError) => void;
+  onError?: (error: AofProviderError) => void;
   /** Called when the route falls over from one provider to another. */
   onFailover?: (notice: FailoverNotice) => void;
   /** Called once the answering model is known. */

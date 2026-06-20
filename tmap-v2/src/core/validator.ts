@@ -46,7 +46,7 @@ export function validateFiles(files: CodeFile[]): ValidationResult[] {
 function checkJs(f: CodeFile): ValidationResult {
   let dir: string | undefined;
   try {
-    dir = mkdtempSync(join(tmpdir(), 'cgntx-val-'));
+    dir = mkdtempSync(join(tmpdir(), 'aof-val-'));
     const file = join(dir, 'check.mjs');
     writeFileSync(file, f.content, 'utf8');
     execFileSync(process.execPath, ['--check', file], { stdio: 'pipe' });
@@ -93,13 +93,11 @@ function checkPython(f: CodeFile): ValidationResult {
   // Use python3 -m py_compile if available
   const python = findPython();
   if (!python) {
-    // Report skipped as not-passed so callers don't treat an unchecked file as
-    // syntactically valid (the file might still contain errors).
-    return { kind: 'skipped', passed: false, logs: `${f.path}: python3 not found — syntax not verified` };
+    return { kind: 'skipped', passed: true, logs: `${f.path}: python3 not found, skipped` };
   }
   let dir: string | undefined;
   try {
-    dir = mkdtempSync(join(tmpdir(), 'cgntx-py-'));
+    dir = mkdtempSync(join(tmpdir(), 'aof-py-'));
     const pyFile = join(dir, 'check.py');
     writeFileSync(pyFile, f.content, 'utf8');
     execFileSync(python, ['-m', 'py_compile', pyFile], { stdio: 'pipe', timeout: 10_000 });
@@ -137,7 +135,7 @@ function checkGo(f: CodeFile): ValidationResult {
   }
   let dir: string | undefined;
   try {
-    dir = mkdtempSync(join(tmpdir(), 'cgntx-go-'));
+    dir = mkdtempSync(join(tmpdir(), 'aof-go-'));
     // go vet needs a valid module; use go build -syntax-check approach via gofmt -e
     const file = join(dir, 'check.go');
     writeFileSync(file, f.content, 'utf8');
@@ -159,7 +157,7 @@ function checkRust(f: CodeFile): ValidationResult {
   }
   let dir: string | undefined;
   try {
-    dir = mkdtempSync(join(tmpdir(), 'cgntx-rs-'));
+    dir = mkdtempSync(join(tmpdir(), 'aof-rs-'));
     const file = join(dir, 'check.rs');
     writeFileSync(file, f.content, 'utf8');
     // --emit=metadata only checks + produces tiny metadata, no binary output

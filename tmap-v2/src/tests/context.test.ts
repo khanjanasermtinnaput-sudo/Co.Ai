@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
 function tmpDir(): string {
-  return mkdtempSync(join(tmpdir(), 'cgntx-ctx-test-'));
+  return mkdtempSync(join(tmpdir(), 'aof-ctx-test-'));
 }
 
 describe('gatherProjectContext', () => {

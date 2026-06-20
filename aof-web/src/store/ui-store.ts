@@ -23,7 +23,7 @@ export const useUIStore = create<UIState>()(
       setMobileNav: (v) => set({ mobileNavOpen: v }),
     }),
     {
-      name: "cgntx.ui",
+      name: "aof.ui",
       partialize: (s) => ({ sidebarExpanded: s.sidebarExpanded }),
     },
   ),

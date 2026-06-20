@@ -52,6 +52,18 @@ export class CoaiApiClient {
     return res.json() as Promise<T>;
   }
 
+  async delete<T>(path: string): Promise<T> {
+    const res = await fetch(this.url(path), {
+      method: 'DELETE',
+      headers: this.headers(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+      throw new Error((err as { error?: string }).error ?? `HTTP ${res.status}`);
+    }
+    return res.json() as Promise<T>;
+  }
+
   async *stream(path: string, body: unknown, signal?: AbortSignal): AsyncGenerator<StreamEvent> {
     const res = await fetch(this.url(path), {
       method: "POST",

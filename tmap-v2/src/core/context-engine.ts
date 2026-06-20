@@ -38,7 +38,7 @@ export interface ProjectContextV2 {
 }
 
 const SKIP_DIRS = new Set([
-  'node_modules', '.git', 'dist', 'build', '.coagentix', '.coagentix-server',
+  'node_modules', '.git', 'dist', 'build', '.aof', '.aof-server',
   '__pycache__', '.next', 'coverage', 'vendor', 'target', '.venv', 'venv',
 ]);
 

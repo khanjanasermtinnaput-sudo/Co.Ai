@@ -11,7 +11,7 @@ import {
 import { gatherProjectContext } from '../core/context.js';
 
 function makeFixture(): string {
-  const root = mkdtempSync(join(tmpdir(), 'cgntx-ctx-'));
+  const root = mkdtempSync(join(tmpdir(), 'aof-ctx-'));
   writeFileSync(join(root, 'package.json'), JSON.stringify({
     name: 'fixture', dependencies: { express: '^4.0.0' }, devDependencies: { typescript: '^5.0.0' },
   }));

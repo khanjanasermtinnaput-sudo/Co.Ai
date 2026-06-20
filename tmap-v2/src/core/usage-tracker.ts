@@ -80,7 +80,7 @@ export function recordUsage(
   dayRec.requests += 1;
   data.byDay[day] = dayRec;
 
-  const monRec   = { tokens: 0, costUsd: 0, requests: 0, ...data.byMonth[month] };
+  const monRec   = { ...emptyPeriod(), ...data.byMonth[month] };
   monRec.tokens   += delta.tokens;
   monRec.costUsd   = round8(monRec.costUsd + delta.costUsd);
   monRec.requests += 1;
@@ -106,7 +106,7 @@ export function checkQuota(
 ): QuotaStatus {
   const data = load(userId);
   const today    = { ...emptyPeriod(), ...data.byDay[dayKey()] };
-  const thisMonth = { tokens: 0, costUsd: 0, requests: 0, ...data.byMonth[monthKey()] };
+  const thisMonth = { ...emptyPeriod(), ...data.byMonth[monthKey()] };
 
   let ok = true;
   let reason: string | undefined;
@@ -154,7 +154,7 @@ export function getUsageSummary(userId: string): {
 } {
   const data = load(userId);
   const today    = { ...emptyPeriod(), ...data.byDay[dayKey()] };
-  const thisMonth = { tokens: 0, costUsd: 0, requests: 0, ...data.byMonth[monthKey()] };
+  const thisMonth = { ...emptyPeriod(), ...data.byMonth[monthKey()] };
 
   const last7Days: Array<{ date: string } & UsagePeriod> = [];
   for (let i = 6; i >= 0; i--) {

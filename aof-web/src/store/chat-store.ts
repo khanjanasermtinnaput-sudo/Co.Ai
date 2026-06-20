@@ -2,8 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { toast } from "sonner";
 import { uid } from "@/lib/utils";
-import { analyzeImage, streamChat, streamOrchestrate, isLive, type ChatHistoryItem } from "@/lib/api";
-import { useImageMemoryStore } from "@/store/image-memory-store";
+import { streamChat, streamOrchestrate, isLive, type ChatHistoryItem } from "@/lib/api";
 import { routeRequest } from "@/lib/router";
 import { composeLearningReply, isLearningProblem } from "@/lib/mock";
 import {
@@ -22,7 +21,7 @@ import type {
   ResponseStyle,
   SearchMode,
 } from "@/lib/types";
-import type { CgntxProviderError } from "@/lib/errors";
+import type { AofProviderError } from "@/lib/errors";
 import { checkUserAccess } from "@/lib/access";
 import { useAuthStore } from "@/store/auth-store";
 import { useGuestStore } from "@/store/guest-store";
@@ -315,25 +314,6 @@ export const useChatStore = create<ChatState>()(
           .slice(-40)
           .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
 
-        // ── Image analysis (Steps 1-9 of image pipeline) ──────────────────────
-        // Analyze image attachments before streaming so getImageContextForQuery()
-        // inside streamChat() finds the context in localStorage automatically.
-        const imageAttachments = (attachments ?? []).filter(
-          (a) => a.kind === "image" && a.dataUrl,
-        );
-        if (imageAttachments.length) {
-          await Promise.allSettled(
-            imageAttachments.map(async (a) => {
-              try {
-                const memory = await analyzeImage(a.dataUrl!, content || a.name);
-                useImageMemoryStore.getState().addMemory(memory);
-              } catch {
-                // analysis failure must never block the chat turn
-              }
-            }),
-          );
-        }
-
         const controller = new AbortController();
         set({ abort: controller });
 
@@ -385,7 +365,7 @@ export const useChatStore = create<ChatState>()(
                     categories: result.categories,
                     agentStatus: undefined,
                   }),
-                onError: (error) => patchAssistant({ error: error as CgntxProviderError, streaming: false }),
+                onError: (error) => patchAssistant({ error: error as AofProviderError, streaming: false }),
                 signal: controller.signal,
               },
             );
@@ -459,7 +439,7 @@ export const useChatStore = create<ChatState>()(
       },
     }),
     {
-      name: "cgntx.chat",
+      name: "aof.chat",
       partialize: (s) => ({
         style: s.style,
         searchMode: s.searchMode,

@@ -13,7 +13,7 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
 }
 
-const DISMISS_KEY = "cgntx.pwa.dismissed";
+const DISMISS_KEY = "aof.pwa.dismissed";
 const DISMISS_DAYS = 7;
 
 function dismissedRecently(): boolean {
@@ -125,7 +125,7 @@ export function PwaInstaller() {
         >
           <div className="flex w-full max-w-md items-center gap-3 rounded-2xl border border-border/70 bg-card/95 p-3 pr-2.5 shadow-2xl backdrop-blur supports-[backdrop-filter]:bg-card/80">
             <Image
-              src="/coagentix-logo.png"
+              src="/aof-logo.png"
               alt="CoAgentix"
               width={44}
               height={44}

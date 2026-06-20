@@ -1,102 +1,122 @@
-// Redis sliding-window rate limiter for tmap-v2 (ESM).
-// Same Lua script as aof-web/src/lib/server/rate-limit-redis.ts.
+// Redis-backed sliding-window rate limiter (falls back to in-memory when Redis
+// is unavailable so the server starts cleanly without a Redis dependency).
+//
+// Algorithm: sorted set per (namespace, IP) where each member is a unique
+// request timestamp.  On each request:
+//   1. ZREMRANGEBYSCORE removes events outside the window.
+//   2. ZCARD counts remaining events.
+//   3. If count < limit, ZADD adds the new event and sets TTL.
+//   4. Otherwise return 429.
 
-import { getRedis, cacheKey } from './redis.js';
+import type { RequestHandler } from 'express';
+import { getRedis } from './redis.js';
+import { logger } from './logger.js';
 
-export interface RateLimitResult {
-  allowed:   boolean;
-  limit:     number;
-  remaining: number;
-  resetAt:   number; // Unix epoch seconds
+// In-memory fallback — one counter per (namespace:IP) key
+interface InMemoryBucket {
+  timestamps: number[];
+  windowMs: number;
+}
+const inMemory = new Map<string, InMemoryBucket>();
+
+// Prune buckets whose window has fully expired to prevent unbounded map growth.
+// Runs every 5 minutes — lightweight since it only removes expired entries.
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, b] of inMemory) {
+    b.timestamps = b.timestamps.filter((t) => t > now - b.windowMs);
+    if (b.timestamps.length === 0) inMemory.delete(k);
+  }
+}, 5 * 60 * 1_000).unref?.();
+
+function inMemoryCheck(
+  key: string,
+  limit: number,
+  windowMs: number,
+): { allowed: boolean; remaining: number; retryAfterMs: number } {
+  const now    = Date.now();
+  const bucket = inMemory.get(key) ?? { timestamps: [], windowMs };
+  const cutoff = now - windowMs;
+
+  // Prune expired entries for this bucket
+  bucket.timestamps = bucket.timestamps.filter((t) => t > cutoff);
+
+  if (bucket.timestamps.length >= limit) {
+    const oldest = bucket.timestamps[0];
+    return { allowed: false, remaining: 0, retryAfterMs: oldest + windowMs - now };
+  }
+
+  bucket.timestamps.push(now);
+  inMemory.set(key, bucket);
+  return { allowed: true, remaining: limit - bucket.timestamps.length, retryAfterMs: 0 };
 }
 
-const SLIDING_WINDOW_SCRIPT = `
-local key      = KEYS[1]
-local now      = tonumber(ARGV[1])
-local window   = tonumber(ARGV[2])
-local limit    = tonumber(ARGV[3])
-local member   = ARGV[4]
-
-local cutoff = now - (window * 1000)
-redis.call('ZREMRANGEBYSCORE', key, '-inf', cutoff)
-local count = redis.call('ZCARD', key)
-
-if count < limit then
-  redis.call('ZADD', key, now, member)
-  redis.call('EXPIRE', key, window + 1)
-  count = count + 1
-  return {1, limit - count, tostring(now + window * 1000)}
-else
-  return {0, 0, tostring(now + window * 1000)}
-end
-`;
-
-export async function checkRateLimitRedis(
-  identifier: string,
+async function redisCheck(
+  key: string,
   limit: number,
-  windowSec: number,
-): Promise<RateLimitResult> {
+  windowMs: number,
+): Promise<{ allowed: boolean; remaining: number; retryAfterMs: number }> {
+  const redis = getRedis();
   const now = Date.now();
-  const key = cacheKey('rl2', identifier);
+  const cutoff = now - windowMs;
 
   try {
-    const redis = getRedis();
-    const member = `${now}-${Math.random().toString(36).slice(2)}`;
-    const result = await redis.eval(
-      SLIDING_WINDOW_SCRIPT,
-      1,
-      key,
-      now.toString(),
-      windowSec.toString(),
-      limit.toString(),
-      member,
-    ) as [number, number, string];
+    // Remove events outside the window
+    await redis.zremrangebyscore(key, '-inf', cutoff);
+    // Count remaining events in window
+    const count = await redis.zcard(key);
 
-    return {
-      allowed:   result[0] === 1,
-      limit,
-      remaining: result[1],
-      resetAt:   Math.ceil(parseInt(result[2], 10) / 1000),
-    };
-  } catch {
-    return { allowed: true, limit, remaining: limit, resetAt: Math.ceil((now + windowSec * 1000) / 1000) };
+    if (count >= limit) {
+      return { allowed: false, remaining: 0, retryAfterMs: windowMs };
+    }
+
+    // Add this request
+    await redis.zadd(key, now, `${now}-${Math.random()}`);
+    await redis.expire(key, Math.ceil(windowMs / 1000) + 1);
+
+    return { allowed: true, remaining: limit - count - 1, retryAfterMs: 0 };
+  } catch (err) {
+    // Redis failure → degrade gracefully (allow the request, log the error)
+    logger.warn('rate_limit_redis_error', { error: (err as Error).message });
+    return inMemoryCheck(key, limit, windowMs);
   }
 }
 
-export function rateLimitHeaders(result: RateLimitResult): Record<string, string> {
-  return {
-    'X-RateLimit-Limit':     result.limit.toString(),
-    'X-RateLimit-Remaining': result.remaining.toString(),
-    'X-RateLimit-Reset':     result.resetAt.toString(),
-  };
-}
-
-// Express middleware: rate-limit by IP per preset
+/**
+ * Express middleware factory for sliding-window rate limiting.
+ *
+ * @param limit      Max requests per window
+ * @param windowSec  Window duration in seconds
+ * @param namespace  Logical namespace (e.g. 'global', 'auth')
+ */
 export function rateLimitMiddleware(
   limit: number,
   windowSec: number,
-  keyPrefix: string,
-): (req: import('express').Request, res: import('express').Response, next: import('express').NextFunction) => void {
+  namespace: string,
+): RequestHandler {
+  const windowMs = windowSec * 1_000;
+
   return async (req, res, next) => {
-    const ip = (req.headers['cf-connecting-ip'] as string)
-            ?? (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim()
-            ?? req.ip
-            ?? 'unknown';
+    const ip = String(
+      req.headers['x-forwarded-for'] ?? req.socket.remoteAddress ?? 'unknown',
+    ).split(',')[0].trim();
 
-    const result = await checkRateLimitRedis(`${keyPrefix}:${ip}`, limit, windowSec);
-    const headers = rateLimitHeaders(result);
+    const key = `cgntx:rl:${namespace}:${ip}`;
+    const { allowed, remaining, retryAfterMs } = await redisCheck(key, limit, windowMs);
 
-    for (const [k, v] of Object.entries(headers)) {
-      if (v) res.setHeader(k, v);
-    }
+    res.setHeader('X-RateLimit-Limit', limit);
+    res.setHeader('X-RateLimit-Remaining', Math.max(0, remaining));
+    res.setHeader('X-RateLimit-Window-Sec', windowSec);
 
-    if (!result.allowed) {
+    if (!allowed) {
+      res.setHeader('Retry-After', Math.ceil(retryAfterMs / 1000));
       res.status(429).json({
-        error: 'Too Many Requests',
-        retryAfter: result.resetAt - Math.ceil(Date.now() / 1000),
+        error: 'Too many requests. Please slow down.',
+        retryAfterSec: Math.ceil(retryAfterMs / 1000),
       });
       return;
     }
+
     next();
   };
 }

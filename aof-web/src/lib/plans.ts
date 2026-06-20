@@ -178,7 +178,7 @@ export function planFor(tier: UserTier): Plan {
 export function entitlementsEnforced(): boolean {
   return (
     process.env.NEXT_PUBLIC_COAGENTIX_ENFORCE_PLANS === "1" ||
-    process.env.NEXT_PUBLIC_CGNTX_ENFORCE_PLANS === "1"
+    process.env.NEXT_PUBLIC_AOF_ENFORCE_PLANS === "1"
   );
 }
 

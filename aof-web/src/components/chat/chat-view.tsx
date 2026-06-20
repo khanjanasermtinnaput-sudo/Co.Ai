@@ -59,7 +59,7 @@ export function ChatView() {
     lastMsg && lastMsg.role === "assistant" ? lastMsg.error : undefined;
   const mascotState: ComposerMascotState = streaming
     ? "processing"
-    : lastError?.code === "CGNTX_ERROR_004"
+    : lastError?.code === "AOF_ERROR_004"
       ? "quota"
       : lastError
         ? "error"

@@ -14,10 +14,19 @@ import {
   type ProviderKeyName,
 } from './db.js';
 import { checkLoginRate, recordFailure, recordSuccess } from './rateLimit.js';
-import { logger, incRequest, incError, incTmapRun, incTmapError, addTokens, incAgentCall, getMetrics, incEvaluation, incSandboxRun, incQuotaViolation, incKeyRotation, incKeyValidation } from './logger.js';
+import { logger, incRequest, incError, incTmapRun, incTmapError, addTokens, incAgentCall, getMetrics, incEvaluation, incSandboxRun, incQuotaViolation, incKeyRotation, incKeyValidation, incTeamOperation, incOrgOperation, incBackupCreated, incRestoreRun, incAnalyticsEvent } from './logger.js';
 import { runInSandbox, SUPPORTED_LANGUAGES, SANDBOX_DEFAULT_TIMEOUT_MS, SANDBOX_MAX_TIMEOUT_MS, SANDBOX_DEFAULT_MAX_BYTES } from '../core/sandbox.js';
+import { isDockerAvailable, runInDockerSandbox, DOCKER_DEFAULT_TIMEOUT_MS, DOCKER_MAX_TIMEOUT_MS } from '../core/docker-sandbox.js';
 import { checkQuota, checkSandboxQuota, recordUsage, recordSandboxRun, getUsageSummary, DEFAULT_QUOTA } from '../core/usage-tracker.js';
 import type { SandboxLanguage, SandboxOptions } from '../types.js';
+import {
+  listDevKeys, createDevKey, revokeDevKey, authenticateDevKey, hasScope,
+  type DevKeyScope,
+} from './developer-keys.js';
+import {
+  listWebhooks, registerWebhook, deleteWebhook, dispatchEvent,
+  type WebhookEvent,
+} from './webhooks.js';
 import { globalRoutingMetrics } from '../core/routing-metrics.js';
 import { evaluateOutput } from '../core/eval-framework.js';
 import type { Blackboard, CodeFile } from '../types.js';
@@ -46,7 +55,7 @@ import { buildHealthReport } from './health.js';
 import { botProtectionMiddleware } from './bot-protection.js';
 import { rateLimitMiddleware } from './rate-limit-redis.js';
 import { logAuditEvent, AuditAction, getClientIp } from './audit.js';
-import * as SentryNode from '@sentry/node';
+import { SentryNode } from './telemetry.js';
 
 const PROVIDERS: ProviderKeyName[] = ['openrouter', 'gemini', 'deepseek', 'qwen', 'llama'];
 
@@ -898,6 +907,7 @@ app.get('/v1/benchmark/results', requireAuth, (_req: AuthedRequest, res) => {
 
 // GET /v1/sandbox/capabilities — no auth; describes what the sandbox can run
 app.get('/v1/sandbox/capabilities', (_req, res) => {
+  const dockerAvailable = isDockerAvailable();
   res.json({
     languages: SUPPORTED_LANGUAGES,
     limits: {
@@ -905,6 +915,16 @@ app.get('/v1/sandbox/capabilities', (_req, res) => {
       maxTimeoutMs: SANDBOX_MAX_TIMEOUT_MS,
       defaultMaxOutputBytes: SANDBOX_DEFAULT_MAX_BYTES,
       maxInputBytes: 100_000,
+      maxInputFiles: 20,
+      maxTotalFileSizeBytes: 500_000,
+    },
+    docker: {
+      available: dockerAvailable,
+      defaultTimeoutMs: dockerAvailable ? DOCKER_DEFAULT_TIMEOUT_MS : null,
+      maxTimeoutMs:     dockerAvailable ? DOCKER_MAX_TIMEOUT_MS     : null,
+      note: dockerAvailable
+        ? 'Pass docker:true in the request body to use full container isolation.'
+        : 'Docker is not available on this host.',
     },
     note: 'bash/shell execution is always rejected for security reasons.',
   });
@@ -934,23 +954,49 @@ app.post('/v1/sandbox/run', requireAuth, async (req: AuthedRequest, res) => {
     return res.status(429).json({ error: sbQuota.reason });
   }
 
+  // Security: cap input file count and total size
+  const rawFiles = Array.isArray(files) ? files : [];
+  if (rawFiles.length > 20) {
+    return res.status(400).json({ error: 'Too many input files (max 20)' });
+  }
+  const totalFileBytes = rawFiles.reduce(
+    (sum: number, f: { content?: string }) => sum + Buffer.byteLength(f.content ?? '', 'utf8'),
+    0,
+  );
+  if (totalFileBytes > 500_000) {
+    return res.status(413).json({ error: 'Total input file size too large (max 500 KB)' });
+  }
+
+  // Use Docker sandbox when the caller requests it and Docker is available
+  const useDocker = req.body?.docker === true && isDockerAvailable();
+
   const sbOpts: SandboxOptions = {
     language: language as SandboxLanguage,
     code,
     timeoutMs: typeof timeoutMs === 'number' ? timeoutMs : undefined,
     maxOutputBytes: typeof maxOutputBytes === 'number' ? maxOutputBytes : undefined,
-    files: Array.isArray(files) ? files : undefined,
+    files: rawFiles.length > 0 ? rawFiles : undefined,
   };
 
-  const result = await runInSandbox(sbOpts);
+  const result = useDocker
+    ? await runInDockerSandbox(sbOpts)
+    : await runInSandbox(sbOpts);
+
   recordSandboxRun(u.id);
   incSandboxRun(!result.success);
+
+  await logAuditEvent({
+    actorId: u.id, actorIp: getClientIp(req as never),
+    action: AuditAction.SANDBOX_RUN,
+    outcome: result.success ? 'success' : 'failure',
+    metadata: { language, durationMs: result.durationMs, docker: useDocker },
+  });
   logger.info('sandbox_run', {
     user: u.username, language, success: result.success,
-    durationMs: result.durationMs, timedOut: result.timedOut,
+    durationMs: result.durationMs, timedOut: result.timedOut, docker: useDocker,
   });
 
-  return res.json(result);
+  return res.json({ ...result, docker: useDocker });
 });
 
 // GET /v1/me/usage — detailed usage summary for the authenticated user
@@ -1027,6 +1073,100 @@ app.post('/v1/me/keys/validate', requireAuth, async (req: AuthedRequest, res) =>
   return res.json({ valid, provider, masked: maskKey(plain) });
 });
 
+// ── DEVELOPER KEYS ────────────────────────────────────────────────────────────
+
+// GET /v1/developer/keys — list the caller's developer API keys
+app.get('/v1/developer/keys', requireAuth, async (req: AuthedRequest, res) => {
+  const keys = await listDevKeys(req.user!.id);
+  res.json({ keys });
+});
+
+// POST /v1/developer/keys — create a new developer API key
+// Body: { name: string, scopes: DevKeyScope[] }
+app.post('/v1/developer/keys', requireAuth, async (req: AuthedRequest, res) => {
+  const { name, scopes } = req.body ?? {};
+  if (!name || typeof name !== 'string') {
+    return res.status(400).json({ error: 'name (string) required' });
+  }
+  if (!Array.isArray(scopes) || scopes.length === 0) {
+    return res.status(400).json({ error: 'scopes (array) required' });
+  }
+  try {
+    const result = await createDevKey(req.user!.id, name, scopes as DevKeyScope[]);
+    await logAuditEvent({
+      actorId: req.user!.id, actorIp: getClientIp(req as never),
+      action: AuditAction.DEV_KEY_CREATED, outcome: 'success',
+      metadata: { keyId: result.key.id, name, scopes },
+    });
+    incKeyRotation();
+    return res.status(201).json(result);
+  } catch (e) {
+    return res.status(400).json({ error: (e as Error).message });
+  }
+});
+
+// DELETE /v1/developer/keys/:id — revoke a developer API key
+app.delete('/v1/developer/keys/:id', requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    await revokeDevKey(req.user!.id, req.params.id);
+    await logAuditEvent({
+      actorId: req.user!.id, actorIp: getClientIp(req as never),
+      action: AuditAction.DEV_KEY_REVOKED, outcome: 'success',
+      metadata: { keyId: req.params.id },
+    });
+    return res.json({ ok: true });
+  } catch (e) {
+    return res.status(404).json({ error: (e as Error).message });
+  }
+});
+
+// ── WEBHOOKS ──────────────────────────────────────────────────────────────────
+
+// GET /v1/webhooks — list registered webhooks
+app.get('/v1/webhooks', requireAuth, async (req: AuthedRequest, res) => {
+  const hooks = await listWebhooks(req.user!.id);
+  res.json({ webhooks: hooks });
+});
+
+// POST /v1/webhooks — register a webhook
+// Body: { url: string, events: WebhookEvent[] }
+app.post('/v1/webhooks', requireAuth, async (req: AuthedRequest, res) => {
+  const { url, events } = req.body ?? {};
+  if (!url || typeof url !== 'string') {
+    return res.status(400).json({ error: 'url (string) required' });
+  }
+  if (!Array.isArray(events) || events.length === 0) {
+    return res.status(400).json({ error: 'events (array) required' });
+  }
+  try {
+    const result = await registerWebhook(req.user!.id, url, events as WebhookEvent[]);
+    return res.status(201).json(result);
+  } catch (e) {
+    return res.status(400).json({ error: (e as Error).message });
+  }
+});
+
+// DELETE /v1/webhooks/:id — delete a webhook
+app.delete('/v1/webhooks/:id', requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    await deleteWebhook(req.user!.id, req.params.id);
+    return res.json({ ok: true });
+  } catch (e) {
+    return res.status(404).json({ error: (e as Error).message });
+  }
+});
+
+// POST /v1/webhooks/test — send a test event to a registered webhook
+app.post('/v1/webhooks/:id/test', requireAuth, async (req: AuthedRequest, res) => {
+  const hooks = await listWebhooks(req.user!.id);
+  const hook  = hooks.find((h) => h.id === req.params.id);
+  if (!hook) return res.status(404).json({ error: 'Webhook not found' });
+  await dispatchEvent(req.user!.id, 'sandbox.completed', { test: true, webhookId: hook.id });
+  return res.json({ ok: true, message: 'Test event dispatched' });
+});
+
+// ── DEVELOPER HEALTH ──────────────────────────────────────────────────────────
+
 // GET /v1/developer/health — extended health dump for developers/integrators
 app.get('/v1/developer/health', requireAuth, (_req: AuthedRequest, res) => {
   const health = globalHealth.snapshot();
@@ -1048,6 +1188,295 @@ app.get('/v1/developer/health', requireAuth, (_req: AuthedRequest, res) => {
     },
     defaultQuota: quota,
   });
+});
+
+// ── PHASE 6: SCALE & ENTERPRISE ──────────────────────────────────────────────
+
+// Lazy-load Phase 6 modules to avoid startup overhead when not used
+async function p6teams()   { return import('./teams.js'); }
+async function p6orgs()    { return import('./orgs.js'); }
+async function p6perms()   { return import('./permissions.js'); }
+async function p6backup()  { return import('./backup.js'); }
+async function p6restore() { return import('./restore.js'); }
+async function p6dr()      { return import('./disaster-recovery.js'); }
+async function p6fo()      { return import('./failover.js'); }
+async function p6an()      { return import('./analytics.js'); }
+async function p6stream()  { return import('./streaming.js'); }
+async function p6redis()   { return import('./redis-cluster.js'); }
+
+// ── Teams ──────────────────────────────────────────────────────────────────────
+
+app.get('/v1/teams', requireAuth, async (req: AuthedRequest, res) => {
+  const { getUserTeams } = await p6teams();
+  const teams = await getUserTeams(req.user!.id);
+  incTeamOperation();
+  res.json({ teams });
+});
+
+app.post('/v1/teams', requireAuth, async (req: AuthedRequest, res) => {
+  const { name, orgId, description } = req.body ?? {};
+  if (!name || typeof name !== 'string') return res.status(400).json({ error: 'name required' });
+  if (!orgId || typeof orgId !== 'string') return res.status(400).json({ error: 'orgId required' });
+  const { createTeam } = await p6teams();
+  const team = await createTeam({ name: String(name).slice(0, 80), orgId, ownerId: req.user!.id, description });
+  incTeamOperation();
+  return res.status(201).json({ team });
+});
+
+app.get('/v1/teams/:id', requireAuth, async (req: AuthedRequest, res) => {
+  const { getTeam, getMemberRole } = await p6teams();
+  const team = await getTeam(req.params.id);
+  if (!team) return res.status(404).json({ error: 'team not found' });
+  const role = await getMemberRole(req.params.id, req.user!.id);
+  if (!role) return res.status(403).json({ error: 'not a team member' });
+  incTeamOperation();
+  return res.json({ team, role });
+});
+
+app.patch('/v1/teams/:id', requireAuth, async (req: AuthedRequest, res) => {
+  const { updateTeam, assertTeamAccess } = await p6teams();
+  await assertTeamAccess(req.params.id, req.user!.id, 'admin');
+  const team = await updateTeam(req.params.id, { name: req.body?.name, description: req.body?.description });
+  incTeamOperation();
+  return team ? res.json({ team }) : res.status(404).json({ error: 'team not found' });
+});
+
+app.delete('/v1/teams/:id', requireAuth, async (req: AuthedRequest, res) => {
+  const { deleteTeam, assertTeamAccess } = await p6teams();
+  await assertTeamAccess(req.params.id, req.user!.id, 'owner');
+  await deleteTeam(req.params.id);
+  incTeamOperation();
+  return res.json({ ok: true });
+});
+
+app.get('/v1/teams/:id/members', requireAuth, async (req: AuthedRequest, res) => {
+  const { getTeamMembers, getMemberRole } = await p6teams();
+  const role = await getMemberRole(req.params.id, req.user!.id);
+  if (!role) return res.status(403).json({ error: 'not a team member' });
+  const members = await getTeamMembers(req.params.id);
+  return res.json({ members });
+});
+
+app.post('/v1/teams/:id/members', requireAuth, async (req: AuthedRequest, res) => {
+  const { addTeamMember, assertTeamAccess } = await p6teams();
+  await assertTeamAccess(req.params.id, req.user!.id, 'admin');
+  const { userId, role = 'member' } = req.body ?? {};
+  if (!userId) return res.status(400).json({ error: 'userId required' });
+  const member = await addTeamMember(req.params.id, String(userId), role);
+  incTeamOperation();
+  return res.status(201).json({ member });
+});
+
+app.delete('/v1/teams/:id/members/:userId', requireAuth, async (req: AuthedRequest, res) => {
+  const { removeTeamMember, assertTeamAccess } = await p6teams();
+  await assertTeamAccess(req.params.id, req.user!.id, 'admin');
+  await removeTeamMember(req.params.id, req.params.userId);
+  incTeamOperation();
+  return res.json({ ok: true });
+});
+
+// ── Organizations ──────────────────────────────────────────────────────────────
+
+app.get('/v1/orgs', requireAuth, async (req: AuthedRequest, res) => {
+  const { getUserOrgs } = await p6orgs();
+  const orgs = await getUserOrgs(req.user!.id);
+  incOrgOperation();
+  res.json({ orgs });
+});
+
+app.post('/v1/orgs', requireAuth, async (req: AuthedRequest, res) => {
+  const { name, plan } = req.body ?? {};
+  if (!name || typeof name !== 'string') return res.status(400).json({ error: 'name required' });
+  const { createOrg } = await p6orgs();
+  const org = await createOrg({ name: String(name).slice(0, 80), ownerId: req.user!.id, plan });
+  incOrgOperation();
+  return res.status(201).json({ org });
+});
+
+app.get('/v1/orgs/:id', requireAuth, async (req: AuthedRequest, res) => {
+  const { getOrg, getOrgMemberRole } = await p6orgs();
+  const org = await getOrg(req.params.id);
+  if (!org) return res.status(404).json({ error: 'org not found' });
+  const role = await getOrgMemberRole(req.params.id, req.user!.id);
+  if (!role) return res.status(403).json({ error: 'not an org member' });
+  incOrgOperation();
+  return res.json({ org, role });
+});
+
+app.patch('/v1/orgs/:id', requireAuth, async (req: AuthedRequest, res) => {
+  const { updateOrg, getOrgMemberRole } = await p6orgs();
+  const role = await getOrgMemberRole(req.params.id, req.user!.id);
+  if (!role || role === 'member') return res.status(403).json({ error: 'requires org admin' });
+  const org = await updateOrg(req.params.id, { name: req.body?.name, plan: req.body?.plan, ssoEnabled: req.body?.ssoEnabled });
+  incOrgOperation();
+  return org ? res.json({ org }) : res.status(404).json({ error: 'org not found' });
+});
+
+// ── Permissions ────────────────────────────────────────────────────────────────
+
+app.get('/v1/permissions', requireAuth, async (req: AuthedRequest, res) => {
+  const { getUserRoles, listPermissions } = await p6perms();
+  const roles       = await getUserRoles(req.user!.id);
+  const systemRole  = roles.find((r) => r.scope === 'system');
+  const permissions = systemRole ? listPermissions(systemRole.role) : {};
+  res.json({ roles, permissions });
+});
+
+app.get('/v1/permissions/check', requireAuth, async (req: AuthedRequest, res) => {
+  const action   = req.query['action']   as string;
+  const resource = req.query['resource'] as string;
+  const scope    = (req.query['scope'] as string) ?? 'system';
+  if (!action || !resource) return res.status(400).json({ error: 'action and resource required' });
+  const { can } = await p6perms();
+  const allowed = await can(req.user!.id, action as never, resource as never, scope);
+  return res.json({ allowed, action, resource, scope });
+});
+
+// ── Backup ─────────────────────────────────────────────────────────────────────
+
+app.post('/v1/backup', requireAuth, async (req: AuthedRequest, res) => {
+  const { createBackup } = await p6backup();
+  const manifest = await createBackup({
+    requestedBy: req.user!.id,
+    encrypt:     req.body?.encrypt !== false,
+    collections: req.body?.collections,
+  });
+  incBackupCreated();
+  return res.status(201).json({ backup: manifest });
+});
+
+app.get('/v1/backup', requireAuth, async (_req: AuthedRequest, res) => {
+  const { listBackups } = await p6backup();
+  res.json({ backups: listBackups() });
+});
+
+app.get('/v1/backup/:id', requireAuth, async (req: AuthedRequest, res) => {
+  const { getBackup, validateBackup } = await p6backup();
+  const manifest = getBackup(req.params.id);
+  if (!manifest) return res.status(404).json({ error: 'backup not found' });
+  const validation = validateBackup(req.params.id);
+  return res.json({ backup: manifest, validation });
+});
+
+// ── Restore ────────────────────────────────────────────────────────────────────
+
+app.post('/v1/restore', requireAuth, async (req: AuthedRequest, res) => {
+  const { restore, setLastRestore, preRestoreChecks } = await p6restore();
+  const { backupId, dryRun = true, collections } = req.body ?? {};
+  if (!backupId) return res.status(400).json({ error: 'backupId required' });
+  const checks = preRestoreChecks(String(backupId));
+  if (!checks.ok) return res.status(422).json({ error: 'Pre-restore checks failed', issues: checks.issues });
+  const result = await restore({ backupId: String(backupId), dryRun, collections, requestedBy: req.user!.id });
+  setLastRestore(result);
+  incRestoreRun();
+  return res.json({ restore: result });
+});
+
+app.get('/v1/restore/status', requireAuth, async (_req: AuthedRequest, res) => {
+  const { getLastRestoreStatus } = await p6restore();
+  res.json({ lastRestore: getLastRestoreStatus() });
+});
+
+// ── Disaster Recovery ──────────────────────────────────────────────────────────
+
+app.get('/v1/dr/status', requireAuth, async (_req: AuthedRequest, res) => {
+  const { getDRStatus } = await p6dr();
+  const status = await getDRStatus();
+  res.json(status);
+});
+
+app.get('/v1/dr/runbook', requireAuth, async (req: AuthedRequest, res) => {
+  const { getRunbook } = await p6dr();
+  const severity = req.query['severity'] as string | undefined;
+  res.json({ runbook: getRunbook(severity as never) });
+});
+
+app.get('/v1/dr/incidents', requireAuth, async (req: AuthedRequest, res) => {
+  const { listIncidents } = await p6dr();
+  const status   = req.query['status']   as string | undefined;
+  const severity = req.query['severity'] as string | undefined;
+  res.json({ incidents: listIncidents({ status: status as never, severity: severity as never }) });
+});
+
+app.post('/v1/dr/incidents', requireAuth, async (req: AuthedRequest, res) => {
+  const { title, severity = 'medium', affectedServices = [] } = req.body ?? {};
+  if (!title) return res.status(400).json({ error: 'title required' });
+  const { createIncident } = await p6dr();
+  const incident = createIncident({ title: String(title), severity, affectedServices, openedBy: req.user!.id });
+  return res.status(201).json({ incident });
+});
+
+app.patch('/v1/dr/incidents/:id', requireAuth, async (req: AuthedRequest, res) => {
+  const { updateIncident } = await p6dr();
+  const incident = updateIncident(req.params.id, { status: req.body?.status, note: req.body?.note });
+  return incident ? res.json({ incident }) : res.status(404).json({ error: 'incident not found' });
+});
+
+// ── Failover ───────────────────────────────────────────────────────────────────
+
+app.get('/v1/failover/circuits', requireAuth, async (_req: AuthedRequest, res) => {
+  const { listCircuits, getHealthScores } = await p6fo();
+  res.json({ circuits: listCircuits(), healthScores: getHealthScores() });
+});
+
+app.post('/v1/failover/circuits/:name/reset', requireAuth, async (req: AuthedRequest, res) => {
+  const { resetCircuit } = await p6fo();
+  resetCircuit(req.params.name);
+  return res.json({ ok: true, circuit: req.params.name });
+});
+
+// ── Analytics ──────────────────────────────────────────────────────────────────
+
+app.post('/v1/analytics/events', requireAuth, async (req: AuthedRequest, res) => {
+  const { eventType, properties = {} } = req.body ?? {};
+  if (!eventType) return res.status(400).json({ error: 'eventType required' });
+  const { trackEvent } = await p6an();
+  await trackEvent({
+    eventType: String(eventType).slice(0, 80),
+    userId:    req.user!.id,
+    properties,
+    ts:        new Date().toISOString(),
+  });
+  incAnalyticsEvent();
+  return res.json({ ok: true });
+});
+
+app.get('/v1/analytics/summary', requireAuth, async (req: AuthedRequest, res) => {
+  const date = (req.query['date'] as string) ?? new Date().toISOString().slice(0, 10);
+  const { getDailySummary } = await p6an();
+  const summary = await getDailySummary(date);
+  res.json({ summary });
+});
+
+app.get('/v1/analytics/features', requireAuth, async (req: AuthedRequest, res) => {
+  const date = (req.query['date'] as string) ?? new Date().toISOString().slice(0, 10);
+  const { getFeatureUsage } = await p6an();
+  const features = await getFeatureUsage(date);
+  res.json({ date, features });
+});
+
+app.get('/v1/analytics/mau', requireAuth, async (req: AuthedRequest, res) => {
+  const month = (req.query['month'] as string) ?? new Date().toISOString().slice(0, 7);
+  const { getMAU } = await p6an();
+  const mau = await getMAU(month);
+  res.json({ month, mau });
+});
+
+// ── Streaming & infra stats ────────────────────────────────────────────────────
+
+app.get('/v1/streaming/connections', requireAuth, async (_req: AuthedRequest, res) => {
+  const { getConnectionStats } = await p6stream();
+  res.json(getConnectionStats());
+});
+
+app.get('/v1/infra/redis', requireAuth, async (_req: AuthedRequest, res) => {
+  const { getRedisMemoryStats } = await p6redis();
+  try {
+    const stats = await getRedisMemoryStats();
+    res.json(stats);
+  } catch (e) {
+    res.status(503).json({ error: 'Redis unavailable', detail: (e as Error).message });
+  }
 });
 
 // ── static ────────────────────────────────────────────────────────────────────

@@ -1,137 +1,99 @@
-// Prometheus metrics for tmap-v2.
-// Exposes /v1/metrics/prometheus for Grafana / Prometheus scraping.
-// All metrics use the `cgntx_` prefix to avoid collisions.
+// Prometheus metrics — uses prom-client when available; exports a no-op stub
+// registry otherwise so the rest of the server never crashes on import.
 
-import {
-  Registry,
-  Counter,
-  Histogram,
-  Gauge,
-  collectDefaultMetrics,
-} from 'prom-client';
+import type { RequestHandler } from 'express';
 
-export const registry = new Registry();
+export interface Registry {
+  metrics(): Promise<string>;
+  contentType: string;
+}
 
-// ── Default Node.js metrics (memory, CPU, GC, event loop lag) ────────────────
-collectDefaultMetrics({ register: registry, prefix: 'cgntx_node_' });
+interface Counter {
+  inc(labels?: Record<string, string>): void;
+}
 
-// ── HTTP ──────────────────────────────────────────────────────────────────────
+interface Histogram {
+  observe(labels: Record<string, string>, value: number): void;
+  startTimer(labels?: Record<string, string>): (labels?: Record<string, string>) => void;
+}
 
-export const httpRequestsTotal = new Counter({
-  name:       'cgntx_http_requests_total',
-  help:       'Total number of HTTP requests received',
-  labelNames: ['method', 'route', 'status_code'] as const,
-  registers:  [registry],
-});
+interface Gauge {
+  set(value: number): void;
+  inc(): void;
+  dec(): void;
+}
 
-export const httpRequestDurationMs = new Histogram({
-  name:       'cgntx_http_request_duration_ms',
-  help:       'HTTP request duration in milliseconds',
-  labelNames: ['method', 'route'] as const,
-  buckets:    [5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000],
-  registers:  [registry],
-});
+// No-op implementations used when prom-client isn't installed
+const noopCounter: Counter = { inc: () => {} };
+const noopGauge:   Gauge   = { set: () => {}, inc: () => {}, dec: () => {} };
+const noopHistogram: Histogram = {
+  observe: () => {},
+  startTimer: () => (_labels?: Record<string, string>) => {},
+};
 
-// ── TMAP pipeline runs ────────────────────────────────────────────────────────
+const noopRegistry: Registry = {
+  metrics: async () => '# prom-client not installed\n',
+  contentType: 'text/plain; version=0.0.4',
+};
 
-export const tmapRunsTotal = new Counter({
-  name:       'cgntx_tmap_runs_total',
-  help:       'Total TMAP pipeline runs',
-  labelNames: ['mode', 'status'] as const,
-  registers:  [registry],
-});
+// Try to initialise prom-client; fall back to no-ops on failure.
+let _registry: Registry = noopRegistry;
+let httpRequestDuration: Histogram = noopHistogram;
+let activeConnections:   Gauge     = noopGauge;
+let requestsTotal:       Counter   = noopCounter;
+let errorsTotal:         Counter   = noopCounter;
 
-export const tmapDurationMs = new Histogram({
-  name:       'cgntx_tmap_duration_ms',
-  help:       'TMAP pipeline end-to-end duration in milliseconds',
-  labelNames: ['mode'] as const,
-  buckets:    [500, 1000, 2500, 5000, 10000, 30000, 60000, 120000],
-  registers:  [registry],
-});
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const prom = require('prom-client') as typeof import('prom-client');
+  prom.collectDefaultMetrics({ prefix: 'coagentix_' });
 
-// ── Tokens + cost ─────────────────────────────────────────────────────────────
+  _registry = prom.register;
 
-export const tokensTotal = new Counter({
-  name:       'cgntx_tokens_total',
-  help:       'Total tokens consumed across all agents',
-  labelNames: ['provider', 'agent_role'] as const,
-  registers:  [registry],
-});
+  httpRequestDuration = new prom.Histogram({
+    name:       'coagentix_http_request_duration_ms',
+    help:       'HTTP request duration in milliseconds',
+    labelNames: ['method', 'route', 'status'],
+    buckets:    [10, 50, 100, 250, 500, 1000, 2500, 5000],
+  });
 
-export const costUsdTotal = new Counter({
-  name:       'cgntx_cost_usd_total',
-  help:       'Total estimated cost in USD',
-  labelNames: ['provider'] as const,
-  registers:  [registry],
-});
+  activeConnections = new prom.Gauge({
+    name: 'coagentix_active_connections',
+    help: 'Number of currently active HTTP connections',
+  });
 
-// ── Errors ────────────────────────────────────────────────────────────────────
+  requestsTotal = new prom.Counter({
+    name:       'coagentix_requests_total',
+    help:       'Total number of HTTP requests',
+    labelNames: ['method', 'route'],
+  });
 
-export const errorsTotal = new Counter({
-  name:       'cgntx_errors_total',
-  help:       'Total errors by classification',
-  labelNames: ['code', 'provider'] as const,
-  registers:  [registry],
-});
+  errorsTotal = new prom.Counter({
+    name:       'coagentix_errors_total',
+    help:       'Total number of HTTP errors',
+    labelNames: ['status'],
+  });
+} catch {
+  // prom-client is optional — metrics endpoint returns a stub message
+}
 
-// ── Queue metrics ─────────────────────────────────────────────────────────────
+export const registry = _registry;
 
-export const queueJobsTotal = new Counter({
-  name:       'cgntx_queue_jobs_total',
-  help:       'Total BullMQ job outcomes',
-  labelNames: ['queue', 'status'] as const,
-  registers:  [registry],
-});
+/** Express middleware: measures request duration and active connection count. */
+export function prometheusMiddleware(): RequestHandler {
+  return (req, res, next) => {
+    const end = httpRequestDuration.startTimer({ method: req.method, route: req.path });
+    activeConnections.inc();
+    requestsTotal.inc({ method: req.method, route: req.path });
 
-export const queueDepth = new Gauge({
-  name:       'cgntx_queue_depth',
-  help:       'Current waiting jobs per queue',
-  labelNames: ['queue'] as const,
-  registers:  [registry],
-});
-
-// ── Dependency health ─────────────────────────────────────────────────────────
-
-export const redisConnected = new Gauge({
-  name:      'cgntx_redis_connected',
-  help:      'Whether the Redis connection is active (1 = yes, 0 = no)',
-  registers: [registry],
-});
-
-export const supabaseConnected = new Gauge({
-  name:      'cgntx_supabase_connected',
-  help:      'Whether Supabase is reachable (1 = yes, 0 = no)',
-  registers: [registry],
-});
-
-// ── Embeddings ────────────────────────────────────────────────────────────────
-
-export const embeddingDurationMs = new Histogram({
-  name:       'cgntx_embedding_duration_ms',
-  help:       'Embedding generation duration in milliseconds',
-  labelNames: ['provider'] as const,
-  buckets:    [10, 25, 50, 100, 250, 500, 1000, 2500],
-  registers:  [registry],
-});
-
-// ── Express middleware ────────────────────────────────────────────────────────
-
-import type { Request, Response, NextFunction } from 'express';
-
-export function prometheusMiddleware() {
-  return (req: Request, res: Response, next: NextFunction): void => {
-    // Skip the metrics endpoint itself to avoid noise
-    if (req.path === '/v1/metrics/prometheus') { next(); return; }
-
-    const start = performance.now();
     res.on('finish', () => {
-      const route       = (req.route?.path as string | undefined) ?? req.path;
-      const durationMs  = performance.now() - start;
-      const statusCode  = String(res.statusCode);
-
-      httpRequestsTotal.inc({ method: req.method, route, status_code: statusCode });
-      httpRequestDurationMs.observe({ method: req.method, route }, durationMs);
+      end({ status: String(res.statusCode) });
+      activeConnections.dec();
+      if (res.statusCode >= 400) {
+        errorsTotal.inc({ status: String(res.statusCode) });
+      }
     });
+
     next();
   };
 }

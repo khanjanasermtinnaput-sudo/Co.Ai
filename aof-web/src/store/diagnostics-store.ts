@@ -1,5 +1,5 @@
 // ── Diagnostics / Developer Mode ──────────────────────────────────────────────
-// Developer Mode reveals the raw diagnostics on a Coagentix error panel (HTTP status,
+// Developer Mode reveals the raw diagnostics on an AOF error panel (HTTP status,
 // provider response, stack trace, request metadata). Off by default; persisted so
 // it survives reloads while debugging.
 
@@ -19,6 +19,6 @@ export const useDiagnosticsStore = create<DiagnosticsState>()(
       setDeveloperMode: (developerMode) => set({ developerMode }),
       toggleDeveloperMode: () => set((s) => ({ developerMode: !s.developerMode })),
     }),
-    { name: "cgntx.diagnostics" },
+    { name: "aof.diagnostics" },
   ),
 );

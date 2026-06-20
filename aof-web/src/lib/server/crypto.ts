@@ -17,9 +17,9 @@ const LEGACY_V2_PREFIX = "aof2";
 const KDF_SALT = Buffer.from("aof-master-key-kdf-v2", "utf8");
 
 function rawMasterKey(): string {
-  // COAGENTIX_MASTER_KEY is the new canonical name; CGNTX_MASTER_KEY is supported
+  // COAGENTIX_MASTER_KEY is the new canonical name; AOF_MASTER_KEY is supported
   // for backward compatibility with existing deployments.
-  const raw = process.env.COAGENTIX_MASTER_KEY ?? process.env.CGNTX_MASTER_KEY;
+  const raw = process.env.COAGENTIX_MASTER_KEY ?? process.env.AOF_MASTER_KEY;
   if (!raw || raw.length < 16) {
     throw new Error(
       "COAGENTIX_MASTER_KEY missing or too short — set a long random value " +

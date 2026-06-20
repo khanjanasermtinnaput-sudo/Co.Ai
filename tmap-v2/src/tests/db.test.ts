@@ -5,8 +5,8 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
 // Point DB to temp dir before importing
-const tmpDir = mkdtempSync(join(tmpdir(), 'cgntx-db-test-'));
-process.env.CGNTX_DB_PATH = join(tmpDir, 'db.json');
+const tmpDir = mkdtempSync(join(tmpdir(), 'aof-db-test-'));
+process.env.AOF_DB_PATH = join(tmpDir, 'db.json');
 
 // Dynamic import after env is set
 const { createUser, findUserByUsername, findUserById, setUserKey, deleteUserKey,

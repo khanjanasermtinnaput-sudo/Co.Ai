@@ -89,8 +89,8 @@ export async function selfCritiqueCode(
 
 function parseCritique(raw: string): CritiqueResult {
   const verdictMatch = raw.match(/VERDICT:\s*(pass|minor|major|blocking)/i);
-  const verdict = (verdictMatch?.[1]?.toLowerCase() ?? 'minor') as CritiqueSeverity;
-  const severity: CritiqueSeverity = verdict === 'pass' ? 'none' : verdict;
+  const verdictRaw = verdictMatch?.[1]?.toLowerCase() ?? 'minor';
+  const severity: CritiqueSeverity = verdictRaw === 'pass' ? 'none' : (verdictRaw as CritiqueSeverity);
 
   const issueSection = raw.split(/ISSUES:/i)[1] ?? '';
   const issues = issueSection

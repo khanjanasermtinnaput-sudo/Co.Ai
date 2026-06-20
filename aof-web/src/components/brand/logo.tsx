@@ -10,7 +10,7 @@ interface LogoMarkProps {
 export function LogoMark({ className, size = 32 }: LogoMarkProps) {
   return (
     <Image
-      src="/coagentix-logo.png"
+      src="/aof-logo.png"
       alt="CoAgentix"
       width={size}
       height={size}

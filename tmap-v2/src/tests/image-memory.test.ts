@@ -5,8 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 // File backend (no Supabase in test env).
-const MEM_DIR = mkdtempSync(join(tmpdir(), 'cgntx-img-'));
-process.env.CGNTX_MEMORY_DIR = MEM_DIR;
+const MEM_DIR = mkdtempSync(join(tmpdir(), 'aof-img-'));
+process.env.AOF_MEMORY_DIR = MEM_DIR;
 delete process.env.SUPABASE_URL;
 delete process.env.SUPABASE_SERVICE_ROLE_KEY;
 

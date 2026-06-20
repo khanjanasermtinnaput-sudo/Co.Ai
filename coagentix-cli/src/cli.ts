@@ -984,6 +984,162 @@ program
     printRecoverySummary(summary);
   });
 
+// ── SANDBOX ───────────────────────────────────────────────────────────────────
+
+program
+  .command("sandbox <file>")
+  .description("Run a code file in the secure Coagentix sandbox (js/ts/py)")
+  .option("--language <lang>", "Override language detection (javascript|typescript|python)")
+  .option("--timeout <ms>",    "Execution timeout in milliseconds (default: 10000)", "10000")
+  .option("--docker",          "Use Docker container isolation (requires Docker on server)")
+  .option("--input <file>",    "Attach an input file (format: remote-path:local-path)", (v: string, acc: string[]) => [...acc, v], [] as string[])
+  .action(async (filePath: string, opts: {
+    language?: string;
+    timeout?: string;
+    docker?: boolean;
+    input?: string[];
+  }) => {
+    const api = await makeClient("sandbox");
+
+    // Read the code file
+    const { readFileSync, existsSync } = await import("node:fs");
+    const { extname, basename, resolve } = await import("node:path");
+    const absPath = resolve(ROOT, filePath);
+    if (!existsSync(absPath)) {
+      printError(`File not found: ${filePath}`);
+      process.exit(1);
+    }
+    const code = readFileSync(absPath, "utf8");
+
+    // Detect language from extension when not overridden
+    const ext = extname(filePath).toLowerCase();
+    const detectedLang = opts.language ??
+      (ext === ".ts" ? "typescript" : ext === ".py" ? "python" : "javascript");
+
+    // Attach input files
+    const files: Array<{ path: string; content: string }> = [];
+    for (const inputSpec of opts.input ?? []) {
+      const [remotePath, localPath] = inputSpec.split(":");
+      if (!remotePath || !localPath) {
+        printWarning(`Invalid --input format: "${inputSpec}" (expected remote-path:local-path)`);
+        continue;
+      }
+      const abs = resolve(ROOT, localPath);
+      if (!existsSync(abs)) { printWarning(`Input file not found: ${localPath}`); continue; }
+      files.push({ path: remotePath, content: readFileSync(abs, "utf8") });
+    }
+
+    const spinner = startSpinner(`Running ${basename(filePath)} in ${detectedLang} sandbox…`);
+
+    try {
+      const resp = await api.post("/v1/sandbox/run", {
+        language:    detectedLang,
+        code,
+        timeoutMs:   Number(opts.timeout) || 10_000,
+        docker:      opts.docker ?? false,
+        files:       files.length > 0 ? files : undefined,
+      });
+
+      spinner.stop();
+
+      const r = resp as {
+        success: boolean;
+        stdout: string;
+        stderr: string;
+        durationMs: number;
+        timedOut: boolean;
+        language: string;
+        error?: string;
+        docker?: boolean;
+      };
+
+      const mode = r.docker ? chalk.cyan("[Docker]") : chalk.dim("[vm]");
+      const dur  = chalk.dim(`${r.durationMs} ms`);
+
+      if (r.success) {
+        printSuccess(`Sandbox completed ${mode} ${dur}`);
+      } else if (r.timedOut) {
+        printError(`Timed out after ${opts.timeout} ms`);
+      } else {
+        printError(`Execution failed: ${r.error ?? "unknown error"}`);
+      }
+
+      if (r.stdout) {
+        console.log(chalk.bold("\n  stdout:"));
+        console.log(r.stdout.split("\n").map((l: string) => chalk.dim("  " + l)).join("\n"));
+      }
+      if (r.stderr) {
+        console.log(chalk.bold("\n  stderr:"));
+        console.log(r.stderr.split("\n").map((l: string) => chalk.red("  " + l)).join("\n"));
+      }
+    } catch (err) {
+      spinner.fail("Sandbox run failed");
+      printError(String(err));
+      process.exit(1);
+    }
+  });
+
+// ── DEVELOPER KEYS ────────────────────────────────────────────────────────────
+
+program
+  .command("keys")
+  .description("Manage developer API keys")
+  .option("--list",               "List all developer API keys")
+  .option("--create <name>",      "Create a new developer API key with the given name")
+  .option("--scopes <scopes>",    "Comma-separated scopes for the new key (default: sandbox:run,usage:read)")
+  .option("--revoke <id>",        "Revoke a developer API key by ID")
+  .action(async (opts: {
+    list?: boolean;
+    create?: string;
+    scopes?: string;
+    revoke?: string;
+  }) => {
+    const api = await makeClient("keys");
+
+    if (opts.revoke) {
+      const ok = await askYesNo(chalk.yellow(`Revoke developer key ${opts.revoke}? (y/N)`), false);
+      if (!ok) { printInfo("Cancelled."); return; }
+      await api.delete(`/v1/developer/keys/${opts.revoke}`);
+      printSuccess(`Key ${opts.revoke} revoked.`);
+      return;
+    }
+
+    if (opts.create) {
+      const scopes = (opts.scopes ?? "sandbox:run,usage:read").split(",").map((s: string) => s.trim());
+      const result = await api.post("/v1/developer/keys", { name: opts.create, scopes }) as {
+        key: { id: string; name: string; prefix: string; scopes: string[]; createdAt: string };
+        rawKey: string;
+      };
+      printSuccess(`Developer key created: ${result.key.name}`);
+      console.log();
+      console.log(chalk.bold("  Key ID:  ") + chalk.dim(result.key.id));
+      console.log(chalk.bold("  Scopes:  ") + result.key.scopes.join(", "));
+      console.log(chalk.bold("  API Key: ") + chalk.yellow(result.rawKey));
+      console.log();
+      printWarning("Save this key now — it won't be shown again.");
+      return;
+    }
+
+    // Default: list keys
+    const data = await api.get("/v1/developer/keys") as { keys: Array<{ id: string; name: string; prefix: string; scopes: string[]; createdAt: string; lastUsed: string | null }> };
+    if (data.keys.length === 0) {
+      printInfo("No developer keys. Create one with: coai keys --create <name>");
+      return;
+    }
+    console.log(chalk.bold(`\n  Developer API Keys (${data.keys.length})`));
+    console.log(chalk.dim("─".repeat(72)));
+    printTable(
+      ["Name", "ID", "Scopes", "Last Used"],
+      data.keys.map((k) => [
+        k.name,
+        k.id.slice(0, 8) + "…",
+        k.scopes.join(", "),
+        k.lastUsed ? k.lastUsed.slice(0, 10) : "never",
+      ]),
+    );
+    console.log();
+  });
+
 // ── main ─────────────────────────────────────────────────────────────────────
 
 program.parseAsync(process.argv).catch((err) => {

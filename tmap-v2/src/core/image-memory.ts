@@ -93,8 +93,8 @@ function recordToRow(rec: ImageMemoryRecord): Record<string, unknown> {
 
 // ── File fallback (per user) ────────────────────────────────────────────────────
 function memoryDir(): string {
-  return process.env.CGNTX_MEMORY_DIR
-    ?? (process.env.VERCEL ? '/tmp/cgntx-memory' : join(process.cwd(), '.coagentix-server', 'memory'));
+  return process.env.AOF_MEMORY_DIR
+    ?? (process.env.VERCEL ? '/tmp/aof-memory' : join(process.cwd(), '.aof-server', 'memory'));
 }
 function sanitize(key: string): string {
   return key.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 80) || 'default';

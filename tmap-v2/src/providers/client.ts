@@ -24,8 +24,8 @@ export async function chat(
   };
   // OpenRouter recommends these (optional) attribution headers.
   if (provider.mode === 'openrouter') {
-    headers['HTTP-Referer'] = 'https://github.com/khanjanasermtinnaput-sudo/Aof-code';
-    headers['X-Title'] = 'Coagentix';
+    headers['HTTP-Referer'] = 'https://github.com/aof-code';
+    headers['X-Title'] = 'AOF Code';
   }
 
   const body = JSON.stringify({
@@ -78,7 +78,7 @@ function mockReply(role: string, messages: AnyMessage[]): string {
   if (role === 'planner')
     return `1. entrypoint — main module\n2. core logic — feature implementation\n3. tests — basic coverage\n${MOCK_NOTE}`;
   if (role === 'coder')
-    return `\`\`\`js\n// main.js — ${MOCK_NOTE}\nexport function main() {\n  console.log("hello from Coagentix mock");\n}\nmain();\n\`\`\``;
+    return `\`\`\`js\n// main.js — ${MOCK_NOTE}\nexport function main() {\n  console.log("hello from AOF mock");\n}\nmain();\n\`\`\``;
   if (role === 'reviewer')
     return `LOW | general | ${MOCK_NOTE} Add error handling and tests.`;
   return `skipped | ${MOCK_NOTE}`;

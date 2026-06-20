@@ -1,86 +1,83 @@
-// Bot protection middleware for tmap-v2 (Express).
-// Score-based heuristics; blocks requests scoring >= BOT_BLOCK_THRESHOLD.
+// Bot protection middleware — UA-heuristic score-based blocking.
+// Assigns a suspicion score based on User-Agent signals; blocks requests above
+// the threshold with a 403.  Known legitimate crawlers (Googlebot, etc.) are
+// scored low even though they are bots, because blocking them hurts SEO.
 
-const BOT_BLOCK_THRESHOLD = parseInt(process.env.BOT_BLOCK_THRESHOLD ?? '80', 10);
+import type { RequestHandler } from 'express';
 
-const BOT_UA_PATTERNS: RegExp[] = [
-  /python-requests/i,
-  /curl\//i,
-  /wget\//i,
-  /go-http-client/i,
-  /java\/\d/i,
-  /libwww-perl/i,
-  /scrapy/i,
-  /phantomjs/i,
-  /headlesschrome/i,
-  /selenium/i,
-  /puppeteer/i,
-  /playwright/i,
-  /httpclient/i,
-  /okhttp/i,
-  /aiohttp/i,
+interface BotProtectionOptions {
+  /** Paths matching this regex are exempt from bot checks (e.g. /v1/health). */
+  skipPaths?: RegExp;
+  /** Score 0-100 above which a request is blocked (default 80). */
+  blockThreshold?: number;
+}
+
+// Patterns that strongly indicate a malicious scraper/scanner
+const BAD_UA_PATTERNS: Array<[RegExp, number]> = [
+  [/python-requests\//i,       40],
+  [/curl\//i,                  20],
+  [/scrapy\//i,                70],
+  [/Go-http-client\//i,        30],
+  [/Java\//i,                  30],
+  [/libwww-perl\//i,           60],
+  [/masscan\//i,               90],
+  [/nmap\//i,                  90],
+  [/nikto\//i,                 90],
+  [/dirbuster/i,               90],
+  [/sqlmap\//i,                90],
+  [/nuclei\//i,                80],
+  [/zgrab\//i,                 80],
+  [/headless/i,                50],
+  [/phantom/i,                 50],
+  [/selenium/i,                60],
+  [/puppeteer/i,               60],
 ];
 
-const BROWSER_UA_PATTERN = /mozilla\/5\.0/i;
+// Known good bots — reduce their score
+const GOOD_BOT_UA: RegExp[] = [
+  /Googlebot/i,
+  /bingbot/i,
+  /Slurp/i,
+  /DuckDuckBot/i,
+  /Baiduspider/i,
+  /YandexBot/i,
+  /Sogou/i,
+  /facebot/i,
+  /Twitterbot/i,
+  /LinkedInBot/i,
+];
 
-export interface BotRisk {
-  score:   number;
-  reasons: string[];
-  blocked: boolean;
-}
+function scoreUA(ua: string | undefined): number {
+  if (!ua) return 60;  // missing UA is mildly suspicious
 
-export function assessBotRisk(req: import('express').Request): BotRisk {
-  const ua        = (req.headers['user-agent'] ?? '') as string;
-  const accept    = (req.headers['accept'] ?? '') as string;
-  const acceptLang = (req.headers['accept-language'] ?? '') as string;
-  const acceptEnc = (req.headers['accept-encoding'] ?? '') as string;
-  const reasons: string[] = [];
+  // Legitimate browsers score 0
+  if (/Mozilla\/5\.0.*(?:Chrome|Firefox|Safari|Edge)/i.test(ua)) return 0;
+
+  // Known-good crawlers
+  if (GOOD_BOT_UA.some((re) => re.test(ua))) return 5;
+
   let score = 0;
-
-  if (!ua) {
-    reasons.push('missing_user_agent');
-    score += 60;
-  } else if (BOT_UA_PATTERNS.some((r) => r.test(ua))) {
-    reasons.push('bot_user_agent');
-    score += 70;
-  } else if (!BROWSER_UA_PATTERN.test(ua)) {
-    reasons.push('non_browser_user_agent');
-    score += 30;
+  for (const [re, points] of BAD_UA_PATTERNS) {
+    if (re.test(ua)) score += points;
   }
-
-  if (!accept && ua) {
-    reasons.push('missing_accept_header');
-    score += 15;
-  }
-  if (!acceptLang) {
-    reasons.push('missing_accept_language');
-    score += 10;
-  }
-  if (!acceptEnc) {
-    reasons.push('missing_accept_encoding');
-    score += 10;
-  }
-
-  score = Math.min(100, score);
-  return { score, reasons, blocked: score >= BOT_BLOCK_THRESHOLD };
+  return Math.min(score, 100);
 }
 
-export function botProtectionMiddleware(
-  options: { skipPaths?: RegExp } = {},
-): (req: import('express').Request, res: import('express').Response, next: import('express').NextFunction) => void {
+export function botProtectionMiddleware(opts: BotProtectionOptions = {}): RequestHandler {
+  const threshold = opts.blockThreshold ?? 80;
   return (req, res, next) => {
-    if (options.skipPaths?.test(req.path)) return next();
+    if (opts.skipPaths?.test(req.path)) return next();
 
-    const risk = assessBotRisk(req);
-    res.setHeader('X-Bot-Score', risk.score.toString());
+    const ua    = req.headers['user-agent'];
+    const score = scoreUA(ua);
 
-    if (risk.blocked) {
-      res.status(403).json({
-        error: 'Request blocked',
-        code:  'BOT_DETECTED',
-      });
+    if (score >= threshold) {
+      res.status(403).json({ error: 'Forbidden' });
       return;
     }
+
+    // Attach score to request for logging purposes
+    (req as unknown as Record<string, unknown>)['botScore'] = score;
     next();
   };
 }

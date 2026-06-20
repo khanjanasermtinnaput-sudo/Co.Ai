@@ -341,3 +341,96 @@ export interface QuotaStatus {
   monthly: { tokens: number; costUsd: number; requests: number };
   quota: UsageQuota;
 }
+
+// ── Phase 6: Scale & Enterprise ───────────────────────────────────────────────
+
+export type TeamRole = 'owner' | 'admin' | 'member' | 'viewer';
+export interface Team {
+  id: string;
+  orgId: string;
+  name: string;
+  slug: string;
+  description?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+export interface TeamMember {
+  teamId:   string;
+  userId:   string;
+  role:     TeamRole;
+  joinedAt: string;
+}
+
+export type OrgPlan = 'free' | 'pro' | 'enterprise';
+export interface Organization {
+  id:         string;
+  name:       string;
+  slug:       string;
+  plan:       OrgPlan;
+  ownerId:    string;
+  ssoEnabled: boolean;
+  createdAt:  string;
+  updatedAt:  string;
+}
+
+export type PermissionRole   = 'superadmin' | 'org_admin' | 'team_admin' | 'member' | 'viewer';
+export type ResourceType     = 'org' | 'team' | 'session' | 'key' | 'usage' | 'analytics' | 'backup';
+export type PermissionAction = 'create' | 'read' | 'update' | 'delete' | 'execute' | 'admin';
+
+export type BackupStatus = 'pending' | 'running' | 'complete' | 'failed';
+export interface BackupManifest {
+  id:           string;
+  createdAt:    string;
+  sizeBytes:    number;
+  tables:       string[];
+  recordCounts: Record<string, number>;
+  checksum:     string;
+  encrypted:    boolean;
+  status:       BackupStatus;
+  error?:       string;
+}
+
+export interface AnalyticsEvent {
+  eventType:   string;
+  userId?:     string;
+  teamId?:     string;
+  orgId?:      string;
+  properties:  Record<string, unknown>;
+  ts:          string;
+}
+
+export interface AnalyticsSummary {
+  period:            'day' | 'week' | 'month';
+  from:              string;
+  to:                string;
+  activeUsers:       number;
+  totalSessions:     number;
+  totalTokens:       number;
+  totalCostUsd:      number;
+  topFeatures:       Array<{ feature: string; count: number }>;
+  providerBreakdown: Array<{ provider: string; tokens: number; costUsd: number }>;
+}
+
+export type CircuitState = 'closed' | 'open' | 'half-open';
+export interface CircuitBreakerState {
+  name:           string;
+  state:          CircuitState;
+  failures:       number;
+  successes:      number;
+  lastFailureAt?: string;
+  openedAt?:      string;
+  nextAttemptAt?: string;
+}
+
+export type IncidentSeverity = 'low' | 'medium' | 'high' | 'critical';
+export type IncidentStatus   = 'open' | 'investigating' | 'mitigated' | 'resolved';
+export interface Incident {
+  id:               string;
+  title:            string;
+  severity:         IncidentSeverity;
+  status:           IncidentStatus;
+  affectedServices: string[];
+  openedAt:         string;
+  resolvedAt?:      string;
+  notes:            string[];
+}

@@ -47,8 +47,8 @@ const MAX_DECISIONS = 20;
 const MAX_FAILURES = 15;
 
 function memoryDir(): string {
-  return process.env.CGNTX_MEMORY_DIR
-    ?? (process.env.VERCEL ? '/tmp/cgntx-memory' : join(process.cwd(), '.coagentix-server', 'memory'));
+  return process.env.AOF_MEMORY_DIR
+    ?? (process.env.VERCEL ? '/tmp/aof-memory' : join(process.cwd(), '.aof-server', 'memory'));
 }
 
 function sanitizeKey(key: string): string {

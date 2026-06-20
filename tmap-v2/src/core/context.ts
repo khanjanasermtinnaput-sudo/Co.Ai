@@ -86,7 +86,7 @@ export function gatherProjectContext(rootDir = process.cwd()): ProjectContext {
 
 function scanFiles(dir: string, max: number, current: string[] = [], depth = 0): string[] {
   if (depth > 4 || current.length >= max) return current;
-  const SKIP = new Set(['node_modules', '.git', 'dist', 'build', '.coagentix', '.coagentix-server', '__pycache__', '.next', 'coverage']);
+  const SKIP = new Set(['node_modules', '.git', 'dist', 'build', '.aof', '.aof-server', '__pycache__', '.next', 'coverage']);
   try {
     for (const entry of readdirSync(dir)) {
       if (SKIP.has(entry) || entry.startsWith('.')) continue;

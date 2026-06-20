@@ -1,8 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-// randomUUID is available in both Node.js and Edge runtimes
-
 import { createServerClient } from "@supabase/ssr";
-import { assessBotRisk } from "@/lib/server/bot-protection";
 
 // Routes that require a valid Supabase session.
 const PROTECTED_PREFIXES = ["/admin", "/api/admin"];
@@ -38,38 +35,6 @@ function isTrustedOrigin(origin: string | null, requestUrl: string): boolean {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // ── Correlation ID ─────────────────────────────────────────────────────────
-  // Propagate or generate a correlation ID so every response and downstream
-  // log line can be traced back to the originating request.
-  const correlationId =
-    request.headers.get("x-correlation-id") ?? crypto.randomUUID();
-  const requestId = crypto.randomUUID();
-
-  // ── Bot protection ─────────────────────────────────────────────────────────
-  // Score-based heuristic check on API mutations. Skip CSP report (sent by
-  // browser with unusual headers) and same-origin / server-to-server calls.
-  const BOT_SKIP = /^\/api\/(csp-report|health)/;
-  if (
-    pathname.startsWith("/api/") &&
-    !CSRF_SAFE_METHODS.has(request.method) &&
-    !BOT_SKIP.test(pathname)
-  ) {
-    const risk = assessBotRisk(request as unknown as Request);
-    if (risk.blocked) {
-      return new NextResponse(
-        JSON.stringify({ error: "forbidden", code: "BOT_DETECTED" }),
-        {
-          status: 403,
-          headers: {
-            "Content-Type":     "application/json",
-            "X-Correlation-ID": correlationId,
-            "X-Bot-Score":      risk.score.toString(),
-          },
-        },
-      );
-    }
-  }
-
   // ── CSRF check ─────────────────────────────────────────────────────────────
   // Reject state-mutating requests from untrusted cross-origin pages.
   if (
@@ -80,42 +45,21 @@ export async function middleware(request: NextRequest) {
     if (!isTrustedOrigin(origin, request.url)) {
       return new NextResponse(
         JSON.stringify({ error: "forbidden", message: "Cross-origin request rejected" }),
-        {
-          status: 403,
-          headers: {
-            "Content-Type":     "application/json",
-            "X-Correlation-ID": correlationId,
-            "X-Request-ID":     requestId,
-          },
-        },
+        { status: 403, headers: { "Content-Type": "application/json" } },
       );
     }
   }
 
   const isProtected = PROTECTED_PREFIXES.some((p) => pathname.startsWith(p));
-  if (!isProtected) {
-    const res = NextResponse.next();
-    res.headers.set("X-Correlation-ID", correlationId);
-    res.headers.set("X-Request-ID",     requestId);
-    return res;
-  }
+  if (!isProtected) return NextResponse.next();
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   // If Supabase is not configured let the request through so local dev works.
-  if (!supabaseUrl || !supabaseAnonKey) {
-    const res = NextResponse.next();
-    res.headers.set("X-Correlation-ID", correlationId);
-    res.headers.set("X-Request-ID",     requestId);
-    return res;
-  }
+  if (!supabaseUrl || !supabaseAnonKey) return NextResponse.next();
 
-  const response = NextResponse.next({
-    request: { headers: new Headers({ ...Object.fromEntries(request.headers), "x-correlation-id": correlationId }) },
-  });
-  response.headers.set("X-Correlation-ID", correlationId);
-  response.headers.set("X-Request-ID",     requestId);
+  const response = NextResponse.next();
 
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
@@ -163,7 +107,7 @@ export async function middleware(request: NextRequest) {
         if (pathname.startsWith("/api/")) {
           return new NextResponse(
             JSON.stringify({ error: "forbidden", message: "Insufficient role" }),
-            { status: 403, headers: { "Content-Type": "application/json", "X-Correlation-ID": correlationId } },
+            { status: 403, headers: { "Content-Type": "application/json" } },
           );
         }
         return NextResponse.redirect(new URL("/?error=forbidden", request.url));

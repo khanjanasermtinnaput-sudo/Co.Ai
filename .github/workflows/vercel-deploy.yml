@@ -1,6 +1,6 @@
-name: Deploy coagentix-web to Vercel
+name: Deploy aof-web to Vercel
 
-# Auto-deploys the Next.js frontend (coagentix-web) to Vercel on every push.
+# Auto-deploys the Next.js frontend (aof-web) to Vercel on every push.
 # ONE-TIME SETUP: add a repo secret named VERCEL_TOKEN
 #   GitHub → repo → Settings → Secrets and variables → Actions → New repository secret
 #   Create the token at https://vercel.com/account/tokens
@@ -40,7 +40,7 @@ jobs:
           # --yes auto-creates & links the project under the token's team on first run.
           url=$(vercel deploy --prod --yes --token="$VERCEL_TOKEN")
           echo "Deployed: $url"
-          echo "### ✅ coagentix-web deployed" >> "$GITHUB_STEP_SUMMARY"
+          echo "### ✅ aof-web deployed" >> "$GITHUB_STEP_SUMMARY"
           echo "$url" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Setup notice (no token yet)

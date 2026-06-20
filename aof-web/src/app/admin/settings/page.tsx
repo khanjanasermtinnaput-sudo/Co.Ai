@@ -223,7 +223,7 @@ function BetaAccessManager() {
   const [feature, setFeature] = useState("titan-beta");
   const [loading, setLoading] = useState(false);
 
-  const FEATURES = ["titan-beta", "cli-beta", "coagentix-code-beta", "experimental-models", "early-access"];
+  const FEATURES = ["titan-beta", "cli-beta", "aof-code-beta", "experimental-models", "early-access"];
 
   async function handleGrant() {
     if (!userId.trim()) { toast.error("User ID required"); return; }
@@ -263,7 +263,7 @@ function CreateAnnouncementDialog({ onClose, onSuccess }: { onClose: () => void;
   const [showOn, setShowOn] = useState<string[]>(["homepage", "dashboard"]);
   const [loading, setLoading] = useState(false);
 
-  const LOCATIONS = ["homepage", "dashboard", "chat", "coagentix-code"];
+  const LOCATIONS = ["homepage", "dashboard", "chat", "aof-code"];
   const TYPES = ["info", "feature", "beta", "maintenance", "promotion"];
 
   function toggleLocation(loc: string) {

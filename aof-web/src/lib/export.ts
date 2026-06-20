@@ -127,7 +127,7 @@ function pathFromInfo(info: string): string | null {
 }
 
 /** Pull a filename from a heading / bold / "File:" label line that often
- *  precedes a code block (the CGNTX_CODE_GEN_SYSTEM format uses **`path`**). */
+ *  precedes a code block (the AOF_CODE_GEN_SYSTEM format uses **`path`**). */
 function filenameHint(line: string): string | null {
   let s = line.trim();
   if (!s) return null;
@@ -186,7 +186,7 @@ function uniquePath(path: string, used: Set<string>): string {
 /** Pull individual files out of Coagentix Code's generated output. Handles every
  *  format the pipeline can produce:
  *   - ```path=src/main.js          (live tmap-v2 Coder, agents.ts)
- *   - **`src/index.ts`** + block   (serverless CGNTX_CODE_GEN_SYSTEM, raa.ts)
+ *   - **`src/index.ts`** + block   (serverless AOF_CODE_GEN_SYSTEM, raa.ts)
  *   - ```html / ```css / ```js     (bare language → index.html/style.css/script.js)
  *   - leading // file.js comment   (filename embedded in the block)
  *  Uses a line-based scan so files whose content contains a ``` fence (e.g. a

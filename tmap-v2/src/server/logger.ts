@@ -97,6 +97,13 @@ interface Metrics {
   keyRotations: number;
   keyValidations: number;
   keyValidationFails: number;
+  // ── Phase 6 counters ─────────────────────────────────────────────────────────
+  teamOperations: number;
+  orgOperations: number;
+  backupsCreated: number;
+  restoresRun: number;
+  circuitBreakerTrips: number;
+  analyticsEvents: number;
 }
 
 const _metrics: Metrics = {
@@ -122,6 +129,12 @@ const _metrics: Metrics = {
   keyRotations: 0,
   keyValidations: 0,
   keyValidationFails: 0,
+  teamOperations: 0,
+  orgOperations: 0,
+  backupsCreated: 0,
+  restoresRun: 0,
+  circuitBreakerTrips: 0,
+  analyticsEvents: 0,
 };
 
 export function incRequest():                          void { _metrics.requests++; }
@@ -159,6 +172,13 @@ export function incKeyValidation(success: boolean) {
   _metrics.keyValidations++;
   if (!success) _metrics.keyValidationFails++;
 }
+// Phase 6 counters
+export function incTeamOperation()       { _metrics.teamOperations++; }
+export function incOrgOperation()        { _metrics.orgOperations++; }
+export function incBackupCreated()       { _metrics.backupsCreated++; }
+export function incRestoreRun()          { _metrics.restoresRun++; }
+export function incCircuitBreakerTrip()  { _metrics.circuitBreakerTrips++; }
+export function incAnalyticsEvent()      { _metrics.analyticsEvents++; }
 
 export function getMetrics(): Metrics & { uptimeSec: number } {
   return {

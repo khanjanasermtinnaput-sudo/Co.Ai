@@ -125,7 +125,7 @@ function AccountTab() {
     if (user) setName(user.name);
   }, [user]);
 
-  const email = user?.email ?? "you@coagentix.app";
+  const email = user?.email ?? "you@aof.ai";
 
   const save = async () => {
     setSaving(true);

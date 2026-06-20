@@ -5,7 +5,7 @@
 import type { LLMCall, TaskCategory } from '../types.js';
 import { categoryLabel } from './classifier.js';
 
-const PROMPT_ENGINEER_SYS = `You are an expert Prompt Engineering Agent inside Co.AI.
+const PROMPT_ENGINEER_SYS = `You are an expert Prompt Engineering Agent inside AOF AI.
 Your job is to silently transform a simple user request into a rich, detailed,
 expert-level instruction that will produce the highest quality output.
 

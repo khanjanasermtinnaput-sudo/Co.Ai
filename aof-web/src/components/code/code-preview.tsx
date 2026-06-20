@@ -25,7 +25,7 @@ interface ConsoleEntry {
 // relayed to the parent via postMessage. Sandboxed iframes post with origin
 // "null", so the parent filters on the `source` tag instead of the origin.
 const RELAY_SCRIPT = `<script>(function(){
-  function send(level, parts){try{parent.postMessage({source:"cgntx-preview",level:level,text:Array.prototype.slice.call(parts).map(function(p){
+  function send(level, parts){try{parent.postMessage({source:"aof-preview",level:level,text:Array.prototype.slice.call(parts).map(function(p){
     try{return typeof p==="object"?JSON.stringify(p):String(p);}catch(e){return String(p);}
   }).join(" ")},"*");}catch(e){}}
   ["log","info","warn","error"].forEach(function(m){var o=console[m];console[m]=function(){send(m,arguments);if(o)o.apply(console,arguments);};});
@@ -73,7 +73,7 @@ export function CodePreview({ buildLog, className }: { buildLog: string; classNa
     if (!open) return;
     const onMessage = (e: MessageEvent) => {
       const d = e.data as { source?: string; level?: LogLevel; text?: string } | null;
-      if (!d || d.source !== "cgntx-preview") return;
+      if (!d || d.source !== "aof-preview") return;
       setLogs((prev) => [
         ...prev.slice(-199),
         { id: logId.current++, level: d.level ?? "log", text: String(d.text ?? "") },

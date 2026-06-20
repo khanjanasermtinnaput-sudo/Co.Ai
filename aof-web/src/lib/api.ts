@@ -1,13 +1,12 @@
 // ── Coagentix API client ──────────────────────────────────────────────────────
 // Thin, typed layer over the AI providers. Transparency is the rule: when a
 // provider fails, the failure is surfaced to the UI as a structured
-// `CgntxProviderError` (via `handlers.onError`) — it is NEVER hidden behind a fake
+// `AofProviderError` (via `handlers.onError`) — it is NEVER hidden behind a fake
 // "mock" reply. The offline mock engine still exists, but only runs when the app
-// is *explicitly* put in demo mode (`NEXT_PUBLIC_CGNTX_DEMO=1`); it is off by
+// is *explicitly* put in demo mode (`NEXT_PUBLIC_AOF_DEMO=1`); it is off by
 // default so the UI never appears to work when AI is actually down.
 
 import type { ProjectBrief, ResponseStyle, RouteDecision } from "./types";
-import { getImageContextForQuery, type LocalImageMemory } from "./image-memory";
 import {
   mockChat,
   mockCodeChat,
@@ -22,8 +21,8 @@ import {
   classifyProviderError,
   decodeFrames,
   emptyResponseError,
-  isCgntxProviderError,
-  type CgntxProviderError,
+  isAofProviderError,
+  type AofProviderError,
 } from "./errors";
 import { parseBrief, summaryToBrief } from "./raa";
 
@@ -31,12 +30,12 @@ import { parseBrief, summaryToBrief } from "./raa";
 export function getApiBase(): string | null {
   const pub =
     process.env.NEXT_PUBLIC_COAGENTIX_API_BASE ??
-    process.env.NEXT_PUBLIC_CGNTX_API_BASE;
+    process.env.NEXT_PUBLIC_AOF_API_BASE;
   if (typeof pub === "string" && pub.length > 0) return pub.replace(/\/$/, "");
-  // When COAGENTIX_API_PROXY / CGNTX_API_PROXY is set we rewrite /v1 at the edge → same-origin.
+  // When COAGENTIX_API_PROXY / AOF_API_PROXY is set we rewrite /v1 at the edge → same-origin.
   if (
     process.env.NEXT_PUBLIC_COAGENTIX_SAME_ORIGIN === "1" ||
-    process.env.NEXT_PUBLIC_CGNTX_SAME_ORIGIN === "1"
+    process.env.NEXT_PUBLIC_AOF_SAME_ORIGIN === "1"
   ) return "";
   return null;
 }
@@ -49,7 +48,7 @@ export function isLive(): boolean {
 export function isDemoMode(): boolean {
   return (
     process.env.NEXT_PUBLIC_COAGENTIX_DEMO === "1" ||
-    process.env.NEXT_PUBLIC_CGNTX_DEMO === "1"
+    process.env.NEXT_PUBLIC_AOF_DEMO === "1"
   );
 }
 
@@ -77,7 +76,7 @@ function isAbortError(e: unknown): boolean {
 }
 
 /** Same-origin/network failure (the Coagentix server itself is unreachable). */
-function networkError(e: unknown): CgntxProviderError {
+function networkError(e: unknown): AofProviderError {
   return classifyProviderError({
     provider: "CoAgentix",
     hint: "network",
@@ -86,7 +85,7 @@ function networkError(e: unknown): CgntxProviderError {
 }
 
 /** The optional tmap-v2 backend is configured but unreachable / erroring. */
-function backendUnavailableError(detail: string, e?: unknown): CgntxProviderError {
+function backendUnavailableError(detail: string, e?: unknown): AofProviderError {
   const suffix = e ? ` (${(e as Error)?.message ?? String(e)})` : "";
   return classifyProviderError({ provider: "CoAgentix Backend", status: 502, message: `${detail}${suffix}` });
 }
@@ -149,13 +148,13 @@ export async function postSSE(
  * in-band error / failover control frames. Routes everything to the handlers and
  * returns the accumulated text (used by RAA to parse a brief).
  */
-async function readCgntxStream(
+async function readAofStream(
   res: Response,
   handlers: StreamHandlers,
 ): Promise<{ errored: boolean; text: string }> {
   if (!res.ok) {
     const body = await res.json().catch(() => null);
-    const err = isCgntxProviderError(body)
+    const err = isAofProviderError(body)
       ? body
       : classifyProviderError({ provider: "CoAgentix", status: res.status, message: `Request failed (${res.status})` });
     handlers.onError?.(err);
@@ -266,7 +265,6 @@ export async function streamChat(
   }
 
   // Default: Coagentix's own provider route.
-  const imageContext = getImageContextForQuery(message);
   try {
     const res = await fetch("/api/chat", {
       method: "POST",
@@ -277,11 +275,10 @@ export async function streamChat(
         route: req.route,
         searchMode: req.searchMode ?? "auto",
         history: req.history.map((h) => ({ role: h.role, content: h.content })),
-        ...(imageContext ? { imageContext } : {}),
       }),
       signal: handlers.signal,
     });
-    await readCgntxStream(res, handlers);
+    await readAofStream(res, handlers);
   } catch (e) {
     if (isAbortError(e)) return;
     handlers.onError?.(networkError(e));
@@ -303,7 +300,7 @@ async function streamViaChat(
       body: JSON.stringify({ message, agent }),
       signal: handlers.signal,
     });
-    await readCgntxStream(res, handlers);
+    await readAofStream(res, handlers);
   } catch (e) {
     if (isAbortError(e)) return;
     handlers.onError?.(networkError(e));
@@ -362,7 +359,7 @@ export async function streamCodeChat(
       body: JSON.stringify({ message, agent: "code-chat", searchMode, history: history.slice(-20) }),
       signal: handlers.signal,
     });
-    await readCgntxStream(res, handlers);
+    await readAofStream(res, handlers);
   } catch (e) {
     if (isAbortError(e)) return;
     handlers.onError?.(networkError(e));
@@ -427,7 +424,7 @@ export async function streamRequirements(
       body: JSON.stringify({ message, agent: "requirements", history: hist }),
       signal: handlers.signal,
     });
-    const { errored, text } = await readCgntxStream(res, handlers);
+    const { errored, text } = await readAofStream(res, handlers);
     if (errored) return none;
     const brief = parseBrief(text);
     return { brief, hasBrief: brief !== null };
@@ -552,7 +549,7 @@ export interface OrchestrationHandlers {
 }
 
 /**
- * Stream a universal orchestration request through the Co.AI Chief Agent.
+ * Stream a universal orchestration request through the AOF AI Chief Agent.
  * The Chief Agent classifies intent, expands the prompt, delegates to specialized
  * agents, runs a quality review loop, and returns the best possible response.
  */
@@ -617,30 +614,6 @@ export async function streamOrchestrate(
     if ((e as { name?: string })?.name === "AbortError") return;
     handlers.onError?.(backendUnavailableError("Orchestration backend (/v1/orchestrate) is unreachable.", e));
   }
-}
-
-// ── Image Understanding ───────────────────────────────────────────────────────
-
-/**
- * Analyze an image via the image understanding pipeline (Steps 1-9).
- * Returns a LocalImageMemory record ready to be saved via `useImageMemoryStore.addMemory()`.
- * Throws if no vision-capable provider is configured or the server returns an error.
- */
-export async function analyzeImage(
-  imageData: string,
-  question?: string,
-): Promise<LocalImageMemory> {
-  const res = await fetch("/api/image/analyze", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ image: imageData, question }),
-  });
-  if (!res.ok) {
-    const err = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(err.error ?? `Image analysis failed (${res.status})`);
-  }
-  const data = (await res.json()) as { memory: LocalImageMemory };
-  return data.memory;
 }
 
 // ── Health ────────────────────────────────────────────────────────────────────

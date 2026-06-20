@@ -5,7 +5,7 @@
 import type { LLMCall, CodeFile } from '../types.js';
 import { parseCodeBlocks } from './agents.js';
 
-const DEBUGGER_SYS = `You are the Debugger agent in Coagentix (TMAP v2).
+const DEBUGGER_SYS = `You are the Debugger agent in AOF Code (TMAP v2).
 You are a senior engineer. When given an error you DO NOT blindly rewrite everything —
 you diagnose the real cause first, then make a targeted fix.
 

@@ -959,7 +959,7 @@ function focusInput() {
 
 function storageKey() {
   const username = state.user?.username || 'guest';
-  return `cgntx:${username}:session`;
+  return `aof-code:${username}:session`;
 }
 
 function terminalSnapshot() {
@@ -1044,7 +1044,7 @@ function syncUiFromState() {
 }
 
 async function loadUser() {
-  const auth = JSON.parse(localStorage.getItem('cgntx:authUser') || 'null');
+  const auth = JSON.parse(localStorage.getItem('aof-code:authUser') || 'null');
   if (auth && auth.username) {
     state.user = { username: auth.username };
     syncUiFromState();
@@ -1056,7 +1056,7 @@ async function loadUser() {
 }
 
 function logout() {
-  localStorage.removeItem('cgntx:authUser');
+  localStorage.removeItem('aof-code:authUser');
   state.user = null;
   state.currentProject = null;
   state.generatedFiles = [];
@@ -1084,7 +1084,7 @@ function handleAuth(action) {
     return;
   }
 
-  const users = JSON.parse(localStorage.getItem('cgntx:users') || '{}');
+  const users = JSON.parse(localStorage.getItem('aof-code:users') || '{}');
   const encoded = btoa(password);
 
   if (action === 'signup') {
@@ -1093,7 +1093,7 @@ function handleAuth(action) {
       return;
     }
     users[username] = encoded;
-    localStorage.setItem('cgntx:users', JSON.stringify(users));
+    localStorage.setItem('aof-code:users', JSON.stringify(users));
   } else {
     if (!users[username] || users[username] !== encoded) {
       alert('Invalid username or password.');
@@ -1101,7 +1101,7 @@ function handleAuth(action) {
     }
   }
 
-  localStorage.setItem('cgntx:authUser', JSON.stringify({ username }));
+  localStorage.setItem('aof-code:authUser', JSON.stringify({ username }));
   state.user = { username };
   syncUiFromState();
   hideAuthOverlay();
@@ -1143,7 +1143,7 @@ function openRoomPrompt() {
 
 function saveRoomState() {
   if (!state.room) return;
-  localStorage.setItem(`cgntx:room:${state.room}`, JSON.stringify({
+  localStorage.setItem(`aof-code:room:${state.room}`, JSON.stringify({
     projectMemory: state.projectMemory,
     currentProject: state.currentProject,
     generatedFiles: state.generatedFiles,
@@ -1154,7 +1154,7 @@ function saveRoomState() {
 
 function loadRoomState() {
   if (!state.room) return;
-  const saved = JSON.parse(localStorage.getItem(`cgntx:room:${state.room}`) || 'null');
+  const saved = JSON.parse(localStorage.getItem(`aof-code:room:${state.room}`) || 'null');
   if (!saved) return;
   state.projectMemory = saved.projectMemory || state.projectMemory;
   state.currentProject = saved.currentProject || state.currentProject;
@@ -1250,7 +1250,7 @@ async function cmdExport() {
   const zip = new JSZip();
   state.generatedFiles.forEach(file => zip.file(file.name, file.content));
   const blob = await zip.generateAsync({ type: 'blob' });
-  saveAs(blob, `${state.currentProject || 'coagentix-project'}.zip`);
+  saveAs(blob, `${state.currentProject || 'aof-project'}.zip`);
   writeLine('<span class="t-green">Download ready: ZIP file created.</span>');
 }
 
@@ -2026,7 +2026,7 @@ function showToast(msg) {
 }
 
 window.addEventListener('storage', e => {
-  if (e.key === `cgntx:room:${state.room}`) {
+  if (e.key === `aof-code:room:${state.room}`) {
     loadRoomState();
     writeLine('<span class="t-dim">Room data updated from another tab.</span>');
     writeBlank();

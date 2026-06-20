@@ -1,7 +1,7 @@
 # CoAgentix Code — TMAP v2 (MVP core)
 
 Multi-agent coding assistant ที่ทำงานจริง: **Planner → Coder → Validator → Reviewer + critique loop**
-อิงสถาปัตยกรรมใน [`COAGENTIX_TDD.md`](./COAGENTIX_TDD.md). โค้ดทั้งหมดเรียกโมเดลจริงด้วย API key ของคุณ
+อิงสถาปัตยกรรมใน [`AOF_CODE_TDD.md`](./AOF_CODE_TDD.md). โค้ดทั้งหมดเรียกโมเดลจริงด้วย API key ของคุณ
 ถ้าไม่ใส่ key จะรันใน **mock mode** (เดโมออฟไลน์) ได้
 
 ## ความต้องการ
@@ -9,7 +9,7 @@ Multi-agent coding assistant ที่ทำงานจริง: **Planner →
 
 ## ติดตั้ง
 ```powershell
-cd C:\Users\khanj\coagentix
+cd C:\Users\khanj\aof-code
 npm install
 ```
 
@@ -62,7 +62,7 @@ npm run doctor
 
 ```powershell
 # CLI — คุยกับ Titan แบบ interactive จนแผนผ่าน approval แล้วสร้างโค้ดต่อได้เลย
-npm run co -- titan "อยากได้ระบบจองคิวร้านตัดผม"
+npm run aof -- titan "อยากได้ระบบจองคิวร้านตัดผม"
 ```
 
 บนเว็บ: พิมพ์ `/titan` ในหน้า terminal แล้วคุยตามขั้นตอน
@@ -76,18 +76,18 @@ Planning Score → **Approval Gate** → Blueprint → TMAP
 
 ## ใช้งาน
 ```powershell
-# รัน pipeline เต็ม แล้วได้ไฟล์ออกมาที่ ./coagentix-output
-npm run co -- gencode "build a REST API for a todo app in Node.js"
+# รัน pipeline เต็ม แล้วได้ไฟล์ออกมาที่ ./aof-output
+npm run aof -- gencode "build a REST API for a todo app in Node.js"
 
-# เขียนไฟล์ลงโปรเจกต์จริง (ไม่ใช่ coagentix-output)
-npm run co -- gencode "..." --apply
+# เขียนไฟล์ลงโปรเจกต์จริง (ไม่ใช่ aof-output)
+npm run aof -- gencode "..." --apply
 
 # ดู role -> model
-npm run co -- agents
+npm run aof -- agents
 ```
 
 ### โหมด (คุมจำนวนรอบ critique loop / ต้นทุน)
-ตั้งใน `.env`: `CGNTX_MODE=lite|normal|pro`
+ตั้งใน `.env`: `AOF_MODE=lite|normal|pro`
 - `lite` = ไม่วน (เร็ว/ถูก) · `normal` = วนแก้ได้ 1 รอบ · `pro` = วนได้ถึง 3 รอบ
 
 ### override ชื่อโมเดล (ถ้าต้องการ)
@@ -108,7 +108,7 @@ src/
   types.ts             AgentMessage / Blackboard contracts
   providers/client.ts  OpenAI-compatible client (พูดได้ทุก vendor)
   core/
-    blackboard.ts      shared working memory + persist (.coagentix/sessions)
+    blackboard.ts      shared working memory + persist (.aof/sessions)
     agents.ts          planner / coder / reviewer (prompts + parsing)
     validator.ts       grounded validation (รัน node --check จริง)
     orchestrator.ts    TMAP loop: plan→code→validate→review→critique

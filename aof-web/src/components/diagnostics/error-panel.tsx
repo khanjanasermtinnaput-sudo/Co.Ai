@@ -1,7 +1,7 @@
 "use client";
 
-// ── Coagentix Error Panel ─────────────────────────────────────────────────────
-// Renders a structured provider failure in the canonical CGNTX_ERROR format. It is
+// ── AOF Error Panel ───────────────────────────────────────────────────────────
+// Renders a structured provider failure in the canonical AOF_ERROR format. It is
 // deliberately styled to look NOTHING like an assistant reply — the user must
 // instantly understand that AI did not run. Developer Mode reveals the raw
 // diagnostics (HTTP status, provider response, stack, request metadata).
@@ -9,10 +9,10 @@
 import { useState } from "react";
 import { AlertOctagon, Copy, Check, Terminal, ChevronDown, Wrench } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { formatErrorBlock, formatUtc, type CgntxProviderError } from "@/lib/errors";
+import { formatErrorBlock, formatUtc, type AofProviderError } from "@/lib/errors";
 import { useDiagnosticsStore } from "@/store/diagnostics-store";
 
-export function ErrorPanel({ error, className }: { error: CgntxProviderError; className?: string }) {
+export function ErrorPanel({ error, className }: { error: AofProviderError; className?: string }) {
   const developerMode = useDiagnosticsStore((s) => s.developerMode);
   const [copied, setCopied] = useState(false);
   const [showDev, setShowDev] = useState(false);
@@ -53,7 +53,7 @@ export function ErrorPanel({ error, className }: { error: CgntxProviderError; cl
         </button>
       </div>
 
-      {/* body — the canonical CGNTX_ERROR fields */}
+      {/* body — the canonical AOF_ERROR fields */}
       <div className="space-y-2.5 px-4 py-3.5 text-sm">
         <Field label="Provider" value={`${error.provider}${error.model ? ` · ${error.model}` : ""}`} />
         <Field label="Problem" value={error.problem} />

@@ -29,7 +29,7 @@ const ROLE_COLOR: Record<string, (s: string) => string> = {
 };
 
 function banner() {
-  console.log(c.bold(`Co ${c.orange('CLI')}  ${c.dim('· TMAP v2 multi-agent')}`));
+  console.log(c.bold(`AOF ${c.orange('Code')}  ${c.dim('· TMAP v2 multi-agent')}`));
 }
 
 function makeEmit() {
@@ -83,7 +83,7 @@ function cmdDoctor() {
     console.log(c.yellow('No API key set — running in MOCK mode.'));
     console.log(`Add a key:  ${c.bold('copy .env.example .env')}  then edit ${c.bold('.env')}`);
   } else {
-    console.log(c.green('Ready. Try:  npm run co -- gencode "build a todo CLI in JS"'));
+    console.log(c.green('Ready. Try:  npm run aof -- gencode "build a todo CLI in JS"'));
   }
 }
 
@@ -119,7 +119,7 @@ function cmdContext() {
 
 async function cmdGencode(task: string, opts: { apply: boolean; mode?: string }) {
   if (!task) {
-    console.log(c.red('usage: co gencode "<what to build>"'));
+    console.log(c.red('usage: aof gencode "<what to build>"'));
     return;
   }
   banner();
@@ -138,7 +138,7 @@ async function cmdGencode(task: string, opts: { apply: boolean; mode?: string })
     return;
   }
 
-  const outDir = opts.apply ? process.cwd() : join(process.cwd(), 'coagentix-output');
+  const outDir = opts.apply ? process.cwd() : join(process.cwd(), 'aof-output');
   let written = 0;
   for (const f of bb.files) {
     if (f.path.includes('..') || isAbsolute(f.path)) {
@@ -214,7 +214,7 @@ async function cmdFix(targetDir: string, opts: { apply: boolean }) {
     return;
   }
 
-  const outDir = opts.apply ? dir : join(process.cwd(), 'coagentix-fix-output');
+  const outDir = opts.apply ? dir : join(process.cwd(), 'aof-fix-output');
   let written = 0;
   for (const f of bb.files) {
     if (f.path.includes('..') || isAbsolute(f.path)) {
@@ -303,7 +303,7 @@ async function cmdTitan(task: string, opts: { apply: boolean; mode?: string }) {
           console.log(c.dim(`mode: ${c.orange(mode)} (Titan → Pro by default)`));
           const bb = createBlackboard(build.task, mode, build.context);
           await runTMAP(bb, emit);
-          const outDir = opts.apply ? process.cwd() : join(process.cwd(), 'coagentix-output');
+          const outDir = opts.apply ? process.cwd() : join(process.cwd(), 'aof-output');
           let written = 0;
           for (const f of bb.files) {
             if (f.path.includes('..') || isAbsolute(f.path)) {
@@ -492,8 +492,8 @@ function cmdSecurity() {
 }
 
 function cmdSessions() {
-  // List local .coagentix/sessions
-  const sessDir = join(process.cwd(), '.coagentix', 'sessions');
+  // List local .aof/sessions
+  const sessDir = join(process.cwd(), '.aof', 'sessions');
   if (!existsSync(sessDir)) {
     console.log(c.dim('No sessions found.'));
     return;
@@ -516,14 +516,14 @@ function help() {
   banner();
   console.log(`
 ${c.bold('Usage')}
-  npm run co -- <command> [args]
+  npm run aof -- <command> [args]
 
 ${c.bold('Commands')}
   ${c.orange('doctor')}                 check API keys, agents & project context
   ${c.orange('agents')}                 show role → model mapping
   ${c.orange('context')}                scan current directory and show project info
   ${c.orange('gencode')} "<task>"        run full TMAP pipeline and generate files
-        --apply              write files into project root (default: ./coagentix-output)
+        --apply              write files into project root (default: ./aof-output)
         --mode=lite|normal|pro
   ${c.orange('titan')} ["<idea>"]         Titan Mode — interactive AI System Architect
         --apply / --mode     same as gencode (used after approval)
@@ -540,15 +540,14 @@ ${c.bold('Phase 5 — Developer Platform')}
   ${c.orange('security')}               run security self-check against current configuration
 
 ${c.bold('Examples')}
-  npm run co -- doctor
-  npm run co -- gencode "build a REST API for a todo app in Node.js"
-  npm run co -- review ./src
-  npm run co -- fix ./src --apply
-  npm run co -- sessions
-  npm run co -- sandbox "console.log(2 ** 32)"
-  npm run co -- sandbox "print(sum(range(101)))" --lang=python
-  npm run co -- usage
-  npm run co -- security
+  npm run aof -- doctor
+  npm run aof -- gencode "build a REST API for a todo app in Node.js"
+  npm run aof -- review ./src
+  npm run aof -- fix ./src --apply
+  npm run aof -- sandbox "console.log(2 ** 32)"
+  npm run aof -- sandbox "print(sum(range(101)))" --lang=python
+  npm run aof -- usage
+  npm run aof -- security
 `);
 }
 

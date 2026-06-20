@@ -10,7 +10,7 @@ import { logAdminAction } from "@/lib/admin/server";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const VALID_FEATURES = ["titan-beta", "cli-beta", "coagentix-code-beta", "experimental-models", "early-access"] as const;
+const VALID_FEATURES = ["titan-beta", "cli-beta", "aof-code-beta", "experimental-models", "early-access"] as const;
 
 async function requireAdmin(req: Request) {
   if (!isAdminConfigured()) {

@@ -1,6 +1,6 @@
 // ── Domain types shared across the Coagentix frontend ────────────────────────
 
-import type { CgntxProviderError, FailoverNotice, ModelNotice, SourcesNotice } from "./errors";
+import type { AofProviderError, FailoverNotice, ModelNotice, SourcesNotice } from "./errors";
 
 /** Top-level products surfaced in the sidebar. Titan is intentionally absent —
  *  it is a mode *inside* Coagentix Code, never a product on the homepage. */
@@ -73,7 +73,7 @@ export interface ChatMessageT {
   /** structured Math/Learning payload — when present, rendered with a toggle */
   learning?: LearningAnswer;
   /** present when the AI provider failed — rendered as an error panel, never a reply */
-  error?: CgntxProviderError;
+  error?: AofProviderError;
   /** present when the route failed over to a different provider mid-request */
   failover?: FailoverNotice;
   /** which model actually answered — always present on a successful AI reply */

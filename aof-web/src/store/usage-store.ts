@@ -52,7 +52,7 @@ export const useUsageStore = create<UsageState>()(
 
       reset: () => set({ date: today(), messages: 0, tokens: 0, searches: 0 }),
     }),
-    { name: "cgntx.usage" },
+    { name: "aof.usage" },
   ),
 );
 

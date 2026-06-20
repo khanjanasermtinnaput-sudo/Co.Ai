@@ -32,7 +32,7 @@ export const PROVIDERS: Record<string, ProviderDef> = {
   },
   qwen: {
     name: 'Qwen',
-    // QWEN_API_KEY matches the Coagentix web key name; DASHSCOPE_API_KEY is kept as a
+    // QWEN_API_KEY matches the aof-web key name; DASHSCOPE_API_KEY is kept as a
     // fallback for existing deployments that set it directly (see legacyEnvKey).
     envKey: 'QWEN_API_KEY',
     legacyEnvKey: 'DASHSCOPE_API_KEY',
@@ -43,7 +43,7 @@ export const PROVIDERS: Record<string, ProviderDef> = {
   },
   llama: {
     name: 'Llama',
-    // LLAMA_API_KEY matches the Coagentix web key name; GROQ_API_KEY is kept as a
+    // LLAMA_API_KEY matches the aof-web key name; GROQ_API_KEY is kept as a
     // fallback since Llama here is served through Groq's API (see legacyEnvKey).
     envKey: 'LLAMA_API_KEY',
     legacyEnvKey: 'GROQ_API_KEY',
@@ -133,7 +133,7 @@ export function resolveAll(): Record<Role, ResolvedProvider> {
 }
 
 export function currentMode(): Mode {
-  const m = (process.env.COAGENTIX_MODE ?? process.env.CGNTX_MODE ?? 'normal').toLowerCase();
+  const m = (process.env.COAGENTIX_MODE ?? process.env.AOF_MODE ?? 'normal').toLowerCase();
   return (['lite', 'normal', 'pro'].includes(m) ? m : 'normal') as Mode;
 }
 

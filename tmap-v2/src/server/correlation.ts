@@ -1,68 +1,33 @@
-// Correlation-ID propagation via AsyncLocalStorage.
-// The Express middleware reads X-Correlation-ID from incoming requests
-// (or generates a new UUID), stores it in async-local context so every
-// log line emitted during that request automatically includes it.
+// Request correlation — injects X-Correlation-ID / X-Request-ID into every
+// request context via AsyncLocalStorage so any log line emitted during a
+// request automatically includes them, even without passing an object around.
 
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { randomUUID }        from 'node:crypto';
-import type { Request, Response, NextFunction } from 'express';
+import { randomUUID } from 'node:crypto';
+import type { RequestHandler } from 'express';
 
-export interface RequestContext {
+export interface CorrelationContext {
   correlationId: string;
   requestId:     string;
-  userId?:       string;
-  path?:         string;
-  method?:       string;
 }
 
-const _store = new AsyncLocalStorage<RequestContext>();
+const storage = new AsyncLocalStorage<CorrelationContext>();
 
-/** Returns the context for the currently-executing async task, if any. */
-export function getContext(): RequestContext | undefined {
-  return _store.getStore();
+/** Returns the current request's correlation context, or undefined outside a request. */
+export function getContext(): CorrelationContext | undefined {
+  return storage.getStore();
 }
 
-export function getCorrelationId(): string | undefined {
-  return _store.getStore()?.correlationId;
-}
-
-export function getRequestId(): string | undefined {
-  return _store.getStore()?.requestId;
-}
-
-/** Run `fn` with the given context bound to the async local store. */
-export function runWithContext<T>(ctx: RequestContext, fn: () => T): T {
-  return _store.run(ctx, fn) as T;
-}
-
-/** Patch the current context with additional fields (e.g. userId after auth). */
-export function patchContext(patch: Partial<RequestContext>): void {
-  const ctx = _store.getStore();
-  if (ctx) Object.assign(ctx, patch);
-}
-
-// ── Express middleware ────────────────────────────────────────────────────────
-
-/**
- * Reads or generates X-Correlation-ID, binds a RequestContext into
- * AsyncLocalStorage, and forwards both IDs as response headers.
- */
-export function correlationMiddleware() {
-  return (req: Request, res: Response, next: NextFunction): void => {
+/** Express middleware: reads or generates correlation IDs, stores them in ALS. */
+export function correlationMiddleware(): RequestHandler {
+  return (req, res, next) => {
     const correlationId =
-      (req.headers['x-correlation-id'] as string | undefined) ?? randomUUID();
+      String(req.headers['x-correlation-id'] ?? randomUUID()).slice(0, 64);
     const requestId = randomUUID();
 
     res.setHeader('X-Correlation-ID', correlationId);
-    res.setHeader('X-Request-ID',     requestId);
+    res.setHeader('X-Request-ID', requestId);
 
-    const ctx: RequestContext = {
-      correlationId,
-      requestId,
-      path:   req.path,
-      method: req.method,
-    };
-
-    runWithContext(ctx, () => next());
+    storage.run({ correlationId, requestId }, next);
   };
 }
