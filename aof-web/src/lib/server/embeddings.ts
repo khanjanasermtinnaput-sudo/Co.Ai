@@ -4,8 +4,8 @@
 // Gemini text-embedding-004 outputs 768 dims; these are zero-padded to 1536.
 // Embeddings are cached in Redis (short-TTL) then persisted in Supabase (embedding_cache).
 import { createHash } from 'node:crypto';
-import { cacheKey, cacheGet, cacheSet } from './redis.js';
-import { getAdminSupabase, isAdminConfigured } from './supabase-admin.js';
+import { cacheKey, cacheGet, cacheSet } from './redis';
+import { getAdminSupabase, isAdminConfigured } from './supabase-admin';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 

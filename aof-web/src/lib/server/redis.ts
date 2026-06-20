@@ -1,43 +1,39 @@
 // Redis client — cache layer, session store, pub/sub (server-only)
 // Requires REDIS_URL or REDIS_TLS_URL (or REDIS_HOST/PORT/PASSWORD for local).
-import Redis from 'ioredis';
+import Redis, { type RedisOptions } from 'ioredis';
 
 // ── Connection factory ────────────────────────────────────────────────────────
 
-function buildRedisOptions(): ConstructorParameters<typeof Redis>[0] {
+function buildRedisOptions(): string | RedisOptions {
   const url = process.env.REDIS_TLS_URL ?? process.env.REDIS_URL;
-  if (url) {
-    return url as string;
-  }
+  if (url) return url;
   return {
     host:     process.env.REDIS_HOST     ?? '127.0.0.1',
     port:     parseInt(process.env.REDIS_PORT ?? '6379', 10),
-    password: process.env.REDIS_PASSWORD ?? undefined,
+    password: process.env.REDIS_PASSWORD,
     db:       parseInt(process.env.REDIS_DB   ?? '0',    10),
   };
 }
 
 function createRedis(label: string): Redis {
-  const opts = buildRedisOptions();
+  const opts  = buildRedisOptions();
   const isTls = Boolean(process.env.REDIS_TLS_URL);
+  const extra: RedisOptions = {
+    maxRetriesPerRequest: null,
+    enableReadyCheck:     true,
+    lazyConnect:          false,
+    ...(isTls ? { tls: { rejectUnauthorized: false } } : {}),
+    reconnectOnError(err: Error) {
+      return /READONLY|ETIMEDOUT|ECONNRESET/.test(err.message);
+    },
+    retryStrategy(times: number) {
+      return Math.min(times * 150, 5000);
+    },
+  };
 
-  const client = new Redis(
-    typeof opts === 'string'
-      ? opts
-      : opts,
-    {
-      maxRetriesPerRequest: null,
-      enableReadyCheck:     true,
-      lazyConnect:          false,
-      ...(isTls ? { tls: { rejectUnauthorized: false } } : {}),
-      reconnectOnError(err: Error) {
-        return /READONLY|ETIMEDOUT|ECONNRESET/.test(err.message);
-      },
-      retryStrategy(times: number) {
-        return Math.min(times * 150, 5000);
-      },
-    }
-  );
+  const client = typeof opts === 'string'
+    ? new Redis(opts, extra)
+    : new Redis({ ...opts, ...extra });
 
   client.on('error',       (err: Error) => console.error(`[CGNTX][Redis:${label}] error:`, err.message));
   client.on('connect',     ()           => console.log(`[CGNTX][Redis:${label}] connected`));

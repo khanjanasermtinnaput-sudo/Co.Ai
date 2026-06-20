@@ -2,7 +2,6 @@
 // This module starts all workers when the Express server boots.
 import 'dotenv/config';
 import { Queue, Worker, QueueEvents, type ConnectionOptions, type Job } from 'bullmq';
-import { createBullRedis } from './redis.js';
 
 // ── Connection ────────────────────────────────────────────────────────────────
 
@@ -69,7 +68,7 @@ export function startWorkers(): void {
       return processEmbeddingJob(job);
     },
     {
-      connection:  createBullRedis(),
+      connection:  redisConn(),
       concurrency: CONCURRENCY.embeddings,
     }
   );
@@ -81,7 +80,7 @@ export function startWorkers(): void {
       return processConsolidationJob(job);
     },
     {
-      connection:  createBullRedis(),
+      connection:  redisConn(),
       concurrency: CONCURRENCY.memConsol,
     }
   );
@@ -93,7 +92,7 @@ export function startWorkers(): void {
       return processPruneJob(job);
     },
     {
-      connection:  createBullRedis(),
+      connection:  redisConn(),
       concurrency: CONCURRENCY.memPrune,
     }
   );
@@ -105,7 +104,7 @@ export function startWorkers(): void {
       return processTmapJob(job);
     },
     {
-      connection:  createBullRedis(),
+      connection:  redisConn(),
       concurrency: CONCURRENCY.tmap,
     }
   );
@@ -117,7 +116,7 @@ export function startWorkers(): void {
       return processNotificationJob(job);
     },
     {
-      connection:  createBullRedis(),
+      connection:  redisConn(),
       concurrency: CONCURRENCY.notifications,
     }
   );
