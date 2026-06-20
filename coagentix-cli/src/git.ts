@@ -1,8 +1,14 @@
 // Git integration via simple-git
 
-import simpleGit, { type SimpleGit } from "simple-git";
+import { createRequire } from "node:module";
+import type { SimpleGit } from "simple-git";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+
+// simple-git is CommonJS; createRequire keeps it callable under NodeNext ESM
+// (matches the createRequire pattern used in tmap-v2/src/server/redis.ts).
+const _require = createRequire(import.meta.url);
+const simpleGit = _require("simple-git").simpleGit as (baseDir?: string) => SimpleGit;
 
 export function getGit(root: string): SimpleGit {
   return simpleGit(root);

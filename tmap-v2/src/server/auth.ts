@@ -42,3 +42,32 @@ export async function requireAuth(req: AuthedRequest, res: Response, next: NextF
     res.status(401).json({ error: 'auth error' });
   }
 }
+
+// Admin allowlist — comma-separated usernames in COAGENTIX_ADMIN_USERNAMES.
+// User accounts have no role column, so privileged system/infra operations
+// (backup, restore, disaster-recovery, failover, infra & platform analytics)
+// are gated by this explicit allowlist instead. Secure by default: when the
+// env var is unset, NO user is treated as admin and these endpoints reject all
+// callers — the correct posture for destructive / cross-tenant operations.
+function adminUsernames(): Set<string> {
+  return new Set(
+    (process.env.COAGENTIX_ADMIN_USERNAMES ?? process.env.AOF_ADMIN_USERNAMES ?? '')
+      .split(',')
+      .map((u) => u.trim().toLowerCase())
+      .filter(Boolean),
+  );
+}
+
+export function isAdminUser(user: UserRecord | undefined): boolean {
+  if (!user) return false;
+  return adminUsernames().has(user.username.toLowerCase());
+}
+
+// Must run AFTER requireAuth (relies on req.user being populated).
+export function requireAdmin(req: AuthedRequest, res: Response, next: NextFunction): void {
+  if (!isAdminUser(req.user)) {
+    res.status(403).json({ error: 'admin privileges required' });
+    return;
+  }
+  next();
+}

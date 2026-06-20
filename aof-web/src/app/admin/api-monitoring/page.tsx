@@ -31,6 +31,8 @@ export default function ApiMonitoringPage() {
     finally { setLoading(false); }
   }
 
+  // load() is intentionally re-run only when the period or provider filter changes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { void load(period, providerFilter); }, [period, providerFilter]);
 
   const totals = data?.totals as { requests: number; successful: number; errors: number; totalTokens: number; totalCost: number; avgLatency: number } | null;

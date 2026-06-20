@@ -33,6 +33,8 @@ export default function AnalyticsPage() {
     finally { setLoading(false); }
   }
 
+  // load() is intentionally re-run only when the period changes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { void load(period); }, [period]);
 
   const tierDist = (data?.tierDistribution as Array<{ tier: string; count: number; pct: number }>) ?? [];

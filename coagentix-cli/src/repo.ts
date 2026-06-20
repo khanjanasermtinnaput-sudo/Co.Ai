@@ -1,9 +1,15 @@
 // Repository scanner: reads file tree, detects framework/language/package manager
 
+import { createRequire } from "node:module";
 import { readFileSync, statSync, existsSync } from "node:fs";
 import { join, relative, extname } from "node:path";
 import { glob } from "glob";
-import ignore from "ignore";
+
+// ignore is CommonJS; createRequire keeps it callable under NodeNext ESM
+// (matches the createRequire pattern used in tmap-v2/src/server/redis.ts).
+interface IgnoreInstance { add(patterns: string[]): IgnoreInstance; ignores(path: string): boolean; }
+const _require = createRequire(import.meta.url);
+const ignore = _require("ignore") as () => IgnoreInstance;
 
 export interface RepoInfo {
   root: string;

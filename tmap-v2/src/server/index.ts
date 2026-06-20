@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 import { hashPassword, verifyPassword, encryptSecret, decryptSecret, maskKey } from './crypto.js';
-import { signToken, requireAuth, type AuthedRequest } from './auth.js';
+import { signToken, requireAuth, requireAdmin, type AuthedRequest } from './auth.js';
 import {
   createUser, findUserByUsername, setUserKey, deleteUserKey,
   createSession, updateSession, getUserSessions, getSession, getSessionLogs,
@@ -1334,7 +1334,7 @@ app.get('/v1/permissions/check', requireAuth, async (req: AuthedRequest, res) =>
 
 // ── Backup ─────────────────────────────────────────────────────────────────────
 
-app.post('/v1/backup', requireAuth, async (req: AuthedRequest, res) => {
+app.post('/v1/backup', requireAuth, requireAdmin, async (req: AuthedRequest, res) => {
   const { createBackup } = await p6backup();
   const manifest = await createBackup({
     requestedBy: req.user!.id,
@@ -1345,12 +1345,12 @@ app.post('/v1/backup', requireAuth, async (req: AuthedRequest, res) => {
   return res.status(201).json({ backup: manifest });
 });
 
-app.get('/v1/backup', requireAuth, async (_req: AuthedRequest, res) => {
+app.get('/v1/backup', requireAuth, requireAdmin, async (_req: AuthedRequest, res) => {
   const { listBackups } = await p6backup();
   res.json({ backups: listBackups() });
 });
 
-app.get('/v1/backup/:id', requireAuth, async (req: AuthedRequest, res) => {
+app.get('/v1/backup/:id', requireAuth, requireAdmin, async (req: AuthedRequest, res) => {
   const { getBackup, validateBackup } = await p6backup();
   const manifest = getBackup(req.params.id);
   if (!manifest) return res.status(404).json({ error: 'backup not found' });
@@ -1360,7 +1360,7 @@ app.get('/v1/backup/:id', requireAuth, async (req: AuthedRequest, res) => {
 
 // ── Restore ────────────────────────────────────────────────────────────────────
 
-app.post('/v1/restore', requireAuth, async (req: AuthedRequest, res) => {
+app.post('/v1/restore', requireAuth, requireAdmin, async (req: AuthedRequest, res) => {
   const { restore, setLastRestore, preRestoreChecks } = await p6restore();
   const { backupId, dryRun = true, collections } = req.body ?? {};
   if (!backupId) return res.status(400).json({ error: 'backupId required' });
@@ -1372,33 +1372,33 @@ app.post('/v1/restore', requireAuth, async (req: AuthedRequest, res) => {
   return res.json({ restore: result });
 });
 
-app.get('/v1/restore/status', requireAuth, async (_req: AuthedRequest, res) => {
+app.get('/v1/restore/status', requireAuth, requireAdmin, async (_req: AuthedRequest, res) => {
   const { getLastRestoreStatus } = await p6restore();
   res.json({ lastRestore: getLastRestoreStatus() });
 });
 
 // ── Disaster Recovery ──────────────────────────────────────────────────────────
 
-app.get('/v1/dr/status', requireAuth, async (_req: AuthedRequest, res) => {
+app.get('/v1/dr/status', requireAuth, requireAdmin, async (_req: AuthedRequest, res) => {
   const { getDRStatus } = await p6dr();
   const status = await getDRStatus();
   res.json(status);
 });
 
-app.get('/v1/dr/runbook', requireAuth, async (req: AuthedRequest, res) => {
+app.get('/v1/dr/runbook', requireAuth, requireAdmin, async (req: AuthedRequest, res) => {
   const { getRunbook } = await p6dr();
   const severity = req.query['severity'] as string | undefined;
   res.json({ runbook: getRunbook(severity as never) });
 });
 
-app.get('/v1/dr/incidents', requireAuth, async (req: AuthedRequest, res) => {
+app.get('/v1/dr/incidents', requireAuth, requireAdmin, async (req: AuthedRequest, res) => {
   const { listIncidents } = await p6dr();
   const status   = req.query['status']   as string | undefined;
   const severity = req.query['severity'] as string | undefined;
   res.json({ incidents: listIncidents({ status: status as never, severity: severity as never }) });
 });
 
-app.post('/v1/dr/incidents', requireAuth, async (req: AuthedRequest, res) => {
+app.post('/v1/dr/incidents', requireAuth, requireAdmin, async (req: AuthedRequest, res) => {
   const { title, severity = 'medium', affectedServices = [] } = req.body ?? {};
   if (!title) return res.status(400).json({ error: 'title required' });
   const { createIncident } = await p6dr();
@@ -1406,7 +1406,7 @@ app.post('/v1/dr/incidents', requireAuth, async (req: AuthedRequest, res) => {
   return res.status(201).json({ incident });
 });
 
-app.patch('/v1/dr/incidents/:id', requireAuth, async (req: AuthedRequest, res) => {
+app.patch('/v1/dr/incidents/:id', requireAuth, requireAdmin, async (req: AuthedRequest, res) => {
   const { updateIncident } = await p6dr();
   const incident = updateIncident(req.params.id, { status: req.body?.status, note: req.body?.note });
   return incident ? res.json({ incident }) : res.status(404).json({ error: 'incident not found' });
@@ -1414,12 +1414,12 @@ app.patch('/v1/dr/incidents/:id', requireAuth, async (req: AuthedRequest, res) =
 
 // ── Failover ───────────────────────────────────────────────────────────────────
 
-app.get('/v1/failover/circuits', requireAuth, async (_req: AuthedRequest, res) => {
+app.get('/v1/failover/circuits', requireAuth, requireAdmin, async (_req: AuthedRequest, res) => {
   const { listCircuits, getHealthScores } = await p6fo();
   res.json({ circuits: listCircuits(), healthScores: getHealthScores() });
 });
 
-app.post('/v1/failover/circuits/:name/reset', requireAuth, async (req: AuthedRequest, res) => {
+app.post('/v1/failover/circuits/:name/reset', requireAuth, requireAdmin, async (req: AuthedRequest, res) => {
   const { resetCircuit } = await p6fo();
   resetCircuit(req.params.name);
   return res.json({ ok: true, circuit: req.params.name });
@@ -1441,21 +1441,21 @@ app.post('/v1/analytics/events', requireAuth, async (req: AuthedRequest, res) =>
   return res.json({ ok: true });
 });
 
-app.get('/v1/analytics/summary', requireAuth, async (req: AuthedRequest, res) => {
+app.get('/v1/analytics/summary', requireAuth, requireAdmin, async (req: AuthedRequest, res) => {
   const date = (req.query['date'] as string) ?? new Date().toISOString().slice(0, 10);
   const { getDailySummary } = await p6an();
   const summary = await getDailySummary(date);
   res.json({ summary });
 });
 
-app.get('/v1/analytics/features', requireAuth, async (req: AuthedRequest, res) => {
+app.get('/v1/analytics/features', requireAuth, requireAdmin, async (req: AuthedRequest, res) => {
   const date = (req.query['date'] as string) ?? new Date().toISOString().slice(0, 10);
   const { getFeatureUsage } = await p6an();
   const features = await getFeatureUsage(date);
   res.json({ date, features });
 });
 
-app.get('/v1/analytics/mau', requireAuth, async (req: AuthedRequest, res) => {
+app.get('/v1/analytics/mau', requireAuth, requireAdmin, async (req: AuthedRequest, res) => {
   const month = (req.query['month'] as string) ?? new Date().toISOString().slice(0, 7);
   const { getMAU } = await p6an();
   const mau = await getMAU(month);
@@ -1464,12 +1464,12 @@ app.get('/v1/analytics/mau', requireAuth, async (req: AuthedRequest, res) => {
 
 // ── Streaming & infra stats ────────────────────────────────────────────────────
 
-app.get('/v1/streaming/connections', requireAuth, async (_req: AuthedRequest, res) => {
+app.get('/v1/streaming/connections', requireAuth, requireAdmin, async (_req: AuthedRequest, res) => {
   const { getConnectionStats } = await p6stream();
   res.json(getConnectionStats());
 });
 
-app.get('/v1/infra/redis', requireAuth, async (_req: AuthedRequest, res) => {
+app.get('/v1/infra/redis', requireAuth, requireAdmin, async (_req: AuthedRequest, res) => {
   const { getRedisMemoryStats } = await p6redis();
   try {
     const stats = await getRedisMemoryStats();

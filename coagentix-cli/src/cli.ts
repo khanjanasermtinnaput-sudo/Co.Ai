@@ -1129,13 +1129,12 @@ program
     console.log(chalk.bold(`\n  Developer API Keys (${data.keys.length})`));
     console.log(chalk.dim("─".repeat(72)));
     printTable(
-      ["Name", "ID", "Scopes", "Last Used"],
-      data.keys.map((k) => [
-        k.name,
-        k.id.slice(0, 8) + "…",
-        k.scopes.join(", "),
-        k.lastUsed ? k.lastUsed.slice(0, 10) : "never",
-      ]),
+      data.keys.map((k) => ({
+        Name: k.name,
+        ID: k.id.slice(0, 8) + "…",
+        Scopes: k.scopes.join(", "),
+        "Last Used": k.lastUsed ? k.lastUsed.slice(0, 10) : "never",
+      })),
     );
     console.log();
   });
