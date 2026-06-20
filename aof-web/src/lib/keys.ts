@@ -20,22 +20,45 @@ export function keysEnabled(): boolean {
 
 async function authToken(): Promise<string | null> {
   const supabase = getSupabase();
-  if (!supabase) return null;
+  if (!supabase) {
+    console.debug("[keys] authToken: supabase not configured");
+    return null;
+  }
   const { data } = await supabase.auth.getSession();
-  if (!data.session) return null;
-  // If the access token expires within 60 seconds, proactively refresh it.
-  // Supabase's autoRefreshToken timer can miss its window when the tab was idle.
+  if (!data.session) {
+    console.debug("[keys] authToken: no active session");
+    return null;
+  }
   const expiresAt = (data.session.expires_at ?? 0) * 1000;
-  if (Date.now() >= expiresAt - 60_000) {
-    const { data: refreshed } = await supabase.auth.refreshSession();
-    return refreshed.session?.access_token ?? null;
+  const msUntilExpiry = expiresAt - Date.now();
+  console.debug(`[keys] authToken: session found, expires in ${Math.round(msUntilExpiry / 1000)}s`);
+
+  // Proactively refresh when the token expires within 60 seconds.
+  // autoRefreshToken can miss its window when the tab was idle.
+  if (msUntilExpiry <= 60_000) {
+    console.debug("[keys] authToken: token near/past expiry — refreshing");
+    const { data: refreshed, error: refreshErr } = await supabase.auth.refreshSession();
+    if (refreshErr || !refreshed.session) {
+      // Refresh token is itself expired or invalid — the session is dead.
+      // Sign out so the UI reflects the true logged-out state and stops
+      // allowing requests that will always 401.
+      console.warn("[keys] authToken: refresh failed — signing out", refreshErr?.message);
+      void supabase.auth.signOut();
+      return null;
+    }
+    console.debug("[keys] authToken: refreshed successfully");
+    return refreshed.session.access_token;
   }
   return data.session.access_token;
 }
 
 async function authedFetch(input: string, init: RequestInit = {}): Promise<Response> {
   const token = await authToken();
-  if (!token) throw new Error("not-signed-in");
+  if (!token) {
+    console.debug("[keys] authedFetch: no token available — aborting fetch to", input);
+    throw new Error("not-signed-in");
+  }
+  console.debug("[keys] authedFetch: sending", init.method ?? "GET", input, `token prefix=${token.slice(0, 12)}`);
   return fetch(input, {
     ...init,
     headers: {

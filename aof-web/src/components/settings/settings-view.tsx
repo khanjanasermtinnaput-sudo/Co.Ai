@@ -53,6 +53,7 @@ import {
   ErrorLogPanel,
   DebugLogsPanel,
 } from "@/components/diagnostics/system-diagnostics";
+import { AuthDebugPanel } from "@/components/diagnostics/auth-debug-panel";
 
 const PROVIDERS = [
   { id: "openrouter", label: "OpenRouter", hint: "One key powers every agent (recommended)" },
@@ -470,6 +471,9 @@ function DiagnosticsTab() {
     <div className="space-y-4">
       {/* Full system health with error codes */}
       <SystemDiagnosticsPanel />
+
+      {/* Step-by-step auth chain debug — diagnoses AUTH-401 root cause */}
+      <AuthDebugPanel />
 
       {/* AI provider health */}
       <ProviderStatusPanel />
