@@ -22,6 +22,11 @@ build/
 # Runtime / data dirs
 .aof-server/
 .aof-data/
+.coagentix-server/
+
+# Runtime-generated metrics sidecar (written during runs/tests)
+.coagentix-routing-metrics.json
+**/.coagentix-routing-metrics.json
 
 # Editor
 .DS_Store
