@@ -3,6 +3,8 @@
 import * as React from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
 import type { Components } from "react-markdown";
 import { Copy, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -112,7 +114,11 @@ const components: Components = {
 export function Markdown({ content, className }: { content: string; className?: string }) {
   return (
     <div className={cn("space-y-3 text-[15px] leading-relaxed text-foreground/90", className)}>
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm, remarkMath]}
+        rehypePlugins={[rehypeKatex]}
+        components={components}
+      >
         {content}
       </ReactMarkdown>
     </div>

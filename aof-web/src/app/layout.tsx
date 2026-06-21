@@ -3,6 +3,7 @@ import { Inter, JetBrains_Mono } from "next/font/google";
 import { AppProviders } from "@/components/providers/app-providers";
 import { PwaInstaller } from "@/components/pwa/pwa-installer";
 import "./globals.css";
+import "katex/dist/katex.min.css";
 
 const inter = Inter({
   subsets: ["latin"],
