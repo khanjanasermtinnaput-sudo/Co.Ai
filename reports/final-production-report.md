@@ -60,13 +60,13 @@ Co.AI is a **genuinely production-grade** 3-workspace monorepo (`aof-web` Next.j
 | SEC-2 | CSP allows `unsafe-eval`/`unsafe-inline` | LOW | Next.js compat; primary XSS vector already closed. Move to nonce CSP after in-app validation. |
 | W9.1 | Webhook persistence file-only | LOW | Now warns in prod; recommend Supabase-backed table. |
 | DB | Thai full-text search weak (`english` config) | LOW | `ilike` fallback covers it; recommend `pg_trgm`/`simple`. |
-| AUTH | Supabase leaked-password protection off | LOW | Enable in Auth dashboard (config). |
+| AUTH | Supabase leaked-password protection off | LOW | HaveIBeenPwned check is **Pro-plan only** — not available on Free. On Free, set a minimum password length + complexity in Auth settings as a partial substitute. |
 | — | Billing/checkout "coming soon" | — | Product decision (no payment provider wired). |
 | — | Minor unused symbols (`cli-auth.sb`, `queue._Queue/_Worker`, `eval-framework` types) | trivial | Non-blocking; signal intended-but-incomplete paths. |
 
 ### Operator action required (for fixes to take effect)
-1. Set `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` (+ optional `COAGENTIX_ADMIN_USERNAMES`) in the **Render** dashboard (DB_001).
-2. Enable leaked-password protection in the **Supabase Auth** dashboard.
+1. Set `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` (+ optional `COAGENTIX_ADMIN_USERNAMES`) in the **Render** dashboard (DB_001). Works on the Render/Supabase **Free** tier — no paid plan needed. This is the important one.
+2. Leaked-password protection (HaveIBeenPwned) is **Pro-plan only** on Supabase — skip on Free. As a substitute, raise the minimum password length + complexity under **Authentication → Sign In / Providers → Email**.
 
 ---
 
