@@ -291,6 +291,9 @@ export function classifyProviderError(input: ClassifyInput): AofProviderError {
       return build("AOF_ERROR_005", input, `${input.provider} rate limit exceeded (429). Retry shortly.`);
     }
     if (status === 400 || status === 422) {
+      // Gemini returns 400 (not 401) for invalid API keys
+      if (/api.?key|invalid.?key|not.?valid.?key/.test(both))
+        return build("AOF_ERROR_002", input, `${input.provider} rejected the API key as invalid (${status}).`);
       if (/model/.test(both))
         return build("AOF_ERROR_009", input, `${input.provider} rejected the model${input.model ? ` "${input.model}"` : ""} (${status}).`);
       return build("AOF_ERROR_012", input, `${input.provider} rejected the request (${status}): ${input.message ?? "bad request"}.`);
@@ -302,8 +305,8 @@ export function classifyProviderError(input: ClassifyInput): AofProviderError {
   }
 
   // 4) Type-only signals (no/odd status).
-  if (/insufficient_quota|quota/.test(type)) return build("AOF_ERROR_004", input, `${input.provider} quota exhausted.`);
-  if (/rate_?limit|overloaded|too_many/.test(type)) return build("AOF_ERROR_005", input, `${input.provider} rate limit exceeded.`);
+  if (/insufficient_quota|quota|resource_exhausted/.test(type)) return build("AOF_ERROR_004", input, `${input.provider} quota exhausted.`);
+  if (/rate_?limit|overloaded|too_many|throttling/.test(type)) return build("AOF_ERROR_005", input, `${input.provider} rate limit exceeded.`);
   if (/invalid_api_key|authentication/.test(type)) return build("AOF_ERROR_002", input, `${input.provider} rejected the API key.`);
   if (/permission/.test(type)) return build("AOF_ERROR_010", input, `${input.provider} authentication/permission failure.`);
   if (/not_found|model/.test(type)) return build("AOF_ERROR_009", input, `${input.provider} model not found.`);

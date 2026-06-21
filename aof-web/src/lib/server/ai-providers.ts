@@ -90,7 +90,7 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
     label: "Llama (Groq)",
     envVar: "LLAMA_API_KEY",
     modelEnv: "LLAMA_MODEL",
-    defaultModel: "llama-3.3-70b",
+    defaultModel: "llama-3.3-70b-versatile",
     priority: 5,
   },
 };
@@ -230,32 +230,102 @@ export interface AdapterInput {
   taskModel?: string;
 }
 
+// ── Shared streaming utilities ─────────────────────────────────────────────────
+
+function abortableDelay(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) return reject(new DOMException("Aborted", "AbortError"));
+    const timer = setTimeout(resolve, ms);
+    signal.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(timer);
+        reject(new DOMException("Aborted", "AbortError"));
+      },
+      { once: true },
+    );
+  });
+}
+
+/** Max ms to wait for the first token before abandoning a provider.
+ *  Overridable via FIRST_TOKEN_TIMEOUT_MS (or legacy OPENROUTER_FIRST_TOKEN_MS). */
+function firstTokenDeadlineMs(): number {
+  const v = Number(process.env.FIRST_TOKEN_TIMEOUT_MS ?? process.env.OPENROUTER_FIRST_TOKEN_MS);
+  return Number.isFinite(v) && v > 0 ? v : 6000;
+}
+
+// ── Anthropic adapter ──────────────────────────────────────────────────────────
+
+const ANTHROPIC_TRANSIENT_STATUSES = new Set([503, 529]);
+const ANTHROPIC_MAX_ATTEMPTS = 3;
+const ANTHROPIC_BACKOFF_MS = [300, 800];
+
 export async function* anthropicTextStream(input: AdapterInput): AsyncGenerator<string> {
   const meta = PROVIDER_REGISTRY.anthropic;
-  const anthropic = new Anthropic({ apiKey: apiKeyFor(meta, input.overrides)! });
   const model = input.taskModel || modelFor(meta);
-
   const messages: Anthropic.MessageParam[] = [
     ...input.history.map((h) => ({ role: h.role, content: h.content })),
     { role: "user" as const, content: input.message },
   ];
 
-  const stream = anthropic.messages.stream(
-    {
-      model,
-      max_tokens: input.maxTokens,
-      temperature: input.temperature,
-      system: input.system,
-      messages,
-    },
-    { signal: input.signal },
-  );
+  let started = false;
+  let lastError: unknown;
 
-  for await (const event of stream) {
-    if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
-      yield event.delta.text;
+  for (let attempt = 1; attempt <= ANTHROPIC_MAX_ATTEMPTS; attempt++) {
+    const anthropic = new Anthropic({ apiKey: apiKeyFor(meta, input.overrides)! });
+
+    const ctrl = new AbortController();
+    const onUserAbort = () => ctrl.abort();
+    input.signal.addEventListener("abort", onUserAbort, { once: true });
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      ctrl.abort();
+    }, firstTokenDeadlineMs());
+    const clearDeadline = () => clearTimeout(timer);
+
+    try {
+      const stream = anthropic.messages.stream(
+        { model, max_tokens: input.maxTokens, temperature: input.temperature, system: input.system, messages },
+        { signal: ctrl.signal },
+      );
+
+      for await (const event of stream) {
+        if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+          if (!started) {
+            started = true;
+            clearDeadline();
+            input.signal.removeEventListener("abort", onUserAbort);
+          }
+          yield event.delta.text;
+        }
+      }
+      return;
+    } catch (thrown) {
+      if (started) throw thrown; // can't retry after emitting tokens
+
+      if (isAbort(thrown)) {
+        if (!input.signal.aborted && timedOut) {
+          throw new ProviderHttpError(504, "", "timeout", `${meta.label} did not respond in time`);
+        }
+        throw thrown;
+      }
+
+      const err = thrown as { status?: number };
+      if (err.status && ANTHROPIC_TRANSIENT_STATUSES.has(err.status) && attempt < ANTHROPIC_MAX_ATTEMPTS) {
+        lastError = thrown;
+        clearDeadline();
+        input.signal.removeEventListener("abort", onUserAbort);
+        await abortableDelay(ANTHROPIC_BACKOFF_MS[attempt - 1] ?? 800, input.signal);
+        continue;
+      }
+      throw thrown;
+    } finally {
+      clearDeadline();
+      input.signal.removeEventListener("abort", onUserAbort);
     }
   }
+  throw lastError;
 }
 
 const OPENROUTER_CHAT_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -291,21 +361,6 @@ function openrouterModelChain(taskModel?: string): string[] {
   return [...new Set([primary, ...chain])];
 }
 
-function abortableDelay(ms: number, signal: AbortSignal): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (signal.aborted) return reject(new DOMException("Aborted", "AbortError"));
-    const timer = setTimeout(resolve, ms);
-    signal.addEventListener(
-      "abort",
-      () => {
-        clearTimeout(timer);
-        reject(new DOMException("Aborted", "AbortError"));
-      },
-      { once: true },
-    );
-  });
-}
-
 /** Open the streaming connection for one model, retrying transient upstream failures. */
 async function openrouterConnect(
   meta: ProviderMeta,
@@ -329,7 +384,7 @@ async function openrouterConnect(
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKeyFor(meta, input.overrides)!}`,
-        "HTTP-Referer": "https://aof-web.vercel.app",
+        "HTTP-Referer": process.env.NEXT_PUBLIC_SITE_URL || "https://coagentix.app",
         "X-Title": "CoAgentix",
       },
       body,
@@ -351,15 +406,6 @@ async function openrouterConnect(
   }
   // Exhausted all attempts on transient errors — surface the last one.
   throw lastTransient ?? new ProviderHttpError(502, "", undefined, "Provider unavailable");
-}
-
-/** Max time to wait for a model's FIRST token before abandoning it for the next
- *  one. Free models often accept the request (200) but are slow to start when
- *  queued; without this the function would hang until the platform kills it (an
- *  opaque 500). Overridable via OPENROUTER_FIRST_TOKEN_MS (used by tests). */
-function firstTokenDeadlineMs(): number {
-  const v = Number(process.env.OPENROUTER_FIRST_TOKEN_MS);
-  return Number.isFinite(v) && v > 0 ? v : 6000;
 }
 
 export async function* openrouterTextStream(input: AdapterInput): AsyncGenerator<string> {
@@ -552,35 +598,66 @@ async function* openAiCompatTextStream(cfg: OpenAiCompatConfig, input: AdapterIn
     { role: "user", content: input.message },
   ];
 
-  const res = await openAiCompatConnect(cfg, apiKey, model, messages, input);
-  const reader = res.body!.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() ?? "";
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed.startsWith("data:")) continue;
-      const data = trimmed.slice(5).trim();
-      if (data === "[DONE]") return;
-      let delta = "";
-      try {
-        const json = JSON.parse(data);
-        if (json?.error) {
-          const msg = typeof json.error === "string" ? json.error : json.error?.message;
-          throw new ProviderHttpError(json.error?.code ?? 502, data, json.error?.type, msg);
+  const ctrl = new AbortController();
+  const onUserAbort = () => ctrl.abort();
+  input.signal.addEventListener("abort", onUserAbort, { once: true });
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    ctrl.abort();
+  }, firstTokenDeadlineMs());
+  const clearDeadline = () => clearTimeout(timer);
+
+  let started = false;
+  try {
+    const res = await openAiCompatConnect(cfg, apiKey, model, messages, { ...input, signal: ctrl.signal });
+    const reader = res.body!.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith("data:")) continue;
+        const data = trimmed.slice(5).trim();
+        if (data === "[DONE]") {
+          clearDeadline();
+          input.signal.removeEventListener("abort", onUserAbort);
+          return;
         }
-        delta = json?.choices?.[0]?.delta?.content ?? "";
-      } catch (e) {
-        if (e instanceof ProviderHttpError) throw e;
-        /* ignore malformed keep-alive frames */
+        let delta = "";
+        try {
+          const json = JSON.parse(data);
+          if (json?.error) {
+            const msg = typeof json.error === "string" ? json.error : json.error?.message;
+            throw new ProviderHttpError(json.error?.code ?? 502, data, json.error?.type, msg);
+          }
+          delta = json?.choices?.[0]?.delta?.content ?? "";
+        } catch (e) {
+          if (e instanceof ProviderHttpError) throw e;
+          /* ignore malformed keep-alive frames */
+        }
+        if (delta) {
+          if (!started) {
+            started = true;
+            clearDeadline();
+          }
+          yield delta;
+        }
       }
-      if (delta) yield delta;
     }
+  } catch (thrown) {
+    if (isAbort(thrown) && !input.signal.aborted && timedOut) {
+      throw new ProviderHttpError(504, "", "timeout", `${meta.label} did not respond in time`);
+    }
+    throw thrown;
+  } finally {
+    clearDeadline();
+    input.signal.removeEventListener("abort", onUserAbort);
   }
 }
 

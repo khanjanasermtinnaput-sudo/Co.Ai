@@ -4,7 +4,8 @@
 // router can learn across restarts. The store is capped at MAX_RECORDS to bound
 // disk usage; old records roll off automatically.
 
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Role, TaskCategory } from '../types.js';
 
@@ -131,9 +132,8 @@ export class RoutingMetricsStore {
 
   private save(): void {
     if (!this.storagePath) return;
-    try {
-      writeFileSync(this.storagePath, JSON.stringify({ records: this.records }, null, 2), 'utf8');
-    } catch { /* non-fatal — metrics loss is acceptable */ }
+    writeFile(this.storagePath, JSON.stringify({ records: this.records }, null, 2), 'utf8')
+      .catch(() => { /* non-fatal — metrics loss is acceptable */ });
   }
 
   private load(): void {

@@ -128,8 +128,10 @@ export async function saveMemory(mem: ProjectMemory): Promise<void> {
       if (res.ok) return;
     } catch { /* fall through to file */ }
   }
-  mkdirSync(memoryDir(), { recursive: true });
-  writeFileSync(memoryPath(mem.key), JSON.stringify(mem, null, 2), 'utf8');
+  try {
+    mkdirSync(memoryDir(), { recursive: true });
+    writeFileSync(memoryPath(mem.key), JSON.stringify(mem, null, 2), 'utf8');
+  } catch { /* non-fatal: memory degraded to in-session only (e.g. ENOSPC) */ }
 }
 
 export async function clearMemory(key: string): Promise<void> {

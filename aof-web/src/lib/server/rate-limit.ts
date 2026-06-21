@@ -27,9 +27,18 @@ const PRESETS: Record<string, WindowConfig> = {
 
 // ── In-memory fallback (single-instance only) ─────────────────────────────────
 const memStore = new Map<string, { count: number; windowEnd: number }>();
+const MEM_STORE_PRUNE_THRESHOLD = 10_000;
+
+function pruneMemStore(): void {
+  const now = Date.now();
+  for (const [key, entry] of memStore) {
+    if (entry.windowEnd <= now) memStore.delete(key);
+  }
+}
 
 function memCheck(key: string, cfg: WindowConfig): RateLimitResult {
   const now = Date.now();
+  if (memStore.size > MEM_STORE_PRUNE_THRESHOLD) pruneMemStore();
   let entry = memStore.get(key);
   if (!entry || entry.windowEnd <= now) {
     entry = { count: 0, windowEnd: now + cfg.windowSec * 1000 };

@@ -137,63 +137,72 @@ export async function runChiefAgent(
   }
 
   // Phase 5: Execute with specialized agents
+  // Writing depends on research output, so: run all non-writing agents in parallel first,
+  // then run writing with the collected context.
   const agentsUsed: AgentType[] = ['chief'];
   const agentOutputs: string[] = [];
+  const task = plan.subtasks[0] ?? expandedPrompt;
 
-  for (const agent of plan.agents) {
-    const task = plan.subtasks[0] ?? expandedPrompt;
+  const independentAgents = plan.agents.filter((a) => a !== 'writing');
+  const hasWriting =
+    plan.agents.includes('writing') &&
+    (categories.includes('writing') || categories.includes('business') || categories.includes('education'));
 
-    try {
+  const parallelResults = await Promise.allSettled(
+    independentAgents.map(async (agent) => {
       if (agent === 'research' && (categories.includes('research') || categories.includes('science') || categories.includes('education') || categories.includes('business'))) {
         emit('research', 'gathering information...', 'status');
         const result = await runResearchAgent(makeCall('planner'), task, history.map((m) => m.content).join('\n'));
-        agentOutputs.push(result.answer);
-        agentsUsed.push('research');
         emit('research', `confidence: ${result.confidence}`, 'output');
-
-      } else if (agent === 'writing' && (categories.includes('writing') || categories.includes('business') || categories.includes('education'))) {
-        emit('writing', 'creating content...', 'status');
-        const context = agentOutputs.join('\n\n');
-        const result = await runWritingAgent(makeCall('planner'), task, context || undefined);
-        agentOutputs.push(result.content);
-        agentsUsed.push('writing');
-        emit('writing', `${result.wordCount} words · ${result.tone} tone`, 'output');
+        return { agent: 'research' as AgentType, output: result.answer };
 
       } else if (agent === 'math' && (categories.includes('mathematics') || categories.includes('science'))) {
         emit('math', 'solving...', 'status');
         const result = await runMathAgent(makeCall('reviewer'), task);
-        agentOutputs.push(result.solution);
-        agentsUsed.push('math');
         emit('math', `verified: ${result.verified ? 'yes' : 'partial'}`, 'output');
+        return { agent: 'math' as AgentType, output: result.solution };
 
       } else if (agent === 'vision' && (categories.includes('image_generation') || categories.includes('image_editing'))) {
         emit('vision', 'processing image request...', 'status');
         const spec = await generateImagePrompt(makeCall('planner'), task);
-        agentOutputs.push(
-          `**Image Prompt Generated:**\n\n**Style:** ${spec.style}\n**Lighting:** ${spec.lighting}\n**Composition:** ${spec.composition}\n\n**Ready-to-use prompt:**\n\`\`\`\n${spec.fullPrompt}\n\`\`\`\n\n**Negative prompt:** ${spec.negativePrompt}`,
-        );
-        agentsUsed.push('vision');
+        return {
+          agent: 'vision' as AgentType,
+          output: `**Image Prompt Generated:**\n\n**Style:** ${spec.style}\n**Lighting:** ${spec.lighting}\n**Composition:** ${spec.composition}\n\n**Ready-to-use prompt:**\n\`\`\`\n${spec.fullPrompt}\n\`\`\`\n\n**Negative prompt:** ${spec.negativePrompt}`,
+        };
 
       } else if (agent === 'coding') {
-        // Coding tasks route through TMAP — handled by /v1/run endpoint.
-        // Chief Agent handles non-coding tasks and defers to TMAP for code.
         emit('coding', 'routing to code engine...', 'status');
         const directAnswer = await makeCall('coder')([
-          {
-            role: 'system',
-            content: 'You are an expert software engineer. Answer the coding question thoroughly with code examples.',
-          },
-          {
-            role: 'user',
-            content: expandedPrompt,
-          },
+          { role: 'system', content: 'You are an expert software engineer. Answer the coding question thoroughly with code examples.' },
+          { role: 'user', content: expandedPrompt },
           ...history.slice(-4),
         ], { temperature: 0.15, maxTokens: 4096 });
-        agentOutputs.push(directAnswer);
-        agentsUsed.push('coding');
+        return { agent: 'coding' as AgentType, output: directAnswer };
       }
+      return null;
+    }),
+  );
+
+  for (const r of parallelResults) {
+    if (r.status === 'rejected') {
+      emit('system' as AgentType, `agent error: ${(r.reason as Error).message}`, 'error');
+    } else if (r.value) {
+      agentOutputs.push(r.value.output);
+      agentsUsed.push(r.value.agent);
+    }
+  }
+
+  // Writing runs after independent agents so it has their output as context.
+  if (hasWriting) {
+    try {
+      emit('writing', 'creating content...', 'status');
+      const context = agentOutputs.join('\n\n');
+      const result = await runWritingAgent(makeCall('planner'), task, context || undefined);
+      agentOutputs.push(result.content);
+      agentsUsed.push('writing');
+      emit('writing', `${result.wordCount} words · ${result.tone} tone`, 'output');
     } catch (e) {
-      emit('system' as AgentType, `${agent} agent error: ${(e as Error).message}`, 'error');
+      emit('system' as AgentType, `writing agent error: ${(e as Error).message}`, 'error');
     }
   }
 

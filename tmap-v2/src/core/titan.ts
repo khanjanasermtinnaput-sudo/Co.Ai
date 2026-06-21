@@ -305,11 +305,10 @@ export async function runTitan(
 }
 
 async function runReviewPasses(call: LLMCall, planBlock: string, emit: TitanEmit): Promise<string[]> {
-  const findings: string[] = [];
-  for (let i = 0; i < REVIEW_PASSES.length; i++) {
-    const [name, focus] = REVIEW_PASSES[i];
-    emit('titan', `self-review pass ${i + 1}/${REVIEW_PASSES.length}: ${name}`, 'status');
-    try {
+  emit('titan', `running ${REVIEW_PASSES.length} self-review passes in parallel...`, 'status');
+
+  const results = await Promise.allSettled(
+    REVIEW_PASSES.map(async ([name, focus]) => {
       const reply = await call([
         {
           role: 'system',
@@ -317,15 +316,21 @@ async function runReviewPasses(call: LLMCall, planBlock: string, emit: TitanEmit
         },
         { role: 'user', content: planBlock },
       ], { temperature: 0.2, maxTokens: 350 });
+      return { name, reply };
+    }),
+  );
 
-      if (/^\s*OK\b/i.test(reply.trim())) continue;
-      for (const line of reply.split('\n')) {
-        const m = line.match(/^\s*[-•*]\s+(.{4,})$/);
-        if (m) findings.push(`[${name}] ${m[1].trim()}`);
-      }
-    } catch (e) {
-      // A failed pass must not kill the whole planning turn.
-      emit('titan', `self-review pass ${name} skipped: ${(e as Error).message}`, 'status');
+  const findings: string[] = [];
+  for (const r of results) {
+    if (r.status === 'rejected') {
+      emit('titan', `self-review pass skipped: ${(r.reason as Error).message}`, 'status');
+      continue;
+    }
+    const { name, reply } = r.value;
+    if (/^\s*OK\b/i.test(reply.trim())) continue;
+    for (const line of reply.split('\n')) {
+      const m = line.match(/^\s*[-•*]\s+(.{4,})$/);
+      if (m) findings.push(`[${name}] ${m[1].trim()}`);
     }
   }
   return findings;
