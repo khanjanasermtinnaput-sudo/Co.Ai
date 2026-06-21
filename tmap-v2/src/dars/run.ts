@@ -69,7 +69,13 @@ export async function chatWithDARS(
   const tried = new Set<string>();
   let lastErr: Error | undefined;
 
-  for (let attempt = 0; attempt < MAX_FAILOVER; attempt++) {
+  // Try every distinct candidate (direct keys + OpenRouter routes) before giving
+  // up — so a user with several keys gets full failover, not just the first MAX.
+  // MAX_FAILOVER stays a floor so a single flaky provider still gets a couple of
+  // retries even when it's the only candidate.
+  const maxAttempts = Math.max(MAX_FAILOVER, candidates.length);
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
     // Brief exponential backoff between failover attempts so a flaky provider
     // isn't hammered immediately. First attempt has no delay.
     if (attempt > 0) {

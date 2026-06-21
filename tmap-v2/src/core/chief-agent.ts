@@ -88,6 +88,37 @@ export async function runChiefAgent(
     return r.text;
   };
 
+  // ── Fast path for everyday conversation ─────────────────────────────────────
+  // The full orchestration (expand → plan → execute → synthesize → quality loop)
+  // is 5-7 model calls. For a simple general message that needs no specialized
+  // agent, that multiplies the chance of hitting a free key's rate/quota limit —
+  // the #1 cause of "provider unavailable" errors. So answer simple messages in a
+  // SINGLE call. Failover is unaffected (this still goes through DARS), we just
+  // stop spending extra calls where they don't improve the answer. Complex tasks
+  // (coding/research/math/writing/vision) and long prompts keep the full pipeline.
+  const FASTPATH_MAXLEN = Number(process.env.COAGENTIX_FASTPATH_MAXLEN ?? 500);
+  const needsSpecialist = selectAgents(categories).length > 0;
+  if (!opts.planOnly && !needsSpecialist && userMessage.trim().length <= FASTPATH_MAXLEN) {
+    emit('chief', 'answering...', 'status');
+    const directAnswer = await makeCall()([
+      {
+        role: 'system',
+        content:
+          'You are AOF AI, a highly capable universal AI assistant. Answer thoroughly, ' +
+          'accurately, and helpfully. Reply in the SAME LANGUAGE as the user. Use markdown when it helps.',
+      },
+      ...history.slice(-6),
+      { role: 'user', content: userMessage },
+    ], { temperature, maxTokens: 2048 });
+    return {
+      response: directAnswer,
+      categories,
+      agentsUsed: ['chief'],
+      qualityScore: 90,
+      iterations: 1,
+    };
+  }
+
   // Phase 3: Expand prompt (hidden from user)
   emit('chief', 'preparing expert prompt...', 'status');
   const expandedPrompt = await expandPrompt(makeCall(), userMessage, categories);
