@@ -14,14 +14,28 @@ function keepDecryptableKeys(
   keys: Partial<Record<ProviderKeyName, string>>,
 ): Partial<Record<ProviderKeyName, string>> {
   const out: Partial<Record<ProviderKeyName, string>> = {};
+  const dropped: string[] = [];
   for (const [provider, blob] of Object.entries(keys)) {
     if (!blob) continue;
     try {
       decryptSecret(blob);
       out[provider as ProviderKeyName] = blob;
     } catch {
-      /* master-key mismatch / corrupt ciphertext — skip this key */
+      // master-key mismatch / corrupt ciphertext — skip this key.
+      dropped.push(provider);
     }
+  }
+  // Surface the silent-degrade case: if a user HAS stored keys but none decrypt,
+  // it almost always means COAGENTIX_MASTER_KEY differs from the one aof-web used
+  // to encrypt them. Without this log the only symptom is a confusing "no key"
+  // error, so make the real cause visible to the operator in the server logs.
+  if (dropped.length) {
+    const total = Object.values(keys).filter(Boolean).length;
+    console.warn(
+      `[auth] dropped ${dropped.length}/${total} provider key(s) that failed to decrypt ` +
+      `(${dropped.join(', ')}). Likely COAGENTIX_MASTER_KEY mismatch between this backend ` +
+      `and the frontend that stored the keys — they MUST be identical.`,
+    );
   }
   return out;
 }

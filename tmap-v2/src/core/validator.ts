@@ -10,9 +10,17 @@ interface ExecError { stderr?: { toString(): string }; stdout?: { toString(): st
 function execErr(e: unknown): ExecError { return (e ?? {}) as ExecError; }
 
 /**
- * Grounded validation (TDD §3 principle 4): actually EXECUTE checks instead of
- * letting an LLM claim "passed". Supports JS, TS, Python syntax checking.
- * Real sandbox execution comes in Phase 3.
+ * Grounded validation (TDD §3 principle 4): run a REAL toolchain instead of letting
+ * an LLM claim "passed". Each language is checked by its actual parser/compiler:
+ *   JS   → `node --check`            TS → TypeScript transpile w/ diagnostics
+ *   Py   → `python3 -m py_compile`   Go → `gofmt -e`   Rust → `rustc --emit=metadata`
+ *   JSON → JSON.parse
+ *
+ * IMPORTANT — this is SYNTAX/PARSE validation only. A "PASS" means the code parses
+ * and compiles, NOT that it runs correctly or that its tests pass. Behavioural
+ * execution (running the code / its tests in a sandbox) is a separate concern; do
+ * not read a passing validation as proof of correctness. Unknown languages are
+ * skipped (reported, not failed).
  */
 export function validateFiles(files: CodeFile[]): ValidationResult[] {
   const results: ValidationResult[] = [];

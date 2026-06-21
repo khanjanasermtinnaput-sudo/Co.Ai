@@ -1,20 +1,39 @@
-import type { AnyMessage, ResolvedProvider, ChatOpts } from '../types.js';
+import type { AnyMessage, ResolvedProvider, ChatOpts, TokenUsage } from '../types.js';
 
 const MOCK_NOTE =
   '[mock] No API key configured. Set one in .env (run `npm run doctor`).';
+
+/** A completed model call: the text plus provider-reported token usage when the
+ *  upstream returned a `usage` block (omitted for mock / vendors that don't). */
+export interface ChatResult {
+  text: string;
+  usage?: TokenUsage;
+}
 
 /**
  * One OpenAI-compatible chat client for every vendor.
  * POST {baseURL}/chat/completions  — works for Gemini (openai endpoint),
  * DeepSeek, Qwen (DashScope compatible-mode), Llama (Groq) and OpenRouter.
+ *
+ * Backwards-compatible wrapper that returns just the text. Use chatWithUsage when
+ * you also need the provider's exact token counts (e.g. cost tracking).
  */
 export async function chat(
   provider: ResolvedProvider,
   messages: AnyMessage[],
   opts: ChatOpts = {},
 ): Promise<string> {
+  return (await chatWithUsage(provider, messages, opts)).text;
+}
+
+/** Same call as chat(), but also surfaces provider-reported token usage. */
+export async function chatWithUsage(
+  provider: ResolvedProvider,
+  messages: AnyMessage[],
+  opts: ChatOpts = {},
+): Promise<ChatResult> {
   if (provider.mode === 'mock') {
-    return mockReply(provider.role, messages);
+    return { text: mockReply(provider.role, messages) };
   }
 
   const url = `${provider.baseURL}/chat/completions`;
@@ -67,13 +86,25 @@ export async function chat(
 
     const data = (await res.json()) as {
       choices?: Array<{ message?: { content?: string }; text?: string }>;
+      usage?: { prompt_tokens?: number; completion_tokens?: number };
     };
     const content =
       data?.choices?.[0]?.message?.content ??
       data?.choices?.[0]?.text ??
       '';
     if (!content) throw new Error(`${provider.providerName}: empty response`);
-    return String(content).trim();
+
+    // Provider-reported usage (OpenAI-compatible). Only trust it when both counts
+    // are real numbers; otherwise leave undefined so the caller falls back to its
+    // own estimate rather than recording a misleading 0.
+    let usage: TokenUsage | undefined;
+    const inTok = data?.usage?.prompt_tokens;
+    const outTok = data?.usage?.completion_tokens;
+    if (typeof inTok === 'number' && typeof outTok === 'number') {
+      usage = { inputTokens: inTok, outputTokens: outTok };
+    }
+
+    return { text: String(content).trim(), usage };
   } finally {
     clearTimeout(timer);
     if (opts.signal) opts.signal.removeEventListener('abort', onAbort);
