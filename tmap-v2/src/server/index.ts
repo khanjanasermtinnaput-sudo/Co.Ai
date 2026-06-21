@@ -30,7 +30,7 @@ import {
 import { globalRoutingMetrics } from '../core/routing-metrics.js';
 import { evaluateOutput } from '../core/eval-framework.js';
 import type { Blackboard, CodeFile } from '../types.js';
-import { bagHasAnyKey, resolveAllWith, ROLE_PROVIDER, type CredentialBag } from '../config.js';
+import { bagHasAnyKey, mockAllowed, resolveAllWith, ROLE_PROVIDER, type CredentialBag } from '../config.js';
 import { createBlackboard } from '../core/blackboard.js';
 import { runTMAP } from '../core/orchestrator.js';
 import { runRAA } from '../core/raa.js';
@@ -602,6 +602,11 @@ app.post('/v1/run', requireAuth, async (req: AuthedRequest, res) => {
   const send = (event: object) => res.write(`data: ${JSON.stringify(event)}\n\n`);
 
   if (!bagHasAnyKey(creds)) {
+    if (!mockAllowed()) {
+      // Fail closed: never run a build with fabricated (mock) output in production.
+      send({ role: 'system', kind: 'error', text: 'ยังไม่มี API key — เพิ่ม key ได้ในหน้า Settings เพื่อใช้งานจริง' });
+      return res.end();
+    }
     send({ role: 'system', kind: 'status', text: 'ยังไม่มี API key — กำลังใช้ mock mode เพิ่ม key ได้ในหน้า Settings' });
   }
 
@@ -1516,9 +1521,28 @@ function preflightEnv(): void {
     },
   ];
   const missing = required.filter((r) => !r.ok).map((r) => r.name);
-  if (missing.length === 0) return;
 
-  const msg = `[preflight] Missing/weak required env: ${missing.join(", ")} (need 16+ chars)`;
+  // Durable storage: without Supabase, user accounts + their encrypted provider
+  // keys live on ephemeral disk and are WIPED on every redeploy/cold start. Treat
+  // that as a misconfiguration in production unless explicitly opted into.
+  const hasSupabase = Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
+  const allowEphemeral = ["1", "true"].includes(
+    (process.env.COAGENTIX_ALLOW_EPHEMERAL_DB ?? "").trim().toLowerCase(),
+  );
+  const storageInsecure = !hasSupabase && !allowEphemeral;
+
+  if (missing.length === 0 && !storageInsecure) return;
+
+  const parts: string[] = [];
+  if (missing.length) parts.push(`Missing/weak required env: ${missing.join(", ")} (need 16+ chars)`);
+  if (storageInsecure) {
+    parts.push(
+      "No durable storage: set SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY, or user " +
+      "accounts and encrypted API keys are lost on redeploy. " +
+      "Set COAGENTIX_ALLOW_EPHEMERAL_DB=1 to override intentionally.",
+    );
+  }
+  const msg = `[preflight] ${parts.join(" | ")}`;
   if (process.env.NODE_ENV === "production") {
     console.error(`${msg} — refusing to start in production.`);
     process.exit(1);

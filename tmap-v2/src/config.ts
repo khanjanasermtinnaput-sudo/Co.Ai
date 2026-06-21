@@ -142,6 +142,22 @@ export function anyKeyConfigured(): boolean {
   return Object.values(PROVIDERS).some((d) => directKey(d));
 }
 
+/**
+ * Whether mock (fabricated, no-API-key) responses are permitted. Mock mode is an
+ * offline-demo convenience — it returns canned text that LOOKS like a real model
+ * answer. That is dangerous in production, where a missing key must surface a
+ * clear error instead of a fake answer. So mock is OFF in production unless
+ * COAGENTIX_ALLOW_MOCK is explicitly set, and ON elsewhere (local/dev/tests).
+ */
+export function mockAllowed(): boolean {
+  const flag = (process.env.COAGENTIX_ALLOW_MOCK ?? process.env.AOF_ALLOW_MOCK ?? '')
+    .trim()
+    .toLowerCase();
+  if (flag === '1' || flag === 'true') return true;
+  if (flag === '0' || flag === 'false') return false;
+  return process.env.NODE_ENV !== 'production';
+}
+
 // ── Credential injection (used by the server: keys come from a user's account,
 //    not from process.env) ─────────────────────────────────────────────────────
 export interface CredentialBag {
