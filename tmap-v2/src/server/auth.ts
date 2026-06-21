@@ -1,6 +1,30 @@
 import jwt from 'jsonwebtoken';
 import type { Request, Response, NextFunction } from 'express';
-import { findUserById, type UserRecord } from './db.js';
+import { findUserById, loadProviderKeysFromSupabase, type UserRecord, type ProviderKeyName } from './db.js';
+import { verifySupabaseToken } from './supabase-auth.js';
+import { decryptSecret } from './crypto.js';
+
+/**
+ * Keep only ciphertexts that actually decrypt with THIS server's master key. If
+ * the backend's COAGENTIX_MASTER_KEY differs from the one aof-web used to encrypt
+ * the key, decryption would otherwise throw deep inside an endpoint and surface as
+ * a 500. Dropping the bad entry degrades cleanly to "no key configured" instead.
+ */
+function keepDecryptableKeys(
+  keys: Partial<Record<ProviderKeyName, string>>,
+): Partial<Record<ProviderKeyName, string>> {
+  const out: Partial<Record<ProviderKeyName, string>> = {};
+  for (const [provider, blob] of Object.entries(keys)) {
+    if (!blob) continue;
+    try {
+      decryptSecret(blob);
+      out[provider as ProviderKeyName] = blob;
+    } catch {
+      /* master-key mismatch / corrupt ciphertext — skip this key */
+    }
+  }
+  return out;
+}
 
 function jwtSecret(): string {
   const s = process.env.JWT_SECRET;
@@ -25,22 +49,51 @@ export async function requireAuth(req: AuthedRequest, res: Response, next: NextF
   const token = (req.headers.authorization || '').replace('Bearer ', '');
   if (!token) { res.status(401).json({ error: 'missing token' }); return; }
 
-  let payload: { sub: string };
+  // 1) Native tmap-v2 JWT (username/PIN web accounts + CLI).
+  let payload: { sub: string } | null = null;
   try {
     payload = jwt.verify(token, jwtSecret()) as { sub: string };
   } catch {
-    res.status(401).json({ error: 'invalid token' });
-    return;
+    payload = null;
   }
 
-  try {
-    const user = await findUserById(payload.sub);
-    if (!user) { res.status(401).json({ error: 'user not found' }); return; }
-    req.user = user;
-    next();
-  } catch {
-    res.status(401).json({ error: 'auth error' });
+  if (payload) {
+    try {
+      const user = await findUserById(payload.sub);
+      if (!user) { res.status(401).json({ error: 'user not found' }); return; }
+      req.user = user;
+      next();
+      return;
+    } catch {
+      res.status(401).json({ error: 'auth error' });
+      return;
+    }
   }
+
+  // 2) Bridge: Supabase (Google) access token from the aof-web frontend. Verify it
+  // against the Supabase Auth API and synthesize a user whose keys come from the
+  // shared provider_keys table — so Google-signed-in users can reach /v1/* with the
+  // keys they saved in Settings, without a separate username/PIN account.
+  const ident = await verifySupabaseToken(token);
+  if (ident) {
+    try {
+      const encryptedKeys = keepDecryptableKeys(await loadProviderKeysFromSupabase(ident.id));
+      req.user = {
+        id: ident.id,
+        username: ident.email || ident.id,
+        pinHash: '',
+        encryptedKeys,
+        createdAt: new Date().toISOString(),
+      };
+      next();
+      return;
+    } catch {
+      res.status(401).json({ error: 'auth error' });
+      return;
+    }
+  }
+
+  res.status(401).json({ error: 'invalid token' });
 }
 
 // Admin allowlist — comma-separated usernames in COAGENTIX_ADMIN_USERNAMES.
