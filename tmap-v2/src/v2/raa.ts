@@ -113,7 +113,7 @@ export async function plan(
       kind: 'agent',
       agentId: primary.agentId,
       fallbackAgentIds: fallbacks,
-      dependencies: st.dependencies,
+      dependencies: Array.isArray(st.dependencies) ? st.dependencies : [],
       retry: retryFor(intent.complexity),
       timeoutMs: 45_000,
       status: 'pending',
@@ -201,7 +201,12 @@ export function llmDecomposer(call: LLMCall): Decomposer {
       { temperature: 0.2, maxTokens: 900 },
     );
     const parsed = safeJson<TaskGraph>(text, { subtasks: [] });
-    if (parsed.subtasks?.length) return parsed;
+    if (parsed.subtasks?.length) {
+      for (const st of parsed.subtasks) {
+        if (!Array.isArray(st.dependencies)) st.dependencies = [];
+      }
+      return parsed;
+    }
     // Fallback: a single node covering the whole task (still DAG-valid).
     return {
       subtasks: [
