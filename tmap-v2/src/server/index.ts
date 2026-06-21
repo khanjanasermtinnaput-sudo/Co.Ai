@@ -33,6 +33,7 @@ import type { Blackboard, CodeFile } from '../types.js';
 import { bagHasAnyKey, mockAllowed, resolveAllWith, ROLE_PROVIDER, type CredentialBag } from '../config.js';
 import { createBlackboard } from '../core/blackboard.js';
 import { runTMAP } from '../core/orchestrator.js';
+import { runV2 } from '../v2/run.js';
 import { runRAA } from '../core/raa.js';
 import { runTitan } from '../core/titan.js';
 import { runDebugger } from '../core/debugger.js';
@@ -685,6 +686,56 @@ app.post('/v1/run', requireAuth, async (req: AuthedRequest, res) => {
   }
   res.end();
 });
+
+// ── v2 ORCHESTRATION — score-based RAA + DAG executor (opt-in) ───────────────
+// Parallel to v1; only mounted when COAGENTIX_V2=1 so the live system is
+// untouched and rollback is a flag flip.
+if (process.env.COAGENTIX_V2 === '1') {
+  app.post('/v2/run', requireAuth, async (req: AuthedRequest, res) => {
+    const task = String(req.body?.task ?? '').trim();
+    if (!task) return res.status(400).json({ error: 'task required' });
+    if (tooLong(task, MAX_TASK)) return res.status(413).json({ error: `task too long (max ${MAX_TASK} bytes)` });
+
+    const u = req.user!;
+    const creds: CredentialBag = {};
+    for (const p of PROVIDERS) {
+      if (u.encryptedKeys[p]) (creds as Record<string, string>)[p] = decryptSecret(u.encryptedKeys[p]!);
+    }
+
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+    });
+    const send = (event: object) => res.write(`data: ${JSON.stringify(event)}\n\n`);
+
+    if (!bagHasAnyKey(creds) && !mockAllowed()) {
+      send({ role: 'system', kind: 'error', text: 'ยังไม่มี API key — เพิ่ม key ได้ในหน้า Settings เพื่อใช้งานจริง' });
+      return res.end();
+    }
+
+    logger.info('v2_run_start', { user: u.username, taskLen: task.length });
+    try {
+      const result = await runV2(task, { creds, userId: u.id, emit: send });
+      logger.info('v2_run_done', { requestId: result.requestId, mode: result.mode, confidence: result.confidence });
+      send({
+        role: 'system',
+        kind: 'done',
+        requestId: result.requestId,
+        mode: result.mode,
+        confidence: result.confidence,
+        output: result.output,
+        trace: result.trace,
+      });
+    } catch (e) {
+      incError();
+      logger.error('v2_run_error', { error: (e as Error).message });
+      send({ role: 'system', kind: 'error', text: (e as Error).message });
+    }
+    res.end();
+  });
+  logger.info('v2_enabled', { route: 'POST /v2/run' });
+}
 
 // ── ORCHESTRATE — Coagentix Universal Chief Agent (SSE stream) ───────────────
 app.post('/v1/orchestrate', requireAuth, async (req: AuthedRequest, res) => {
