@@ -283,7 +283,7 @@ export async function runTitan(
         emit('titan', 'self-review revision lost the plan format — keeping the original plan', 'status');
       }
     } else {
-      emit('titan', 'self-review: all 5 passes clean — plan unchanged', 'status');
+      emit('titan', `self-review: all ${REVIEW_PASSES.length} passes clean — plan unchanged`, 'status');
     }
   }
 
@@ -320,19 +320,29 @@ async function runReviewPasses(call: LLMCall, planBlock: string, emit: TitanEmit
     }),
   );
 
+  // Results preserve REVIEW_PASSES order (Promise.allSettled), so report each
+  // pass with its 1-based index (e.g. "self-review pass 5/7: Security").
+  const total = REVIEW_PASSES.length;
   const findings: string[] = [];
-  for (const r of results) {
+  results.forEach((r, i) => {
+    const passNum = `${i + 1}/${total}`;
+    const passName = REVIEW_PASSES[i][0];
     if (r.status === 'rejected') {
-      emit('titan', `self-review pass skipped: ${(r.reason as Error).message}`, 'status');
-      continue;
+      emit('titan', `self-review pass ${passNum}: ${passName} skipped — ${(r.reason as Error).message}`, 'status');
+      return;
     }
     const { name, reply } = r.value;
-    if (/^\s*OK\b/i.test(reply.trim())) continue;
+    if (/^\s*OK\b/i.test(reply.trim())) {
+      emit('titan', `self-review pass ${passNum}: ${name} — OK`, 'status');
+      return;
+    }
+    const before = findings.length;
     for (const line of reply.split('\n')) {
       const m = line.match(/^\s*[-•*]\s+(.{4,})$/);
       if (m) findings.push(`[${name}] ${m[1].trim()}`);
     }
-  }
+    emit('titan', `self-review pass ${passNum}: ${name} — ${findings.length - before} finding(s)`, 'status');
+  });
   return findings;
 }
 
