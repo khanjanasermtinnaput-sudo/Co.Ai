@@ -25,6 +25,7 @@ import {
   type AofProviderError,
 } from "./errors";
 import { parseBrief, summaryToBrief } from "./raa";
+import { getSupabase } from "./supabase/client";
 
 /** Resolve the API base. Empty string means "same origin" (Next rewrite proxy). */
 export function getApiBase(): string | null {
@@ -67,6 +68,33 @@ export function setToken(token: string | null) {
 function authHeaders(): Record<string, string> {
   const t = getToken();
   return t ? { Authorization: `Bearer ${t}` } : {};
+}
+
+/**
+ * Authorization header for the tmap-v2 backend (/v1/*). Real users sign in with
+ * Supabase/Google, so we send their Supabase access token — the backend bridges it
+ * (see tmap-v2 server/auth.ts). Falls back to the legacy localStorage token
+ * (username/PIN / CLI accounts) when there is no Supabase session.
+ */
+async function backendAuthHeaders(): Promise<Record<string, string>> {
+  try {
+    const supabase = getSupabase();
+    if (supabase) {
+      const { data } = await supabase.auth.getSession();
+      const session = data.session;
+      if (session) {
+        const msUntilExpiry = (session.expires_at ?? 0) * 1000 - Date.now();
+        if (msUntilExpiry <= 60_000) {
+          const { data: refreshed } = await supabase.auth.refreshSession();
+          if (refreshed.session) return { Authorization: `Bearer ${refreshed.session.access_token}` };
+        }
+        return { Authorization: `Bearer ${session.access_token}` };
+      }
+    }
+  } catch {
+    /* fall through to legacy token */
+  }
+  return authHeaders();
 }
 
 // ── Error helpers ─────────────────────────────────────────────────────────────
@@ -112,7 +140,7 @@ export async function postSSE(
 
   const res = await fetch(`${base}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
+    headers: { "Content-Type": "application/json", ...(await backendAuthHeaders()) },
     body: JSON.stringify(body),
     signal,
   });

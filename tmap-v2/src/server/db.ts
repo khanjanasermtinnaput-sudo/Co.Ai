@@ -90,6 +90,37 @@ async function sb(path: string, init: RequestInit = {}): Promise<Response> {
   return res;
 }
 
+const PROVIDER_KEY_NAMES: ProviderKeyName[] = ['openrouter', 'gemini', 'deepseek', 'qwen', 'llama'];
+
+/**
+ * Load a Supabase-auth user's provider keys from the shared `provider_keys` table
+ * (written by aof-web's /api/keys). Returns provider → ciphertext, in the same
+ * `encryptedKeys` shape as a tmap UserRecord so the existing endpoints can decrypt
+ * them with the shared COAGENTIX_MASTER_KEY. Empty when Supabase is unconfigured
+ * or the user has no keys. Never throws.
+ */
+export async function loadProviderKeysFromSupabase(
+  userId: string,
+): Promise<Partial<Record<ProviderKeyName, string>>> {
+  if (!useSupabase) return {};
+  try {
+    const res = await sb(
+      `provider_keys?user_id=eq.${encodeURIComponent(userId)}&select=provider,encrypted_key`,
+    );
+    if (!res.ok) return {};
+    const rows = (await res.json()) as Array<{ provider: string; encrypted_key: string }>;
+    const out: Partial<Record<ProviderKeyName, string>> = {};
+    for (const r of rows) {
+      if ((PROVIDER_KEY_NAMES as string[]).includes(r.provider) && r.encrypted_key) {
+        out[r.provider as ProviderKeyName] = r.encrypted_key;
+      }
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
 // ── File-based storage (fallback for local/dev) ───────────────────────────────
 const DB_PATH = process.env.AOF_DB_PATH
   ?? (process.env.VERCEL ? '/tmp/aof-db.json' : join(process.cwd(), '.aof-server', 'db.json'));
