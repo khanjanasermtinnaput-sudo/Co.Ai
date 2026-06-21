@@ -36,27 +36,48 @@ export async function chat(
     stream: false,
   });
 
-  let res: Response;
+  // Bound every provider call so a hung upstream fails fast (and the caller can
+  // fail over) instead of holding the request open until the platform kills it.
+  // Honors the caller's abort signal too (user pressed Stop / request cancelled).
+  const timeoutMs = Number(process.env.PROVIDER_TIMEOUT_MS ?? 60_000);
+  const controller = new AbortController();
+  const onAbort = () => controller.abort();
+  if (opts.signal) {
+    if (opts.signal.aborted) controller.abort();
+    else opts.signal.addEventListener('abort', onAbort, { once: true });
+  }
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
   try {
-    res = await fetch(url, { method: 'POST', headers, body, signal: opts.signal });
-  } catch (e) {
-    throw new Error(`network error calling ${provider.providerName}: ${(e as Error).message}`);
-  }
+    let res: Response;
+    try {
+      res = await fetch(url, { method: 'POST', headers, body, signal: controller.signal });
+    } catch (e) {
+      const timedOut = controller.signal.aborted && !opts.signal?.aborted;
+      const reason = timedOut ? `timed out after ${timeoutMs}ms` : (e as Error).message;
+      throw new Error(`network error calling ${provider.providerName}: ${reason}`);
+    }
 
-  if (!res.ok) {
-    const detail = await res.text().catch(() => '');
-    throw new Error(
-      `${provider.providerName} HTTP ${res.status}: ${detail.slice(0, 300)}`,
-    );
-  }
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '');
+      throw new Error(
+        `${provider.providerName} HTTP ${res.status}: ${detail.slice(0, 300)}`,
+      );
+    }
 
-  const data: any = await res.json();
-  const content =
-    data?.choices?.[0]?.message?.content ??
-    data?.choices?.[0]?.text ??
-    '';
-  if (!content) throw new Error(`${provider.providerName}: empty response`);
-  return String(content).trim();
+    const data = (await res.json()) as {
+      choices?: Array<{ message?: { content?: string }; text?: string }>;
+    };
+    const content =
+      data?.choices?.[0]?.message?.content ??
+      data?.choices?.[0]?.text ??
+      '';
+    if (!content) throw new Error(`${provider.providerName}: empty response`);
+    return String(content).trim();
+  } finally {
+    clearTimeout(timer);
+    if (opts.signal) opts.signal.removeEventListener('abort', onAbort);
+  }
 }
 
 // Offline fallback so the pipeline still demonstrates end-to-end without keys.

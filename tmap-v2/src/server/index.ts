@@ -17,10 +17,10 @@ import { checkLoginRate, recordFailure, recordSuccess } from './rateLimit.js';
 import { logger, incRequest, incError, incTmapRun, incTmapError, addTokens, incAgentCall, getMetrics, incEvaluation, incSandboxRun, incQuotaViolation, incKeyRotation, incKeyValidation, incTeamOperation, incOrgOperation, incBackupCreated, incRestoreRun, incAnalyticsEvent } from './logger.js';
 import { runInSandbox, SUPPORTED_LANGUAGES, SANDBOX_DEFAULT_TIMEOUT_MS, SANDBOX_MAX_TIMEOUT_MS, SANDBOX_DEFAULT_MAX_BYTES } from '../core/sandbox.js';
 import { isDockerAvailable, runInDockerSandbox, DOCKER_DEFAULT_TIMEOUT_MS, DOCKER_MAX_TIMEOUT_MS } from '../core/docker-sandbox.js';
-import { checkQuota, checkSandboxQuota, recordUsage, recordSandboxRun, getUsageSummary, DEFAULT_QUOTA } from '../core/usage-tracker.js';
+import { checkQuota, checkSandboxQuota, recordSandboxRun, getUsageSummary, DEFAULT_QUOTA } from '../core/usage-tracker.js';
 import type { SandboxLanguage, SandboxOptions } from '../types.js';
 import {
-  listDevKeys, createDevKey, revokeDevKey, authenticateDevKey, hasScope,
+  listDevKeys, createDevKey, revokeDevKey,
   type DevKeyScope,
 } from './developer-keys.js';
 import {
@@ -1527,6 +1527,17 @@ function preflightEnv(): void {
 }
 
 if (!process.env.VERCEL) {
+  // Process-level safety net: a stray rejection/throw should be logged (never
+  // swallowed silently). For an uncaught exception the process is in an unknown
+  // state — log and exit non-zero so the platform (Render) restarts it cleanly.
+  process.on('unhandledRejection', (reason) => {
+    logger.error('unhandledRejection', { reason: reason instanceof Error ? reason.stack : String(reason) });
+  });
+  process.on('uncaughtException', (err) => {
+    logger.error('uncaughtException', { error: err.stack ?? String(err) });
+    process.exit(1);
+  });
+
   preflightEnv();
   const PORT = Number(process.env.PORT || 8787);
   app.listen(PORT, async () => {

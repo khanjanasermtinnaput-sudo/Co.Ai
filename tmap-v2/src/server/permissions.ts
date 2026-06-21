@@ -1,7 +1,7 @@
 // Advanced permissions — RBAC with role hierarchy, resource-level ACLs,
 // and permission matrix enforcement. Integrates with teams and orgs.
 
-import { fsPut, fsGet, fsList, fsDel } from './file-store.js';
+import { fsPut, fsList, fsDel } from './file-store.js';
 import { cacheKey, cacheGet, cacheSet, cacheDel } from './redis.js';
 import type { PermissionRole, ResourceType, PermissionAction } from '../types.js';
 

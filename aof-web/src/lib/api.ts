@@ -560,7 +560,9 @@ export async function streamOrchestrate(
   qualityGate = true,
 ): Promise<void> {
   if (!isLive()) {
-    // Fallback to regular chat when backend not configured
+    // Fallback to regular chat when backend not configured. Decode in-band control
+    // frames (model/source/error) via readAofStream so they're never rendered as
+    // literal text — same handling as the default /api/chat path.
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
@@ -568,14 +570,11 @@ export async function streamOrchestrate(
         body: JSON.stringify({ message, agent: "chat", history: history.slice(-20) }),
         signal: handlers.signal,
       });
-      const decoder = new TextDecoder();
-      const reader = res.body?.getReader();
-      if (!reader) return;
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        handlers.onToken(decoder.decode(value, { stream: true }));
-      }
+      await readAofStream(res, {
+        onToken: handlers.onToken,
+        signal: handlers.signal,
+        onError: (err) => handlers.onError?.(err),
+      });
     } catch (e) {
       if ((e as { name?: string })?.name === "AbortError") return;
       handlers.onError?.(e);

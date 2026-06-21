@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import { Copy, Check, RefreshCw, ThumbsUp, ThumbsDown, Pencil, X } from "lucide-react";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, memo } from "react";
 import { cn } from "@/lib/utils";
 import { estimateTokens } from "@/lib/export";
 import type { ChatMessageT } from "@/lib/types";
@@ -62,7 +62,7 @@ function AgentBadges({ agents, quality, categories }: { agents?: string[]; quali
   );
 }
 
-export function ChatMessage({
+function ChatMessageImpl({
   message,
   isLast,
   onRegenerate,
@@ -297,6 +297,11 @@ export function ChatMessage({
     </motion.div>
   );
 }
+
+// Memoized: during streaming only the active assistant message's object identity
+// changes, so non-streaming messages skip re-render (their props are referentially
+// stable). Cuts per-token re-render cost from O(messages) to O(1).
+export const ChatMessage = memo(ChatMessageImpl);
 
 function ActionButton({
   onClick,

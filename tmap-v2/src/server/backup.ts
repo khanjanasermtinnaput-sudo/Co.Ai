@@ -7,7 +7,7 @@ import { writeFileSync, readFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { fsList, fsPut, fsGet } from './file-store.js';
 import { logger } from './logger.js';
-import type { BackupManifest, BackupStatus } from '../types.js';
+import type { BackupManifest } from '../types.js';
 
 const BACKUP_DIR = process.env.CGNTX_BACKUP_DIR
   ?? (process.env.VERCEL ? '/tmp/cgntx-backups' : '.coagentix-server/backups');

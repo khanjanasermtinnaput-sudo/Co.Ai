@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 import { mkdirSync, writeFileSync, readdirSync, readFileSync, existsSync } from 'node:fs';
-import { join, dirname, extname, isAbsolute } from 'node:path';
+import { join, dirname, isAbsolute } from 'node:path';
 import { resolveAll, currentMode, anyKeyConfigured, PROVIDERS, ROLE_PROVIDER, bagFromEnv } from './config.js';
 import { runInSandbox, SUPPORTED_LANGUAGES } from './core/sandbox.js';
-import { getUsageSummary, checkQuota, DEFAULT_QUOTA } from './core/usage-tracker.js';
+import { getUsageSummary, checkQuota } from './core/usage-tracker.js';
 import type { SandboxLanguage } from './types.js';
-import { createBlackboard, loadSession } from './core/blackboard.js';
+import { createBlackboard } from './core/blackboard.js';
 import { runTMAP } from './core/orchestrator.js';
 import { gatherProjectContext } from './core/context.js';
 import { runTitan, blueprintToBuild } from './core/titan.js';
@@ -506,7 +506,7 @@ function cmdSessions() {
     try {
       const bb = JSON.parse(readFileSync(join(sessDir, f), 'utf8'));
       const date = new Date(bb.log?.[0]?.ts ?? 0).toLocaleString();
-      const high = (bb.review ?? []).filter((i: any) => i.severity === 'HIGH').length;
+      const high = (bb.review ?? []).filter((i: { severity?: string }) => i.severity === 'HIGH').length;
       console.log(`  ${c.dim(f.replace('.json', ''))}  ${c.orange(bb.task?.slice(0, 60) ?? '')}  ${c.dim(`· ${bb.iterations ?? 0} iter · ${date}`)}  ${high ? c.red(`${high} HIGH`) : ''}`);
     } catch { /* corrupt session */ }
   }

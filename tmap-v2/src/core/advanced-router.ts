@@ -3,7 +3,7 @@
 // superior performer for the selected role. Requires ≥ MIN_OBSERVATIONS before
 // trusting the metrics (falls back to base router until enough data is collected).
 
-import type { Role, TaskCategory } from '../types.js';
+import type { TaskCategory } from '../types.js';
 import type { CredentialBag } from '../config.js';
 import type { HealthStore } from '../dars/health.js';
 import { routeToRole, selectTemperature, type ModelRoutingDecision } from './model-router.js';

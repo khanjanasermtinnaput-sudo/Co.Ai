@@ -3,7 +3,7 @@
 // (time-series) with daily snapshots persisted to file-store.
 
 import { getRedis, isRedisAvailable } from './redis.js';
-import { fsPut, fsGet, fsList } from './file-store.js';
+import { fsPut, fsList } from './file-store.js';
 import { logger } from './logger.js';
 import type { AnalyticsEvent, AnalyticsSummary } from '../types.js';
 

@@ -1,9 +1,13 @@
 import { execFileSync, execSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, rmSync, existsSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import ts from 'typescript';
 import type { CodeFile, ValidationResult } from '../types.js';
+
+/** Shape of a child_process / parse error after narrowing from `unknown`. */
+interface ExecError { stderr?: { toString(): string }; stdout?: { toString(): string }; message?: string }
+function execErr(e: unknown): ExecError { return (e ?? {}) as ExecError; }
 
 /**
  * Grounded validation (TDD §3 principle 4): actually EXECUTE checks instead of
@@ -51,8 +55,9 @@ function checkJs(f: CodeFile): ValidationResult {
     writeFileSync(file, f.content, 'utf8');
     execFileSync(process.execPath, ['--check', file], { stdio: 'pipe' });
     return { kind: 'syntax', passed: true, logs: `${f.path}: JS syntax OK` };
-  } catch (e: any) {
-    const msg = (e.stderr?.toString() || e.message || '').split('\n').slice(0, 4).join(' ');
+  } catch (e) {
+    const err = execErr(e);
+    const msg = (err.stderr?.toString() || err.message || '').split('\n').slice(0, 4).join(' ');
     return { kind: 'syntax', passed: false, logs: `${f.path}: ${msg}` };
   } finally {
     if (dir) rmSync(dir, { recursive: true, force: true });
@@ -84,8 +89,8 @@ function checkTs(f: CodeFile): ValidationResult {
       .map((d) => ts.flattenDiagnosticMessageText(d.messageText, ' '))
       .join(' · ');
     return { kind: 'syntax', passed: false, logs: `${f.path}: ${msg}` };
-  } catch (e: any) {
-    return { kind: 'syntax', passed: false, logs: `${f.path}: ${e.message || 'TS parse error'}` };
+  } catch (e) {
+    return { kind: 'syntax', passed: false, logs: `${f.path}: ${execErr(e).message || 'TS parse error'}` };
   }
 }
 
@@ -102,8 +107,9 @@ function checkPython(f: CodeFile): ValidationResult {
     writeFileSync(pyFile, f.content, 'utf8');
     execFileSync(python, ['-m', 'py_compile', pyFile], { stdio: 'pipe', timeout: 10_000 });
     return { kind: 'syntax', passed: true, logs: `${f.path}: Python syntax OK` };
-  } catch (e: any) {
-    const msg = (e.stderr?.toString() || e.message || '').split('\n').slice(0, 4).join(' ');
+  } catch (e) {
+    const err = execErr(e);
+    const msg = (err.stderr?.toString() || err.message || '').split('\n').slice(0, 4).join(' ');
     return { kind: 'syntax', passed: false, logs: `${f.path}: ${msg}` };
   } finally {
     if (dir) rmSync(dir, { recursive: true, force: true });
@@ -114,8 +120,8 @@ function checkJson(f: CodeFile): ValidationResult {
   try {
     JSON.parse(f.content);
     return { kind: 'syntax', passed: true, logs: `${f.path}: JSON valid` };
-  } catch (e: any) {
-    return { kind: 'syntax', passed: false, logs: `${f.path}: invalid JSON — ${e.message}` };
+  } catch (e) {
+    return { kind: 'syntax', passed: false, logs: `${f.path}: invalid JSON — ${execErr(e).message}` };
   }
 }
 
@@ -142,8 +148,9 @@ function checkGo(f: CodeFile): ValidationResult {
     // gofmt -e reports parse/syntax errors; exit 0 = no errors
     execFileSync('gofmt', ['-e', file], { stdio: 'pipe', timeout: 15_000 });
     return { kind: 'syntax', passed: true, logs: `${f.path}: Go syntax OK` };
-  } catch (e: any) {
-    const msg = (e.stderr?.toString() || e.stdout?.toString() || e.message || '')
+  } catch (e) {
+    const err = execErr(e);
+    const msg = (err.stderr?.toString() || err.stdout?.toString() || err.message || '')
       .split('\n').slice(0, 4).join(' ');
     return { kind: 'syntax', passed: false, logs: `${f.path}: ${msg}` };
   } finally {
@@ -166,8 +173,9 @@ function checkRust(f: CodeFile): ValidationResult {
       timeout: 30_000,
     });
     return { kind: 'syntax', passed: true, logs: `${f.path}: Rust syntax OK` };
-  } catch (e: any) {
-    const stderr = e.stderr?.toString() || e.message || '';
+  } catch (e) {
+    const err = execErr(e);
+    const stderr = err.stderr?.toString() || err.message || '';
     const msg = stderr.split('\n').filter(Boolean).slice(0, 4).join(' ');
     return { kind: 'syntax', passed: false, logs: `${f.path}: ${msg}` };
   } finally {

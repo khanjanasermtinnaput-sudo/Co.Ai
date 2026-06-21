@@ -12,7 +12,7 @@
 //   • SSRF: only https:// URLs on non-private IP ranges are accepted.
 //     Re-checked at delivery time to prevent DNS rebinding attacks.
 
-import { randomBytes, createHmac, timingSafeEqual, randomUUID } from 'node:crypto';
+import { randomBytes, createHmac, randomUUID } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { logger } from './logger.js';
@@ -74,8 +74,19 @@ const LOOPBACK_HOSTNAME_RE = /^(localhost|0\.0\.0\.0)$/i;
 
 const WEBHOOKS_DIR = process.env.WEBHOOKS_DIR
   ?? (process.env.VERCEL ? '/tmp/coagentix-webhooks' : join(process.cwd(), '.aof-server', 'webhooks'));
-const SUPABASE_URL = process.env.SUPABASE_URL?.replace(/\/$/, '');
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+// NOTE: webhook subscriptions are stored on the local filesystem only. On
+// ephemeral hosts (Vercel /tmp, Render free disk) they are wiped on redeploy/cold
+// start — same durability caveat as the user DB (see db.ts / DB_001). Durable
+// (Supabase) persistence is a known follow-up (W9.1); warn loudly in production so
+// the limitation is never silent.
+if (process.env.NODE_ENV === 'production' && !process.env.WEBHOOKS_DIR) {
+  console.warn(
+    '[Coagentix][WARN] Webhook subscriptions use ephemeral file storage at ' +
+    `${WEBHOOKS_DIR} and will be LOST on redeploy/cold start. Set WEBHOOKS_DIR to a ` +
+    'durable volume, or treat webhooks as best-effort until Supabase-backed storage lands.',
+  );
+}
 
 function webhooksFile(userId: string): string {
   return join(WEBHOOKS_DIR, `${userId.replace(/[^a-zA-Z0-9_-]/g, '_')}.json`);
