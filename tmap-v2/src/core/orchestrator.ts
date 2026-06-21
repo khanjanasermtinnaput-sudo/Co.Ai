@@ -169,8 +169,10 @@ export async function runTMAP(
     }
     const durationMs = Date.now() - startMs;
 
-    const inputTokens = estimateTokens(messages.reduce((s, m) => s + m.content, ''));
-    const outputTokens = estimateTokens(r.text);
+    // Prefer the provider's exact token counts; fall back to a char/4 estimate only
+    // when the upstream didn't return a usage block (keeps cost accurate, not guessed).
+    const inputTokens = r.usage?.inputTokens ?? estimateTokens(messages.reduce((s, m) => s + m.content, ''));
+    const outputTokens = r.usage?.outputTokens ?? estimateTokens(r.text);
     const costUsd = estimateCost(r.provider.model, inputTokens, outputTokens);
 
     totalCostUsd += costUsd;

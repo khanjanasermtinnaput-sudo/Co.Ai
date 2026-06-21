@@ -2,8 +2,8 @@
 // Detect → select backup → switch → continue (without failing the job) → log.
 // Agents call `chatWithDARS` instead of `chat`; the orchestrator is otherwise untouched.
 
-import { chat } from '../providers/client.js';
-import type { ChatMessage, ResolvedProvider, Role, ChatOpts } from '../types.js';
+import { chat, chatWithUsage } from '../providers/client.js';
+import type { ChatMessage, ResolvedProvider, Role, ChatOpts, TokenUsage } from '../types.js';
 import { mockAllowed, type CredentialBag } from '../config.js';
 import { listProviderCandidates, pickHealthy } from './select.js';
 import { HealthStore } from './health.js';
@@ -37,6 +37,7 @@ export interface DarsResult {
   text: string;
   provider: ResolvedProvider;
   attempts: number; // 0 = succeeded on first choice
+  usage?: TokenUsage; // provider-reported tokens, when available
 }
 
 export async function chatWithDARS(
@@ -81,7 +82,7 @@ export async function chatWithDARS(
 
     const t0 = Date.now();
     try {
-      const text = await callOnce(cand.provider, messages, opts);
+      const { text, usage } = await callOnce(cand.provider, messages, opts);
       const latencyMs = Date.now() - t0;
       ctx.health.recordSuccess(cand.healthKey, latencyMs);
 
@@ -97,7 +98,7 @@ export async function chatWithDARS(
         ctx.emit('system', `recovered on ${cand.provider.providerName}`, 'status');
       }
       log(ctx, { ts: Date.now(), role, provider: cand.provider.providerName, event: 'success', attempt, latencyMs });
-      return { text, provider: cand.provider, attempts: attempt };
+      return { text, provider: cand.provider, attempts: attempt, usage };
     } catch (e) {
       const err = e as Error;
       const kind = classifyError(err);
@@ -111,12 +112,14 @@ export async function chatWithDARS(
   throw new Error(`DARS: all providers exhausted for ${role}: ${lastErr?.message ?? 'no healthy provider'}`);
 }
 
-// One call with a hard timeout via AbortController.
-async function callOnce(provider: ResolvedProvider, messages: ChatMessage[], opts: ChatOpts): Promise<string> {
+// One call with a hard timeout via AbortController. Returns text + provider usage.
+async function callOnce(
+  provider: ResolvedProvider, messages: ChatMessage[], opts: ChatOpts,
+): Promise<{ text: string; usage?: TokenUsage }> {
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), PER_CALL_TIMEOUT);
   try {
-    return await chat(provider, messages, { ...opts, signal: ac.signal });
+    return await chatWithUsage(provider, messages, { ...opts, signal: ac.signal });
   } finally {
     clearTimeout(timer);
   }

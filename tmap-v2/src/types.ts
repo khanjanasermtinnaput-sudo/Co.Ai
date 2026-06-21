@@ -100,6 +100,15 @@ export interface ChatOpts {
   signal?: AbortSignal;
 }
 
+// Provider-reported token usage for ONE call. Present only when the upstream API
+// returns a `usage` block (all OpenAI-compatible vendors here do). When absent,
+// callers fall back to a char/4 estimate — so cost numbers are exact when the
+// provider gives them and approximate only as a last resort.
+export interface TokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+}
+
 // What an agent calls to talk to a model. The orchestrator injects an
 // implementation backed by DARS (failover/health), so agents stay model-agnostic.
 export type LLMCall = (messages: ChatMessage[], opts?: ChatOpts) => Promise<string>;
