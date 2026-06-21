@@ -1,0 +1,67 @@
+{
+  "$schema": "coagentix-memory/workflow-map@1",
+  "generatedAt": "2026-06-21",
+  "workflows": {
+    "TMAP": {
+      "name": "TMAP v2 multi-agent coding pipeline",
+      "entry": "tmap-v2/src/core/orchestrator.ts runTMAP",
+      "endpoint": "POST /v1/run (SSE)",
+      "steps": ["buildContextV2 (tree+dep graph+relevant files)", "Architect (architectToContext)", "Impact analysis", "Planner", "Coder (or runCoderVote in pro mode)", "Validator (validateFiles)", "Reviewer", "critique loop if validation fails or HIGH issue"],
+      "modes": {"lite": "0 iterations", "normal": "1 iteration", "pro": "up to 3 iterations + voting"},
+      "intelligence": ["detectHallucinations", "selfCritiquePlan/Code", "verifyCodeFiles", "reflect", "routing-metrics"],
+      "persistence": "onSessionStart/onAgentCall/onSessionEnd hooks → tmap_sessions/tmap_agent_logs/tmap_costs (server provides; CLI omits)",
+      "resilience": "every LLM call goes through chatWithDARS"
+    },
+    "Titan": {
+      "name": "Titan Mode — AI System Architect (Think First, Build Later)",
+      "entry": "tmap-v2/src/core/titan.ts runTitan",
+      "endpoint": "POST /v1/titan",
+      "webMode": "CodeMode 'titan' (gated); UI in components/code/titan-workflow.tsx + titan-stepper.tsx; client logic lib/titan.ts + store/code-store.ts; constants TITAN_PHASES",
+      "steps": ["Discovery", "Smart Questions", "Confidence Check (<85% asks more; minConfidence default 85, enforced in code)", "Multi-Plan A/B/C", "Devil's Advocate", "Self Review (5 passes, real revision)", "Architecture", "Risk Prediction", "Planning Score", "Approval Gate (APPROVAL REQUIRED → user approves)", "Blueprint → TMAP /gencode"],
+      "outputs": "TitanResult{hasPlan,hasBlueprint,blueprint,confidence,confidenceBlocked,reviewFindings,reasoningMetadata}; blueprintToBuild() feeds TMAP",
+      "note": "Titan is NOT a product — highest MODE inside Coagentix Code only"
+    },
+    "Chief": {
+      "name": "Chief Agent multi-agent orchestration",
+      "entry": "tmap-v2/src/core/chief-agent.ts runChiefAgent",
+      "endpoint": "POST /v1/orchestrate (SSE)",
+      "steps": ["classifyTask (intent)", "produce JSON plan {intent,strategy,subtasks,needsMultipleAgents,primaryApproach}", "dispatch specialists (research/math/writing/coder...)", "optional voting + quality gate", "synthesize unified answer (single-voice)"],
+      "qualityGate": "review-gate.ts reviewLoop (enableQualityGate default true)"
+    },
+    "DARS": {
+      "name": "Dynamic Adaptive Resilience System (provider failover)",
+      "entry": "tmap-v2/src/dars/run.ts chatWithDARS",
+      "flow": "listProviderCandidates(role) → pickHealthy(HealthStore) → chat() → on error classifyError → failover to next candidate (MAX_FAILOVER=4, backoff) → log AgentLogEntry; mock mode if no keys",
+      "health": "dars/health.ts HealthStore (globalHealth); dars/select.ts candidate ranking"
+    },
+    "WebChat": {
+      "name": "aof-web streaming chat",
+      "entry": "POST /api/chat → primeAndStream (lib/server/ai-providers.ts)",
+      "flow": "route classify (lib/router.ts) → optional web search (search/manager) → pick agent persona (lib/raa) → provider chain Anthropic→OpenRouter with per-model failover → SSE frames (text + control: failover/model/sources) → client streamChat (lib/api.ts) → chat-store",
+      "offline": "lib/mock.ts streamText/mockChat/mockCodeRun fallback when no backend/keys"
+    },
+    "Vision": {
+      "name": "Image understanding pipeline",
+      "entry": "tmap-v2/src/core/image-pipeline.ts runImagePipeline",
+      "endpoint": "POST /v1/image/analyze",
+      "steps": ["processImage", "readImage (vision)", "extractContext", "buildReusableContext", "store/findImageByHash (image-memory)"]
+    },
+    "AuthFlows": {
+      "web": "Supabase Auth (Google OAuth) → app/auth/callback → middleware.ts → auth-provider/auth-gate; admin via lib/admin",
+      "tmap": "JWT register/login/refresh (server/auth.ts); rate-limited",
+      "cli": "Device auth: /api/cli/token (web) ↔ /v1/cli/auth + /v1/cli/status (tmap); coagentix-cli/src/auth.ts + zero-trust.ts"
+    },
+    "CLIWorkflow": {
+      "name": "coai CLI coding loop",
+      "entry": "coagentix-cli/src/cli.ts → interactive.ts startInteractiveSession",
+      "tools": ["knowledge-graph (buildKnowledgeGraph)", "arch-detector", "repo scan", "debate (multi-opinion)", "security-agent gate", "test-generator", "build-validator", "cost-optimizer", "patch/files snapshot+rollback", "git", "disaster-recovery session", "ownership ledger"]
+    }
+  },
+  "deployment": {
+    "railway": ["railway.toml (root)", "tmap-v2/railway.json"],
+    "render": ["render.yaml (root)", "tmap-v2/render.yaml"],
+    "vercel": ["aof-web/.vercel", "tmap-v2/vercel.json"],
+    "docker": ["tmap-v2/Dockerfile"],
+    "githubActions": [".github/workflows/ci.yml", "pages.yml", "enable-pages.yml", "render-deploy.yml", "vercel-deploy.yml"]
+  }
+}

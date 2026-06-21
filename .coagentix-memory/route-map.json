@@ -1,0 +1,41 @@
+{
+  "$schema": "coagentix-memory/route-map@1",
+  "generatedAt": "2026-06-21",
+  "framework": "Next.js 14 App Router (aof-web/src/app)",
+  "routeGroups": {
+    "(app)": {
+      "layout": "app/(app)/layout.tsx — Sidebar + mobile topbar + AmbientBackground (authenticated shell)",
+      "pages": {
+        "/": "app/(app)/page.tsx — Home = CoAgentix Chat landing (WelcomeHero + HomePrompt + QuickActions)",
+        "/chat": "app/(app)/chat/page.tsx — Chat (Lite/Normal) → ChatView",
+        "/code": "app/(app)/code/page.tsx — CoAgentix Code workspace (Lite/1.0/Pro/Titan) → CodeWorkspace",
+        "/projects": "app/(app)/projects/page.tsx — ProjectsView",
+        "/projects/[id]": "app/(app)/projects/[id]/page.tsx — project detail (ProjectWorkspace)",
+        "/settings": "app/(app)/settings/page.tsx — SettingsView (tabbed: account/appearance/keys/billing, reads ?tab=)"
+      }
+    },
+    "(marketing)": {
+      "layout": "app/(marketing)/layout.tsx",
+      "pages": ["/about", "/blog", "/blog/[slug]", "/contact", "/privacy", "/terms", "/cookies"]
+    },
+    "admin": {
+      "layout": "app/admin/layout.tsx (admin-auth-gate)",
+      "pages": ["/admin", "/admin/analytics", "/admin/users", "/admin/subscriptions", "/admin/feature-flags", "/admin/logs", "/admin/redeem-codes", "/admin/api-monitoring", "/admin/settings"]
+    },
+    "auth": {
+      "/login": "app/login/page.tsx",
+      "/auth/callback": "app/auth/callback/page.tsx (Supabase OAuth callback)"
+    }
+  },
+  "globalFiles": {
+    "app/layout.tsx": "Root: fonts, providers (app-providers), metadata",
+    "app/globals.css": "Design tokens (HSL vars), glass/glow utilities",
+    "app/not-found.tsx": "Branded 404",
+    "app/global-error.tsx": "Global error boundary",
+    "app/sitemap.ts": "Sitemap",
+    "middleware.ts": "Auth/session middleware",
+    "instrumentation.ts": "Startup checks"
+  },
+  "clientApiBase": "aof-web/src/lib/api.ts — getApiBase()/isLive()/isDemoMode(); streams to /api/chat and (when configured) tmap-v2 /v1/* SSE",
+  "proxy": "COAGENTIX_API_PROXY / NEXT_PUBLIC_COAGENTIX_API_BASE rewrites to tmap-v2 backend"
+}

@@ -1,0 +1,39 @@
+{
+  "$schema": "coagentix-memory/prompt-map@1",
+  "generatedAt": "2026-06-21",
+  "note": "System prompts and their call sites. Editing a prompt changes model behavior — always check call sites before modifying.",
+  "aofWeb": {
+    "file": "aof-web/src/lib/raa.ts",
+    "prompts": {
+      "RAA_SYSTEM": {"callSite": "api/chat (agent='requirements')", "purpose": "Collaborative requirements/thinking partner"},
+      "AOF_CODE_CHAT_SYSTEM": {"callSite": "api/chat (agent='code-chat')", "purpose": "Senior engineer Q&A (no full code)"},
+      "AOF_CODE_GEN_SYSTEM": {"callSite": "api/chat (agent='code-gen')", "purpose": "Generate production-ready code"},
+      "AOF_PLAN_SYSTEM": {"callSite": "api/chat (agent='plan')", "purpose": "Implementation plan, not code"},
+      "AOF_ANALYZE_SYSTEM": {"callSite": "api/chat (agent='analyze')", "purpose": "Honest project analysis"},
+      "AOF_DEBUG_SYSTEM": {"callSite": "api/chat (agent='debug')", "purpose": "Structured debugging"},
+      "GENCODE_HINT": {"purpose": "Hint string appended to trigger code generation"},
+      "buildSystem()": {"callSite": "api/chat (default chat agent)", "purpose": "Style/route-aware default system prompt", "file": "api/chat/route.ts"}
+    }
+  },
+  "tmapV2": {
+    "TITAN_SYS": {"file": "core/titan.ts", "callSite": "runTitan", "purpose": "Titan architect persona (think-first, A/B/C plans, approval gate)"},
+    "CHIEF_ANALYSIS_SYS": {"file": "core/chief-agent.ts", "callSite": "runChiefAgent phase 1", "purpose": "Intent classification → JSON plan"},
+    "SYNTHESIS_SYS": {"file": "core/chief-agent.ts", "callSite": "runChiefAgent synthesis", "purpose": "Merge multi-agent outputs into single voice"},
+    "agentPrompts": {"file": "core/agents.ts", "items": ["planner prompt (runPlanner)", "coder prompt (runCoder)", "reviewer prompt (runReviewer)"]},
+    "specialistPrompts": {
+      "architect": "core/architect.ts (runArchitect)",
+      "research": "core/research-agent.ts",
+      "math": "core/math-agent.ts",
+      "writing": "core/writing-agent.ts",
+      "vision": "core/vision-agent.ts (analyzeImageContext/generateImagePrompt)",
+      "debugger": "core/debugger.ts",
+      "documenter": "core/documenter.ts",
+      "critic": "core/critic-agent.ts",
+      "self-critique": "core/self-critique.ts",
+      "reflection": "core/reflection.ts",
+      "prompt-engineer": "core/prompt-engineer.ts (expandPrompt)",
+      "raa": "core/raa.ts (runRAA)"
+    }
+  },
+  "mockReplies": {"file": "aof-web/src/lib/mock.ts", "purpose": "Offline canned responses: composeLearningReply, mockChat, mockCodeRun, mockCodeChat, mockRequirements, mockPlan"}
+}

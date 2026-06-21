@@ -1,0 +1,45 @@
+{
+  "$schema": "coagentix-memory/dependency-map@1",
+  "generatedAt": "2026-06-21",
+  "note": "Key internal module dependencies (import → used-by). Not exhaustive per-file; focuses on hubs whose changes have wide blast radius.",
+  "aofWeb": {
+    "lib/server/ai-providers.ts": {"role": "Provider registry + adapters + streaming (primeAndStream, configuredProvidersForOrder, adapterFor)", "dependsOn": ["lib/errors", "lib/server/model-registry"], "usedBy": ["api/chat/route.ts", "api/health/route.ts", "tests/provider-registry.test.ts", "tests/provider-stream.test.ts"], "blastRadius": "HIGH — all chat/LLM traffic"},
+    "lib/server/model-registry.ts": {"role": "MODEL_REGISTRY, ROUTE_PRIORITY, routeOrder, bestModelFor", "usedBy": ["api/chat/route.ts", "lib/server/ai-providers.ts", "tests/router.test.ts"], "blastRadius": "HIGH"},
+    "lib/errors.ts": {"role": "13 error codes, classifyProviderError, ERROR_CATALOG, SSE frame encoders", "usedBy": ["api/chat", "components/diagnostics/*", "lib/api.ts"], "blastRadius": "HIGH"},
+    "lib/router.ts": {"role": "classifyRequest/routeRequest (chat|code|search)", "usedBy": ["chat-store", "components/chat", "tests/router.test.ts"], "blastRadius": "MEDIUM"},
+    "lib/raa.ts": {"role": "System prompt library + brief parsing", "usedBy": ["api/chat/route.ts", "components/code/*"], "blastRadius": "MEDIUM"},
+    "lib/plans.ts": {"role": "PLANS/entitlements", "usedBy": ["lib/access.ts", "hooks/use-plan.ts", "components/billing/*", "tests/plans.test.ts"], "blastRadius": "MEDIUM"},
+    "lib/api.ts": {"role": "Client SSE + token + streamChat", "dependsOn": ["lib/errors", "lib/mock"], "usedBy": ["all stores/components doing network"], "blastRadius": "HIGH"},
+    "lib/types.ts": {"role": "Core shared types (ChatModel, CodeMode, Attachment, RouteDecision)", "usedBy": ["pervasive"], "blastRadius": "HIGH"},
+    "lib/server/crypto.ts": {"role": "AES-256-GCM encrypt/decrypt/maskKey", "usedBy": ["api/keys", "lib/server/keys-store"], "blastRadius": "MEDIUM (security-critical)"},
+    "lib/server/supabase-admin.ts": {"role": "Admin Supabase client + getUserFromRequest", "usedBy": ["all api/* needing auth/db"], "blastRadius": "HIGH"},
+    "lib/admin/server.ts": {"role": "requireRole, logAdminAction, recordApiUsage, grantSubscription", "usedBy": ["api/admin/*"], "blastRadius": "MEDIUM"},
+    "store/chat-store.ts": {"dependsOn": ["lib/api", "lib/router", "lib/conversations", "lib/mock"], "usedBy": ["components/chat/*", "components/home/*"]},
+    "store/code-store.ts": {"dependsOn": ["lib/titan", "lib/raa", "lib/api"], "usedBy": ["components/code/*"]}
+  },
+  "tmapV2": {
+    "config.ts": {"role": "PROVIDERS, ROLE_PROVIDER, resolveRole(With), CredentialBag, bagFromEnv", "usedBy": ["orchestrator", "dars/*", "chief-agent", "providers/client", "server/index"], "blastRadius": "HIGH"},
+    "providers/client.ts": {"role": "OpenAI-compatible chat() — speaks all vendors", "usedBy": ["dars/run.ts"], "blastRadius": "HIGH"},
+    "dars/run.ts": {"role": "chatWithDARS (failover wrapper)", "dependsOn": ["providers/client", "dars/select", "dars/health", "dars/classify", "config"], "usedBy": ["orchestrator", "chief-agent", "all agents needing LLM"], "blastRadius": "HIGH"},
+    "core/orchestrator.ts": {"role": "runTMAP pipeline", "dependsOn": ["agents", "validator", "blackboard", "dars/run", "context-engine", "architect", "impact", "vote", "hallucination-detector", "self-critique", "reflection", "verifier-agent", "routing-metrics"], "usedBy": ["server/index.ts /v1/run", "cli.ts"], "blastRadius": "HIGH"},
+    "core/agents.ts": {"role": "runPlanner/runCoder/runReviewer + parseCodeBlocks", "usedBy": ["orchestrator", "chief-agent", "vote"], "blastRadius": "HIGH"},
+    "core/context-engine.ts": {"role": "buildContextV2, dependency graph, relevant-file selection", "usedBy": ["orchestrator", "impact", "retrieval"], "blastRadius": "MEDIUM"},
+    "core/memory.ts": {"role": "Cross-session project memory", "usedBy": ["titan", "orchestrator", "server /v1/memory"], "blastRadius": "MEDIUM"},
+    "core/blackboard.ts": {"role": "Per-run shared memory + persist", "usedBy": ["orchestrator", "cli"], "blastRadius": "MEDIUM"},
+    "server/index.ts": {"role": "Express app with all /v1 routes", "dependsOn": ["nearly all server/* + core/*"], "blastRadius": "HIGH"},
+    "server/auth.ts": {"role": "JWT signToken/requireAuth/requireAdmin", "usedBy": ["server/index.ts (every protected route)"], "blastRadius": "HIGH"},
+    "server/db.ts": {"role": "Supabase data access + types (UserRecord, SessionRecord, ...)", "usedBy": ["server/index", "core/memory"], "blastRadius": "HIGH"},
+    "server/redis.ts": {"role": "Redis client (optional, in-mem fallback)", "usedBy": ["rate-limit-redis", "query-optimizer", "queue", "redis-cluster"], "blastRadius": "MEDIUM"}
+  },
+  "cli": {
+    "src/cli.ts": {"role": "commander entry", "dependsOn": ["interactive", "api", "auth", "knowledge-graph", "repo", "all feature modules"]},
+    "src/knowledge-graph.ts": {"role": "buildKnowledgeGraph (file nodes + imports)", "usedBy": ["arch-detector", "interactive"]},
+    "src/api.ts": {"role": "CoaiApiClient → tmap-v2 /v1/*", "usedBy": ["interactive", "debate"]}
+  },
+  "externalSDKs": {
+    "@anthropic-ai/sdk": "aof-web only (primary chat provider)",
+    "@supabase/ssr + supabase-js": "aof-web auth/db",
+    "express + jsonwebtoken": "tmap-v2 server",
+    "optional ioredis/bullmq/prom-client/@sentry/node": "tmap-v2 (graceful degradation if absent — see optional-deps.d.ts)"
+  }
+}

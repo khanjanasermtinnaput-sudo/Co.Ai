@@ -1,0 +1,66 @@
+{
+  "$schema": "coagentix-memory/project-index@1",
+  "generatedAt": "2026-06-21",
+  "gitHead": "247e4b5d36b50dba75c915fd593665fcabdd3499",
+  "repo": "khanjanasermtinnaput-sudo/Co.Ai",
+  "name": "Coagentix (Co.AI / AOF)",
+  "summary": "Professional multi-provider AI platform: multi-provider chat, TMAP multi-agent coding assistant, encrypted API key management. Next.js 14 + Supabase frontend, Express TMAP backend, and a terminal CLI.",
+  "stats": {
+    "tsFiles": 224,
+    "tsxFiles": 105,
+    "sqlMigrations": 12,
+    "markdownDocs": 35,
+    "tests": "~38 test files (aof-web 15, tmap-v2 23)"
+  },
+  "monorepo": {
+    "aof-web": {
+      "path": "aof-web/",
+      "role": "Next.js 14 App Router frontend + API routes (the main user-facing app)",
+      "pkg": "coagentix-web",
+      "stack": ["Next.js 14.2", "TypeScript strict", "Tailwind", "Framer Motion", "Zustand", "Supabase (ssr+js)", "@anthropic-ai/sdk", "react-markdown+katex"],
+      "entry": ["aof-web/src/app/layout.tsx", "aof-web/src/middleware.ts", "aof-web/src/instrumentation.ts"],
+      "scripts": {"dev": "next dev", "build": "next build", "test": "tsx --test src/tests/*.test.ts", "typecheck": "tsc --noEmit"},
+      "deploy": ["Railway (railway.toml)", "Render (render.yaml)", "Vercel (.vercel)"]
+    },
+    "tmap-v2": {
+      "path": "tmap-v2/",
+      "role": "Express backend — TMAP v2 multi-agent pipeline, DARS routing, Titan, Chief Agent, vision, enterprise (orgs/teams/webhooks). Exposes /v1/* SSE API.",
+      "pkg": "@coagentix/code",
+      "stack": ["Express 4", "TypeScript ESM", "jsonwebtoken", "tsx runtime", "optional: ioredis/bullmq/prom-client/@sentry/node"],
+      "entry": ["tmap-v2/src/server/index.ts", "tmap-v2/src/cli.ts", "tmap-v2/api/index.ts"],
+      "scripts": {"server": "tsx src/server/index.ts", "aof": "tsx src/cli.ts", "test": "tsx --test src/tests/*.test.ts"},
+      "deploy": ["Railway (railway.json)", "Render (render.yaml)", "Vercel (vercel.json)", "Docker (Dockerfile)"]
+    },
+    "coagentix-cli": {
+      "path": "coagentix-cli/",
+      "role": "`coai` CLI — AI coding agent for the terminal (Advanced subscribers). Talks to tmap-v2 /v1/* and has local knowledge-graph/arch-detection/security/test tooling.",
+      "pkg": "coagentix-cli",
+      "stack": ["commander", "inquirer", "ora", "chalk", "simple-git", "glob"],
+      "entry": ["coagentix-cli/bin/coai.js", "coagentix-cli/src/cli.ts"]
+    }
+  },
+  "topLevelArtifacts": {
+    "AOF_CODE_TDD.md": "Master technical design doc (~64KB) for TMAP / Coagentix Code architecture",
+    "index.html / pages/": "Static marketing/landing pages (GitHub Pages)",
+    "supabase/migrations/": "Root-level migrations: CLI tokens, error logs",
+    "reports/": "30+ audit/phase reports (security, performance, db, AI systems, etc.)",
+    "docs/SECURITY_REPORT.md": "Security report"
+  },
+  "areas": {
+    "aof-web/src/app/(app)": "Authenticated app shell: home, chat, code, projects, settings",
+    "aof-web/src/app/(marketing)": "Marketing pages: about, blog, contact, privacy, terms, cookies",
+    "aof-web/src/app/admin": "Admin panel UI (analytics, users, subs, feature-flags, logs, redeem-codes, api-monitoring)",
+    "aof-web/src/app/api": "28 route handlers (chat, keys, conversations, admin/*, cli/*, search, health, feedback, referral)",
+    "aof-web/src/components": "105 React components grouped by domain (chat, code, admin, ui, layout, settings, projects, diagnostics, mascot, ...)",
+    "aof-web/src/store": "9 Zustand stores (auth, chat, code, project, ui, usage, guest, diagnostics)",
+    "aof-web/src/lib": "Client+server libs: router, raa, titan, errors, plans, access, keys, api, server/ai-providers, server/search/*",
+    "tmap-v2/src/core": "44 agent/orchestration modules (orchestrator, agents, titan, chief-agent, vote, raa, memory, model-router, sandbox, ...)",
+    "tmap-v2/src/dars": "DARS resilience: classify, health, select, run",
+    "tmap-v2/src/server": "40 server modules (index routes, auth, db, crypto, failover, redis, queue, teams, orgs, webhooks, ...)",
+    "coagentix-cli/src": "25 CLI modules (knowledge-graph, arch-detector, debate, security-agent, test-generator, cost-optimizer, ...)"
+  },
+  "seeAlso": {
+    "specialSystems": "agent-map.json + workflow-map.json + memory-summary.md §Special Systems (Phase 10)",
+    "howToUpdate": ".coagentix-memory/README.md"
+  }
+}

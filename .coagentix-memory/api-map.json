@@ -1,0 +1,71 @@
+{
+  "$schema": "coagentix-memory/api-map@1",
+  "generatedAt": "2026-06-21",
+  "aofWeb": {
+    "baseDir": "aof-web/src/app/api",
+    "auth": "Supabase session via getUserFromRequest (lib/server/supabase-admin.ts); admin routes via lib/admin/server.ts requireRole",
+    "routes": [
+      {"path": "/api/chat", "methods": ["POST"], "file": "chat/route.ts", "purpose": "Main streaming LLM endpoint. Provider chain Anthropic→OpenRouter (+gemini/deepseek/qwen/llama). Agents: chat|requirements|code-chat|code-gen|plan|analyze|debug. Web search injection, error classification, SSE control frames (failover/model/sources).", "deps": ["lib/server/ai-providers", "lib/server/model-registry", "lib/server/search/manager", "lib/raa", "lib/errors", "lib/server/keys-store", "lib/server/rate-limit"]},
+      {"path": "/api/keys", "methods": ["GET","POST","DELETE"], "file": "keys/route.ts", "purpose": "Encrypted per-user provider key CRUD (AES-256-GCM)", "deps": ["lib/server/crypto", "lib/server/keys-store", "lib/server/supabase-admin"]},
+      {"path": "/api/conversations", "methods": ["GET","POST"], "file": "conversations/route.ts", "purpose": "List/create conversations (Supabase, RLS by user)", "deps": ["lib/server/supabase-admin"]},
+      {"path": "/api/conversations/[id]", "methods": ["PATCH","DELETE"], "file": "conversations/[id]/route.ts", "purpose": "Rename/delete conversation"},
+      {"path": "/api/conversations/[id]/messages", "methods": ["POST"], "file": "conversations/[id]/messages/route.ts", "purpose": "Persist messages to a conversation"},
+      {"path": "/api/search", "methods": ["GET"], "file": "search/route.ts", "purpose": "Full-text message search (messages.search_vector gin index)"},
+      {"path": "/api/auth/check", "methods": ["GET"], "file": "auth/check/route.ts", "purpose": "Auth/session check"},
+      {"path": "/api/health", "methods": ["GET"], "file": "health/route.ts", "purpose": "Provider + system health", "deps": ["lib/health", "lib/server/ai-providers"]},
+      {"path": "/api/feedback", "methods": ["POST"], "file": "feedback/route.ts", "purpose": "User feedback → feedback table"},
+      {"path": "/api/referral", "methods": ["GET","POST"], "file": "referral/route.ts", "purpose": "Referral codes/conversions (RPCs record_referral_click/conversion)"},
+      {"path": "/api/cli/token", "methods": ["GET","POST","DELETE","PATCH"], "file": "cli/token/route.ts", "purpose": "CLI auth token issuance/revoke (cli_tokens table)"},
+      {"path": "/api/cli/devices", "methods": ["GET","DELETE"], "file": "cli/devices/route.ts", "purpose": "CLI device/session management (cli_sessions)"},
+      {"path": "/api/admin/analytics", "methods": ["GET"], "file": "admin/analytics/route.ts"},
+      {"path": "/api/admin/users", "methods": ["GET"], "file": "admin/users/route.ts", "purpose": "admin_list_users RPC"},
+      {"path": "/api/admin/users/[id]", "methods": ["GET","PATCH","DELETE"], "file": "admin/users/[id]/route.ts"},
+      {"path": "/api/admin/roles", "methods": ["GET","POST","DELETE"], "file": "admin/roles/route.ts", "purpose": "user_roles management"},
+      {"path": "/api/admin/subscriptions", "methods": ["GET","POST"], "file": "admin/subscriptions/route.ts"},
+      {"path": "/api/admin/subscriptions/[id]", "methods": ["PATCH","DELETE"], "file": "admin/subscriptions/[id]/route.ts"},
+      {"path": "/api/admin/redeem-codes", "methods": ["GET","POST"], "file": "admin/redeem-codes/route.ts"},
+      {"path": "/api/admin/redeem-codes/[id]", "methods": ["GET","PATCH","DELETE"], "file": "admin/redeem-codes/[id]/route.ts"},
+      {"path": "/api/admin/redeem", "methods": ["POST"], "file": "admin/redeem/route.ts", "purpose": "Redeem a code (user-facing)"},
+      {"path": "/api/admin/feature-flags", "methods": ["GET","POST"], "file": "admin/feature-flags/route.ts"},
+      {"path": "/api/admin/feature-flags/[key]", "methods": ["PATCH","DELETE"], "file": "admin/feature-flags/[key]/route.ts"},
+      {"path": "/api/admin/beta-access", "methods": ["GET","POST","DELETE"], "file": "admin/beta-access/route.ts"},
+      {"path": "/api/admin/announcements", "methods": ["GET","POST"], "file": "admin/announcements/route.ts"},
+      {"path": "/api/admin/announcements/[id]", "methods": ["PATCH","DELETE"], "file": "admin/announcements/[id]/route.ts"},
+      {"path": "/api/admin/logs", "methods": ["GET","POST"], "file": "admin/logs/route.ts", "purpose": "system_logs"},
+      {"path": "/api/admin/api-usage", "methods": ["GET"], "file": "admin/api-usage/route.ts", "purpose": "api_usage_metrics"}
+    ]
+  },
+  "tmapV2": {
+    "baseFile": "tmap-v2/src/server/index.ts",
+    "prefix": "/v1",
+    "middleware": ["cors", "correlationMiddleware", "prometheusMiddleware", "botProtectionMiddleware", "rateLimitMiddleware(120/60 global, 10/60 auth)"],
+    "auth": "JWT via requireAuth (server/auth.ts); requireAdmin gates admin routes; COAGENTIX_ADMIN_USERNAMES",
+    "groups": {
+      "auth": ["POST /v1/auth/register", "POST /v1/auth/login", "POST /v1/auth/refresh", "GET /v1/me", "PUT /v1/me/keys", "DELETE /v1/me/keys/:provider", "POST /v1/me/keys/rotate", "POST /v1/me/keys/validate", "GET /v1/me/cost", "GET /v1/me/usage", "GET /v1/me/quota"],
+      "agentsCore": ["POST /v1/chat (Chief/DARS chat)", "POST /v1/run (full TMAP pipeline, SSE)", "POST /v1/orchestrate (Chief multi-agent, SSE)", "POST /v1/titan (Titan architect)", "POST /v1/debug", "POST /v1/analyze", "GET /v1/agents (role→model map)"],
+      "memory": ["GET /v1/memory", "DELETE /v1/memory"],
+      "vision": ["POST /v1/image/analyze", "GET /v1/image/memories", "DELETE /v1/image/memories"],
+      "sessions": ["GET /v1/sessions", "GET /v1/sessions/:id"],
+      "sandbox": ["GET /v1/sandbox/capabilities", "POST /v1/sandbox/run"],
+      "eval": ["POST /v1/evaluate", "GET /v1/benchmark/results"],
+      "observability": ["GET /v1/health", "GET /v1/metrics", "GET /v1/metrics/prometheus", "GET /v1/routing-metrics", "GET /v1/streaming/connections", "GET /v1/infra/redis"],
+      "developer": ["GET/POST /v1/developer/keys", "DELETE /v1/developer/keys/:id", "GET /v1/developer/health"],
+      "webhooks": ["GET/POST /v1/webhooks", "DELETE /v1/webhooks/:id", "POST /v1/webhooks/:id/test"],
+      "teams": ["GET/POST /v1/teams", "GET/PATCH/DELETE /v1/teams/:id", "GET/POST /v1/teams/:id/members", "DELETE /v1/teams/:id/members/:userId"],
+      "orgs": ["GET/POST /v1/orgs", "GET/PATCH /v1/orgs/:id"],
+      "permissions": ["GET /v1/permissions", "GET /v1/permissions/check"],
+      "cli": ["POST /v1/cli/auth", "GET /v1/cli/status"],
+      "adminOnly": ["POST/GET /v1/backup", "GET /v1/backup/:id", "POST /v1/restore", "GET /v1/restore/status", "GET /v1/dr/status", "GET /v1/dr/runbook", "GET/POST /v1/dr/incidents", "PATCH /v1/dr/incidents/:id", "GET /v1/failover/circuits", "POST /v1/failover/circuits/:name/reset", "GET /v1/analytics/summary|features|mau"],
+      "analytics": ["POST /v1/analytics/events"]
+    }
+  },
+  "providerEndpoints": {
+    "anthropic": "via @anthropic-ai/sdk (aof-web)",
+    "openrouter": "https://openrouter.ai/api/v1",
+    "gemini": "https://generativelanguage.googleapis.com/v1beta/openai",
+    "deepseek": "https://api.deepseek.com/v1",
+    "qwen": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+    "llama": "https://api.groq.com/openai/v1 (Groq)"
+  },
+  "searchProviders": ["google (CSE)", "tavily", "github", "wikipedia", "reddit"]
+}

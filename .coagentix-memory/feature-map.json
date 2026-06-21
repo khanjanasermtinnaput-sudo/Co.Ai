@@ -1,0 +1,61 @@
+{
+  "$schema": "coagentix-memory/feature-map@1",
+  "generatedAt": "2026-06-21",
+  "note": "Feature → primary files across the monorepo. Use this to jump straight to the code that owns a feature.",
+  "features": {
+    "Multi-provider Chat": {
+      "ui": ["components/chat/*", "app/(app)/chat/page.tsx", "app/(app)/page.tsx"],
+      "client": ["store/chat-store.ts", "lib/api.ts", "lib/router.ts", "lib/conversations.ts", "lib/mock.ts"],
+      "server": ["app/api/chat/route.ts", "lib/server/ai-providers.ts", "lib/server/model-registry.ts", "lib/raa.ts"],
+      "db": ["conversations", "messages"]
+    },
+    "Coagentix Code (TMAP)": {
+      "ui": ["components/code/*", "app/(app)/code/page.tsx"],
+      "client": ["store/code-store.ts", "lib/titan.ts", "lib/raa.ts", "lib/export.ts", "lib/project-detect.ts"],
+      "backend": ["tmap-v2/src/core/orchestrator.ts", "core/agents.ts", "core/validator.ts", "core/architect.ts", "core/vote.ts"],
+      "endpoint": ["POST /v1/run", "POST /api/chat (code-gen/plan agents)"]
+    },
+    "Titan Mode": {"files": ["tmap-v2/src/core/titan.ts", "aof-web/src/lib/titan.ts", "components/code/titan-workflow.tsx", "components/code/titan-stepper.tsx", "store/code-store.ts", "lib/constants.ts TITAN_PHASES"], "endpoint": "POST /v1/titan"},
+    "Encrypted API Key Management": {
+      "ui": ["components/settings/settings-view.tsx"],
+      "client": ["lib/keys.ts"],
+      "server": ["app/api/keys/route.ts", "lib/server/crypto.ts (AES-256-GCM)", "lib/server/keys-store.ts", "tmap-v2/src/server/crypto.ts"],
+      "db": ["provider_keys"],
+      "env": ["COAGENTIX_MASTER_KEY"]
+    },
+    "Universal Web Search": {
+      "server": ["lib/server/search/manager.ts", "providers.ts", "context-builder.ts", "types.ts", "app/api/search/route.ts"],
+      "ui": ["components/chat/search-mode-selector.tsx", "components/chat/sources-panel.tsx"],
+      "providers": ["google CSE", "tavily", "github", "wikipedia", "reddit"]
+    },
+    "Subscription / Plans / Entitlements": {
+      "client": ["lib/plans.ts (PLANS, PRICING_TIERS, hasFeature)", "lib/access.ts", "store/auth-store.ts (TIER_RANK)", "hooks/use-plan.ts"],
+      "ui": ["components/billing/pricing-table.tsx", "components/billing/usage-dashboard.tsx"],
+      "server": ["lib/admin/server.ts grantSubscription"],
+      "db": ["subscriptions", "user_roles"],
+      "env": ["NEXT_PUBLIC_COAGENTIX_ENFORCE_PLANS"]
+    },
+    "Admin Panel": {
+      "ui": ["app/admin/*", "components/admin/*"],
+      "server": ["app/api/admin/*", "lib/admin/server.ts", "lib/admin/permissions.ts", "lib/admin/types.ts"],
+      "db": ["user_roles", "subscriptions", "redeem_codes", "beta_access", "feature_flags", "system_logs", "announcements", "api_usage_metrics"]
+    },
+    "Error Handling System": {
+      "client": ["lib/errors.ts (13 AOF_ERROR_CODES, classifyProviderError)", "lib/errors/logger.ts", "components/diagnostics/error-panel.tsx", "components/error/error-toast.tsx", "components/error-boundary.tsx", "app/global-error.tsx"],
+      "server": ["lib/errors/api-error.ts", "lib/errors/error-codes.ts", "lib/server/ai-log.ts"],
+      "db": ["error_logs"]
+    },
+    "Diagnostics / Provider Health": {"files": ["components/diagnostics/*", "store/diagnostics-store.ts", "lib/health.ts", "app/api/health/route.ts", "tmap-v2/src/server/health.ts", "tmap-v2/src/dars/health.ts"]},
+    "Conversations / Persistence + Search": {"files": ["lib/conversations.ts", "app/api/conversations/*", "app/api/search/route.ts"], "db": ["conversations", "messages (search_vector)"]},
+    "Projects": {"ui": ["components/projects/*"], "client": ["store/project-store.ts"], "db": ["projects"]},
+    "CLI (coai)": {"files": ["coagentix-cli/src/*", "app/api/cli/*", "tmap-v2/src/server/cli-auth.ts"], "db": ["cli_tokens", "cli_sessions"]},
+    "Vision / Image Memory": {"files": ["tmap-v2/src/core/image-pipeline.ts", "image-memory.ts", "vision-agent.ts"], "endpoint": "/v1/image/*", "db": ["image_memories"]},
+    "Enterprise (Orgs/Teams/Webhooks/RBAC)": {"files": ["tmap-v2/src/server/orgs.ts", "teams.ts", "permissions.ts", "webhooks.ts", "developer-keys.ts", "audit.ts"], "db": ["organizations","org_members","teams","team_members","role_assignments","webhooks","developer_keys","audit_events"]},
+    "Reliability (DR / Backup / Failover)": {"files": ["tmap-v2/src/server/disaster-recovery.ts", "backup.ts", "restore.ts", "failover.ts", "queue.ts", "redis*.ts"]},
+    "Sandbox / Code Execution": {"files": ["tmap-v2/src/core/sandbox.ts", "docker-sandbox.ts"], "endpoint": "/v1/sandbox/*"},
+    "Referral System": {"files": ["app/api/referral/route.ts"], "db": ["referral_codes","referral_conversions","referral_clicks"]},
+    "Usage / Cost Tracking": {"files": ["store/usage-store.ts", "tmap-v2/src/core/usage-tracker.ts", "tmap-v2/src/server/analytics.ts"], "db": ["api_usage_metrics","tmap_costs"]},
+    "PWA": {"files": ["components/pwa/pwa-installer.tsx", "public/sw.js", "public/robots.txt"]},
+    "Mascot (TaoTao)": {"files": ["components/mascot/*"]}
+  }
+}

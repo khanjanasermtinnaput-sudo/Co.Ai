@@ -1,0 +1,75 @@
+{
+  "$schema": "coagentix-memory/agent-map@1",
+  "generatedAt": "2026-06-21",
+  "roleToProvider": {
+    "source": "tmap-v2/src/config.ts ROLE_PROVIDER + PROVIDERS",
+    "planner": {"provider": "gemini", "model": "gemini-2.5-flash"},
+    "coder": {"provider": "deepseek", "model": "deepseek-chat"},
+    "reviewer": {"provider": "qwen", "model": "qwen-plus"},
+    "validator": {"provider": "llama", "model": "llama-3.3-70b-versatile (Groq)"},
+    "fallback": "OpenRouter routes all roles when per-provider keys are absent; mock mode when no keys at all"
+  },
+  "aofWebChatAgents": {
+    "source": "aof-web/src/app/api/chat/route.ts + lib/raa.ts",
+    "agents": {
+      "chat": {"system": "buildSystem (style/route aware)", "temp": 0.7},
+      "requirements": {"system": "RAA_SYSTEM", "temp": 0.5, "maxTokens": 1200},
+      "code-chat": {"system": "AOF_CODE_CHAT_SYSTEM", "temp": 0.7, "maxTokens": 800},
+      "code-gen": {"system": "AOF_CODE_GEN_SYSTEM", "temp": 0.4, "maxTokens": 4000},
+      "plan": {"system": "AOF_PLAN_SYSTEM", "temp": 0.5, "maxTokens": 2000},
+      "analyze": {"system": "AOF_ANALYZE_SYSTEM", "temp": 0.5, "maxTokens": 2000},
+      "debug": {"system": "AOF_DEBUG_SYSTEM", "temp": 0.4, "maxTokens": 2500}
+    },
+    "providerChain": "Anthropic → OpenRouter (route priority from lib/server/model-registry ROUTE_PRIORITY by task category)"
+  },
+  "tmapV2Agents": {
+    "source": "tmap-v2/src/core/*",
+    "pipeline": {
+      "planner": {"file": "core/agents.ts", "fn": "runPlanner", "role": "Decompose task into plan"},
+      "coder": {"file": "core/agents.ts", "fn": "runCoder", "role": "Write files (parses fenced ```path= blocks via parseCodeBlocks)"},
+      "reviewer": {"file": "core/agents.ts", "fn": "runReviewer", "role": "Find issues HIGH/MED/LOW"},
+      "validator": {"file": "core/validator.ts", "fn": "validateFiles", "role": "Grounded validation (node --check etc.)"}
+    },
+    "specialists": {
+      "chief-agent": {"file": "core/chief-agent.ts", "fn": "runChiefAgent", "role": "Meta-orchestrator: classify intent → choose primaryApproach (direct_answer|research_then_synthesize|code_and_explain|write_and_review|calculate_and_verify|multi_agent_collaborate) → dispatch specialists → synthesize", "tools": ["classifier", "research-agent", "math-agent", "writing-agent", "vote", "quality gate"]},
+      "architect": {"file": "core/architect.ts", "fn": "runArchitect", "role": "High-level architecture decision (used in run + titan)"},
+      "research-agent": {"file": "core/research-agent.ts", "fn": "runResearchAgent"},
+      "math-agent": {"file": "core/math-agent.ts", "fn": "runMathAgent"},
+      "writing-agent": {"file": "core/writing-agent.ts", "fn": "runWritingAgent"},
+      "vision-agent": {"file": "core/vision-agent.ts", "fns": ["analyzeImageContext", "generateImagePrompt"]},
+      "documenter": {"file": "core/documenter.ts", "fn": "runDocumenter"},
+      "debugger": {"file": "core/debugger.ts", "fn": "runDebugger"},
+      "critic-agent": {"file": "core/critic-agent.ts", "fn": "runCritic", "role": "Multi-dimension critique"},
+      "verifier-agent": {"file": "core/verifier-agent.ts", "fn": "verifyCodeFiles", "role": "Static verification of generated files"},
+      "prompt-engineer": {"file": "core/prompt-engineer.ts", "fn": "expandPrompt"}
+    },
+    "intelligenceLayer": {
+      "hallucination-detector": "core/hallucination-detector.ts detectHallucinations",
+      "self-critique": "core/self-critique.ts selfCritiquePlan/selfCritiqueCode",
+      "reflection": "core/reflection.ts reflect + buildCoachingFromReflections",
+      "review-gate": "core/review-gate.ts scoreResponse/reviewLoop (quality gate)",
+      "eval-framework": "core/eval-framework.ts evaluateOutput/runBenchmarkSuite"
+    }
+  },
+  "voting": {
+    "file": "tmap-v2/src/core/vote.ts",
+    "fn": "runCoderVote",
+    "role": "Generate N candidate solutions, score, and pick best (multi-candidate selection). Used by orchestrator (pro mode) and Chief.",
+    "helpers": ["letter()", "parsePick()"]
+  },
+  "raa": {
+    "tmap": {"file": "tmap-v2/src/core/raa.ts", "fn": "runRAA", "returns": "RAAResult (RequirementSummary)", "role": "Requirements Analysis Agent — clarifies/structures requirements"},
+    "web": {"file": "aof-web/src/lib/raa.ts", "role": "Prompt library (RAA_SYSTEM + AOF_CODE_* system prompts) consumed by /api/chat", "clientLib": "aof-web/src/lib/raa.ts (parseBrief/hasBrief)"}
+  },
+  "dars": {
+    "files": ["tmap-v2/src/dars/run.ts", "classify.ts", "health.ts", "select.ts"],
+    "entry": "chatWithDARS(role, messages, opts, ctx)",
+    "role": "Resilience wrapper around providers/client.ts chat(): Detect → select backup → switch → continue (without failing job) → log. Circuit-breaker-ish via HealthStore; MAX_FAILOVER=4; per-call timeout 45s; exponential backoff.",
+    "usedBy": ["core/orchestrator.ts (every agent call)", "core/chief-agent.ts", "/v1/chat"]
+  },
+  "memorySystem": {
+    "tmapProjectMemory": {"file": "tmap-v2/src/core/memory.ts", "tables": ["memories"], "fns": ["loadMemory", "saveMemory", "recordSessionMemory", "recordDecision", "memoryToContext"], "role": "Cross-session project memory injected into Titan/TMAP context"},
+    "imageMemory": {"file": "tmap-v2/src/core/image-memory.ts", "tables": ["image_memories"], "role": "Reusable vision understanding keyed by image hash"},
+    "blackboard": {"file": "tmap-v2/src/core/blackboard.ts", "role": "Shared working memory during a single run; persists to .aof/sessions"}
+  }
+}

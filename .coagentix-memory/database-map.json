@@ -1,0 +1,56 @@
+{
+  "$schema": "coagentix-memory/database-map@1",
+  "generatedAt": "2026-06-21",
+  "engine": "Supabase / PostgreSQL with Row Level Security (RLS by user_id)",
+  "migrationDirs": {
+    "aof-web/supabase/migrations": "Web app schema (0002–0008)",
+    "supabase/migrations": "Root: CLI tokens, error logs (dated)",
+    "tmap-v2/supabase": "TMAP backend schema (users, memories, sessions, costs, enterprise, image memories)"
+  },
+  "tables": {
+    "provider_keys": {"migration": "aof-web/0002", "purpose": "Encrypted per-user AI provider keys (AES-256-GCM)", "queriedBy": ["lib/server/keys-store.ts", "api/keys"]},
+    "user_roles": {"migration": "aof-web/0003", "purpose": "Admin RBAC: OWNER/ADMIN/STAFF/BETA_TESTER/USER", "queriedBy": ["lib/admin/server.ts", "api/admin/roles"]},
+    "redeem_codes": {"migration": "aof-web/0003", "queriedBy": ["api/admin/redeem-codes", "api/admin/redeem"]},
+    "redeem_code_uses": {"migration": "aof-web/0003"},
+    "subscriptions": {"migration": "aof-web/0003", "purpose": "Plan tiers FREE/LITE/PRO/ADVANCED", "queriedBy": ["lib/admin/server.ts grantSubscription", "api/admin/subscriptions"]},
+    "beta_access": {"migration": "aof-web/0003", "queriedBy": ["api/admin/beta-access"]},
+    "feature_flags": {"migration": "aof-web/0003", "queriedBy": ["api/admin/feature-flags"]},
+    "system_logs": {"migration": "aof-web/0003", "purpose": "Admin audit log (actor/action/severity/target)", "queriedBy": ["lib/admin/server.ts logAdminAction", "api/admin/logs"]},
+    "announcements": {"migration": "aof-web/0003", "queriedBy": ["api/admin/announcements"]},
+    "api_usage_metrics": {"migration": "aof-web/0003", "purpose": "Per-call usage/cost/success tracking", "queriedBy": ["lib/admin/server.ts recordApiUsage", "api/admin/api-usage"]},
+    "feedback": {"migration": "aof-web/0004", "queriedBy": ["api/feedback"]},
+    "referral_codes": {"migration": "aof-web/0005", "queriedBy": ["api/referral"]},
+    "referral_conversions": {"migration": "aof-web/0005", "rpc": "record_referral_conversion"},
+    "referral_clicks": {"migration": "aof-web/0005", "rpc": "record_referral_click"},
+    "conversations": {"migration": "aof-web/0006 (+0008 RLS)", "purpose": "Chat conversations", "queriedBy": ["lib/conversations.ts", "api/conversations"]},
+    "messages": {"migration": "aof-web/0006 (+0008 search_vector gin)", "purpose": "Chat messages, full-text searchable", "queriedBy": ["lib/conversations.ts", "api/search", "api/conversations/[id]/messages"]},
+    "projects": {"migration": "aof-web/0008", "purpose": "User projects (web-app/mobile/api/game/...)", "queriedBy": ["store/project-store.ts"]},
+    "cli_tokens": {"migration": "supabase/20260619", "purpose": "CLI auth tokens (hashed)", "queriedBy": ["api/cli/token"]},
+    "cli_sessions": {"migration": "supabase/20260619", "queriedBy": ["api/cli/devices"]},
+    "error_logs": {"migration": "supabase/20260620", "purpose": "Client error telemetry", "queriedBy": ["lib/errors/logger.ts"]},
+    "users": {"migration": "tmap-v2/migration.sql", "purpose": "TMAP backend users (username + pinHash)", "queriedBy": ["tmap-v2/server/db.ts", "server/auth.ts"]},
+    "memories": {"migration": "tmap-v2/migration.sql", "purpose": "Titan/TMAP cross-session project memory", "queriedBy": ["tmap-v2/core/memory.ts"]},
+    "tmap_sessions": {"migration": "tmap-v2/migration.sql", "purpose": "TMAP run sessions", "queriedBy": ["tmap-v2/server/db.ts"]},
+    "tmap_agent_logs": {"migration": "tmap-v2/migration.sql", "purpose": "Per-agent call logs", "queriedBy": ["tmap-v2/server/db.ts"]},
+    "tmap_costs": {"migration": "tmap-v2/migration.sql", "purpose": "Cost tracking", "queriedBy": ["tmap-v2/server/db.ts"]},
+    "image_memories": {"migration": "tmap-v2/image-memories-migration.sql", "purpose": "Vision: reusable image understanding by hash", "queriedBy": ["tmap-v2/core/image-memory.ts"]},
+    "developer_keys": {"migration": "tmap-v2/phase5-phase6", "queriedBy": ["server/developer-keys.ts"]},
+    "audit_events": {"migration": "tmap-v2/phase5-phase6", "queriedBy": ["server/audit.ts"]},
+    "webhooks": {"migration": "tmap-v2/phase5-phase6", "queriedBy": ["server/webhooks.ts"]},
+    "organizations": {"migration": "tmap-v2/phase5-phase6", "queriedBy": ["server/orgs.ts"]},
+    "org_members": {"migration": "tmap-v2/phase5-phase6", "queriedBy": ["server/orgs.ts"]},
+    "teams": {"migration": "tmap-v2/phase5-phase6", "queriedBy": ["server/teams.ts"]},
+    "team_members": {"migration": "tmap-v2/phase5-phase6", "queriedBy": ["server/teams.ts"]},
+    "role_assignments": {"migration": "tmap-v2/phase5-phase6", "queriedBy": ["server/permissions.ts"]},
+    "backup_manifests": {"migration": "tmap-v2/phase5-phase6", "queriedBy": ["server/backup.ts", "server/restore.ts"]}
+  },
+  "rpcs": {
+    "admin_list_users": "aof-web/0007 — paged admin user listing",
+    "record_referral_click": "aof-web/0005",
+    "record_referral_conversion": "aof-web/0005"
+  },
+  "notes": [
+    "aof-web tables use Supabase auth.uid() RLS; tmap-v2 tables use service-role access from the Express server.",
+    "tmap-v2 has a filesystem fallback store (server/file-store.ts) when Supabase is not configured."
+  ]
+}

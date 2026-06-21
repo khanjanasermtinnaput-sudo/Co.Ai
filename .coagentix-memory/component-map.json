@@ -1,0 +1,29 @@
+{
+  "$schema": "coagentix-memory/component-map@1",
+  "generatedAt": "2026-06-21",
+  "baseDir": "aof-web/src/components",
+  "stateSources": "Zustand stores in aof-web/src/store/* (see dependency-map.json)",
+  "groups": {
+    "ui": {"purpose": "shadcn-style primitives (Radix + cva)", "files": ["avatar","badge","button","card","dialog","dropdown-menu","input","label","separator","skeleton","switch","tabs","textarea","tooltip"]},
+    "providers": {"files": ["app-providers (root composition)", "auth-provider (Supabase session → auth-store)", "auth-gate", "theme-provider"], "state": "auth-store, ui-store"},
+    "layout": {"files": ["sidebar","mobile-nav","nav-link","theme-toggle","user-menu","ambient-background"], "state": "ui-store (sidebar expanded), auth-store (user-menu)"},
+    "home": {"files": ["welcome-hero","home-prompt","quick-actions"], "state": "chat-store (pendingFirstMessage), constants QUICK_ACTIONS"},
+    "composer": {"files": ["composer (reusable chat input: auto-grow, Enter-send, stop)"], "usedBy": ["home","chat","code"]},
+    "chat": {"files": ["chat-view","chat-thread","chat-message","markdown (react-markdown+katex)","learning-answer","attachment-list","response-style-selector","search-mode-selector","route-badge","sources-panel"], "state": "chat-store, diagnostics-store, usage-store; lib/api streamChat; lib/router; lib/conversations"},
+    "code": {"files": ["code-workspace","code-conversation","code-mode-selector","code-preview","project-brief","export-menu","titan-stepper","titan-workflow"], "state": "code-store (mode + Titan state machine); lib/titan; lib/export; lib/raa"},
+    "projects": {"files": ["projects-view","project-card","project-meta","project-workspace","new-project-dialog"], "state": "project-store"},
+    "settings": {"files": ["settings-view (tabbed)"], "state": "auth-store, usage-store; lib/keys; lib/plans; components/billing"},
+    "billing": {"files": ["pricing-table","usage-dashboard"], "state": "usage-store, auth-store; lib/plans (PLANS, PRICING_TIERS)"},
+    "auth": {"files": ["login-modal","guest-meter"], "state": "auth-store, guest-store (GUEST_LIMIT=3)"},
+    "admin": {"files": ["admin-auth-gate","admin-client","grant-role-dialog","grant-subscription-dialog","stat-card"], "state": "lib/admin/*; api/admin/*"},
+    "diagnostics": {"files": ["system-diagnostics","provider-status-panel","model-badge","active-model-badge","failover-notice","error-panel","auth-debug-panel"], "state": "diagnostics-store; lib/health; lib/errors"},
+    "error": {"files": ["error-boundary","error/error-toast"], "state": "lib/errors/logger"},
+    "brand": {"files": ["logo"]},
+    "mascot": {"files": ["taotao-sprite","composer-mascot","message-mascot","effects","pixel.ts","palette.ts","index.ts","mascot.css"], "purpose": "Pixel-art mascot (TaoTao)"},
+    "pwa": {"files": ["pwa-installer"], "related": ["public/sw.js"]}
+  },
+  "hooks": {
+    "use-mounted": "aof-web/src/hooks/use-mounted.ts — SSR-safe mount flag",
+    "use-plan": "aof-web/src/hooks/use-plan.ts — current plan/entitlements (auth-store + lib/plans)"
+  }
+}
