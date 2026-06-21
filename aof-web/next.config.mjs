@@ -26,6 +26,11 @@ const SECURITY_HEADERS = [
   { key: "Cross-Origin-Embedder-Policy",   value: "unsafe-none" },
 ];
 
+// The Coagentix frontend talks to the tmap-v2 backend (/v1/*). When
+// COAGENTIX_API_PROXY is set we proxy /v1 to it so the browser stays
+// same-origin (no CORS in production).
+const apiProxy = process.env.COAGENTIX_API_PROXY ?? process.env.AOF_API_PROXY;
+
 const nextConfig = {
   reactStrictMode: true,
 
@@ -33,6 +38,13 @@ const nextConfig = {
   experimental: {
     instrumentationHook: true,
   },
+
+  // When a server-side proxy target is configured, expose a PUBLIC same-origin
+  // flag to the browser bundle. Without this, getApiBase() (lib/api.ts) returns
+  // null and isLive() stays false — so the /v1 rewrite below would never be used
+  // and every feature silently falls back to single-pass /api/chat. Setting the
+  // proxy alone is therefore enough to light up the full tmap-v2 backend.
+  env: apiProxy ? { NEXT_PUBLIC_COAGENTIX_SAME_ORIGIN: "1" } : {},
 
   async headers() {
     return [
@@ -43,13 +55,9 @@ const nextConfig = {
     ];
   },
 
-  // The Coagentix frontend talks to the tmap-v2 backend (/v1/*). When
-  // COAGENTIX_API_PROXY is set we proxy /v1 to it so the browser stays
-  // same-origin (no CORS in production).
   async rewrites() {
-    const base = process.env.COAGENTIX_API_PROXY ?? process.env.AOF_API_PROXY;
-    if (!base) return [];
-    return [{ source: "/v1/:path*", destination: `${base}/v1/:path*` }];
+    if (!apiProxy) return [];
+    return [{ source: "/v1/:path*", destination: `${apiProxy}/v1/:path*` }];
   },
 };
 

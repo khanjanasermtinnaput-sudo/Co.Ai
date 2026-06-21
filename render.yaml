@@ -9,8 +9,13 @@ services:
     envVars:
       - key: JWT_SECRET
         generateValue: true
+      # COAGENTIX_MASTER_KEY encrypts every stored provider key. It must be set
+      # ONCE and never change — if it is regenerated, all previously encrypted
+      # user keys become permanently undecryptable. So DO NOT use generateValue
+      # (Render may regenerate it on some operations). Set it by hand in the
+      # dashboard (sync: false keeps it out of source): `openssl rand -hex 32`.
       - key: COAGENTIX_MASTER_KEY
-        generateValue: true
+        sync: false
       - key: COAGENTIX_MODE
         value: normal
       - key: NODE_ENV

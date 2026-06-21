@@ -4,7 +4,7 @@
 
 import { chat } from '../providers/client.js';
 import type { ChatMessage, ResolvedProvider, Role, ChatOpts } from '../types.js';
-import type { CredentialBag } from '../config.js';
+import { mockAllowed, type CredentialBag } from '../config.js';
 import { listProviderCandidates, pickHealthy } from './select.js';
 import { HealthStore } from './health.js';
 import { classifyError, retryAfterMs, type FailureKind } from './classify.js';
@@ -44,9 +44,16 @@ export async function chatWithDARS(
 ): Promise<DarsResult> {
   const candidates = listProviderCandidates(role, ctx.creds);
 
-  // No keys at all → mock mode (offline demo). Emit a visible warning so the
-  // user knows they're getting a simulated response, not a real model answer.
+  // No keys at all. Fail CLOSED by default: surface a clear error rather than a
+  // fabricated answer. Mock (offline demo) only runs when explicitly allowed
+  // (non-production, or COAGENTIX_ALLOW_MOCK=1) — see config.mockAllowed().
   if (!candidates.length) {
+    if (!mockAllowed()) {
+      throw new Error(
+        `No API key configured for role "${role}". Add a provider key in Settings ` +
+        '(Gemini / DeepSeek / Qwen / Llama / OpenRouter) to get real AI responses.',
+      );
+    }
     ctx.emit('system',
       `[MOCK] No API keys configured for role "${role}" — response is simulated. ` +
       'Add your provider key in Settings to get real AI responses.',
