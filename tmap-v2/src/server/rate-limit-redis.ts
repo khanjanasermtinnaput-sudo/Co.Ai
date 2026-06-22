@@ -11,6 +11,17 @@
 import type { RequestHandler } from 'express';
 import { getRedis } from './redis.js';
 import { logger } from './logger.js';
+import { isProductionRuntime } from '../core/sandbox-policy.js';
+
+// When a real Redis is configured but a call fails in production, we must NOT
+// silently fall back to the per-instance in-memory store — that would let an
+// attacker bypass the limit by spreading requests across instances. In that case
+// we fail CLOSED (deny). In dev, or when only the mock is in use, degrade to the
+// in-memory store so local development keeps working.
+export function shouldFailClosedOnRedisError(env: Record<string, string | undefined> = process.env): boolean {
+  const redisConfigured = Boolean(env.REDIS_URL || env.REDIS_HOST);
+  return isProductionRuntime(env) && redisConfigured;
+}
 
 // In-memory fallback — one counter per (namespace:IP) key
 interface InMemoryBucket {
@@ -76,8 +87,14 @@ async function redisCheck(
 
     return { allowed: true, remaining: limit - count - 1, retryAfterMs: 0 };
   } catch (err) {
-    // Redis failure → degrade gracefully (allow the request, log the error)
+    // Redis failure handling. If a real Redis is configured and we're in
+    // production, fail CLOSED — falling back to the per-instance in-memory store
+    // would let callers bypass the global limit across instances. In dev (or when
+    // only the mock is in use) degrade gracefully to in-memory.
     logger.warn('rate_limit_redis_error', { error: (err as Error).message });
+    if (shouldFailClosedOnRedisError()) {
+      return { allowed: false, remaining: 0, retryAfterMs: windowMs };
+    }
     return inMemoryCheck(key, limit, windowMs);
   }
 }

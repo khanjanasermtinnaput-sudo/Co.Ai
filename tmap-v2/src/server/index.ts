@@ -17,7 +17,9 @@ import { checkLoginRate, recordFailure, recordSuccess } from './rateLimit.js';
 import { logger, incRequest, incError, incTmapRun, incTmapError, addTokens, incAgentCall, getMetrics, incEvaluation, incSandboxRun, incQuotaViolation, incKeyRotation, incKeyValidation, incTeamOperation, incOrgOperation, incBackupCreated, incRestoreRun, incAnalyticsEvent } from './logger.js';
 import { runInSandbox, SUPPORTED_LANGUAGES, SANDBOX_DEFAULT_TIMEOUT_MS, SANDBOX_MAX_TIMEOUT_MS, SANDBOX_DEFAULT_MAX_BYTES } from '../core/sandbox.js';
 import { isDockerAvailable, runInDockerSandbox, DOCKER_DEFAULT_TIMEOUT_MS, DOCKER_MAX_TIMEOUT_MS } from '../core/docker-sandbox.js';
-import { checkQuota, checkSandboxQuota, recordSandboxRun, getUsageSummary, DEFAULT_QUOTA } from '../core/usage-tracker.js';
+import { resolveSandboxEngine, sandboxFeatureEnabled, vmFallbackAllowed } from '../core/sandbox-policy.js';
+import { requireSubscription } from './entitlements.js';
+import { checkQuota, checkSandboxQuota, recordSandboxRun, recordUsage, getUsageSummary, DEFAULT_QUOTA } from '../core/usage-tracker.js';
 import type { SandboxLanguage, SandboxOptions } from '../types.js';
 import {
   listDevKeys, createDevKey, revokeDevKey,
@@ -198,7 +200,7 @@ app.post('/v1/auth/login', async (req, res) => {
 
     const uname = username ? String(username).trim() : '';
     if (uname) {
-      const check = checkLoginRate(uname, clientIp);
+      const check = await checkLoginRate(uname, clientIp);
       if (check.blocked) {
         const mins = Math.ceil(check.retryAfterSec / 60);
         res.setHeader('Retry-After', check.retryAfterSec);
@@ -216,7 +218,7 @@ app.post('/v1/auth/login', async (req, res) => {
     const pinMatch = verifyPassword(String(pin ?? '').trim(), user?.pinHash ?? DUMMY_HASH);
     if (!user || !pinMatch) {
       if (uname) {
-        const info = recordFailure(uname, clientIp);
+        const info = await recordFailure(uname, clientIp);
         await logAuditEvent({
           actorId: user?.id ?? null, actorIp: clientIp, action: AuditAction.AUTH_FAILED,
           outcome: 'failure', severity: 'warn',
@@ -233,7 +235,7 @@ app.post('/v1/auth/login', async (req, res) => {
       return res.status(401).json({ error: 'ชื่อหรือ PIN ไม่ถูกต้อง' });
     }
 
-    recordSuccess(uname, clientIp);
+    await recordSuccess(uname, clientIp);
     await logAuditEvent({
       actorId: user.id, actorIp: clientIp, action: AuditAction.AUTH_LOGIN,
       outcome: 'success', userAgent: req.headers['user-agent'] as string,
@@ -536,7 +538,7 @@ app.post('/v1/analyze', requireAuth, async (req: AuthedRequest, res) => {
 });
 
 // ── TITAN MODE — AI System Architect (SSE stream) ────────────────────────────
-app.post('/v1/titan', requireAuth, async (req: AuthedRequest, res) => {
+app.post('/v1/titan', requireAuth, requireSubscription('PRO', 'Titan'), async (req: AuthedRequest, res) => {
   const message = String(req.body?.message ?? '').trim();
   const history: ChatMessage[] = Array.isArray(req.body?.history) ? req.body.history : [];
   if (!message) return res.status(400).json({ error: 'message required' });
@@ -597,7 +599,7 @@ app.post('/v1/titan', requireAuth, async (req: AuthedRequest, res) => {
 });
 
 // ── RUN TMAP (SSE stream) ─────────────────────────────────────────────────────
-app.post('/v1/run', requireAuth, async (req: AuthedRequest, res) => {
+app.post('/v1/run', requireAuth, requireSubscription('LITE', 'Coagentix Code'), async (req: AuthedRequest, res) => {
   const task = String(req.body?.task ?? '').trim();
   const mode = (['lite', 'normal', 'pro'].includes(req.body?.mode) ? req.body.mode : currentMode()) as Mode;
   const context = String(req.body?.context ?? '').trim();
@@ -618,6 +620,16 @@ app.post('/v1/run', requireAuth, async (req: AuthedRequest, res) => {
     Connection: 'keep-alive',
   });
   const send = (event: object) => res.write(`data: ${JSON.stringify(event)}\n\n`);
+
+  // Quota gate (Round 2 #3): stop the run when the user is over their daily/monthly
+  // token or cost limit. Enforced from the shared Redis store so it holds across
+  // serverless instances (no per-instance bypass).
+  const quota = await checkQuota(u.id);
+  if (!quota.ok) {
+    incQuotaViolation();
+    send({ role: 'system', kind: 'error', text: quota.reason ?? 'Usage quota exceeded' });
+    return res.end();
+  }
 
   if (!bagHasAnyKey(creds)) {
     if (!mockAllowed()) {
@@ -665,6 +677,8 @@ app.post('/v1/run', requireAuth, async (req: AuthedRequest, res) => {
         });
         await addCost(u.id, result.tokensUsed, result.costUsd);
         addTokens(result.tokensUsed, result.costUsd);
+        // Record into the quota store so daily/monthly limits actually accumulate.
+        await recordUsage(u.id, { tokens: result.tokensUsed, costUsd: result.costUsd });
         // Record into project memory so the next session starts informed.
         // Architecture decisions from the Architect stage become durable memory.
         try {
@@ -755,7 +769,7 @@ if (process.env.COAGENTIX_V2 === '1') {
 }
 
 // ── ORCHESTRATE — Coagentix Universal Chief Agent (SSE stream) ───────────────
-app.post('/v1/orchestrate', requireAuth, async (req: AuthedRequest, res) => {
+app.post('/v1/orchestrate', requireAuth, requireSubscription('PRO', 'Multi-agent orchestration'), async (req: AuthedRequest, res) => {
   const message = String(req.body?.message ?? '').trim();
   const history: ChatMessage[] = Array.isArray(req.body?.history) ? req.body.history : [];
   const enableQualityGate = req.body?.qualityGate !== false;
@@ -902,7 +916,7 @@ app.get('/v1/routing-metrics', requireAuth, (_req: AuthedRequest, res) => {
 
 // POST /v1/evaluate — run the AI evaluation framework on provided output
 // Body: { task: string, files?: [{path,language,content}], reviewText?: string, iterations?: number }
-app.post('/v1/evaluate', requireAuth, async (req: AuthedRequest, res) => {
+app.post('/v1/evaluate', requireAuth, requireSubscription('PRO', 'Evaluation framework'), async (req: AuthedRequest, res) => {
   try {
     const { task, files, reviewText, iterations } = req.body ?? {};
     if (!task || typeof task !== 'string') {
@@ -981,8 +995,16 @@ app.get('/v1/benchmark/results', requireAuth, (_req: AuthedRequest, res) => {
 // GET /v1/sandbox/capabilities — no auth; describes what the sandbox can run
 app.get('/v1/sandbox/capabilities', (_req, res) => {
   const dockerAvailable = isDockerAvailable();
+  // Mirror the actual run-time policy so clients know whether execution is usable.
+  const decision = resolveSandboxEngine({ dockerRequested: false, dockerAvailable });
   res.json({
     languages: SUPPORTED_LANGUAGES,
+    execution: {
+      enabled: sandboxFeatureEnabled() && decision.engine !== 'none',
+      engine: decision.engine,
+      vmFallbackAllowed: vmFallbackAllowed(),
+      unavailableReason: decision.reason ?? null,
+    },
     limits: {
       defaultTimeoutMs: SANDBOX_DEFAULT_TIMEOUT_MS,
       maxTimeoutMs: SANDBOX_MAX_TIMEOUT_MS,
@@ -1005,7 +1027,7 @@ app.get('/v1/sandbox/capabilities', (_req, res) => {
 
 // POST /v1/sandbox/run — execute code in the secure sandbox
 // Body: { language, code, timeoutMs?, maxOutputBytes?, files? }
-app.post('/v1/sandbox/run', requireAuth, async (req: AuthedRequest, res) => {
+app.post('/v1/sandbox/run', requireAuth, requireSubscription('LITE', 'Sandbox execution'), async (req: AuthedRequest, res) => {
   const { language, code, timeoutMs, maxOutputBytes, files } = req.body ?? {};
 
   if (!language || !SUPPORTED_LANGUAGES.includes(language as SandboxLanguage)) {
@@ -1021,7 +1043,7 @@ app.post('/v1/sandbox/run', requireAuth, async (req: AuthedRequest, res) => {
   }
 
   const u = req.user!;
-  const sbQuota = checkSandboxQuota(u.id);
+  const sbQuota = await checkSandboxQuota(u.id);
   if (!sbQuota.ok) {
     incQuotaViolation();
     return res.status(429).json({ error: sbQuota.reason });
@@ -1040,8 +1062,22 @@ app.post('/v1/sandbox/run', requireAuth, async (req: AuthedRequest, res) => {
     return res.status(413).json({ error: 'Total input file size too large (max 500 KB)' });
   }
 
-  // Use Docker sandbox when the caller requests it and Docker is available
-  const useDocker = req.body?.docker === true && isDockerAvailable();
+  // Decide the execution engine. In production the insecure Node-vm fallback is
+  // refused: code runs in Docker or not at all (see sandbox-policy.ts).
+  const decision = resolveSandboxEngine({
+    dockerRequested: req.body?.docker === true,
+    dockerAvailable: isDockerAvailable(),
+  });
+  if (decision.engine === 'none') {
+    await logAuditEvent({
+      actorId: u.id, actorIp: getClientIp(req as never),
+      action: AuditAction.SANDBOX_BLOCKED,
+      outcome: 'failure',
+      metadata: { language, reason: decision.reason },
+    });
+    return res.status(503).json({ error: decision.reason });
+  }
+  const useDocker = decision.engine === 'docker';
 
   const sbOpts: SandboxOptions = {
     language: language as SandboxLanguage,
@@ -1055,7 +1091,7 @@ app.post('/v1/sandbox/run', requireAuth, async (req: AuthedRequest, res) => {
     ? await runInDockerSandbox(sbOpts)
     : await runInSandbox(sbOpts);
 
-  recordSandboxRun(u.id);
+  await recordSandboxRun(u.id);
   incSandboxRun(!result.success);
 
   await logAuditEvent({
@@ -1073,14 +1109,14 @@ app.post('/v1/sandbox/run', requireAuth, async (req: AuthedRequest, res) => {
 });
 
 // GET /v1/me/usage — detailed usage summary for the authenticated user
-app.get('/v1/me/usage', requireAuth, (req: AuthedRequest, res) => {
-  const summary = getUsageSummary(req.user!.id);
+app.get('/v1/me/usage', requireAuth, async (req: AuthedRequest, res) => {
+  const summary = await getUsageSummary(req.user!.id);
   res.json(summary);
 });
 
 // GET /v1/me/quota — current quota status (are any limits exceeded?)
-app.get('/v1/me/quota', requireAuth, (req: AuthedRequest, res) => {
-  const status = checkQuota(req.user!.id);
+app.get('/v1/me/quota', requireAuth, async (req: AuthedRequest, res) => {
+  const status = await checkQuota(req.user!.id);
   res.json(status);
 });
 

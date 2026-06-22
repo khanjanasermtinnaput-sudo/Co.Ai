@@ -19,6 +19,10 @@ import { selfCritiquePlan, selfCritiqueCode } from './self-critique.js';
 import { reflect, buildCoachingFromReflections, type ReflectionNote } from './reflection.js';
 import { verifyCodeFiles } from './verifier-agent.js';
 import { globalRoutingMetrics } from './routing-metrics.js';
+import {
+  estimateTokens, estimateCost, CostMonitor, defaultBudget, isBudgetError,
+  type BudgetLimits,
+} from './cost-budget.js';
 
 type Emit = (role: string, text: string, kind?: 'status' | 'output' | 'error') => void;
 
@@ -36,6 +40,8 @@ export interface RunOpts {
   // Plan-only mode (Coagentix Code "Create Plan"): run Architect + Planner, then stop
   // before any code generation.
   planOnly?: boolean;
+  // Per-run hard cost/token/call budget. Omitted = env-configured defaults.
+  budget?: Partial<BudgetLimits>;
 }
 
 export interface AgentCallLog {
@@ -54,32 +60,9 @@ const MAX_ITERATIONS: Record<Blackboard['mode'], number> = { lite: 0, normal: 1,
 // Cost estimates per 1M tokens. OpenRouter-routed models share the same rate as
 // their direct counterpart — the overhead is minimal and the mapping simplifies
 // the lookup (use the bare model name, strip " (via OpenRouter)" suffix).
-const COST_PER_1M: Record<string, { input: number; output: number }> = {
-  'gemini-2.0-flash':         { input: 0.10, output: 0.40 },
-  'gemini-2.5-flash':         { input: 0.15, output: 0.60 },
-  'deepseek-chat':            { input: 0.14, output: 0.28 },
-  'deepseek-v3':              { input: 0.14, output: 0.28 },
-  'qwen-plus':                { input: 0.40, output: 1.20 },
-  'qwen-turbo':               { input: 0.05, output: 0.15 },
-  'llama-3.3-70b-versatile':  { input: 0.59, output: 0.79 },
-  'llama-3.1-70b-versatile':  { input: 0.59, output: 0.79 },
-  default:                    { input: 0.50, output: 1.50 },
-};
-
-function estimateCost(model: string, inputTokens: number, outputTokens: number): number {
-  // Strip " (via OpenRouter)" / " -> Fallback" suffixes if present.
-  const baseModel = model.replace(/\s*\(.*?\)\s*$/, '').replace(/\s*->.*$/, '').trim();
-  const rates = COST_PER_1M[baseModel] ?? COST_PER_1M.default;
-  return (inputTokens * rates.input + outputTokens * rates.output) / 1_000_000;
-}
-
-// Token estimate from text length. The average English token is ~4 chars; the
-// 4-char divisor is the industry-standard approximation when provider headers
-// are unavailable.  It's rough (±30%) but far better than nothing for budget
-// tracking; replace with provider-returned usage counts when available.
-function estimateTokens(text: string): number {
-  return Math.ceil(text.length / 4);
-}
+// Cost estimation (COST_PER_1M / estimateCost / estimateTokens) lives in
+// ./cost-budget.ts so the orchestrator, chief agent, and budget monitor all share
+// one source of truth.
 
 // Hard ceiling on the context summary string. Above this size the LLM's useful
 // context window starts to fill up with project boilerplate rather than the
@@ -103,6 +86,11 @@ export async function runTMAP(
 
   let totalCostUsd = 0;
   let totalTokens = 0;
+
+  // Hard cost/token/call budget: stops a runaway run (large prompts, recursive
+  // replans) instead of spending unbounded LLM calls. Iteration is already capped
+  // by maxIter; this bounds total spend regardless of how each stage behaves.
+  const budget = new CostMonitor(defaultBudget(runOpts.budget));
 
   await runOpts.onSessionStart?.(bb.sessionId);
 
@@ -151,6 +139,8 @@ export async function runTMAP(
   let p4Category: TaskCategory = 'coding';
 
   const callFor = (role: Role): LLMCall => async (messages, opts = {}) => {
+    // Hard budget gate: refuse to make another call once a ceiling is reached.
+    budget.precheck();
     const startMs = Date.now();
     let success = true;
     let r: Awaited<ReturnType<typeof chatWithDARS>>;
@@ -177,6 +167,7 @@ export async function runTMAP(
 
     totalCostUsd += costUsd;
     totalTokens += inputTokens + outputTokens;
+    budget.record(r.provider.model, inputTokens, outputTokens);
 
     bb.agentRuns!.push({
       role, provider: r.provider.providerName, model: r.provider.model,
@@ -283,6 +274,18 @@ export async function runTMAP(
 
     for (let iter = 0; ; iter++) {
       bb.iterations = iter + 1;
+
+      // Stop cleanly between iterations if the budget is exhausted — keep whatever
+      // files were already produced rather than spending more on another pass.
+      try {
+        budget.precheck();
+      } catch (e) {
+        if (isBudgetError(e)) {
+          emit('system', `budget reached (${e.message}) — stopping with current files`, 'status');
+          break;
+        }
+        throw e;
+      }
 
       // 2) CODE — pro mode uses voting (3 coders, reviewer picks best)
       const useVoting = bb.mode === 'pro' && iter === 0;
@@ -424,8 +427,14 @@ export async function runTMAP(
       }
     }
   } catch (e) {
-    status = 'error';
-    throw e;
+    // A budget ceiling hit mid-stage is a clean stop, not a failure: return the
+    // partial result (files produced so far) instead of erroring the whole run.
+    if (isBudgetError(e)) {
+      emit('system', `budget reached (${e.message}) — returning partial result`, 'status');
+    } else {
+      status = 'error';
+      throw e;
+    }
   } finally {
     const path = persist(bb);
     emit('system', `done — session saved: ${path}`, 'status');

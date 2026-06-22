@@ -158,6 +158,47 @@ function save(db: DbShape): void {
   writeFileSync(DB_PATH, JSON.stringify(db, null, 2), 'utf8');
 }
 
+// ── ROLES (RBAC) ────────────────────────────────────────────────────────────
+// Elevated role lookup from the shared Supabase `user_roles` table (written by
+// aof-web's admin panel). Returns the role string (OWNER/ADMIN/STAFF/BETA_TESTER)
+// or null. Expired roles (expires_at in the past) return null. Never throws.
+// When Supabase is not configured there are no elevated roles — fail closed.
+export async function getUserRole(userId: string): Promise<string | null> {
+  if (!useSupabase) return null;
+  try {
+    const res = await sb(`user_roles?user_id=eq.${encodeURIComponent(userId)}&select=role,expires_at`);
+    if (!res.ok) return null;
+    const rows = (await res.json()) as Array<{ role: string; expires_at: string | null }>;
+    const row = rows[0];
+    if (!row) return null;
+    if (row.expires_at && new Date(row.expires_at).getTime() < Date.now()) return null;
+    return row.role;
+  } catch {
+    return null;
+  }
+}
+
+// ── SUBSCRIPTIONS (entitlement) ─────────────────────────────────────────────
+// Raw subscription row from the shared Supabase `subscriptions` table (written by
+// aof-web's admin panel / redeem-code flow). The caller decides active/expiry via
+// entitlements.isSubscriptionActive. Null when Supabase is unconfigured or none.
+export interface SubscriptionRow {
+  plan: string;
+  expires_at: string | null;
+  revoked_at: string | null;
+}
+export async function getSubscriptionRow(userId: string): Promise<SubscriptionRow | null> {
+  if (!useSupabase) return null;
+  try {
+    const res = await sb(`subscriptions?user_id=eq.${encodeURIComponent(userId)}&select=plan,expires_at,revoked_at`);
+    if (!res.ok) return null;
+    const rows = (await res.json()) as SubscriptionRow[];
+    return rows[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
 // ── USER ──────────────────────────────────────────────────────────────────────
 export async function findUserByUsername(username: string): Promise<UserRecord | undefined> {
   const key = username.toLowerCase();

@@ -281,33 +281,33 @@ describe('Docker sandbox — detection', () => {
 // ── Usage tracker ─────────────────────────────────────────────────────────────
 
 describe('Usage tracker — record and retrieve', () => {
-  test('fresh user starts at zero', () => {
+  test('fresh user starts at zero', async () => {
     const id = uid();
-    const s = getUsageSummary(id);
+    const s = await getUsageSummary(id);
     assert.equal(s.today.tokens, 0);
     assert.equal(s.today.sandboxRuns, 0);
     assert.equal(s.today.requests, 0);
   });
 
-  test('recordUsage accumulates tokens and cost', () => {
+  test('recordUsage accumulates tokens and cost', async () => {
     const id = uid();
-    recordUsage(id, { tokens: 1_000, costUsd: 0.01 });
-    recordUsage(id, { tokens: 500,   costUsd: 0.005 });
-    const s = getUsageSummary(id);
+    await recordUsage(id, { tokens: 1_000, costUsd: 0.01 });
+    await recordUsage(id, { tokens: 500,   costUsd: 0.005 });
+    const s = await getUsageSummary(id);
     assert.equal(s.today.tokens, 1_500);
     assert.ok(Math.abs(s.today.costUsd - 0.015) < 1e-6);
     assert.equal(s.today.requests, 2);
   });
 
-  test('recordSandboxRun increments sandbox counter', () => {
+  test('recordSandboxRun increments sandbox counter', async () => {
     const id = uid();
-    recordSandboxRun(id);
-    recordSandboxRun(id);
-    assert.equal(getUsageSummary(id).today.sandboxRuns, 2);
+    await recordSandboxRun(id);
+    await recordSandboxRun(id);
+    assert.equal((await getUsageSummary(id)).today.sandboxRuns, 2);
   });
 
-  test('last7Days has 7 entries', () => {
-    assert.equal(getUsageSummary(uid()).last7Days.length, 7);
+  test('last7Days has 7 entries', async () => {
+    assert.equal((await getUsageSummary(uid())).last7Days.length, 7);
   });
 
   test('DEFAULT_QUOTA has all required fields', () => {
@@ -318,49 +318,49 @@ describe('Usage tracker — record and retrieve', () => {
 });
 
 describe('Usage tracker — quota checks', () => {
-  test('fresh user is within quota', () => {
-    assert.equal(checkQuota(uid(), DEFAULT_QUOTA).ok, true);
+  test('fresh user is within quota', async () => {
+    assert.equal((await checkQuota(uid(), DEFAULT_QUOTA)).ok, true);
   });
 
-  test('daily token limit triggers', () => {
+  test('daily token limit triggers', async () => {
     const id = uid();
-    recordUsage(id, { tokens: 10, costUsd: 0 });
-    const s = checkQuota(id, ZERO_QUOTA);
+    await recordUsage(id, { tokens: 10, costUsd: 0 });
+    const s = await checkQuota(id, ZERO_QUOTA);
     assert.equal(s.ok, false);
     assert.ok(s.reason?.includes('Daily token limit'));
   });
 
-  test('daily cost limit triggers', () => {
+  test('daily cost limit triggers', async () => {
     const id = uid();
-    recordUsage(id, { tokens: 0, costUsd: 0.001 });
-    const s = checkQuota(id, { ...UNLIMITED_QUOTA, dailyCostUsd: 0.0001 });
+    await recordUsage(id, { tokens: 0, costUsd: 0.001 });
+    const s = await checkQuota(id, { ...UNLIMITED_QUOTA, dailyCostUsd: 0.0001 });
     assert.equal(s.ok, false);
     assert.ok(s.reason?.includes('Daily cost'));
   });
 
-  test('unlimited quota (all zeros) is always ok', () => {
+  test('unlimited quota (all zeros) is always ok', async () => {
     const id = uid();
-    recordUsage(id, { tokens: 9_999_999, costUsd: 999 });
-    assert.equal(checkQuota(id, UNLIMITED_QUOTA).ok, true);
+    await recordUsage(id, { tokens: 9_999_999, costUsd: 999 });
+    assert.equal((await checkQuota(id, UNLIMITED_QUOTA)).ok, true);
   });
 
-  test('sandbox quota blocks when limit reached', () => {
+  test('sandbox quota blocks when limit reached', async () => {
     const id = uid();
-    recordSandboxRun(id);
-    const s = checkSandboxQuota(id, ZERO_QUOTA);
+    await recordSandboxRun(id);
+    const s = await checkSandboxQuota(id, ZERO_QUOTA);
     assert.equal(s.ok, false);
     assert.ok(s.reason?.includes('sandbox limit'));
   });
 
-  test('sandbox quota with limit=0 is unlimited', () => {
+  test('sandbox quota with limit=0 is unlimited', async () => {
     const id = uid();
-    for (let i = 0; i < 200; i++) recordSandboxRun(id);
-    assert.equal(checkSandboxQuota(id, UNLIMITED_QUOTA).ok, true);
+    for (let i = 0; i < 200; i++) await recordSandboxRun(id);
+    assert.equal((await checkSandboxQuota(id, UNLIMITED_QUOTA)).ok, true);
   });
 
-  test('quota status shape is complete', () => {
+  test('quota status shape is complete', async () => {
     const id = uid();
-    const s  = checkQuota(id, DEFAULT_QUOTA);
+    const s  = await checkQuota(id, DEFAULT_QUOTA);
     for (const k of ['ok', 'daily', 'monthly', 'quota'] as const) assert.ok(k in s);
     for (const k of ['tokens', 'costUsd', 'requests', 'sandboxRuns'] as const) assert.ok(k in s.daily);
   });
@@ -639,11 +639,11 @@ describe('Rate limiter (in-memory fallback)', () => {
 // ── Phase 5 integration ───────────────────────────────────────────────────────
 
 describe('Phase 5 — integration', () => {
-  test('sandbox run is tracked independently from token usage', () => {
+  test('sandbox run is tracked independently from token usage', async () => {
     const id = uid();
-    recordUsage(id, { tokens: 100, costUsd: 0.001 });
-    recordSandboxRun(id);
-    const s = getUsageSummary(id);
+    await recordUsage(id, { tokens: 100, costUsd: 0.001 });
+    await recordSandboxRun(id);
+    const s = await getUsageSummary(id);
     assert.equal(s.today.tokens, 100);
     assert.equal(s.today.sandboxRuns, 1);
     assert.equal(s.today.requests, 1);

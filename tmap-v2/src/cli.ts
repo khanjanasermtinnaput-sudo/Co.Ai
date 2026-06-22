@@ -370,10 +370,10 @@ async function cmdSandbox(code: string, opts: { lang?: string; timeout?: number 
   }
 }
 
-function cmdUsage(userId = 'local') {
+async function cmdUsage(userId = 'local') {
   banner();
-  const summary = getUsageSummary(userId);
-  const quota = checkQuota(userId);
+  const summary = await getUsageSummary(userId);
+  const quota = await checkQuota(userId);
 
   console.log(c.dim('─'.repeat(60)));
   console.log(c.bold('Today'));
@@ -570,7 +570,7 @@ async function main() {
     case 'review':   await cmdReview(rest); break;
     case 'fix':      await cmdFix(rest, { apply }); break;
     case 'sandbox':  await cmdSandbox(rest, { lang: langArg, timeout: timeoutArg ? Number(timeoutArg) : undefined }); break;
-    case 'usage':    cmdUsage(); break;
+    case 'usage':    await cmdUsage(); break;
     case 'security': cmdSecurity(); break;
     case 'gencode':
     case 'run':      await cmdGencode(rest, { apply, mode: modeArg }); break;

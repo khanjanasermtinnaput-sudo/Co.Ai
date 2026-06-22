@@ -21,6 +21,9 @@ import { generateImagePrompt } from './vision-agent.js';
 import { reviewLoop } from './review-gate.js';
 import { routeToRole, selectTemperature } from './model-router.js';
 import { chatWithDARS } from '../dars/run.js';
+import {
+  estimateTokens, CostMonitor, defaultBudget, isBudgetError, type BudgetLimits,
+} from './cost-budget.js';
 
 export type ChiefEmit = (agent: AgentType | 'system' | 'chief', text: string, kind?: 'status' | 'output' | 'error') => void;
 
@@ -32,6 +35,8 @@ export interface ChiefOpts {
   history?: ChatMessage[];
   enableQualityGate?: boolean; // default true
   planOnly?: boolean;
+  // Per-run hard cost/token/call budget. Omitted = env-configured defaults.
+  budget?: Partial<BudgetLimits>;
 }
 
 const CHIEF_ANALYSIS_SYS = `You are the Chief Agent in AOF AI — an intelligent meta-orchestrator.
@@ -70,6 +75,12 @@ export async function runChiefAgent(
 ): Promise<OrchestrationResult> {
   const { creds, health, emit, sessionId, history = [], enableQualityGate = true } = opts;
 
+  // Hard cost/token/call budget for the whole orchestration. Every makeCall()
+  // prechecks before spending and records usage after, so a runaway request
+  // (large prompts, repeated low-score revisions, many specialist agents) stops
+  // instead of making unbounded expensive calls.
+  const budget = new CostMonitor(defaultBudget(opts.budget));
+
   // Phase 1: Classify intent
   emit('chief', 'analyzing request...', 'status');
   const classification = classifyTask(userMessage);
@@ -82,12 +93,28 @@ export async function runChiefAgent(
   const temperature = selectTemperature(routing.qualityPriority, primary);
 
   const makeCall = (role = routing.role): LLMCall => async (messages, callOpts = {}) => {
+    // Hard budget gate: refuse another call once a ceiling is reached.
+    budget.precheck();
     const r = await chatWithDARS(role, messages, callOpts, {
       creds, health, emit: (r, t, k) => emit('system' as AgentType, `[${r}] ${t}`, k), sessionId,
     });
+    // Prefer provider-reported tokens; fall back to a char/4 estimate.
+    const inputTokens = r.usage?.inputTokens ?? estimateTokens(messages.reduce((s, m) => s + m.content, ''));
+    const outputTokens = r.usage?.outputTokens ?? estimateTokens(r.text);
+    budget.record(r.provider.model, inputTokens, outputTokens);
     return r.text;
   };
 
+  // Best partial response so far — returned if the budget stops the run mid-way.
+  let bestResponse = '';
+  const withCost = (res: OrchestrationResult): OrchestrationResult => ({
+    ...res,
+    tokensUsed: budget.tokens,
+    estimatedCostUsd: budget.cost,
+    llmCalls: budget.callCount,
+  });
+
+  try {
   // ── Fast path for everyday conversation ─────────────────────────────────────
   // The full orchestration (expand → plan → execute → synthesize → quality loop)
   // is 5-7 model calls. For a simple general message that needs no specialized
@@ -110,13 +137,13 @@ export async function runChiefAgent(
       ...history.slice(-6),
       { role: 'user', content: userMessage },
     ], { temperature, maxTokens: 2048 });
-    return {
+    return withCost({
       response: directAnswer,
       categories,
       agentsUsed: ['chief'],
       qualityScore: 90,
       iterations: 1,
-    };
+    });
   }
 
   // Phase 3: Expand prompt (hidden from user)
@@ -158,13 +185,13 @@ export async function runChiefAgent(
   }
 
   if (opts.planOnly) {
-    return {
+    return withCost({
       response: JSON.stringify(plan, null, 2),
       categories,
       agentsUsed: ['chief'],
       qualityScore: 100,
       iterations: 1,
-    };
+    });
   }
 
   // Phase 5: Execute with specialized agents
@@ -265,6 +292,7 @@ export async function runChiefAgent(
       },
     ], { temperature: 0.3, maxTokens: 4096 });
   }
+  bestResponse = finalResponse; // keep a usable partial in case the budget stops the review loop
 
   // Phase 7: Quality review gate
   let qualityScore = 85; // default if gate disabled
@@ -299,6 +327,7 @@ export async function runChiefAgent(
     finalResponse = loopResult.response;
     qualityScore = loopResult.qualityScore;
     iterations = loopResult.iterations;
+    bestResponse = finalResponse;
 
     if (loopResult.passed) {
       emit('chief', `quality approved: ${qualityScore}/100`, 'status');
@@ -307,13 +336,34 @@ export async function runChiefAgent(
     }
   }
 
-  return {
+  return withCost({
     response: finalResponse,
     categories,
     agentsUsed,
     qualityScore,
     iterations,
-  };
+  });
+  } catch (e) {
+    // A budget ceiling hit mid-orchestration is a clean stop, not a failure:
+    // return the best partial response with the cost metrics attached.
+    if (isBudgetError(e)) {
+      emit('chief', `budget reached (${e.message}) — returning best result so far`, 'status');
+      const snap = budget.snapshot();
+      return {
+        response: bestResponse
+          || 'Stopped before producing a response: cost/token budget limit reached.',
+        categories,
+        agentsUsed: ['chief'],
+        qualityScore: 0,
+        iterations: 1,
+        tokensUsed: snap.tokensUsed,
+        estimatedCostUsd: snap.estimatedCostUsd,
+        llmCalls: snap.calls,
+        budgetExceeded: true,
+      };
+    }
+    throw e;
+  }
 }
 
 function selectAgents(categories: TaskCategory[]): AgentType[] {

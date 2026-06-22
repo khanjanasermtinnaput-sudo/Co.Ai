@@ -47,6 +47,12 @@ export interface OrchestrationResult {
   agentsUsed: AgentType[];
   qualityScore: number;
   iterations: number;
+  // Cost monitor metrics for the whole orchestration (Round 1 #8).
+  tokensUsed?: number;
+  estimatedCostUsd?: number;
+  llmCalls?: number;
+  // True when a cost/token/call ceiling stopped the run early (partial result).
+  budgetExceeded?: boolean;
 }
 
 export interface ResearchResult {
