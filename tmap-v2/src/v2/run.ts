@@ -32,6 +32,7 @@ import { EventBus, type WorkflowEvent } from './events.js';
 import { decideExecution } from './orchestrator-v2.js';
 import { rankMemories, memoriesToContextV2, contextFitFrom } from './memory-v2.js';
 import { loadMemory } from '../core/memory.js';
+import { globalRunQueue } from './queue.js';
 
 export type V2Emit = (event: object) => void;
 
@@ -51,6 +52,12 @@ export interface RunV2Result {
 }
 
 export async function runV2(task: string, opts: RunV2Opts): Promise<RunV2Result> {
+  // System resource control: bound concurrent v2 runs per instance; excess runs
+  // queue (FIFO) instead of stampeding every provider at once.
+  return globalRunQueue.run(() => runV2Inner(task, opts));
+}
+
+async function runV2Inner(task: string, opts: RunV2Opts): Promise<RunV2Result> {
   const health = opts.health ?? globalHealth;
   const requestId = randomUUID();
   const emit = opts.emit ?? (() => {});

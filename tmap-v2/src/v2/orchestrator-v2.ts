@@ -82,6 +82,12 @@ export function decideExecution(
     weights.capability = 0.45;
     weights.reliability = 0.20;
     weights.cost = 0.05;
+  } else if (mode === 'fast') {
+    // Latency optimization: when the work is simple and confidence is high,
+    // favor the quickest healthy agent.
+    weights.latency = 0.25;
+    weights.capability = 0.30;
+    weights.cost = 0.15;
   }
 
   return {

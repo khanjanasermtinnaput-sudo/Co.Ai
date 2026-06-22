@@ -9,6 +9,7 @@ import { executeGraph } from '../v2/executor.js';
 import { TraceRecorder } from '../v2/trace.js';
 import { EventBus } from '../v2/events.js';
 import { plan, makeReplan, type RaaConfig, type SubTask } from '../v2/raa.js';
+import { serializeGraph, applyCheckpoint } from '../v2/checkpoint.js';
 
 // Keep trace persistence local + off-network for tests.
 delete process.env.SUPABASE_URL;
@@ -85,6 +86,22 @@ test('rankAgents selects the right specialist for research/writing/math/vision',
   assert.equal(rankAgents({ write: 1 }, listAgents(), { health })[0].agentId, 'writing');
   assert.equal(rankAgents({ math: 1 }, listAgents(), { health })[0].agentId, 'math');
   assert.equal(rankAgents({ vision: 1 }, listAgents(), { health })[0].agentId, 'vision');
+});
+
+test('scoring exposes six factors incl. a latency factor that favors faster providers', () => {
+  const slow = new HealthStore();
+  // Drive the coder's provider (deepseek) latency EWMA high.
+  for (let i = 0; i < 8; i++) slow.recordSuccess('deepseek', 9000);
+  const coderSlow = rankAgents({ code: 1 }, listAgents(), { health: slow }).find((r) => r.agentId === 'coder')!;
+
+  // All six spec factors are present and the slow provider scores low on latency.
+  for (const k of ['capability', 'context', 'cost', 'historicalSuccess', 'reliability', 'latency'] as const) {
+    assert.ok(typeof coderSlow.parts[k] === 'number', `missing factor ${k}`);
+  }
+  assert.ok(coderSlow.parts.latency < 0.3, 'slow provider ranks low on latency');
+
+  const coderFresh = rankAgents({ code: 1 }, listAgents(), { health: new HealthStore() }).find((r) => r.agentId === 'coder')!;
+  assert.ok(coderFresh.parts.latency > coderSlow.parts.latency, 'a fresh provider scores higher on latency');
 });
 
 // ── Capability normalization (the live-test bug fix) ────────────────────────
@@ -303,4 +320,44 @@ test('terminal failure skips dependents; re-run resumes from failed node only', 
   assert.equal(ep.graph.nodes.get('check')!.status, 'done');
   assert.ok(!runs.includes('design'), 'done node was not recomputed on re-run');
   assert.deepEqual(runs.sort(), ['build', 'check']);
+});
+
+// ── Checkpoint / resume across a simulated restart ──────────────────────────
+
+test('checkpoint: serialize a partial run and resume on a brand-new graph', async () => {
+  let aRuns1 = 0;
+  const g1 = createGraph('ckpt', [
+    node({ id: 'a', run: async () => { aRuns1++; return 'A'; } }),
+    node({ id: 'b', dependencies: ['a'], run: async () => { throw new Error('boom'); } }),
+  ]);
+  let progressCalls = 0;
+  await executeGraph(g1, new TraceRecorder('c1'), new EventBus(), {
+    maxParallel: 2,
+    onProgress: () => { progressCalls++; },
+  });
+  assert.equal(g1.nodes.get('a')!.status, 'done');
+  assert.equal(g1.nodes.get('b')!.status, 'failed');
+  assert.ok(progressCalls > 0, 'onProgress fired so a checkpointer could persist');
+
+  // Persist + "restart": serialize, then rebuild a FRESH graph (all pending) as a
+  // new process would, and re-apply the saved state. b now succeeds.
+  const state = serializeGraph(g1);
+  let aRuns2 = 0, bRuns2 = 0;
+  const g2 = createGraph('ckpt', [
+    node({ id: 'a', run: async () => { aRuns2++; return 'A-recomputed'; } }),
+    node({ id: 'b', dependencies: ['a'], run: async () => { bRuns2++; return 'B'; } }),
+  ]);
+  applyCheckpoint(g2, state);
+  assert.equal(g2.nodes.get('a')!.status, 'done');
+  assert.equal(g2.nodes.get('a')!.output, 'A', 'a restored with its checkpointed output');
+
+  // Resume policy: re-queue the failed node, then resume.
+  g2.nodes.get('b')!.status = 'pending';
+  g2.nodes.get('b')!.error = undefined;
+  await executeGraph(g2, new TraceRecorder('c2'), new EventBus(), { maxParallel: 2 });
+
+  assert.equal(aRuns2, 0, 'completed node a was NOT recomputed after resume');
+  assert.equal(g2.nodes.get('a')!.output, 'A', 'a kept its checkpointed output');
+  assert.equal(bRuns2, 1, 'only the previously-failed node re-ran');
+  assert.equal(g2.nodes.get('b')!.status, 'done');
 });

@@ -12,20 +12,26 @@
 import { HealthStore } from '../dars/health.js';
 import type { AgentDescriptor, Capability, CapabilityVector } from './registry.js';
 
+// Six explicit scoring factors (RAA v2 spec). Each is read as live data — none
+// branches on task text. `historicalSuccess` and `reliability` are deliberately
+// SEPARATE: historical success is the agent's track record (telemetry/EWMA),
+// reliability is its *current* health (a tripped circuit zeroes it immediately).
 export interface ScoreWeights {
   capability: number;
   context: number;
   cost: number;
-  performance: number;
+  historicalSuccess: number;
   reliability: number;
+  latency: number;
 }
 
 export const DEFAULT_WEIGHTS: ScoreWeights = {
-  capability: 0.40,
-  context: 0.15,
-  cost: 0.15,
-  performance: 0.15,
+  capability: 0.35,
+  context: 0.10,
+  cost: 0.10,
+  historicalSuccess: 0.15,
   reliability: 0.15,
+  latency: 0.15,
 };
 
 export interface AgentScore {
@@ -75,17 +81,23 @@ export function scoreAgent(
     capability: capabilityMatch(req, agent.capabilities),
     context: clamp01(ctx.contextFit),
     cost: 1 - (agent.costTier ?? 0.5),
-    performance: agent.historicalScore ?? (h ? h.successRate : 0.7),
-    // A tripped circuit ranks reliability to 0 so an unhealthy agent loses.
+    // Historical track record: telemetry-backed score if present, else the
+    // success-rate EWMA, else a neutral prior.
+    historicalSuccess: agent.historicalScore ?? (h ? h.successRate : 0.7),
+    // Current health: a tripped circuit ranks reliability to 0 so an unhealthy
+    // agent loses immediately, independent of its history.
     reliability: h ? (h.circuit === 'open' ? 0 : h.successRate) : 0.8,
+    // Speed: faster providers score higher (EWMA latency from DARS health).
+    latency: h ? 1 / (1 + h.ewmaLatencyMs / 1000) : 0.5,
   };
 
   const total =
     w.capability * parts.capability +
     w.context * parts.context +
     w.cost * parts.cost +
-    w.performance * parts.performance +
-    w.reliability * parts.reliability;
+    w.historicalSuccess * parts.historicalSuccess +
+    w.reliability * parts.reliability +
+    w.latency * parts.latency;
 
   return { agentId: agent.id, total, parts };
 }

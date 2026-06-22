@@ -7,6 +7,7 @@ import { decideExecution } from '../v2/orchestrator-v2.js';
 import type { ExecutionPlan, IntentSpec, SubTask } from '../v2/raa.js';
 import { rankMemories, contextFitFrom, memoriesToContextV2 } from '../v2/memory-v2.js';
 import type { ProjectMemory } from '../core/memory.js';
+import { RunQueue } from '../v2/queue.js';
 
 function fakePlan(confidence: number, complexity: number): ExecutionPlan {
   const node: ExecNode = {
@@ -45,6 +46,43 @@ test('decideExecution picks balanced in between and yields a finalScore', () => 
 test('budgetTight raises the cost weight', () => {
   const d = decideExecution(fakePlan(0.6, 0.5), new HealthStore(), { budgetTight: true });
   assert.ok(d.weights.cost >= 0.3);
+});
+
+test('fast mode raises the latency weight (latency optimization)', () => {
+  const d = decideExecution(fakePlan(0.85, 0.2), new HealthStore());
+  assert.equal(d.mode, 'fast');
+  assert.ok(d.weights.latency >= 0.25);
+});
+
+// ── Run queue (system resource control) ─────────────────────────────────────
+
+test('RunQueue bounds concurrency and queues the overflow', async () => {
+  const q = new RunQueue(2);
+  let active = 0;
+  let peak = 0;
+  const job = (ms: number) =>
+    q.run(async () => {
+      active++;
+      peak = Math.max(peak, active);
+      await new Promise((r) => setTimeout(r, ms));
+      active--;
+    });
+  const all = Promise.all([job(15), job(15), job(15), job(15), job(15)]);
+  await new Promise((r) => setTimeout(r, 5));
+  assert.ok(q.inFlight <= 2, 'never more than capacity in flight');
+  await all;
+  assert.equal(peak, 2, 'peak concurrency capped at 2');
+  assert.equal(q.inFlight, 0);
+  assert.equal(q.queued, 0);
+});
+
+test('RunQueue release is idempotent', async () => {
+  const q = new RunQueue(1);
+  const rel = await q.acquire();
+  assert.equal(q.inFlight, 1);
+  rel();
+  rel(); // double release must not over-free the slot
+  assert.equal(q.inFlight, 0);
 });
 
 // ── Ranked memory ─────────────────────────────────────────────────────────────
