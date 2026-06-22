@@ -153,9 +153,16 @@ export function mockAllowed(): boolean {
   const flag = (process.env.COAGENTIX_ALLOW_MOCK ?? process.env.AOF_ALLOW_MOCK ?? '')
     .trim()
     .toLowerCase();
+  // Explicit flag always wins (lets you force mock on/off anywhere).
   if (flag === '1' || flag === 'true') return true;
   if (flag === '0' || flag === 'false') return false;
-  return process.env.NODE_ENV !== 'production';
+  // Default: mock is OFF on any real deployment. We treat the presence of a
+  // hosting-platform marker (Vercel sets VERCEL, Render sets RENDER) as
+  // production even when NODE_ENV was left unset — so a forgotten NODE_ENV can
+  // never let fabricated "mock" answers reach real users. Mock stays ON only in
+  // genuine local/dev/test (no platform marker AND NODE_ENV !== production).
+  const onHostingPlatform = Boolean(process.env.VERCEL || process.env.RENDER);
+  return process.env.NODE_ENV !== 'production' && !onHostingPlatform;
 }
 
 // ── Credential injection (used by the server: keys come from a user's account,

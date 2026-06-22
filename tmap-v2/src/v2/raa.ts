@@ -8,7 +8,6 @@
 // Intent parsing and decomposition are injectable so the engine can run fully
 // offline in tests; the default implementations are LLM-backed (JSON out).
 
-import { createHash } from 'crypto';
 import { HealthStore } from '../dars/health.js';
 import { listAgents, normalizeCapabilities, type AgentDescriptor, type CapabilityVector } from './registry.js';
 import { rankAgents, type AgentScore } from './score.js';
@@ -72,19 +71,6 @@ function retryFor(complexity: number): RetryPolicy {
   return { maxRetries: complexity > 0.66 ? 2 : 1, backoffMs: 400 };
 }
 
-// ── Decomposition cache ───────────────────────────────────────────────────────
-// Caches intent+decomposition results per unique task to avoid redundant LLM
-// calls (2 calls × ~1-2s each) on repeated or near-identical requests.
-// TTL: 10 minutes. Keys are first-16-hex of SHA-256(task).
-
-interface DecompCacheEntry { intent: IntentSpec; tg: TaskGraph; ts: number }
-const _decompCache = new Map<string, DecompCacheEntry>();
-const DECOMP_CACHE_TTL_MS = 600_000; // 10 minutes
-
-function decompCacheKey(task: string): string {
-  return createHash('sha256').update(task).digest('hex').slice(0, 16);
-}
-
 /** Build an ExecutionPlan from a task. Pure score-based agent assignment. */
 export async function plan(
   task: string,
@@ -92,23 +78,8 @@ export async function plan(
   cfg: RaaConfig,
   trace?: TraceRecorder,
 ): Promise<ExecutionPlan> {
-  let intent: IntentSpec;
-  let tg: TaskGraph;
-
-  const cacheKey = decompCacheKey(task);
-  const cached = _decompCache.get(cacheKey);
-  if (cached && Date.now() - cached.ts < DECOMP_CACHE_TTL_MS) {
-    intent = cached.intent;
-    tg = cached.tg;
-  } else {
-    intent = await cfg.parseIntent(task);
-    tg = await cfg.decompose(task, intent);
-    _decompCache.set(cacheKey, { intent, tg, ts: Date.now() });
-    // Evict entries older than TTL to bound memory growth.
-    for (const [k, v] of _decompCache) {
-      if (Date.now() - v.ts >= DECOMP_CACHE_TTL_MS) _decompCache.delete(k);
-    }
-  }
+  const intent = await cfg.parseIntent(task);
+  const tg = await cfg.decompose(task, intent);
   const fallbackN = cfg.fallbacks ?? 2;
 
   const subtasks = new Map<string, SubTask>();

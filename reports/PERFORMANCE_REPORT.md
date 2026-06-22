@@ -24,33 +24,14 @@ The system has solid foundational performance characteristics: bounded paralleli
 
 ---
 
-## H1 — 2 Mandatory LLM Calls Before Parallelism (HIGH IMPACT) ✅ FIXED
+## H1 — 2 Mandatory LLM Calls Before Parallelism (HIGH IMPACT) ⚠️ ATTEMPTED, REVERTED
 
-**Location:** `tmap-v2/src/v2/raa.ts:81-82`  
+**Location:** `tmap-v2/src/v2/raa.ts`  
 **Description:** Every v2 request makes 2 sequential LLM calls upfront — `parseIntent()` (400 token budget) and `decompose()` (~900 token budget) — before any agent work begins. This adds 2-4s of non-parallelizable latency to every v2 request.
 
-**Fix Applied (this commit):** Module-level decomposition cache added to `raa.ts`.
+**Status — REVERTED (correctness over unmeasured speed):** A module-level decomposition cache was added, then **removed** after it broke 2 executor tests and was found to carry a real production bug: the cache stored the `TaskGraph` object by reference, and `plan()` mutates `subtask.requiredCapabilities` in place — so a cache hit returned an already-mutated graph, and the cache key (task string only) ignored the injected `cfg`, contaminating callers. Because this repo has **no real performance measurements** (see audit), there was no evidence the cache helped enough to justify the correctness risk. The original two-line `plan()` is restored.
 
-- Key: First 16 hex chars of `SHA-256(task)` (Node `crypto` built-in, no new deps)
-- TTL: 10 minutes (600,000ms)
-- Cache hit: skips both LLM calls, returns cached `intent + TaskGraph`
-- Cache miss: calls LLM as before, populates cache
-- TTL cleanup: on every cache write, stale entries (≥ TTL) are evicted
-
-```typescript
-const _decompCache = new Map<string, {intent: IntentSpec; tg: TaskGraph; ts: number}>();
-const DECOMP_CACHE_TTL_MS = 600_000;
-
-// Cache hit: skip parseIntent + decompose (~3-5s savings)
-const cached = _decompCache.get(decompCacheKey(task));
-if (cached && Date.now() - cached.ts < DECOMP_CACHE_TTL_MS) {
-  intent = cached.intent;
-  tg = cached.tg;
-}
-```
-
-**Impact:** Repeat tasks (same wording or common prompts like "explain X", "write a function") skip 2 LLM calls. Development workflows benefit most — repeated test runs with same task hit cache immediately.  
-**Limitation:** In-process only (not distributed). Each Render instance has its own cache. Effective for single-instance deployment.
+**Correct future approach:** cache at the production wiring layer (`v2/run.ts`), keyed by task **and** deep-copy the cached graph, or store only the raw LLM JSON (pre-mutation). Do not cache inside the injectable, tested `plan()` function.
 
 ---
 
