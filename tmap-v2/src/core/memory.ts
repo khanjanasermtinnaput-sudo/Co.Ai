@@ -39,6 +39,8 @@ export interface ProjectMemory {
   sessions: MemorySessionEntry[];
   failures: FailureEntry[];
   updatedAt: string;
+  /** Per-entry retrieval counts, keyed by entry id from memory-v2 flatten(). */
+  usageFrequency?: Record<string, number>;
 }
 
 const MAX_SESSIONS = 10;
@@ -89,6 +91,7 @@ function normalize(key: string, raw: Partial<ProjectMemory>): ProjectMemory {
     decisions: Array.isArray(raw.decisions) ? raw.decisions : [],
     sessions: Array.isArray(raw.sessions) ? raw.sessions : [],
     failures: Array.isArray(raw.failures) ? raw.failures : [],
+    usageFrequency: (raw.usageFrequency && typeof raw.usageFrequency === 'object') ? raw.usageFrequency : {},
   };
 }
 

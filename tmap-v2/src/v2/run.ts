@@ -30,8 +30,8 @@ import { executeGraph } from './executor.js';
 import { TraceRecorder, type ExecutionTrace } from './trace.js';
 import { EventBus, type WorkflowEvent } from './events.js';
 import { decideExecution } from './orchestrator-v2.js';
-import { rankMemories, memoriesToContextV2, contextFitFrom } from './memory-v2.js';
-import { loadMemory } from '../core/memory.js';
+import { rankMemories, memoriesToContextV2, contextFitFrom, updateUsageFrequency } from './memory-v2.js';
+import { loadMemory, saveMemory } from '../core/memory.js';
 import { globalRunQueue } from './queue.js';
 
 export type V2Emit = (event: object) => void;
@@ -83,7 +83,11 @@ async function runV2Inner(task: string, opts: RunV2Opts): Promise<RunV2Result> {
     memContext = memoriesToContextV2(ranked);
     contextFit = contextFitFrom(ranked);
     trace.memory(ranked.map((r) => ({ id: r.id, score: r.score })));
-    if (ranked.length) emit({ role: 'v2', kind: 'status', text: `memory: ${ranked.length} relevant note(s)` });
+    if (ranked.length) {
+      emit({ role: 'v2', kind: 'status', text: `memory: ${ranked.length} relevant note(s)` });
+      mem.usageFrequency = updateUsageFrequency(ranked, mem.usageFrequency ?? {});
+      saveMemory(mem).catch(() => {}); // fire-and-forget; memory is best-effort
+    }
   } catch {
     /* memory is best-effort */
   }
