@@ -335,6 +335,14 @@ app.post('/v1/image/analyze', requireAuth, async (req: AuthedRequest, res) => {
   const data = String(req.body?.image ?? req.body?.data ?? '');
   const question = String(req.body?.question ?? req.body?.hint ?? '').trim();
   if (!data) return res.status(400).json({ error: 'image (base64 or data URL) required' });
+  // Validate MIME type from data URL prefix to block non-image uploads.
+  const mimeMatch = data.match(/^data:([a-z]+\/[a-z0-9.+-]+);base64,/i);
+  if (mimeMatch) {
+    const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
+    if (!ALLOWED_IMAGE_TYPES.has(mimeMatch[1].toLowerCase())) {
+      return res.status(415).json({ error: `unsupported image type: ${mimeMatch[1]}. Allowed: jpeg, png, gif, webp` });
+    }
+  }
   if (question && tooLong(question, MAX_MESSAGE)) {
     return res.status(413).json({ error: `question too long (max ${MAX_MESSAGE} bytes)` });
   }

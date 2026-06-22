@@ -251,7 +251,7 @@ function abortableDelay(ms: number, signal: AbortSignal): Promise<void> {
  *  Overridable via FIRST_TOKEN_TIMEOUT_MS (or legacy OPENROUTER_FIRST_TOKEN_MS). */
 function firstTokenDeadlineMs(): number {
   const v = Number(process.env.FIRST_TOKEN_TIMEOUT_MS ?? process.env.OPENROUTER_FIRST_TOKEN_MS);
-  return Number.isFinite(v) && v > 0 ? v : 6000;
+  return Number.isFinite(v) && v > 0 ? v : 10000;
 }
 
 // ── Anthropic adapter ──────────────────────────────────────────────────────────
