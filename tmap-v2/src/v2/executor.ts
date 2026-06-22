@@ -22,6 +22,10 @@ export interface ExecOptions {
   replan?: (failed: ExecNode, g: ExecGraph) => Promise<string[]>;
   /** Cap how many replans the whole run may trigger (prevents loops). */
   maxReplans?: number;
+  /** Called after every node settles (done/failed/skipped or re-queued), so a
+   *  caller can durably checkpoint the graph for resume-after-restart. Must not
+   *  throw; best-effort. */
+  onProgress?: (g: ExecGraph) => void;
 }
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
@@ -166,6 +170,7 @@ export async function executeGraph(
             } else {
               await handleFailure(node);
             }
+            try { opts.onProgress?.(g); } catch { /* checkpoint is best-effort */ }
             pump();
           })
           .catch((err) => {
