@@ -32,6 +32,7 @@ import { EventBus, type WorkflowEvent } from './events.js';
 import { decideExecution } from './orchestrator-v2.js';
 import { rankMemories, memoriesToContextV2, contextFitFrom, updateUsageFrequency } from './memory-v2.js';
 import { loadMemory, saveMemory } from '../core/memory.js';
+import { Logger } from './logger.js';
 import { globalRunQueue } from './queue.js';
 
 export type V2Emit = (event: object) => void;
@@ -44,11 +45,12 @@ export interface RunV2Opts {
 }
 
 export interface RunV2Result {
-  requestId: string;
-  output: string;
-  confidence: number;
-  mode: string;
-  trace: ExecutionTrace;
+  requestId:    string;
+  output:       string;
+  confidence:   number;
+  mode:         string;
+  trace:        ExecutionTrace;
+  totalCostUsd: number;
 }
 
 export async function runV2(task: string, opts: RunV2Opts): Promise<RunV2Result> {
@@ -63,6 +65,10 @@ async function runV2Inner(task: string, opts: RunV2Opts): Promise<RunV2Result> {
   const emit = opts.emit ?? (() => {});
   const sessionId = 'v2-' + opts.userId;
 
+  // Phase 7: structured logger (traceId == requestId; executionId adds timestamp for replay)
+  const logger = new Logger(requestId);
+  logger.logSystem('runV2 started', { userId: opts.userId, task: task.slice(0, 200) });
+
   const callFor = (role: Role) => async (messages: ChatMessage[], o: ChatOpts = {}) => {
     const r = await chatWithDARS(role, messages, o, {
       creds: opts.creds,
@@ -76,7 +82,7 @@ async function runV2Inner(task: string, opts: RunV2Opts): Promise<RunV2Result> {
   // ── Memory influence ──
   let memContext = '';
   let contextFit = 0.5;
-  const trace = new TraceRecorder(requestId);
+  const trace = new TraceRecorder(requestId, logger);
   try {
     const mem = await loadMemory(opts.userId);
     const ranked = rankMemories(task, mem, 5);
@@ -177,6 +183,14 @@ async function runV2Inner(task: string, opts: RunV2Opts): Promise<RunV2Result> {
   const pick = sinks.length ? sinks : nodes.filter((n) => n.status === 'done');
   const output = pick.map((n) => String(n.output ?? '')).join('\n\n').trim();
 
+  logger.logSystem('runV2 complete', { mode: decision.mode, confidence: ep.confidence });
   await trace.persist();
-  return { requestId, output, confidence: ep.confidence, mode: decision.mode, trace: trace.get() };
+  return {
+    requestId,
+    output,
+    confidence:   ep.confidence,
+    mode:         decision.mode,
+    trace:        trace.get(),
+    totalCostUsd: logger.totalCost(),
+  };
 }
