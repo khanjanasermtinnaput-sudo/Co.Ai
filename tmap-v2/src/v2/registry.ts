@@ -116,6 +116,43 @@ const AGENT_REGISTRY: AgentDescriptor[] = [
     costTier: 0.1,
     capabilities: { validate: 0.85, test: 0.8 },
   },
+  // ── Universal-assistant specialists (ported from the v1 Chief Agent) ──────────
+  // These exist so the scorer can SELECT them for research/writing/math/vision
+  // work. Their domain-specific behavior (confidence flags, tone detection,
+  // verification, structured image specs) is preserved: v2/run.ts dispatches each
+  // by id to the real specialist implementation in core/*-agent.ts.
+  {
+    id: 'research',
+    kind: 'agent',
+    role: 'planner',
+    healthKey: 'gemini',
+    costTier: 0.5,
+    capabilities: { research: 0.95, write: 0.5 },
+  },
+  {
+    id: 'writing',
+    kind: 'agent',
+    role: 'planner',
+    healthKey: 'gemini',
+    costTier: 0.4,
+    capabilities: { write: 0.95, research: 0.4 },
+  },
+  {
+    id: 'math',
+    kind: 'agent',
+    role: 'reviewer',
+    healthKey: 'qwen',
+    costTier: 0.4,
+    capabilities: { math: 0.95, validate: 0.5 },
+  },
+  {
+    id: 'vision',
+    kind: 'agent',
+    role: 'planner',
+    healthKey: 'gemini',
+    costTier: 0.5,
+    capabilities: { vision: 0.95 },
+  },
 ];
 
 /** All registered agents. Callers must NOT pre-filter by keyword — pass the

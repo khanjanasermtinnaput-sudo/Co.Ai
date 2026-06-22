@@ -163,12 +163,11 @@ function main() {
 
   console.log('\n── Phase 4 Systems Deployed ────────────────────────────');
   const systems = [
-    '1.  Advanced TMAP routing     routing-metrics.ts + advanced-router.ts',
+    '1.  TMAP routing metrics      routing-metrics.ts',
     '2.  Titan reasoning engine    7 review passes (+Feasibility +CostAnalysis)',
     '3.  Reflection loop           reflection.ts — post-iteration root cause + coaching',
     '4.  Self-critique system      self-critique.ts — plan + code self-review',
     '5.  Planner agent             enhanced with self-critique + reflection coaching',
-    '6.  Critic agent              critic-agent.ts — 5-dimension LLM evaluation',
     '7.  Reviewer agent            vote.ts — 5-dimension rubric per candidate',
     '8.  Verifier agent            verifier-agent.ts — static cross-file checks',
     '9.  Agent voting              vote.ts — per-candidate scores + consensus',

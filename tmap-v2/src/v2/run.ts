@@ -14,6 +14,10 @@ import type { CredentialBag } from '../config.js';
 import type { ChatMessage, ChatOpts, Role } from '../types.js';
 
 import { getAgent } from './registry.js';
+import { runResearchAgent } from '../core/research-agent.js';
+import { runWritingAgent } from '../core/writing-agent.js';
+import { runMathAgent } from '../core/math-agent.js';
+import { generateImagePrompt } from '../core/vision-agent.js';
 import {
   plan as raaPlan,
   makeReplan,
@@ -77,26 +81,49 @@ export async function runV2(task: string, opts: RunV2Opts): Promise<RunV2Result>
     /* memory is best-effort */
   }
 
-  // ── Each subtask node runs as its scored agent's DARS role ──
+  // ── Each subtask node runs as its scored agent ──
+  // Specialist agents (research/writing/math/vision) dispatch to their real
+  // domain implementations so their behavior (confidence flags, tone detection,
+  // verification, structured image specs) is preserved. Generic agents
+  // (planner/coder/reviewer/validator) run as their DARS role with a concise
+  // subtask prompt. Selection between them is purely score-based (score.ts).
   const runAgent: AgentRunner = async (agentId, subtask, input, signal) => {
     const role = getAgent(agentId)?.role ?? 'coder';
     const depText = Object.entries(input)
       .map(([k, v]) => `# from ${k}\n${String(v)}`)
       .join('\n\n');
-    const messages: ChatMessage[] = [
-      { role: 'system', content: `You are agent "${agentId}". Complete the subtask precisely and concisely.` },
-      {
-        role: 'user',
-        content: [
-          memContext && `Project memory:\n${memContext}`,
-          `Subtask: ${subtask.description}`,
-          depText && `Inputs from prior steps:\n${depText}`,
-        ]
-          .filter(Boolean)
-          .join('\n\n'),
-      },
-    ];
-    return callFor(role)(messages, { signal });
+    const specialistContext = [memContext && `Project memory:\n${memContext}`, depText]
+      .filter(Boolean)
+      .join('\n\n') || undefined;
+
+    switch (agentId) {
+      case 'research':
+        return (await runResearchAgent(callFor('planner'), subtask.description, specialistContext)).answer;
+      case 'writing':
+        return (await runWritingAgent(callFor('planner'), subtask.description, specialistContext)).content;
+      case 'math':
+        return (await runMathAgent(callFor('reviewer'), subtask.description)).solution;
+      case 'vision': {
+        const spec = await generateImagePrompt(callFor('planner'), subtask.description);
+        return `**Image prompt**\n${spec.fullPrompt}\n\n**Negative prompt:** ${spec.negativePrompt}`;
+      }
+      default: {
+        const messages: ChatMessage[] = [
+          { role: 'system', content: `You are agent "${agentId}". Complete the subtask precisely and concisely.` },
+          {
+            role: 'user',
+            content: [
+              memContext && `Project memory:\n${memContext}`,
+              `Subtask: ${subtask.description}`,
+              depText && `Inputs from prior steps:\n${depText}`,
+            ]
+              .filter(Boolean)
+              .join('\n\n'),
+          },
+        ];
+        return callFor(role)(messages, { signal });
+      }
+    }
   };
 
   const cfg: RaaConfig = {

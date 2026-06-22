@@ -187,48 +187,6 @@ COACHING:
   });
 });
 
-// ── 5. CRITIC AGENT ───────────────────────────────────────────────────────────
-
-describe('Critic Agent', () => {
-  test('runCritic parses valid JSON response', async () => {
-    const { runCritic } = await import('../core/critic-agent.js');
-    const call = async () => JSON.stringify({
-      correctness:    { score: 85, notes: ['logic is sound'] },
-      completeness:   { score: 90, notes: [] },
-      security:       { score: 70, notes: ['no input validation'] },
-      performance:    { score: 80, notes: [] },
-      maintainability:{ score: 75, notes: [] },
-      recommendation: 'Add input validation',
-    });
-    const report = await runCritic(call, 'build login', 'const login = () => {}');
-    assert.ok(report.overall > 0 && report.overall <= 100);
-    assert.ok(['A','B','C','D','F'].includes(report.grade));
-    assert.ok(typeof report.approved === 'boolean');
-  });
-
-  test('runCritic falls back gracefully when LLM fails', async () => {
-    const { runCritic } = await import('../core/critic-agent.js');
-    const call = async (): Promise<string> => { throw new Error('timeout'); };
-    const report = await runCritic(call, 'task', 'output');
-    assert.equal(report.overall, 75);
-    assert.equal(report.approved, true);
-  });
-
-  test('runCritic sets approved=false when security < 60', async () => {
-    const { runCritic } = await import('../core/critic-agent.js');
-    const call = async () => JSON.stringify({
-      correctness:    { score: 80, notes: [] },
-      completeness:   { score: 80, notes: [] },
-      security:       { score: 30, notes: ['XSS vulnerability'] },
-      performance:    { score: 80, notes: [] },
-      maintainability:{ score: 80, notes: [] },
-      recommendation: 'Fix XSS',
-    });
-    const report = await runCritic(call, 'task', 'output');
-    assert.equal(report.approved, false);
-  });
-});
-
 // ── 6. VERIFIER AGENT ────────────────────────────────────────────────────────
 
 describe('Verifier Agent', () => {
@@ -346,41 +304,6 @@ describe('Eval Framework', () => {
     assert.equal(r70.grade, 'B');
     const r40 = await evaluateOutput(makeCall(40), makeBb({}));
     assert.equal(r40.grade, 'F');
-  });
-});
-
-// ── 8. ADVANCED ROUTER ───────────────────────────────────────────────────────
-
-describe('Advanced Router', () => {
-  test('falls back to base router when metrics unavailable', async () => {
-    const { advancedRouteToRole } = await import('../core/advanced-router.js');
-    const { RoutingMetricsStore } = await import('../core/routing-metrics.js');
-    const { HealthStore } = await import('../dars/health.js');
-
-    const emptyMetrics = new RoutingMetricsStore(null); // fresh, no disk
-    const health = new HealthStore();
-    const creds = { gemini: null, deepseek: null, qwen: null, llama: null, openrouter: null };
-
-    const decision = advancedRouteToRole(['coding'], creds as never, health, emptyMetrics);
-    assert.equal(decision.metricsAvailable, false);
-    assert.ok(decision.rationale.some((r) => r.includes('No metrics')));
-  });
-
-  test('provides provider hint when enough data is available', async () => {
-    const { advancedRouteToRole } = await import('../core/advanced-router.js');
-    const { RoutingMetricsStore } = await import('../core/routing-metrics.js');
-    const { HealthStore } = await import('../dars/health.js');
-
-    const store = new RoutingMetricsStore(null); // fresh, no disk
-    for (let i = 0; i < 6; i++) {
-      store.record({ ts: Date.now(), role: 'planner', provider: 'Gemini', model: 'gemini-2.5-flash', category: 'coding', durationMs: 600, success: true, hallucinationDetected: false });
-    }
-
-    const health = new HealthStore();
-    const creds = { gemini: null, deepseek: null, qwen: null, llama: null, openrouter: null };
-    const decision = advancedRouteToRole(['coding'], creds as never, health, store);
-    assert.equal(decision.metricsAvailable, true);
-    assert.equal(decision.providerHint, 'Gemini');
   });
 });
 

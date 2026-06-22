@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { toast } from "sonner";
 import { uid } from "@/lib/utils";
-import { streamChat, streamOrchestrate, isLive, type ChatHistoryItem } from "@/lib/api";
+import { streamChat, streamOrchestrate, streamOrchestrateV2, isLive, isV2Enabled, type ChatHistoryItem } from "@/lib/api";
 import { routeRequest } from "@/lib/router";
 import { composeLearningReply, isLearningProblem } from "@/lib/mock";
 import {
@@ -350,8 +350,11 @@ export const useChatStore = create<ChatState>()(
 
         try {
           if (isLive()) {
-            // Universal orchestration: Chief Agent handles all task types
-            await streamOrchestrate(
+            // Universal orchestration. Default: v1 Chief Agent (/v1/orchestrate).
+            // Opt-in (NEXT_PUBLIC_COAGENTIX_V2=1 + backend COAGENTIX_V2=1): the
+            // score-based v2 engine (/v2/run). Same handler contract either way.
+            const orchestrate = isV2Enabled() ? streamOrchestrateV2 : streamOrchestrate;
+            await orchestrate(
               content,
               history,
               {

@@ -53,6 +53,20 @@ export function isDemoMode(): boolean {
   );
 }
 
+/**
+ * Opt-in: route through the score-based v2 engine (`POST /v2/run`) instead of
+ * the v1 paths — builds (else `/v1/run`) and universal chat (else
+ * `/v1/orchestrate`).
+ *
+ * Default OFF. Both sides must be enabled to take effect: this frontend flag
+ * (NEXT_PUBLIC_COAGENTIX_V2=1) AND the backend must mount the route
+ * (COAGENTIX_V2=1, see tmap-v2 server/index.ts). When either is unset, the
+ * unchanged v1 paths are used — so this is a safe, reversible canary.
+ */
+export function isV2Enabled(): boolean {
+  return process.env.NEXT_PUBLIC_COAGENTIX_V2 === "1";
+}
+
 const TOKEN_KEY = "coagentix.token";
 
 export function getToken(): string | null {
@@ -351,6 +365,13 @@ export async function streamCodeRun(
     await streamViaChat("code-gen", context ? `${task}\n\nProject context:\n${context}` : task, handlers);
     return;
   }
+
+  // Opt-in v2 engine (score-based RAA + DAG). Default off; see isV2Enabled().
+  if (isV2Enabled()) {
+    await streamCodeRunV2(task, handlers, context);
+    return;
+  }
+
   const backendMode = mode === "1.0" ? "normal" : mode;
   try {
     await postSSE(
@@ -364,6 +385,43 @@ export async function streamCodeRun(
   } catch (e) {
     if (isAbortError(e)) return;
     handlers.onError?.(backendUnavailableError("Build backend (/v1/run) is unreachable.", e));
+  }
+}
+
+/**
+ * Build via the v2 engine (`POST /v2/run`). The SSE shape differs from v1:
+ * interim `{kind:'status'|'plan'|'event'}` progress frames, then a terminal
+ * `{kind:'done', output, mode, confidence, trace}` — the final build output is
+ * carried only on the `done` frame, not streamed token-by-token. We surface
+ * progress and the final output through `onToken` (the only sink StreamHandlers
+ * exposes); richer trace rendering is a later pass. The v2 route accepts only
+ * `task`, so project context is folded into the task text.
+ */
+async function streamCodeRunV2(
+  task: string,
+  handlers: StreamHandlers,
+  context?: string,
+): Promise<void> {
+  const fullTask = context ? `${task}\n\nProject context:\n${context}` : task;
+  try {
+    await postSSE(
+      "/v2/run",
+      { task: fullTask },
+      (e) => {
+        if (e.kind === "done") {
+          if (typeof e.output === "string" && e.output) handlers.onToken(e.output);
+        } else if (e.kind === "status" && typeof e.text === "string") {
+          handlers.onToken(`${e.text}\n`);
+        } else if (e.kind === "plan" && Array.isArray((e as { nodes?: unknown }).nodes)) {
+          const nodes = (e as { nodes: Array<{ id: string; agent: string }> }).nodes;
+          handlers.onToken(`plan: ${nodes.map((n) => `${n.id}→${n.agent}`).join(", ")}\n`);
+        }
+      },
+      handlers.signal,
+    );
+  } catch (e) {
+    if (isAbortError(e)) return;
+    handlers.onError?.(backendUnavailableError("Build backend (/v2/run) is unreachable.", e));
   }
 }
 
@@ -640,6 +698,53 @@ export async function streamOrchestrate(
   } catch (e) {
     if ((e as { name?: string })?.name === "AbortError") return;
     handlers.onError?.(backendUnavailableError("Orchestration backend (/v1/orchestrate) is unreachable.", e));
+  }
+}
+
+/**
+ * Universal orchestration via the v2 engine (`POST /v2/run`). Opt-in: callers
+ * gate on isV2Enabled(). The v2 route is single-task (no conversation history),
+ * so recent turns are folded into the task text for minimal context. v2 streams
+ * `status`/`plan`/`event` progress then a terminal `done` carrying the full
+ * `output` + `confidence`; we map the plan's node agents to `agentsUsed` and
+ * confidence (0..1) to a 0..100 qualityScore so the UI contract is unchanged.
+ */
+export async function streamOrchestrateV2(
+  message: string,
+  history: ChatHistoryItem[],
+  handlers: OrchestrationHandlers,
+): Promise<void> {
+  const recent = history.slice(-6).map((h) => `${h.role}: ${h.content}`).join("\n");
+  const task = recent ? `${recent}\nuser: ${message}` : message;
+  let agentsUsed: string[] = [];
+  try {
+    await postSSE(
+      "/v2/run",
+      { task },
+      (e: SSEEvent) => {
+        if (e.kind === "status" && typeof e.text === "string") {
+          handlers.onStatus?.(String(e.role ?? "v2"), e.text);
+        } else if (e.kind === "plan" && Array.isArray((e as { nodes?: unknown }).nodes)) {
+          agentsUsed = (e as { nodes: Array<{ agent?: string }> }).nodes
+            .map((n) => n.agent)
+            .filter((a): a is string => typeof a === "string");
+        } else if (e.kind === "done") {
+          if (typeof e.output === "string") handlers.onToken(e.output);
+          handlers.onDone?.({
+            categories: [],
+            agentsUsed,
+            qualityScore: typeof e.confidence === "number" ? Math.round(e.confidence * 100) : 0,
+            iterations: 1,
+          });
+        } else if (e.kind === "error" && typeof e.text === "string") {
+          handlers.onError?.(new Error(e.text));
+        }
+      },
+      handlers.signal,
+    );
+  } catch (e) {
+    if ((e as { name?: string })?.name === "AbortError") return;
+    handlers.onError?.(backendUnavailableError("Orchestration backend (/v2/run) is unreachable.", e));
   }
 }
 

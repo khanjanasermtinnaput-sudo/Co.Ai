@@ -86,6 +86,38 @@ jobs:
           # when OPENROUTER_API_KEY is absent.
           NODE_ENV: test
 
+  # ── tmap-v2: real-LLM E2E smoke (non-gating) ───────────────────────────────
+  # Proves the v2/v1 engines produce real output (not just mock canned strings).
+  # Runs on pushes to main only; self-skips when the OPENROUTER_API_KEY secret is
+  # absent, so it never blocks merges and forks are unaffected. Deliberately NOT
+  # in ci-gate's needs: real model calls can be slow/flaky and must not gate PRs.
+  test-live:
+    name: tmap-v2 / real-LLM E2E (non-gating)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    needs: typecheck-tmap
+    defaults:
+      run:
+        working-directory: tmap-v2
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: tmap-v2/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run real-LLM E2E (skips without key)
+        run: npm run test:live
+        env:
+          NODE_ENV: development
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+
   # ── Gate: all checks must pass before merge ────────────────────────────────
   ci-gate:
     name: CI Gate

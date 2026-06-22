@@ -77,6 +77,16 @@ test('rankAgents drops an agent whose circuit is open (reliability=0)', () => {
   assert.equal(coder!.parts.reliability, 0);
 });
 
+test('rankAgents selects the right specialist for research/writing/math/vision', () => {
+  const health = new HealthStore();
+  // The universal-assistant specialists must win for their own capability so the
+  // v2 engine has parity with the v1 Chief Agent's domain routing.
+  assert.equal(rankAgents({ research: 1 }, listAgents(), { health })[0].agentId, 'research');
+  assert.equal(rankAgents({ write: 1 }, listAgents(), { health })[0].agentId, 'writing');
+  assert.equal(rankAgents({ math: 1 }, listAgents(), { health })[0].agentId, 'math');
+  assert.equal(rankAgents({ vision: 1 }, listAgents(), { health })[0].agentId, 'vision');
+});
+
 // ── Capability normalization (the live-test bug fix) ────────────────────────
 
 test('normalizeCapabilities maps synonyms, drops unknowns, clamps weights', () => {
