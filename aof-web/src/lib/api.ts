@@ -384,7 +384,7 @@ export async function streamCodeRun(
     );
   } catch (e) {
     if (isAbortError(e)) return;
-    handlers.onError?.(backendUnavailableError("Build backend (/v1/run) is unreachable.", e));
+    await streamViaChat("code-gen", context ? `${task}\n\nProject context:\n${context}` : task, handlers);
   }
 }
 
@@ -421,7 +421,7 @@ async function streamCodeRunV2(
     );
   } catch (e) {
     if (isAbortError(e)) return;
-    handlers.onError?.(backendUnavailableError("Build backend (/v2/run) is unreachable.", e));
+    await streamViaChat("code-gen", fullTask, handlers);
   }
 }
 
@@ -549,7 +549,7 @@ export async function streamPlan(
     );
   } catch (e) {
     if (isAbortError(e)) return;
-    handlers.onError?.(backendUnavailableError("Plan backend (/v1/run) is unreachable.", e));
+    await streamViaChat("plan", context ? `${task}\n\nProject context:\n${context}` : task, handlers);
   }
 }
 
@@ -575,7 +575,7 @@ export async function streamAnalyze(brief: string, handlers: StreamHandlers): Pr
     );
   } catch (e) {
     if (isAbortError(e)) return;
-    handlers.onError?.(backendUnavailableError("Analyze backend (/v1/analyze) is unreachable.", e));
+    await streamViaChat("analyze", brief, handlers);
   }
 }
 
@@ -610,7 +610,10 @@ export async function streamDebug(input: DebugInput, handlers: StreamHandlers): 
     );
   } catch (e) {
     if (isAbortError(e)) return;
-    handlers.onError?.(backendUnavailableError("Debug backend (/v1/debug) is unreachable.", e));
+    const parts = [`Error:\n${input.error}`];
+    if (input.code) parts.push(`Code:\n${input.code}`);
+    if (input.context) parts.push(`Context:\n${input.context}`);
+    await streamViaChat("debug", parts.join("\n\n"), handlers);
   }
 }
 
@@ -645,59 +648,58 @@ export async function streamOrchestrate(
   handlers: OrchestrationHandlers,
   qualityGate = true,
 ): Promise<void> {
-  if (!isLive()) {
-    // Fallback to regular chat when backend not configured. Decode in-band control
-    // frames (model/source/error) via readAofStream so they're never rendered as
-    // literal text — same handling as the default /api/chat path.
+  if (isLive()) {
     try {
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message, agent: "chat", history: history.slice(-20) }),
-        signal: handlers.signal,
-      });
-      await readAofStream(res, {
-        onToken: handlers.onToken,
-        signal: handlers.signal,
-        onError: (err) => handlers.onError?.(err),
-      });
+      await postSSE(
+        "/v1/orchestrate",
+        {
+          message,
+          history: history.map((h) => ({ role: h.role, content: h.content })),
+          qualityGate,
+        },
+        (e: SSEEvent) => {
+          const oe = e as OrchestrationEvent;
+          if (oe.kind === "status" && typeof oe.text === "string") {
+            handlers.onStatus?.(String(oe.role ?? "chief"), oe.text);
+          } else if (oe.kind === "output" && typeof oe.text === "string") {
+            handlers.onToken(oe.text);
+          } else if (oe.kind === "done") {
+            handlers.onDone?.({
+              categories: Array.isArray(oe.categories) ? oe.categories : [],
+              agentsUsed: Array.isArray(oe.agentsUsed) ? oe.agentsUsed : [],
+              qualityScore: typeof oe.qualityScore === "number" ? oe.qualityScore : 0,
+              iterations: typeof oe.iterations === "number" ? oe.iterations : 1,
+            });
+          } else if (oe.kind === "error" && typeof oe.text === "string") {
+            handlers.onError?.(new Error(oe.text));
+          }
+        },
+        handlers.signal,
+      );
+      return; // backend handled it
     } catch (e) {
       if ((e as { name?: string })?.name === "AbortError") return;
-      handlers.onError?.(e);
+      // backend unreachable — fall through to /api/chat below
     }
-    return;
   }
 
+  // Fallback: regular chat via /api/chat (when backend not configured or unreachable).
+  // Decode in-band control frames so they're never rendered as literal text.
   try {
-    await postSSE(
-      "/v1/orchestrate",
-      {
-        message,
-        history: history.map((h) => ({ role: h.role, content: h.content })),
-        qualityGate,
-      },
-      (e: SSEEvent) => {
-        const oe = e as OrchestrationEvent;
-        if (oe.kind === "status" && typeof oe.text === "string") {
-          handlers.onStatus?.(String(oe.role ?? "chief"), oe.text);
-        } else if (oe.kind === "output" && typeof oe.text === "string") {
-          handlers.onToken(oe.text);
-        } else if (oe.kind === "done") {
-          handlers.onDone?.({
-            categories: Array.isArray(oe.categories) ? oe.categories : [],
-            agentsUsed: Array.isArray(oe.agentsUsed) ? oe.agentsUsed : [],
-            qualityScore: typeof oe.qualityScore === "number" ? oe.qualityScore : 0,
-            iterations: typeof oe.iterations === "number" ? oe.iterations : 1,
-          });
-        } else if (oe.kind === "error" && typeof oe.text === "string") {
-          handlers.onError?.(new Error(oe.text));
-        }
-      },
-      handlers.signal,
-    );
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message, agent: "chat", history: history.slice(-20) }),
+      signal: handlers.signal,
+    });
+    await readAofStream(res, {
+      onToken: handlers.onToken,
+      signal: handlers.signal,
+      onError: (err) => handlers.onError?.(err),
+    });
   } catch (e) {
     if ((e as { name?: string })?.name === "AbortError") return;
-    handlers.onError?.(backendUnavailableError("Orchestration backend (/v1/orchestrate) is unreachable.", e));
+    handlers.onError?.(e);
   }
 }
 
@@ -744,7 +746,23 @@ export async function streamOrchestrateV2(
     );
   } catch (e) {
     if ((e as { name?: string })?.name === "AbortError") return;
-    handlers.onError?.(backendUnavailableError("Orchestration backend (/v2/run) is unreachable.", e));
+    // v2 backend unreachable — fall back to /api/chat
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: task, agent: "chat" }),
+        signal: handlers.signal,
+      });
+      await readAofStream(res, {
+        onToken: handlers.onToken,
+        signal: handlers.signal,
+        onError: (err) => handlers.onError?.(err),
+      });
+    } catch (e2) {
+      if ((e2 as { name?: string })?.name === "AbortError") return;
+      handlers.onError?.(e2);
+    }
   }
 }
 
