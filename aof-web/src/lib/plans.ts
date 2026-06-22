@@ -176,10 +176,18 @@ export function planFor(tier: UserTier): Plan {
 
 /** True when per-plan enforcement is switched on (after billing goes live). */
 export function entitlementsEnforced(): boolean {
-  return (
+  const enforced =
     process.env.NEXT_PUBLIC_COAGENTIX_ENFORCE_PLANS === "1" ||
-    process.env.NEXT_PUBLIC_AOF_ENFORCE_PLANS === "1"
-  );
+    process.env.NEXT_PUBLIC_AOF_ENFORCE_PLANS === "1";
+  // Warn operators when enforcement is disabled in a production-like environment so
+  // it is never silently left off after billing goes live.
+  if (!enforced && typeof process !== "undefined" && process.env.NODE_ENV === "production") {
+    console.warn(
+      "[plans] NEXT_PUBLIC_COAGENTIX_ENFORCE_PLANS is not set — all signed-in users have full " +
+      "feature access regardless of tier. Set it to '1' once billing is live.",
+    );
+  }
+  return enforced;
 }
 
 /**

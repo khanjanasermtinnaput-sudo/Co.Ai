@@ -142,7 +142,13 @@ function validUsername(u: unknown): u is string {
   return typeof u === 'string' && /^[a-zA-Z0-9_]{2,32}$/.test(u.trim());
 }
 function validPin(p: unknown): p is string {
-  return typeof p === 'string' && /^\d{4,8}$/.test(String(p).trim());
+  return typeof p === 'string' && /^\d{6,8}$/.test(String(p).trim());
+}
+
+function isReservedUsername(username: string): boolean {
+  const admins = (process.env.COAGENTIX_ADMIN_USERNAMES ?? process.env.AOF_ADMIN_USERNAMES ?? '')
+    .split(',').map((u) => u.trim().toLowerCase()).filter(Boolean);
+  return admins.includes(username.trim().toLowerCase());
 }
 
 // Max byte lengths for free-text user inputs to prevent memory-exhaustion DoS.
@@ -167,7 +173,10 @@ app.post('/v1/auth/register', async (req, res) => {
       return res.status(400).json({ error: 'ชื่อผู้ใช้ต้องเป็นตัวอักษร/ตัวเลข 2-32 ตัว' });
     }
     if (!validPin(pin)) {
-      return res.status(400).json({ error: 'PIN ต้องเป็นตัวเลข 4-8 หลัก' });
+      return res.status(400).json({ error: 'PIN ต้องเป็นตัวเลข 6-8 หลัก' });
+    }
+    if (isReservedUsername(username)) {
+      return res.status(400).json({ error: 'ชื่อผู้ใช้นี้ไม่สามารถใช้ได้' });
     }
     if (await findUserByUsername(username)) {
       return res.status(409).json({ error: 'ชื่อนี้ถูกใช้แล้ว' });

@@ -20,9 +20,10 @@ interface WindowConfig {
 }
 
 const PRESETS: Record<string, WindowConfig> = {
-  chat:   { maxRequests: 30,  windowSec: 60 },   // 30 req/min per user
-  search: { maxRequests: 60,  windowSec: 60 },   // 60 req/min per user
-  api:    { maxRequests: 120, windowSec: 60 },   // 120 req/min generic
+  chat:        { maxRequests: 30,  windowSec: 60 },     // 30 req/min per user
+  search:      { maxRequests: 60,  windowSec: 60 },     // 60 req/min per user
+  api:         { maxRequests: 120, windowSec: 60 },     // 120 req/min generic
+  guest_daily: { maxRequests: 10,  windowSec: 86400 },  // 10 msg/day for anonymous
 };
 
 // ── In-memory fallback (single-instance only) ─────────────────────────────────

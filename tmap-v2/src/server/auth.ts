@@ -42,7 +42,7 @@ function keepDecryptableKeys(
 
 function jwtSecret(): string {
   const s = process.env.JWT_SECRET;
-  if (!s || s.length < 16) throw new Error('JWT_SECRET missing or too short');
+  if (!s || s.length < 32) throw new Error('JWT_SECRET missing or too short (minimum 32 characters required)');
   return s;
 }
 

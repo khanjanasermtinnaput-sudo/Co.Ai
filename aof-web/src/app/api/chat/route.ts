@@ -235,6 +235,25 @@ async function handleChat(req: Request): Promise<Response> {
     return new Response(JSON.stringify(error), { status: 429, headers });
   }
 
+  // Anonymous callers: enforce a daily message cap (server-side) to prevent LLM cost abuse.
+  // Authenticated users are trusted via Supabase JWT and fall through to their tier limits.
+  if (!user) {
+    const ipKey =
+      (req.headers.get("x-forwarded-for") ?? req.headers.get("x-real-ip") ?? "anon")
+        .split(",")[0].trim();
+    const dailyRl = await checkRateLimit(ipKey, "guest_daily");
+    if (!dailyRl.allowed) {
+      const headers = new Headers({ "Content-Type": "application/json; charset=utf-8" });
+      applyRateLimitHeaders(headers, dailyRl);
+      const error = classifyProviderError({
+        provider: "CoAgentix",
+        message: "Guest daily limit reached. Sign in to continue.",
+        status: 429,
+      });
+      return new Response(JSON.stringify(error), { status: 429, headers });
+    }
+  }
+
   // Per-user keys (Settings → API Keys) take priority over the server's env vars.
   const overrides: KeyOverrides = await loadUserKeyOverrides(user?.id);
 
