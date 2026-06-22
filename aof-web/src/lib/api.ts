@@ -299,14 +299,14 @@ export async function streamChat(
         },
         handlers.signal,
       );
+      return; // backend handled it — skip /api/chat fallback
     } catch (e) {
       if (isAbortError(e)) return;
-      handlers.onError?.(backendUnavailableError("Chat backend (/v1/chat) is unreachable.", e));
+      // backend unreachable — fall through to /api/chat below
     }
-    return;
   }
 
-  // Default: Coagentix's own provider route.
+  // Default: Coagentix's own provider route (also the fallback when backend is down).
   try {
     const res = await fetch("/api/chat", {
       method: "POST",
@@ -494,15 +494,15 @@ export async function streamRequirements(
         },
         handlers.signal,
       );
-      return { brief, hasBrief: hasBriefFlag };
+      return { brief, hasBrief: hasBriefFlag }; // backend handled it
     } catch (e) {
       if (isAbortError(e)) return none;
-      handlers.onError?.(backendUnavailableError("Requirements backend (/v1/chat) is unreachable.", e));
-      return none;
+      // backend unreachable — fall through to same-origin /api/chat below
     }
   }
 
   // 2) Same-origin RAA persona (real LLM via /api/chat) — parse the brief client-side.
+  // Also runs as fallback when the backend is configured but unreachable.
   try {
     const res = await fetch("/api/chat", {
       method: "POST",
