@@ -53,6 +53,7 @@ import {
   searchImageMemories, imageMemoriesToContext, clearImageMemories, purgeExpiredImageMemories,
 } from '../core/image-memory.js';
 import { handleCliAuth, handleCliStatus } from './cli-auth.js';
+import { assessPreflight } from './preflight.js';
 import { correlationMiddleware } from './correlation.js';
 import { prometheusMiddleware, registry } from './prometheus.js';
 import { buildHealthReport } from './health.js';
@@ -1635,36 +1636,10 @@ export default app;
  * in an insecure half-configured state; in dev it only warns so local runs work.
  */
 function preflightEnv(): void {
-  const required: Array<{ name: string; ok: boolean }> = [
-    { name: "JWT_SECRET", ok: (process.env.JWT_SECRET?.length ?? 0) >= 16 },
-    {
-      name: "COAGENTIX_MASTER_KEY",
-      ok: ((process.env.COAGENTIX_MASTER_KEY ?? process.env.AOF_MASTER_KEY)?.length ?? 0) >= 16,
-    },
-  ];
-  const missing = required.filter((r) => !r.ok).map((r) => r.name);
+  const { problems } = assessPreflight();
+  if (problems.length === 0) return;
 
-  // Durable storage: without Supabase, user accounts + their encrypted provider
-  // keys live on ephemeral disk and are WIPED on every redeploy/cold start. Treat
-  // that as a misconfiguration in production unless explicitly opted into.
-  const hasSupabase = Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
-  const allowEphemeral = ["1", "true"].includes(
-    (process.env.COAGENTIX_ALLOW_EPHEMERAL_DB ?? "").trim().toLowerCase(),
-  );
-  const storageInsecure = !hasSupabase && !allowEphemeral;
-
-  if (missing.length === 0 && !storageInsecure) return;
-
-  const parts: string[] = [];
-  if (missing.length) parts.push(`Missing/weak required env: ${missing.join(", ")} (need 16+ chars)`);
-  if (storageInsecure) {
-    parts.push(
-      "No durable storage: set SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY, or user " +
-      "accounts and encrypted API keys are lost on redeploy. " +
-      "Set COAGENTIX_ALLOW_EPHEMERAL_DB=1 to override intentionally.",
-    );
-  }
-  const msg = `[preflight] ${parts.join(" | ")}`;
+  const msg = `[preflight] ${problems.join(" | ")}`;
   if (process.env.NODE_ENV === "production") {
     console.error(`${msg} — refusing to start in production.`);
     process.exit(1);
