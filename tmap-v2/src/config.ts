@@ -149,6 +149,16 @@ export function anyKeyConfigured(): boolean {
  * clear error instead of a fake answer. So mock is OFF in production unless
  * COAGENTIX_ALLOW_MOCK is explicitly set, and ON elsewhere (local/dev/tests).
  */
+/**
+ * Hermetic-test guard. When the suite runs with NODE_ENV=test we must NEVER make
+ * a live (billed) provider call, regardless of whatever keys happen to sit in a
+ * developer's .env. Opt back into real upstreams only for the explicit live suite
+ * (`npm run test:live`, which sets COAGENTIX_ALLOW_LIVE=1).
+ */
+export function forceOfflineForTest(): boolean {
+  return process.env.NODE_ENV === 'test' && process.env.COAGENTIX_ALLOW_LIVE !== '1';
+}
+
 export function mockAllowed(): boolean {
   const flag = (process.env.COAGENTIX_ALLOW_MOCK ?? process.env.AOF_ALLOW_MOCK ?? '')
     .trim()

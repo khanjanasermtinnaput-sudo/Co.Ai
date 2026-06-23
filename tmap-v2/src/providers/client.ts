@@ -1,4 +1,5 @@
 import type { AnyMessage, ResolvedProvider, ChatOpts, TokenUsage } from '../types.js';
+import { forceOfflineForTest } from '../config.js';
 
 const MOCK_NOTE =
   '[mock] No API key configured. Set one in .env (run `npm run doctor`).';
@@ -32,7 +33,9 @@ export async function chatWithUsage(
   messages: AnyMessage[],
   opts: ChatOpts = {},
 ): Promise<ChatResult> {
-  if (provider.mode === 'mock') {
+  // Mock providers, and ANY provider while the hermetic test suite is running,
+  // resolve to a canned reply so no live (billed) upstream is ever contacted.
+  if (provider.mode === 'mock' || forceOfflineForTest()) {
     return { text: mockReply(provider.role, messages) };
   }
 
