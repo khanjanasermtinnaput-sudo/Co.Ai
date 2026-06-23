@@ -1,14 +1,14 @@
-# CoAgentix — Web
+# Co.AI — Web
 
-The homepage experience for **CoAgentix**, a professional AI platform that unifies
-**CoAgentix Chat**, **CoAgentix Code**, and **Projects** in one premium dark workspace.
+The homepage experience for **Co.AI**, a professional AI platform that unifies
+**Co.AI**, **CoCode**, and **Projects** in one premium dark workspace.
 
 Built with **Next.js 14 (App Router)**, **TypeScript**, **Tailwind CSS**,
 shadcn-style **Radix** primitives, **Lucide** icons, **Framer Motion**, and
 **Zustand**. Dark-first with an orange-gold (`#F59E0B`) identity.
 
 > Design goal: feel as polished as Claude, Cursor, Linear and Notion — with its
-> own identity. Users land on **CoAgentix Chat** and understand "I can chat" and
+> own identity. Users land on **Co.AI** and understand "I can chat" and
 > "I can start building" within 5 seconds.
 
 ## Quick start
@@ -21,7 +21,7 @@ npm run dev                  # http://localhost:3000
 ```
 
 Set at least one AI provider key (`ANTHROPIC_API_KEY` or `OPENROUTER_API_KEY`).
-**CoAgentix never fakes AI** — with no key it surfaces a clear `AOF_ERROR_001` panel
+**Co.AI never fakes AI** — with no key it surfaces a clear `AOF_ERROR_001` panel
 telling you exactly what to add. For a keyless local UI demo, opt in explicitly
 with `NEXT_PUBLIC_AOF_DEMO=1` (clearly-labelled simulated responses).
 
@@ -39,13 +39,13 @@ NEXT_PUBLIC_AOF_SAME_ORIGIN=1
 NEXT_PUBLIC_AOF_API_BASE=http://localhost:8787
 ```
 
-When a backend is reachable, Chat → `/v1/chat`, CoAgentix Code → `/v1/run`, and Titan
+When a backend is reachable, Chat → `/v1/chat`, CoCode → `/v1/run`, and Titan
 maps onto `/v1/titan`. If a call fails, the UI surfaces a structured error (see
 below) — it never fabricates a reply.
 
 ## AI provider error handling
 
-CoAgentix prioritises **transparency over appearance**: it never pretends AI is working
+Co.AI prioritises **transparency over appearance**: it never pretends AI is working
 when it isn't. Every provider failure is detected, classified, logged server-side
 and shown to the user as a structured panel — never a fake answer, never a silent
 fallback.
@@ -80,14 +80,14 @@ fallback.
 
 ## Multimodal chat
 
-CoAgentix Chat is now a multimodal, auto-routed surface — users never pick a model.
+Co.AI is now a multimodal, auto-routed surface — users never pick a model.
 
 - **Attachments** — upload **images**, **PDFs** and **code files** straight from
   the composer (`+` menu). Images preview inline; code/text is decoded for
   analysis. See `src/lib/attachments.ts`.
 - **Auto-router** — every request is classified by `src/lib/router.ts` and sent to
-  the right system: general questions → **CoAgentix Chat**, engineering/file analysis →
-  **CoAgentix Code**, live look-ups → **Search Agent**. Each reply shows a "Routed to …"
+  the right system: general questions → **Co.AI**, engineering/file analysis →
+  **CoCode**, live look-ups → **Search Agent**. Each reply shows a "Routed to …"
   badge.
 - **Response style** — a **Short / Normal / Detailed** selector controls verbosity
   (persisted in `localStorage`). Verbosity, not the model, is the user-facing dial.
@@ -96,10 +96,10 @@ CoAgentix Chat is now a multimodal, auto-routed surface — users never pick a m
 
 ## Product map
 
-- **CoAgentix Chat** (`/`, `/chat`) — multimodal & auto-routed; **Short / Normal /
+- **Co.AI** (`/`, `/chat`) — multimodal & auto-routed; **Short / Normal /
   Detailed** response styles.
-- **CoAgentix Code** (`/code`) — modes **Lite**, **1.0**, **Pro**, **Titan**.
-  - **Titan** is the highest mode *inside* CoAgentix Code (never on the homepage). It
+- **CoCode** (`/code`) — modes **Lite**, **1.0**, **Pro**, **Titan**.
+  - **Titan** is the highest mode *inside* CoCode (never on the homepage). It
     runs Discovery → Clarify → Requirements → Analysis → Plans → Risk →
     Architecture → **Approval gate** → Generate, and writes no code until approved.
 - **Projects** (`/projects`) — recent, pinned, search, status, type, last edited.

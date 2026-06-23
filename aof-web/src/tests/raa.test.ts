@@ -167,7 +167,7 @@ test("briefToTask uses the project name", () => {
 });
 
 test("briefToTask falls back when project is empty", () => {
-  assert.equal(briefToTask(summaryToBrief({})), "project from Coagentix Code brief");
+  assert.equal(briefToTask(summaryToBrief({})), "project from CoCode brief");
 });
 
 test("briefToContext includes stack, features and files", () => {

@@ -2,8 +2,8 @@
  * TAOTAO — color palette and emotion library.
  *
  * British Shorthair "blue" coat rendered in a cool blue-grey so TAOTAO sits
- * naturally on Coagentix's dark-navy / blue · purple · cyan surfaces, while the
- * eyes stay British-Shorthair amber (which also echoes Coagentix's gold accent).
+ * naturally on Co.AI's dark-navy / blue · purple · cyan surfaces, while the
+ * eyes stay British-Shorthair amber (which also echoes Co.AI's gold accent).
  */
 
 export const PALETTE = {

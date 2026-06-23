@@ -19,7 +19,7 @@ interface FeatureFlag {
 
 const DEFAULT_FLAGS = [
   { key: "titan-mode",           desc: "Titan architect mode" },
-  { key: "coagentix-code",       desc: "Coagentix Code workspace" },
+  { key: "coagentix-code",       desc: "CoCode workspace" },
   { key: "cli-access",           desc: "CLI tool access" },
   { key: "deployments",          desc: "One-click deployments" },
   { key: "research-mode",        desc: "Deep research mode" },

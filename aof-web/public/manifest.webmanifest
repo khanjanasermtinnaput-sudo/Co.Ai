@@ -1,7 +1,7 @@
 {
-  "name": "CoAgentix — The professional AI platform",
-  "short_name": "CoAgentix",
-  "description": "Chat with CoAI, build software with CoAgentix Code, and manage your Projects — all in one premium AI workspace.",
+  "name": "Co.AI – Multi-Agent AI Platform",
+  "short_name": "Co.AI",
+  "description": "Chat with Co.AI, build software with CoCode, and manage your Projects — all in one premium AI workspace.",
   "id": "/",
   "start_url": "/",
   "scope": "/",

@@ -536,7 +536,7 @@ function ApprovalPhase() {
         <Row label="Confidence" value={`${titan.confidence}%`} />
         <Row
           label="Build mode"
-          value={`Coagentix Code · ${getModelDisplayName("pro")} (multi-pass review)`}
+          value={`CoCode · ${getModelDisplayName("pro")} (multi-pass review)`}
           last
         />
       </div>

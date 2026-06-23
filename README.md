@@ -1,4 +1,4 @@
-# Coagentix
+# Co.AI
 
 **Professional AI platform for developers** — multi-provider chat, TMAP multi-agent coding assistant, and encrypted API key management, built on Next.js 14 + Supabase.
 
@@ -19,7 +19,7 @@
 ## Features
 
 - **Multi-provider chat** — Anthropic, Gemini, DeepSeek, Qwen, Llama (Groq), OpenRouter; automatic failover with DARS circuit breaker
-- **Coagentix Code** — TMAP pipeline: Chief → Planner → Coder → Reviewer → Validator
+- **CoCode** — TMAP pipeline: Chief → Planner → Coder → Reviewer → Validator
 - **Encrypted API key storage** — AES-256-GCM + scrypt, per-user keys stored in Supabase
 - **Universal search** — web search toggle backed by Tavily / Google CSE / GitHub / Wikipedia
 - **Subscription tiers** — Free / Pro / Enterprise, enforced via Supabase RLS + `user_roles` table

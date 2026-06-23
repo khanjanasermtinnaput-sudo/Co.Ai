@@ -44,7 +44,7 @@ export function ProjectBriefPanel({
         <div className="flex flex-1 flex-col items-center justify-center gap-2 px-2 text-center">
           <Sparkles className="size-6 text-muted-foreground/50" />
           <p className="text-xs text-muted-foreground">
-            Tell Coagentix what you want to build. The brief fills in as you talk —
+            Tell Co.AI what you want to build. The brief fills in as you talk —
             then generate when it&apos;s ready.
           </p>
         </div>

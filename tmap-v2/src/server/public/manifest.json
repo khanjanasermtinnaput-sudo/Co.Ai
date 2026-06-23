@@ -1,6 +1,6 @@
 {
-  "name": "CoAgentix Code",
-  "short_name": "CoAgentix",
+  "name": "CoCode",
+  "short_name": "Co.AI",
   "description": "Multi-agent AI code generation assistant — TMAP v2",
   "start_url": "/",
   "scope": "/",

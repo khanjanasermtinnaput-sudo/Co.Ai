@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Contact",
-  description: "Get in touch with the Coagentix team.",
+  description: "Get in touch with the CoAgentix team.",
   alternates: { canonical: "https://coagentix.app/contact" },
 };
 

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Privacy Policy",
-  description: "Coagentix Privacy Policy — how we collect, use, and protect your data.",
+  description: "Co.AI Privacy Policy — how we collect, use, and protect your data.",
   alternates: { canonical: "https://coagentix.app/privacy" },
 };
 
@@ -17,7 +17,7 @@ export default function PrivacyPage() {
       <div className="mt-10 space-y-10 text-base leading-7">
         <Section title="1. Who we are">
           <p>
-            Coagentix (&quot;we&quot;, &quot;us&quot;, &quot;our&quot;) operates the Coagentix platform at{" "}
+            Coagentix (&quot;we&quot;, &quot;us&quot;, &quot;our&quot;) operates the Co.AI platform at{" "}
             <a href="https://coagentix.app" className="text-primary hover:underline">coagentix.app</a>.
             This Privacy Policy describes how we collect, use, and protect your information when you
             use our services.
@@ -36,7 +36,7 @@ export default function PrivacyPage() {
 
         <Section title="3. How we use your information">
           <ul className="list-disc pl-5 space-y-2">
-            <li>To provide, maintain, and improve the Coagentix platform.</li>
+            <li>To provide, maintain, and improve the Co.AI platform.</li>
             <li>To authenticate you and enforce subscription entitlements.</li>
             <li>To detect and prevent abuse, fraud, and security incidents.</li>
             <li>To send transactional emails (account verification, password reset). We do not send marketing emails without explicit consent.</li>

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Cookie Policy",
-  description: "Coagentix Cookie Policy — what cookies we use and why.",
+  description: "Co.AI Cookie Policy — what cookies we use and why.",
   alternates: { canonical: "https://coagentix.app/cookies" },
 };
 
@@ -14,7 +14,7 @@ export default function CookiesPage() {
 
       <div className="mt-10 space-y-10 text-base leading-7">
         <p>
-          This Cookie Policy explains what cookies are, which ones Coagentix uses, and how you can
+          This Cookie Policy explains what cookies are, which ones Co.AI uses, and how you can
           control them.
         </p>
 

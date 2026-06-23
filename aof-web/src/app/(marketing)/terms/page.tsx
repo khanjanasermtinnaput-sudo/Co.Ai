@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Terms of Service",
-  description: "Coagentix Terms of Service — the rules governing your use of the platform.",
+  description: "Co.AI Terms of Service — the rules governing your use of the platform.",
   alternates: { canonical: "https://coagentix.app/terms" },
 };
 
@@ -17,7 +17,7 @@ export default function TermsPage() {
       <div className="mt-10 space-y-10 text-base leading-7">
         <Section title="1. Acceptance">
           <p>
-            By accessing or using Coagentix (&quot;Service&quot;), you agree to be bound by these Terms. If
+            By accessing or using Co.AI (&quot;Service&quot;), you agree to be bound by these Terms. If
             you do not agree, do not use the Service.
           </p>
         </Section>
@@ -34,7 +34,7 @@ export default function TermsPage() {
         <Section title="3. API keys & provider policies">
           <p>
             When you provide API keys for third-party providers (Anthropic, Google, etc.), you remain
-            responsible for complying with those providers&apos; terms of service. Coagentix stores your
+            responsible for complying with those providers&apos; terms of service. Co.AI stores your
             keys encrypted and forwards them only to the provider you select for each request.
           </p>
         </Section>
@@ -54,7 +54,7 @@ export default function TermsPage() {
             your Input or Output.
           </p>
           <p className="mt-3">
-            Coagentix&apos;s platform, branding, and code are owned by Coagentix and protected by
+            Co.AI&apos;s platform, branding, and code are owned by Coagentix and protected by
             intellectual property law.
           </p>
         </Section>
@@ -69,7 +69,7 @@ export default function TermsPage() {
 
         <Section title="7. Limitation of liability">
           <p>
-            To the maximum extent permitted by law, Coagentix shall not be liable for any indirect,
+            To the maximum extent permitted by law, Co.AI shall not be liable for any indirect,
             incidental, special, or consequential damages arising from your use of the Service.
             Our total liability shall not exceed the amount you paid us in the 12 months preceding the
             claim.

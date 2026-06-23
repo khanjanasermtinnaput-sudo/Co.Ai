@@ -26,7 +26,7 @@ export interface NavItem {
 export const PRIMARY_NAV: NavItem[] = [
   {
     key: "chat",
-    label: "Coagentix Chat",
+    label: "Co.AI",
     href: "/",
     icon: MessageSquare,
     description: "General AI assistant",
@@ -40,7 +40,7 @@ export const PRIMARY_NAV: NavItem[] = [
   },
   {
     key: "code",
-    label: "Coagentix Code",
+    label: "CoCode",
     href: "/code",
     icon: Code2,
     description: "Build software",
@@ -63,7 +63,7 @@ export const QUICK_ACTIONS: QuickAction[] = [
     key: "chat",
     emoji: "💬",
     icon: MessageSquare,
-    title: "Coagentix Chat",
+    title: "Co.AI",
     description: "General AI assistant for everyday tasks.",
     href: "/",
     accent: "from-amber-400/25 to-orange-500/10",
@@ -72,7 +72,7 @@ export const QUICK_ACTIONS: QuickAction[] = [
     key: "code",
     emoji: "💻",
     icon: Code2,
-    title: "Coagentix Code",
+    title: "CoCode",
     description: "Build websites, apps, games and software.",
     href: "/code",
     accent: "from-sky-400/25 to-blue-500/10",
@@ -122,7 +122,7 @@ export const CHAT_MODELS: ChatModelInfo[] = [
   },
 ];
 
-// ── Coagentix Code modes (Titan lives here only) ─────────────────────────────
+// ── CoCode modes (Titan lives here only) ─────────────────────────────────────
 export interface CodeModeInfo {
   id: CodeMode;
   name: string;
@@ -222,9 +222,9 @@ export const TITAN_PHASES: TitanPhase[] = [
 ];
 
 export const BRAND = {
-  name: "Coagentix",
+  name: "Co.AI",
   tagline: "Many Minds. One Intelligence.",
-  welcome: "Welcome to Coagentix",
+  welcome: "Welcome to Co.AI",
   welcomeSub: "What would you like to do today?",
   composerPlaceholder: "Ask anything or start a project...",
 } as const;

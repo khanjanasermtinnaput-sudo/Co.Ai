@@ -1,15 +1,15 @@
-// ── Domain types shared across the Coagentix frontend ────────────────────────
+// ── Domain types shared across the Co.AI frontend ────────────────────────────
 
 import type { AofProviderError, FailoverNotice, ModelNotice, SourcesNotice } from "./errors";
 
 /** Top-level products surfaced in the sidebar. Titan is intentionally absent —
- *  it is a mode *inside* Coagentix Code, never a product on the homepage. */
+ *  it is a mode *inside* CoCode, never a product on the homepage. */
 export type ProductKey = "chat" | "code" | "projects" | "settings";
 
 /** Chat models shown in the chat header selector. */
 export type ChatModel = "lite" | "normal";
 
-/** Coagentix Code modes. `titan` only appears inside the Code workspace. */
+/** CoCode modes. `titan` only appears inside the Code workspace. */
 export type CodeMode = "lite" | "1.0" | "pro" | "titan";
 
 export type Role = "user" | "assistant" | "system";
@@ -26,7 +26,7 @@ export type RouteTarget = "chat" | "code" | "search";
 
 export interface RouteDecision {
   target: RouteTarget;
-  /** Human label shown on the routed reply, e.g. "Coagentix Code". */
+  /** Human label shown on the routed reply, e.g. "CoCode". */
   label: string;
   /** Short why-this-route explanation surfaced in the UI. */
   reason: string;
@@ -99,12 +99,12 @@ export interface Conversation {
   updatedAt: string;
 }
 
-// ── Coagentix Code — conversation-first workflow ──────────────────────────────
-// Coagentix Code discusses a project (via the Requirements Architect / RAA) and
+// ── CoCode — conversation-first workflow ──────────────────────────────────────
+// CoCode discusses a project (via the Requirements Architect / RAA) and
 // builds a structured brief BEFORE any code is generated. Generation (TMAP) only
 // runs on an explicit trigger (the Generate Code button or the /gencode command).
 
-/** Where the Coagentix Code workspace is in its lifecycle. */
+/** Where the CoCode workspace is in its lifecycle. */
 export type CodePhase = "conversation" | "generating" | "done";
 
 /** Structured project brief, accumulated from the RAA conversation. Mirrors the
@@ -148,7 +148,7 @@ export interface Project {
   pinned: boolean;
   updatedAt: string;
   createdAt: string;
-  /** how it was started — which Coagentix Code mode produced it */
+  /** how it was started — which CoCode mode produced it */
   mode?: CodeMode;
 }
 

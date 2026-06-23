@@ -1,4 +1,4 @@
-// ── Coagentix API client ──────────────────────────────────────────────────────
+// ── Co.AI API client ──────────────────────────────────────────────────────────
 // Thin, typed layer over the AI providers. Transparency is the rule: when a
 // provider fails, the failure is surfaced to the UI as a structured
 // `AofProviderError` (via `handlers.onError`) — it is NEVER hidden behind a fake
@@ -117,10 +117,10 @@ function isAbortError(e: unknown): boolean {
   return (e as { name?: string } | null)?.name === "AbortError";
 }
 
-/** Same-origin/network failure (the Coagentix server itself is unreachable). */
+/** Same-origin/network failure (the Co.AI server itself is unreachable). */
 function networkError(e: unknown): AofProviderError {
   return classifyProviderError({
-    provider: "Coagentix",
+    provider: "Co.AI",
     hint: "network",
     message: (e as Error)?.message ?? "request failed",
   });
@@ -129,7 +129,7 @@ function networkError(e: unknown): AofProviderError {
 /** The optional tmap-v2 backend is configured but unreachable / erroring. */
 function backendUnavailableError(detail: string, e?: unknown): AofProviderError {
   const suffix = e ? ` (${(e as Error)?.message ?? String(e)})` : "";
-  return classifyProviderError({ provider: "Coagentix Backend", status: 502, message: `${detail}${suffix}` });
+  return classifyProviderError({ provider: "Co.AI Backend", status: 502, message: `${detail}${suffix}` });
 }
 
 export interface SSEEvent {
@@ -185,7 +185,7 @@ export async function postSSE(
 }
 
 /**
- * Read Coagentix's own `/api/chat` response: a JSON error envelope when the request
+ * Read Co.AI's own `/api/chat` response: a JSON error envelope when the request
  * failed before streaming, otherwise a plain-text token stream that may carry
  * in-band error / failover control frames. Routes everything to the handlers and
  * returns the accumulated text (used by RAA to parse a brief).
@@ -198,12 +198,12 @@ async function readAofStream(
     const body = await res.json().catch(() => null);
     const err = isAofProviderError(body)
       ? body
-      : classifyProviderError({ provider: "Coagentix", status: res.status, message: `Request failed (${res.status})` });
+      : classifyProviderError({ provider: "Co.AI", status: res.status, message: `Request failed (${res.status})` });
     handlers.onError?.(err);
     return { errored: true, text: "" };
   }
   if (!res.body) {
-    handlers.onError?.(emptyResponseError("Coagentix"));
+    handlers.onError?.(emptyResponseError("Co.AI"));
     return { errored: true, text: "" };
   }
 
@@ -273,7 +273,7 @@ export interface ChatRequest {
   searchMode?: "auto" | "off" | "force";
 }
 
-/** Stream a Chat-with-Coagentix reply. Live `/v1/chat` → real `/api/chat`; failures
+/** Stream a Chat-with-Co.AI reply. Live `/v1/chat` → real `/api/chat`; failures
  *  surface as structured errors. Mock only in explicit demo mode. */
 export async function streamChat(
   message: string,
@@ -306,7 +306,7 @@ export async function streamChat(
     }
   }
 
-  // Default: Coagentix's own provider route (also the fallback when backend is down).
+  // Default: Co.AI's own provider route (also the fallback when backend is down).
   try {
     const res = await fetch("/api/chat", {
       method: "POST",
@@ -349,7 +349,7 @@ async function streamViaChat(
   }
 }
 
-/** Stream a Coagentix Code build. Live `/v1/run` (tmap-v2) when configured, otherwise a
+/** Stream a CoCode build. Live `/v1/run` (tmap-v2) when configured, otherwise a
  *  serverless single-pass generation via `/api/chat`. */
 export async function streamCodeRun(
   task: string,
@@ -425,9 +425,9 @@ async function streamCodeRunV2(
   }
 }
 
-// ── Coagentix Code NORMAL_CHAT (no project active) ───────────────────────────
+// ── CoCode NORMAL_CHAT (no project active) ────────────────────────────────────
 
-/** Stream a NORMAL_CHAT reply within Coagentix Code (same-origin `/api/chat`). */
+/** Stream a NORMAL_CHAT reply within CoCode (same-origin `/api/chat`). */
 export async function streamCodeChat(
   message: string,
   history: ChatHistoryItem[],
@@ -452,7 +452,7 @@ export async function streamCodeChat(
   }
 }
 
-// ── Coagentix Code requirements conversation (RAA) ────────────────────────────
+// ── CoCode requirements conversation (RAA) ────────────────────────────────────
 
 export interface RequirementsResult {
   /** structured brief, when the assistant produced one this turn */
@@ -617,7 +617,7 @@ export async function streamDebug(input: DebugInput, handlers: StreamHandlers): 
   }
 }
 
-// ── Coagentix Universal Orchestration ────────────────────────────────────────
+// ── Co.AI Universal Orchestration ────────────────────────────────────────────
 
 export interface OrchestrationEvent {
   role: string;
@@ -638,7 +638,7 @@ export interface OrchestrationHandlers {
 }
 
 /**
- * Stream a universal orchestration request through the Coagentix AI Chief Agent.
+ * Stream a universal orchestration request through the Co.AI Chief Agent.
  * The Chief Agent classifies intent, expands the prompt, delegates to specialized
  * agents, runs a quality review loop, and returns the best possible response.
  */

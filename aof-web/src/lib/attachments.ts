@@ -6,7 +6,7 @@
 import type { Attachment, AttachmentKind } from "./types";
 import { uid } from "./utils";
 
-/** Source-code extensions Coagentix can read & analyse (see spec "Code File Support"). */
+/** Source-code extensions Co.AI can read & analyse (see spec "Code File Support"). */
 export const CODE_EXTENSIONS = [
   "js",
   "ts",

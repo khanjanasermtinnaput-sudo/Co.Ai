@@ -1,4 +1,4 @@
-// ── Coagentix Chat — real LLM endpoint (server-side) ─────────────────────────
+// ── Co.AI Chat — real LLM endpoint (server-side) ─────────────────────────────
 // Provider priority: Anthropic (Claude) → OpenRouter. Every failure is detected,
 // classified into an AOF_ERROR_xxx, logged server-side, and surfaced to the user
 // — pre-stream failures as a JSON error envelope, mid-stream failures and
@@ -91,7 +91,7 @@ interface ChatBody {
   route?: RouteDecision;
   history?: ChatHistoryItem[];
   /** "chat" = general assistant; "requirements" = RAA (DISCOVERY); "code-chat" =
-   *  Coagentix Code NORMAL_CHAT; "code-gen"/"plan"/"analyze"/"debug" = serverless build
+   *  CoCode NORMAL_CHAT; "code-gen"/"plan"/"analyze"/"debug" = serverless build
    *  pipeline (used when the tmap-v2 backend is not configured). */
   agent?: Agent;
   /** Universal Search mode: "auto" (default) | "off" | "force". */
@@ -220,10 +220,10 @@ export async function POST(req: Request): Promise<Response> {
   } catch (err) {
     // Last-resort guard: an unexpected throw must still become a structured error
     // envelope — never an opaque 500 the client can only render as a generic
-    // "Coagentix is unavailable" panel. This also logs the real stack for diagnosis.
+    // "Co.AI is unavailable" panel. This also logs the real stack for diagnosis.
     const e = err as { message?: string; status?: number; stack?: string };
     const error = classifyProviderError({
-      provider: "Coagentix",
+      provider: "Co.AI",
       message: e?.message ?? "Unexpected server error",
       status: typeof e?.status === "number" ? e.status : undefined,
       stack: e?.stack,
@@ -247,7 +247,7 @@ async function handleChat(req: Request): Promise<Response> {
     const headers = new Headers({ "Content-Type": "application/json; charset=utf-8" });
     applyRateLimitHeaders(headers, rl);
     const error = classifyProviderError({
-      provider: "Coagentix",
+      provider: "Co.AI",
       message: `Rate limit exceeded. Try again in ${rl.retryAfterSec}s.`,
       status: 429,
     });
@@ -265,7 +265,7 @@ async function handleChat(req: Request): Promise<Response> {
       const headers = new Headers({ "Content-Type": "application/json; charset=utf-8" });
       applyRateLimitHeaders(headers, dailyRl);
       const error = classifyProviderError({
-        provider: "Coagentix",
+        provider: "Co.AI",
         message: "Guest daily limit reached. Sign in to continue.",
         status: 429,
       });
@@ -282,7 +282,7 @@ async function handleChat(req: Request): Promise<Response> {
     body = ChatBodySchema.parse(raw) as ChatBody;
   } catch {
     const error = classifyProviderError({
-      provider: "Coagentix",
+      provider: "Co.AI",
       message: "Request body was not valid JSON or failed validation.",
       hint: "config",
     });
@@ -333,7 +333,7 @@ async function handleChat(req: Request): Promise<Response> {
     error.details =
       `No AI provider is configured. Set ${allProviders()
         .map((p) => p.envVar)
-        .join(" or ")} (or save a key in Settings → API Keys) so Coagentix can reach a provider.`;
+        .join(" or ")} (or save a key in Settings → API Keys) so Co.AI can reach a provider.`;
     logAofError(error);
     return errorResponse(error);
   }

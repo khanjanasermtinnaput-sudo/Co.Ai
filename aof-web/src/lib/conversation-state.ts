@@ -1,4 +1,4 @@
-// ── Coagentix Code V4 — Conversation State Machine ───────────────────────────
+// ── CoCode V4 — Conversation State Machine ────────────────────────────────────
 // Implements the six-state model from the COAGENTIX CODE V4 collaborative prompt.
 // All functions are pure so they are trivially testable without mocks.
 //

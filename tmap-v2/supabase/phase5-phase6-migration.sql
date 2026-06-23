@@ -1,5 +1,5 @@
 -- ============================================================
--- Coagentix Phase 5 + Phase 6 Migration
+-- Co.AI Phase 5 + Phase 6 Migration
 -- Run once on your Supabase project.
 -- Tables are idempotent (CREATE TABLE IF NOT EXISTS).
 -- ============================================================

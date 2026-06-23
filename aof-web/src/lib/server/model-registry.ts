@@ -1,5 +1,5 @@
-// ── Coagentix — Unified Model Registry ───────────────────────────────────────
-// Single source of truth for every model Coagentix can call: which provider serves it,
+// ── Co.AI — Unified Model Registry ───────────────────────────────────────────
+// Single source of truth for every model Co.AI can call: which provider serves it,
 // what it's good at, its context window and rough cost tier. The provider
 // registry (ai-providers.ts) and the chat route both read from here instead of
 // hardcoding model ids or per-task provider orders inline.

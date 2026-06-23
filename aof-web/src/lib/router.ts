@@ -1,6 +1,6 @@
-// ── Coagentix Universal Router ───────────────────────────────────────────────
+// ── Co.AI Universal Router ────────────────────────────────────────────────────
 // Classifies all user requests into one of 16 task categories and routes them
-// to the appropriate Coagentix AI system. Users never need to select a mode manually.
+// to the appropriate Co.AI system. Users never need to select a mode manually.
 
 import type { Attachment, RouteDecision, RouteTarget } from "./types";
 
@@ -30,8 +30,8 @@ export interface ClassificationResult {
 }
 
 const LABEL: Record<RouteTarget, string> = {
-  chat: "Coagentix Chat",
-  code: "Coagentix Code",
+  chat: "Co.AI",
+  code: "CoCode",
   search: "Search Agent",
 };
 
@@ -272,13 +272,13 @@ function countMatches(text: string, patterns: RegExp[]): number {
 export function routeRequest(text: string, attachments: Attachment[] = []): RouteDecision {
   const t = text.toLowerCase();
 
-  // Code/document files → Coagentix Code
+  // Code/document files → CoCode
   const codeFile = attachments.find((a) => a.kind === "code");
   if (codeFile) {
     return {
       target: "code",
       label: LABEL.code,
-      reason: `Analyzing ${codeFile.name} — file analysis runs in Coagentix Code.`,
+      reason: `Analyzing ${codeFile.name} — file analysis runs in CoCode.`,
       confidence: 100,
     };
   }
@@ -310,10 +310,10 @@ export function routeRequest(text: string, attachments: Attachment[] = []): Rout
 
     const confidence = categoryConfidence[primary] ?? 70;
     const reason = target === 'code'
-      ? `Detected ${primary.replace(/_/g, ' ')} task — routing to Coagentix Code.`
+      ? `Detected ${primary.replace(/_/g, ' ')} task — routing to CoCode.`
       : `Handling as ${classification.categories.slice(0, 2).map((c) => c.replace(/_/g, ' ')).join(' + ')} request.`;
 
-    // Images & PDFs without coding → Coagentix Chat
+    // Images & PDFs without coding → Co.AI
     const visual = attachments.find((a) => a.kind === "image" || a.kind === "pdf");
     if (visual && target !== 'code') {
       return {
@@ -327,11 +327,11 @@ export function routeRequest(text: string, attachments: Attachment[] = []): Rout
     return { target, label: LABEL[target], reason, confidence };
   }
 
-  // Default → Coagentix Chat
+  // Default → Co.AI
   return {
     target: "chat",
     label: LABEL.chat,
-    reason: "General question — handled by Coagentix Chat.",
+    reason: "General question — handled by Co.AI.",
     confidence: 70,
   };
 }

@@ -1,5 +1,5 @@
 // ── Subscription plans & entitlements ─────────────────────────────────────────
-// Single source of truth for the Coagentix pricing tiers (spec: FREE / LITE / PRO /
+// Single source of truth for the Co.AI pricing tiers (spec: FREE / LITE / PRO /
 // ADVANCED + GUEST) and the features each unlocks. checkUserAccess() and the
 // pricing UI both read from here so plan rules live in exactly one place.
 //
@@ -11,10 +11,10 @@
 import { TIER_RANK, type UserTier } from "@/store/auth-store";
 
 export type Feature =
-  | "coagentix-api" // use Coagentix's shared provider keys at normal quota (FREE is heavily limited)
+  | "coagentix-api" // use Co.AI's shared provider keys at normal quota (FREE is heavily limited)
   | "projects" // save & manage projects
   | "export" // export HTML / ZIP / source
-  | "coagentix-code" // the Coagentix Code build workspace
+  | "coagentix-code" // the CoCode build workspace
   | "tmap" // multi-agent TMAP pipeline
   | "raa" // requirements-architect conversation
   | "titan" // Titan architect mode
@@ -30,7 +30,7 @@ export type Feature =
   | "search-research"; // deep research sources
 
 export interface PlanLimits {
-  /** Messages/day when using Coagentix's shared keys. Infinity = effectively unlimited. */
+  /** Messages/day when using Co.AI's shared keys. Infinity = effectively unlimited. */
   dailyMessages: number;
   /** Max saved projects (0 = cannot save). */
   maxProjects: number;
@@ -48,7 +48,7 @@ export interface Plan {
   limits: PlanLimits;
   /**
    * BYOK reward (spec §13): quota multiplier applied when the user supplies their
-   * own API key, since it offloads cost from Coagentix's infrastructure. Lower tiers get
+   * own API key, since it offloads cost from Co.AI's infrastructure. Lower tiers get
    * a bigger boost (FREE 3x → ADVANCED 1.25x).
    */
   byokMultiplier: number;
@@ -111,7 +111,7 @@ export const PLANS: Record<UserTier, Plan> = {
       "Web Search (Google)",
       "Bring Your Own Key (Gemini, Llama)",
       "บันทึกประวัติแชตพื้นฐาน",
-      "API ของ Coagentix แบบจำกัด",
+      "API ของ Co.AI แบบจำกัด",
     ],
   },
   LITE: {
@@ -126,7 +126,7 @@ export const PLANS: Record<UserTier, Plan> = {
     highlights: [
       "ทุกอย่างใน Free",
       "Gemini · Llama · DeepSeek · Qwen",
-      "ใช้ API ของ Coagentix ได้",
+      "ใช้ API ของ Co.AI ได้",
       "Google + Documentation Search",
       "บันทึกโปรเจกต์ · Export HTML/ZIP",
     ],
@@ -142,7 +142,7 @@ export const PLANS: Record<UserTier, Plan> = {
     byokMultiplier: 1.5,
     highlights: [
       "ทุกอย่างใน Lite",
-      "Coagentix Code · TMAP · RAA",
+      "CoCode · TMAP · RAA",
       "OpenRouter + GitHub Integration",
       "Deploy + Live Preview + Workspace",
       "Web Search: GitHub · Reddit · Research",

@@ -79,7 +79,7 @@ export function NewProjectDialog({
         <DialogHeader>
           <DialogTitle>Create new project</DialogTitle>
           <DialogDescription>
-            Start a fresh workspace. You can build it with Coagentix Code any time.
+            Start a fresh workspace. You can build it with CoCode any time.
           </DialogDescription>
         </DialogHeader>
 

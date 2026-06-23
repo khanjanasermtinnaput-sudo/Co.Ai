@@ -3,22 +3,22 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "About",
   description:
-    "Learn about Coagentix — the professional AI platform built for developers, teams, and forward-thinking companies.",
+    "Learn about Co.AI — the advanced multi-agent AI platform built for developers, teams, and forward-thinking companies.",
   alternates: { canonical: "https://coagentix.app/about" },
 };
 
 export default function AboutPage() {
   return (
     <article className="mx-auto max-w-3xl px-6 py-20">
-      <h1 className="text-4xl font-bold tracking-tight">About Coagentix</h1>
+      <h1 className="text-4xl font-bold tracking-tight">About Co.AI</h1>
       <p className="mt-4 text-xl text-muted-foreground leading-relaxed">
         Many Minds. One Intelligence.
       </p>
 
       <section className="mt-12 space-y-6 text-base leading-7">
         <p>
-          Coagentix is a professional AI platform that brings together a fleet of specialised AI
-          agents — CoAI for conversation, Coagentix Code for software engineering, and Projects for
+          Co.AI is an advanced multi-agent AI platform that brings together a fleet of specialised AI
+          agents — Co.AI for conversation, CoCode for software engineering, and Projects for
           long-running collaboration — into a single, coherent workspace.
         </p>
         <p>
@@ -39,7 +39,7 @@ export default function AboutPage() {
         <ul className="mt-6 space-y-4 text-base leading-7">
           {[
             ["Transparency",  "We surface failures, not fake successes. You always know which model responded and why."],
-            ["Speed",         "Coagentix Code goes from idea to runnable multi-file project in seconds, not hours."],
+            ["Speed",         "CoCode goes from idea to runnable multi-file project in seconds, not hours."],
             ["Security",      "Your API keys are encrypted at rest with AES-256-GCM and a scrypt-derived master key. They never leave our servers in plaintext."],
             ["Openness",      "Bring Your Own Key. Use any provider — Anthropic, Gemini, OpenRouter, DeepSeek, and more."],
           ].map(([title, body]) => (

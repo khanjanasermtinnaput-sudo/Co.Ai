@@ -1,4 +1,4 @@
-// ── Coagentix Referral API ─────────────────────────────────────────────────────
+// ── Co.AI Referral API ─────────────────────────────────────────────────────────
 // GET  /api/referral        → fetch or create the caller's referral code + stats
 // POST /api/referral/click  → record an anonymous click (called on landing page)
 // POST /api/referral/convert → record a successful signup via referral code

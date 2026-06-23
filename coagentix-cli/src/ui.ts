@@ -6,10 +6,10 @@ import type { StreamEvent } from "./api.js";
 
 export { chalk, ora };
 
-export const brand = chalk.hex("#F59E0B"); // Coagentix orange-gold
+export const brand = chalk.hex("#F59E0B"); // Co.AI orange-gold
 
 export function header(version: string): void {
-  console.log(brand.bold("\n  Coagentix Code CLI") + chalk.dim(` v${version}`));
+  console.log(brand.bold("\n  CoCode CLI") + chalk.dim(` v${version}`));
   console.log(chalk.dim("  AI-powered coding agent — Advanced subscribers only\n"));
 }
 

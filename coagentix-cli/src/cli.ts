@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Coagentix Code CLI — main entry point
+// CoCode CLI — main entry point
 
 import { Command, Option } from "commander";
 import { createInterface } from "node:readline";
@@ -177,7 +177,7 @@ const program = new Command();
 
 program
   .name("coai")
-  .description("Coagentix Code CLI — AI coding agent (Advanced subscribers only)")
+  .description("CoCode CLI — AI coding agent (Advanced subscribers only)")
   .version(VERSION, "-v, --version")
   .addOption(new Option("--titan", "Enable Titan multi-agent mode"))
   .addOption(new Option("--model <model>", "Override the model (e.g. deepseek-coder)"))
@@ -226,7 +226,7 @@ program
 
 program
   .command("login")
-  .description("Authenticate with your Coagentix CLI token")
+  .description("Authenticate with your Co.AI CLI token")
   .option("--api-base <url>", "Override API base URL")
   .action(async (opts: { apiBase?: string }) => {
     header(VERSION);
@@ -988,7 +988,7 @@ program
 
 program
   .command("sandbox <file>")
-  .description("Run a code file in the secure Coagentix sandbox (js/ts/py)")
+  .description("Run a code file in the secure Co.AI sandbox (js/ts/py)")
   .option("--language <lang>", "Override language detection (javascript|typescript|python)")
   .option("--timeout <ms>",    "Execution timeout in milliseconds (default: 10000)", "10000")
   .option("--docker",          "Use Docker container isolation (requires Docker on server)")

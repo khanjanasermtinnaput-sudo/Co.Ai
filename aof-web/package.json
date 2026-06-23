@@ -2,7 +2,7 @@
   "name": "coagentix-web",
   "version": "0.1.0",
   "private": true,
-  "description": "CoAgentix — professional AI platform homepage experience (Chat · CoAgentix Code · Projects)",
+  "description": "Co.AI — professional AI platform (Chat · CoCode · Projects)",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

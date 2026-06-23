@@ -7,12 +7,12 @@ function att(kind: Attachment['kind'], name = 'file.txt'): Attachment {
   return { id: '1', kind, name, mime: 'text/plain', size: 100 };
 }
 
-// ── default → Coagentix Chat ─────────────────────────────────────────────────
+// ── default → Co.AI ─────────────────────────────────────────────────
 
 test('general question routes to chat', () => {
   const r = routeRequest('What is the capital of France?');
   assert.equal(r.target, 'chat');
-  assert.equal(r.label, 'Coagentix Chat');
+  assert.equal(r.label, 'Co.AI');
 });
 
 test('greeting routes to chat', () => {
@@ -25,12 +25,12 @@ test('empty-ish question routes to chat (default fallback)', () => {
   assert.equal(r.target, 'chat');
 });
 
-// ── code keywords → Coagentix Code ───────────────────────────────────────────
+// ── code keywords → CoCode ───────────────────────────────────────────
 
 test('explicit code keyword routes to code', () => {
   const r = routeRequest('write me some code');
   assert.equal(r.target, 'code');
-  assert.equal(r.label, 'Coagentix Code');
+  assert.equal(r.label, 'CoCode');
 });
 
 test('debug keyword routes to code', () => {
@@ -109,8 +109,8 @@ test('pdf attachment without coding ask routes to chat', () => {
 // ── routeLabel ────────────────────────────────────────────────────────────────
 
 test('routeLabel returns correct labels for all targets', () => {
-  assert.equal(routeLabel('chat'), 'Coagentix Chat');
-  assert.equal(routeLabel('code'), 'Coagentix Code');
+  assert.equal(routeLabel('chat'), 'Co.AI');
+  assert.equal(routeLabel('code'), 'CoCode');
   assert.equal(routeLabel('search'), 'Search Agent');
 });
 

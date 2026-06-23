@@ -75,7 +75,7 @@ export function CodeConversation({ mode }: { mode: Exclude<CodeMode, "titan"> })
               >
                 <Boxes className="size-7 text-primary" />
               </motion.div>
-              <h2 className="mt-5 text-xl font-semibold">Build with Coagentix Code</h2>
+              <h2 className="mt-5 text-xl font-semibold">Build with CoCode</h2>
               <p className="mt-2 max-w-md text-sm text-muted-foreground">
                 Describe your project and CoAI will ask the right questions first —
                 like a senior engineer. When the brief is ready, hit{" "}

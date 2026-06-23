@@ -6,11 +6,11 @@ import { notFound } from "next/navigation";
 
 const POSTS: Record<string, { title: string; date: string; tags: string[]; content: string }> = {
   "introducing-coagentix": {
-    title: "Introducing Coagentix: Many Minds, One Intelligence",
+    title: "Introducing Co.AI: Many Minds, One Intelligence",
     date: "2026-06-19",
     tags: ["Product", "Launch"],
     content: `
-Coagentix is a professional AI platform for developers — one that coordinates a fleet of specialised agents instead of relying on a single model to do everything.
+Co.AI is an advanced multi-agent AI platform for developers — one that coordinates a fleet of specialised agents instead of relying on a single model to do everything.
 
 ## The problem with single-model AI
 
@@ -21,7 +21,7 @@ Every major AI product today sends your request to one model and hopes for the b
 - **No verification**: the model grades its own homework
 - **Silent failure**: when the model gets it wrong, there's no second opinion
 
-## The Coagentix approach
+## The Co.AI approach
 
 We built TMAP — the Task-Model-Agent Pipeline — a multi-agent system where each agent has a defined role:
 
@@ -35,24 +35,24 @@ No single agent sees the whole conversation. Each one gets exactly the context i
 
 ## Provider diversity by design
 
-Coagentix routes tasks to the best available provider — Anthropic, Gemini, DeepSeek, Qwen, Llama, or OpenRouter — based on task type and model availability. If a provider is down or rate-limited, the next one in the chain picks up without interrupting you.
+Co.AI routes tasks to the best available provider — Anthropic, Gemini, DeepSeek, Qwen, Llama, or OpenRouter — based on task type and model availability. If a provider is down or rate-limited, the next one in the chain picks up without interrupting you.
 
 You bring your own keys. We never bill you for model tokens.
 
 ## What's next
 
-We're shipping Coagentix Code — a professional coding assistant powered by TMAP — and Coagentix Chat, a multi-provider chat interface with full session memory. Both are available today.
+We're shipping CoCode — a professional coding assistant powered by TMAP — and Co.AI, a multi-provider chat interface with full session memory. Both are available today.
 
 [Get started →](/chat)
     `.trim(),
   },
 
   "coagentix-code-architecture": {
-    title: "How Coagentix Code works: TMAP under the hood",
+    title: "How CoCode works: TMAP under the hood",
     date: "2026-06-19",
     tags: ["Engineering", "AI"],
     content: `
-TMAP — the Task-Model-Agent Pipeline — is the engine behind Coagentix Code. Here's exactly how a coding task flows through the system.
+TMAP — the Task-Model-Agent Pipeline — is the engine behind CoCode. Here's exactly how a coding task flows through the system.
 
 ## The pipeline at a glance
 
@@ -126,7 +126,7 @@ The circuit breaker opens after 3 consecutive failures and half-opens after 60 s
     date: "2026-06-19",
     tags: ["Security", "Engineering"],
     content: `
-When you add an API key in Coagentix Settings, it's encrypted before it ever touches the database. Here's exactly how.
+When you add an API key in Co.AI Settings, it's encrypted before it ever touches the database. Here's exactly how.
 
 ## The threat model
 
@@ -174,7 +174,7 @@ The plaintext key **never** touches the database. The master key **never** touch
 
 ## Redaction in logs
 
-Every error object in Coagentix passes through a redactor before being logged or shown in the Developer Mode panel:
+Every error object in Co.AI passes through a redactor before being logged or shown in the Developer Mode panel:
 
 \`\`\`typescript
 const SECRET_PATTERNS = [

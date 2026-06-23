@@ -1,5 +1,5 @@
 // ── Offline mock engine ───────────────────────────────────────────────────────
-// Makes the whole Coagentix experience work with zero backend / zero API keys, mirroring
+// Makes the whole Co.AI experience work with zero backend / zero API keys, mirroring
 // the tmap-v2 "mock mode" philosophy. Responses are contextual and streamed token
 // by token so the UI feels alive. When a real backend is configured (see api.ts)
 // these are bypassed in favour of the live /v1/* SSE endpoints.
@@ -193,8 +193,8 @@ function composeChatReply(
 
   if (route.target === "code") {
     if (th) {
-      const baseTh = `งานนี้เป็นงานวิศวกรรม ผมจะส่งต่อให้ **Coagentix Code**`;
-      if (style === "short") return `${pre}${baseTh} เปิด **Coagentix Code** แล้วผมจะวางแผน สร้าง และรีวิวไฟล์ให้ครับ`;
+      const baseTh = `งานนี้เป็นงานวิศวกรรม ผมจะส่งต่อให้ **CoCode**`;
+      if (style === "short") return `${pre}${baseTh} เปิด **CoCode** แล้วผมจะวางแผน สร้าง และรีวิวไฟล์ให้ครับ`;
       return `${pre}${baseTh}
 
 1. **เป้าหมาย** — ระบุผลลัพธ์สำคัญที่สุดเพียงหนึ่งอย่าง
@@ -202,10 +202,10 @@ function composeChatReply(
 3. **เทคโนโลยี** — เลือกสิ่งที่ส่งมอบได้เร็วและดูแลต่อได้
 4. **หมุดหมาย** — ขั้นเล็ก ๆ ที่เดโมได้
 
-อยากให้ผมสร้างเลยไหมครับ? เปิด **Coagentix Code** แล้วผมจะพาจากไอเดียไปเป็นโค้ดที่ใช้งานได้`;
+อยากให้ผมสร้างเลยไหมครับ? เปิด **CoCode** แล้วผมจะพาจากไอเดียไปเป็นโค้ดที่ใช้งานได้`;
     }
-    const base = `This is an engineering task, so I'd hand it to **Coagentix Code**.`;
-    if (style === "short") return `${pre}${base} Open **Coagentix Code** and I'll plan, generate and review the files.`;
+    const base = `This is an engineering task, so I'd hand it to **CoCode**.`;
+    if (style === "short") return `${pre}${base} Open **CoCode** and I'll plan, generate and review the files.`;
     return `${pre}${base}
 
 1. **Goal** — nail the single most important outcome.
@@ -213,14 +213,14 @@ function composeChatReply(
 3. **Stack** — something you can ship fast and maintain.
 4. **Milestones** — small, demoable steps.
 
-Want me to build it? Open **Coagentix Code** and I'll take it from idea to working code.`;
+Want me to build it? Open **CoCode** and I'll take it from idea to working code.`;
   }
 
   if (/(hello|hi|hey|สวัสดี|หวัดดี)/.test(m) && attachments.length === 0) {
     if (th) {
-      return `สวัสดีครับ! ผมคือ **CoAI** — เวิร์กสเปซ AI ของคุณ ผมช่วยระดมไอเดีย ช่วยเรียนรู้ อ่านรูปภาพและ PDF หรือกระโดดเข้า **Coagentix Code** เพื่อสร้างซอฟต์แวร์จริงได้ วันนี้อยากทำอะไรดีครับ?`;
+      return `สวัสดีครับ! ผมคือ **CoAI** — เวิร์กสเปซ AI ของคุณ ผมช่วยระดมไอเดีย ช่วยเรียนรู้ อ่านรูปภาพและ PDF หรือกระโดดเข้า **CoCode** เพื่อสร้างซอฟต์แวร์จริงได้ วันนี้อยากทำอะไรดีครับ?`;
     }
-    return `Hi! I'm **CoAI** — your AI workspace. I can chat through ideas, help you learn, read images & PDFs, or jump into **Coagentix Code** to build real software. What are we working on today?`;
+    return `Hi! I'm **CoAI** — your AI workspace. I can chat through ideas, help you learn, read images & PDFs, or jump into **CoCode** to build real software. What are we working on today?`;
   }
 
   if (th) {
@@ -342,7 +342,7 @@ export async function mockChat(message: string, opts: ChatReplyOptions, h: Strea
   );
 }
 
-/** Stream a mock Coagentix Code build log + summary (Lite / 1.0 / Pro). */
+/** Stream a mock CoCode build log + summary (Lite / 1.0 / Pro). */
 export async function mockCodeRun(
   task: string,
   mode: "lite" | "1.0" | "pro",
@@ -383,9 +383,9 @@ export async function mockCodeRun(
   }
 }
 
-// ── Mock Coagentix Code NORMAL_CHAT replies ───────────────────────────────────
+// ── Mock CoCode NORMAL_CHAT replies ───────────────────────────────────────────
 
-/** Mock reply for NORMAL_CHAT state in Coagentix Code: greetings, tech Q&A, discussion.
+/** Mock reply for NORMAL_CHAT state in CoCode: greetings, tech Q&A, discussion.
  *  History-aware so follow-up messages get context-relevant replies, not repeated
  *  generic fallbacks. Returns the full reply text. */
 export async function mockCodeChat(
@@ -462,7 +462,7 @@ export async function mockCodeChat(
 }
 
 // ── Mock Requirements Architect (RAA) ─────────────────────────────────────────
-// Keeps Coagentix Code's conversation-first flow working with zero backend. It asks a
+// Keeps CoCode's conversation-first flow working with zero backend. It asks a
 // couple of clarifying questions, then emits a brief in the exact RAA summary
 // format so lib/raa.ts parseBrief() can read it. Returns the full reply text.
 
@@ -551,8 +551,8 @@ export async function mockDebug(error: string, h: StreamHandlers): Promise<strin
   const th = isThai(error);
   const snippet = error.trim().split("\n")[0].slice(0, 80);
   const text = th
-    ? `## ผลวิเคราะห์ข้อผิดพลาด\n\n**Root cause** — \`${snippet}\` มักเกิดจากค่าที่เป็น undefined/null ถูกใช้งานก่อนถูกกำหนด หรือ promise ที่ไม่ได้ดักจับ\n\n**วิเคราะห์**\n- ไล่จากบรรทัดที่ error ชี้ ไปยังต้นทางของค่า\n- ตรวจว่าค่าถูกกำหนดครบทุกเส้นทางหรือไม่\n\n**วิธีแก้**\n- เพิ่มการตรวจค่า (guard) ก่อนใช้งาน และครอบ async ด้วย try/catch\n- คืน error ที่สื่อความหมายแทนปล่อยให้ crash\n\n_ในเวิร์กสเปซจริง Coagentix จะแนบ **patch** เป็นไฟล์ที่แก้ให้พร้อมนำไปใช้_`
-    : `## Debug analysis\n\n**Root cause** — \`${snippet}\` usually means a value is undefined/null when used, or a promise was left unhandled.\n\n**Analysis**\n- Trace from the line the error points to back to where the value originates.\n- Check the value is set on every code path.\n\n**Solution**\n- Add a guard before use and wrap async calls in try/catch.\n- Return a meaningful error instead of letting it crash.\n\n_In a live workspace Coagentix attaches a ready-to-apply **patch** with the corrected files._`;
+    ? `## ผลวิเคราะห์ข้อผิดพลาด\n\n**Root cause** — \`${snippet}\` มักเกิดจากค่าที่เป็น undefined/null ถูกใช้งานก่อนถูกกำหนด หรือ promise ที่ไม่ได้ดักจับ\n\n**วิเคราะห์**\n- ไล่จากบรรทัดที่ error ชี้ ไปยังต้นทางของค่า\n- ตรวจว่าค่าถูกกำหนดครบทุกเส้นทางหรือไม่\n\n**วิธีแก้**\n- เพิ่มการตรวจค่า (guard) ก่อนใช้งาน และครอบ async ด้วย try/catch\n- คืน error ที่สื่อความหมายแทนปล่อยให้ crash\n\n_ในเวิร์กสเปซจริง Co.AI จะแนบ **patch** เป็นไฟล์ที่แก้ให้พร้อมนำไปใช้_`
+    : `## Debug analysis\n\n**Root cause** — \`${snippet}\` usually means a value is undefined/null when used, or a promise was left unhandled.\n\n**Analysis**\n- Trace from the line the error points to back to where the value originates.\n- Check the value is set on every code path.\n\n**Solution**\n- Add a guard before use and wrap async calls in try/catch.\n- Return a meaningful error instead of letting it crash.\n\n_In a live workspace Co.AI attaches a ready-to-apply **patch** with the corrected files._`;
   await streamText(text, h);
   return text;
 }

@@ -23,14 +23,14 @@ const OG_IMAGE = `${SITE_URL}/og-image.png`;
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "Coagentix — The professional AI platform",
-    template: "%s · Coagentix",
+    default: "Co.AI – Multi-Agent AI Platform",
+    template: "%s · Co.AI",
   },
   description:
-    "Coagentix is a professional AI platform. Chat with CoAI, build software with Coagentix Code, and manage your Projects — all in one premium workspace.",
-  applicationName: "Coagentix",
+    "Co.AI is an advanced multi-agent AI platform with intelligent routing, RAA, TMAP orchestration, memory, and multi-agent workflows — built by CoAgentix.",
+  applicationName: "Co.AI",
   keywords: [
-    "Coagentix", "CoAI", "Coagentix Code", "AI platform", "AI assistant",
+    "Co.AI", "CoAI", "CoCode", "AI platform", "AI assistant",
     "AI coding", "multi-agent AI", "AI development platform",
   ],
   authors: [{ name: "Coagentix", url: SITE_URL }],
@@ -48,25 +48,25 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Coagentix",
+    title: "Co.AI",
   },
   openGraph: {
     type: "website",
     locale: "en_US",
     url: SITE_URL,
-    siteName: "Coagentix",
-    title: "Coagentix — The professional AI platform",
+    siteName: "Co.AI",
+    title: "Co.AI – Multi-Agent AI Platform",
     description:
-      "Chat with CoAI, build software with Coagentix Code, and manage your Projects — all in one premium AI workspace.",
-    images: [{ url: OG_IMAGE, width: 1200, height: 630, alt: "Coagentix" }],
+      "Chat with Co.AI, build software with CoCode, and manage your Projects — all in one advanced multi-agent AI workspace.",
+    images: [{ url: OG_IMAGE, width: 1200, height: 630, alt: "Co.AI" }],
   },
   twitter: {
     card: "summary_large_image",
     site: "@coagentix",
     creator: "@coagentix",
-    title: "Coagentix — The professional AI platform",
+    title: "Co.AI – Multi-Agent AI Platform",
     description:
-      "Chat with CoAI, build software with Coagentix Code, and manage your Projects — all in one premium AI workspace.",
+      "Chat with Co.AI, build software with CoCode, and manage your Projects — all in one advanced multi-agent AI workspace.",
     images: [OG_IMAGE],
   },
   robots: {

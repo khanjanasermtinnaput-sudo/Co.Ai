@@ -1,8 +1,8 @@
 {
   "name": "coagentix-cli",
   "version": "1.0.0",
-  "description": "Coagentix Code CLI — AI coding agent for your terminal (Advanced subscribers)",
-  "keywords": ["ai", "cli", "coding", "coagentix"],
+  "description": "CoCode CLI — AI coding agent for your terminal (Advanced subscribers)",
+  "keywords": ["ai", "cli", "coding", "coai"],
   "license": "MIT",
   "type": "module",
   "bin": {

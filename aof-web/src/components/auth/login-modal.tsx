@@ -17,7 +17,7 @@ import {
 const BENEFITS = [
   "Save your chat history",
   "Save and manage projects",
-  "Use Coagentix Code to build software",
+  "Use CoCode to build software",
   "Access more AI models",
   "Sync across all your devices",
 ];
@@ -54,7 +54,7 @@ export function LoginModal() {
             Continue with Google
           </DialogTitle>
           <DialogDescription className="mt-1">
-            {reason ?? "Sign in to keep chatting and unlock everything Coagentix can do."}
+            {reason ?? "Sign in to keep chatting and unlock everything Co.AI can do."}
           </DialogDescription>
         </DialogHeader>
 

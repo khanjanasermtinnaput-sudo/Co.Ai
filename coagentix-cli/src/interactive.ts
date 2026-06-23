@@ -16,7 +16,7 @@ export async function startInteractiveSession(
   root: string,
   options: { titan?: boolean; model?: string } = {},
 ): Promise<void> {
-  console.log(brand.bold("\n  Coagentix Code CLI — Interactive Mode"));
+  console.log(brand.bold("\n  CoCode CLI — Interactive Mode"));
   console.log(chalk.dim('  Type your task, or /help for commands. Ctrl+C to exit.\n'));
 
   const spinner = startSpinner("Scanning repository…");

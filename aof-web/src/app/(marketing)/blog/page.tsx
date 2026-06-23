@@ -3,7 +3,7 @@ import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Blog",
-  description: "Insights, product updates, and engineering deep-dives from the Coagentix team.",
+  description: "Insights, product updates, and engineering deep-dives from the CoAgentix team.",
   alternates: { canonical: "https://coagentix.app/blog" },
 };
 
@@ -11,7 +11,7 @@ const POSTS = [
   {
     slug: "introducing-coagentix",
     date: "2026-06-19",
-    title: "Introducing Coagentix: Many Minds, One Intelligence",
+    title: "Introducing Co.AI: Many Minds, One Intelligence",
     summary:
       "We're building the professional AI platform for developers — one that coordinates a fleet of specialised agents instead of relying on a single model to do everything.",
     tags: ["Product", "Launch"],
@@ -19,7 +19,7 @@ const POSTS = [
   {
     slug: "coagentix-code-architecture",
     date: "2026-06-19",
-    title: "How Coagentix Code works: TMAP under the hood",
+    title: "How CoCode works: TMAP under the hood",
     summary:
       "A technical walkthrough of the multi-agent TMAP pipeline — how tasks flow from the Chief Agent through the Planner, Coder, Reviewer, and Validator before a single file is written.",
     tags: ["Engineering", "AI"],
@@ -39,7 +39,7 @@ export default function BlogPage() {
     <div className="mx-auto max-w-3xl px-6 py-20">
       <h1 className="text-4xl font-bold tracking-tight">Blog</h1>
       <p className="mt-4 text-xl text-muted-foreground">
-        Insights, updates, and engineering from the Coagentix team.
+        Insights, updates, and engineering from the CoAgentix team.
       </p>
 
       <ul className="mt-14 space-y-12">

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Coagentix Code CLI entry point
+// CoCode CLI entry point
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import { existsSync } from "node:fs";

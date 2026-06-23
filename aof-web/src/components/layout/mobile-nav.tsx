@@ -104,7 +104,7 @@ export function MobileTopbar() {
         </Dialog.Portal>
       </Dialog.Root>
 
-      <Link href="/" className="inline-flex items-center" aria-label="Coagentix home">
+      <Link href="/" className="inline-flex items-center" aria-label="Co.AI home">
         <Logo size={28} />
       </Link>
 

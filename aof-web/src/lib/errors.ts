@@ -1,8 +1,8 @@
-// ── Coagentix — Provider Error Model (shared: server + client) ────────────────
+// ── Co.AI — Provider Error Model (shared: server + client) ────────────────────
 // The single source of truth for how AI-provider failures are represented,
-// classified, logged, streamed and rendered across Coagentix.
+// classified, logged, streamed and rendered across Co.AI.
 //
-// Design principle (non-negotiable): Coagentix must NEVER pretend AI is working
+// Design principle (non-negotiable): Co.AI must NEVER pretend AI is working
 // when it is not. Every provider failure becomes a structured `AofProviderError`
 // that tells the user *what* failed, *why*, *which provider*, and *how to fix
 // it* — then the assistant stops. No fake responses, no silent fallbacks.
@@ -75,7 +75,7 @@ export const ERROR_CATALOG: Record<AofErrorCode, CatalogEntry> = {
   },
   AOF_ERROR_007: {
     problem: "Network Failure",
-    solution: "Coagentix could not reach the provider. Check the server's network/DNS and retry.",
+    solution: "Co.AI could not reach the provider. Check the server's network/DNS and retry.",
     failoverWorthy: true,
   },
   AOF_ERROR_008: {
@@ -105,7 +105,7 @@ export const ERROR_CATALOG: Record<AofErrorCode, CatalogEntry> = {
   },
   AOF_ERROR_013: {
     problem: "Configuration Error",
-    solution: "Coagentix is misconfigured for this provider. Review your environment configuration.",
+    solution: "Co.AI is misconfigured for this provider. Review your environment configuration.",
     failoverWorthy: false,
   },
 };
@@ -231,12 +231,12 @@ export function classifyProviderError(input: ClassifyInput): AofProviderError {
     return build(
       "AOF_ERROR_001",
       input,
-      `${env} is not set, so Coagentix cannot authenticate with ${input.provider}.`,
+      `${env} is not set, so Co.AI cannot authenticate with ${input.provider}.`,
       `Add ${env} to .env.local (server-side) and restart the app.`,
     );
   }
   if (input.hint === "config") {
-    return build("AOF_ERROR_013", input, input.message || `Coagentix is misconfigured for ${input.provider}.`);
+    return build("AOF_ERROR_013", input, input.message || `Co.AI is misconfigured for ${input.provider}.`);
   }
   if (input.hint === "empty") {
     return build(
@@ -252,7 +252,7 @@ export function classifyProviderError(input: ClassifyInput): AofProviderError {
     return build(
       "AOF_ERROR_007",
       input,
-      `Coagentix could not establish a connection to ${input.provider}. ${input.message ?? ""}`.trim(),
+      `Co.AI could not establish a connection to ${input.provider}. ${input.message ?? ""}`.trim(),
     );
   }
 

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CoAgentix Code</title>
+<title>CoCode</title>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -707,7 +707,7 @@ html, body {
 
 <div id="auth-overlay" class="modal-overlay">
   <div class="auth-box">
-    <div class="auth-title">CoAgentix Code access control</div>
+    <div class="auth-title">CoCode access control</div>
     <input id="auth-username" class="auth-field" placeholder="Username" autocomplete="username">
     <input id="auth-password" class="auth-field" type="password" placeholder="Password" autocomplete="current-password">
     <div class="auth-actions">
@@ -721,21 +721,13 @@ html, body {
 <!-- TITLE BAR -->
 <div id="titlebar">
   <div class="tb-left">
-    <span class="tb-logo"><span>CoAgentix</span> Code</span>
+    <span class="tb-logo"><span>Co</span>Code</span>
   </div>
   <div class="tb-center">
     <span class="tb-project-label">project:</span>
     <span class="tb-project-name" id="tb-project">untitled</span>
   </div>
   <div class="tb-right">
-    <div class="stack-panel">
-      <select id="tech-stack" class="model-select" onchange="updateStack()">
-        <option>React + Node</option>
-        <option>Vue + Node</option>
-        <option>Next.js + Python</option>
-        <option>React + Go</option>
-      </select>
-    </div>
     <button class="tb-btn" onclick="openRoomPrompt()" title="Room-based collaboration">room</button>
     <button class="tb-btn" onclick="exportCode()" title="Download generated code">export</button>
     <div class="model-wrap">
@@ -786,7 +778,7 @@ html, body {
 
     <!-- INPUT -->
     <div id="input-bar">
-      <span class="input-prompt" id="input-prompt">C:\CoAgentix&gt;</span>
+      <span class="input-prompt" id="input-prompt">C:\CoAI&gt;</span>
       <input type="text" id="cmd-input" placeholder="Type your project idea or /command..." autocomplete="off" spellcheck="false">
       <span class="input-hint">Ctrl+K &nbsp;|&nbsp; /help</span>
     </div>
@@ -1391,7 +1383,7 @@ function buildArchitecture(message, th) {
 
 function generateCodeFile(message, th) {
   const comment = th ? '// app.js — โครงหลักของแอป' : '// app.js';
-  return `${comment}\nconst state = { mode: 'NORMAL', sessions: 0, projects: [] };\n\nfunction initApp() {\n  renderPrompt();\n}\n\nfunction renderPrompt() {\n  console.log('CoAgentix Code demo running');\n}\n\ninitApp();`;
+  return `${comment}\nconst state = { mode: 'NORMAL', sessions: 0, projects: [] };\n\nfunction initApp() {\n  renderPrompt();\n}\n\nfunction renderPrompt() {\n  console.log('CoCode demo running');\n}\n\ninitApp();`;
 }
 
 // Stream text into terminal line by line as it arrives
@@ -1439,7 +1431,7 @@ async function boot() {
   writeBlank();
 
   await sleep(120);
-  writeLine('CoAgentix Code v1.0  -  Multi-Agent Code Generation System');
+  writeLine('CoCode v1.0  -  Multi-Agent Code Generation System');
   writeLine('<span class="t-dim">──────────────────────────────────────────────────────────</span>');
   writeBlank();
 
@@ -1489,7 +1481,7 @@ async function runCmd(raw) {
 
   // Echo command
   writeBlank();
-  writeLine(`<span class="t-prompt">C:\\CoAgentix&gt;</span> ${escHtml(raw)}`);
+  writeLine(`<span class="t-prompt">C:\\CoAI&gt;</span> ${escHtml(raw)}`);
   writeBlank();
 
   if (raw.startsWith('/')) {
@@ -1531,8 +1523,8 @@ async function cmdChat(input, direct = false) {
   writeLine(`<span class="t-dim">Gemini  &gt;  ${direct ? 'Responding...' : 'Analyzing request...'}</span>`);
 
   const systemPrompt = direct
-    ? `You are Gemini, the Project Manager AI agent in CoAgentix Code. Answer the user directly and concisely. Use plain text only, no markdown formatting. Keep responses short and helpful.`
-    : `You are Gemini, the Project Manager AI agent in CoAgentix Code — a multi-agent collaborative coding platform.
+    ? `You are Gemini, the Project Manager AI agent in CoCode. Answer the user directly and concisely. Use plain text only, no markdown formatting. Keep responses short and helpful.`
+    : `You are Gemini, the Project Manager AI agent in CoCode — a multi-agent collaborative coding platform.
 Your role: understand user requirements, ask clarifying questions when needed, and give a concise project analysis.
 Keep your response to 3-5 short lines max. Use plain text only, no markdown formatting.
 End by suggesting the user run /plan or /gencode to proceed. Be professional and sharp.`;
@@ -1568,7 +1560,7 @@ async function cmdPlan(arg) {
   writeLine(`<span class="t-dim">Planning:</span> <span class="t-orange">${escHtml(project)}</span>`);
   writeBlank();
 
-  const systemPrompt = `You are Gemini, the Project Manager AI agent in CoAgentix Code.
+  const systemPrompt = `You are Gemini, the Project Manager AI agent in CoCode.
 Your job: create a clear, structured project plan for the given project and its chosen technology stack.
 Format your response as a numbered list of components/layers (max 7 items).
 Each line: "N. ComponentName — brief tech choice + reason"
@@ -1618,7 +1610,7 @@ async function cmdGencode(arg) {
     setWfStep(1);
     writeLine('<span class="t-dim">Gemini  &gt;  Designing architecture...</span>');
 
-    const geminiSys = `You are Gemini, Project Manager in CoAgentix Code. Generate a concise architecture brief for the given project and technology stack. List 5-7 files/modules that will be generated. Format: "filename.ext — purpose". One item per line. Plain text only, no markdown.`;
+    const geminiSys = `You are Gemini, Project Manager in CoCode. Generate a concise architecture brief for the given project and technology stack. List 5-7 files/modules that will be generated. Format: "filename.ext — purpose". One item per line. Plain text only, no markdown.`;
     const archText = await streamAgentResponse('Gemini', 't-dim', geminiSys,
       `Create architecture brief for: "${project}" on stack: ${stack}`);
     setAgentDone('gemini');
@@ -1629,7 +1621,7 @@ async function cmdGencode(arg) {
     setWfStep(2);
     writeLine('<span class="t-blue">Llama   &gt;  Distributing tasks to agents...</span>');
 
-    const llamaSys = `You are Meta Llama, the Coordinator in CoAgentix Code. Given the architecture brief, assign tasks to DeepSeek (developer) and Qwen (reviewer). Keep it to 3 short lines. Format each as: "AgentName: task description". Plain text, no markdown.`;
+    const llamaSys = `You are Meta Llama, the Coordinator in CoCode. Given the architecture brief, assign tasks to DeepSeek (developer) and Qwen (reviewer). Keep it to 3 short lines. Format each as: "AgentName: task description". Plain text, no markdown.`;
     await streamAgentResponse('Llama  ', 't-blue', llamaSys,
       `Architecture: ${archText.substring(0, 400)}\n\nAssign tasks to DeepSeek and Qwen.`);
     setAgentDone('llama');
@@ -1640,7 +1632,7 @@ async function cmdGencode(arg) {
     setWfStep(3);
     writeLine('<span class="t-green">DeepSeek &gt;  Generating code...</span>');
 
-    const deepSeekSys = `You are DeepSeek, the Senior Developer in CoAgentix Code. Generate the most important code file for this project based on the chosen technology stack.
+    const deepSeekSys = `You are DeepSeek, the Senior Developer in CoCode. Generate the most important code file for this project based on the chosen technology stack.
 Start with a comment line: // filename.ext
 Then write clean, working code. Max 40 lines. No explanations before or after — just the code.`;
     await streamAgentResponse('DeepSeek', 't-green', deepSeekSys,
@@ -1653,7 +1645,7 @@ Then write clean, working code. Max 40 lines. No explanations before or after �
     setWfStep(4);
     writeLine('<span class="t-yellow">Qwen    &gt;  Reviewing generated code...</span>');
 
-    const qwenSys = `You are Qwen, the QA Reviewer in CoAgentix Code. Review the project and give a concise code review.
+    const qwenSys = `You are Qwen, the QA Reviewer in CoCode. Review the project and give a concise code review.
 Format: 3-4 bullet points starting with ✓ (good) or ⚠ (warning). End with "Review score: N/100". Plain text only.`;
     await streamAgentResponse('Qwen   ', 't-yellow', qwenSys,
       `Project: "${project}"\nArchitecture: ${archText.substring(0, 300)}\n\nProvide a concise code review.`);
@@ -1706,7 +1698,7 @@ async function cmdReview() {
   writeBlank();
 
   try {
-    const qwenSys = `You are Qwen, QA Reviewer in CoAgentix Code. Do a thorough code review of the described project.
+    const qwenSys = `You are Qwen, QA Reviewer in CoCode. Do a thorough code review of the described project.
 Cover: security, performance, code quality, and architecture concerns.
 Give 5-6 specific review points using ✓ for pass, ⚠ for warning, ✗ for issue.
 End with a final score line: "Final score: N/100". Plain text only, no markdown.`;
@@ -1716,7 +1708,7 @@ End with a final score line: "Final score: N/100". Plain text only, no markdown.
 
     writeBlank();
 
-    const geminiSys = `You are Gemini, Project Manager in CoAgentix Code. After the QA review, provide your architectural assessment in 2-3 short lines. Plain text only.`;
+    const geminiSys = `You are Gemini, Project Manager in CoCode. After the QA review, provide your architectural assessment in 2-3 short lines. Plain text only.`;
     await streamAgentResponse('Gemini ', 't-green', geminiSys,
       `Architectural assessment for: "${project}"`);
 
@@ -1749,7 +1741,7 @@ async function cmdFix() {
   writeBlank();
 
   try {
-    const qwenSys = `You are Qwen, QA Reviewer in CoAgentix Code. Identify likely bugs in the described project.
+    const qwenSys = `You are Qwen, QA Reviewer in CoCode. Identify likely bugs in the described project.
 List 3-4 common bugs with: bug name, cause, and severity (HIGH/MED/LOW). Plain text, one per line. No markdown.`;
 
     await streamAgentResponse('Qwen   ', 't-yellow', qwenSys,
@@ -1757,7 +1749,7 @@ List 3-4 common bugs with: bug name, cause, and severity (HIGH/MED/LOW). Plain t
 
     writeBlank();
 
-    const deepSeekSys = `You are DeepSeek, Senior Developer in CoAgentix Code. Given the bugs, provide the fix for the most critical one.
+    const deepSeekSys = `You are DeepSeek, Senior Developer in CoCode. Given the bugs, provide the fix for the most critical one.
 Format: show a short code snippet (5-10 lines) with a comment explaining the fix. Plain text, no markdown headers.`;
 
     await streamAgentResponse('DeepSeek', 't-green', deepSeekSys,
@@ -1786,7 +1778,7 @@ Format: show a short code snippet (5-10 lines) with a comment explaining the fix
 async function cmdAgents() {
   state.running = true;
 
-  writeLine('CoAgentix Agent Squad');
+  writeLine('Co.AI Agent Squad');
   writeLine('<span class="t-dim">──────────────────────────────────────────────────────────</span>');
   writeBlank();
 

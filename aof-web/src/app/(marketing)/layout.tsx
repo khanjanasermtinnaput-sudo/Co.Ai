@@ -6,7 +6,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
       <header className="border-b border-border/50 bg-background/80 backdrop-blur-sm sticky top-0 z-40">
         <div className="mx-auto max-w-5xl flex h-14 items-center justify-between px-6">
           <Link href="/" className="text-sm font-semibold tracking-tight">
-            Coagentix
+            Co.AI
           </Link>
           <nav className="flex items-center gap-5 text-sm text-muted-foreground">
             <Link href="/about"   className="hover:text-foreground transition-colors">About</Link>
@@ -21,7 +21,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
 
       <footer className="border-t border-border/50 mt-24 py-12 text-sm text-muted-foreground">
         <div className="mx-auto max-w-5xl px-6 flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
-          <p className="font-medium text-foreground">Coagentix</p>
+          <p className="font-medium text-foreground">Co.AI</p>
           <nav className="flex flex-wrap gap-x-6 gap-y-2">
             <Link href="/about"   className="hover:text-foreground transition-colors">About</Link>
             <Link href="/blog"    className="hover:text-foreground transition-colors">Blog</Link>

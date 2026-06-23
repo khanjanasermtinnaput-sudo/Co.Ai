@@ -164,7 +164,7 @@ function AccountTab() {
       <Card>
         <CardHeader>
           <CardTitle>Profile</CardTitle>
-          <CardDescription>How you appear across Coagentix.</CardDescription>
+          <CardDescription>How you appear across Co.AI.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
@@ -218,7 +218,7 @@ function AppearanceTab() {
       <Card>
         <CardHeader>
           <CardTitle>Theme</CardTitle>
-          <CardDescription>Coagentix looks its best in the dark.</CardDescription>
+          <CardDescription>Co.AI looks its best in the dark.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 gap-3">
@@ -243,7 +243,7 @@ function AppearanceTab() {
       <Card>
         <CardHeader>
           <CardTitle>Accent</CardTitle>
-          <CardDescription>The signature Coagentix orange-gold.</CardDescription>
+          <CardDescription>The signature Co.AI orange-gold.</CardDescription>
         </CardHeader>
         <CardContent className="flex items-center gap-3">
           <span className="size-9 rounded-full bg-primary shadow-glow" />
@@ -400,7 +400,7 @@ function KeysTab() {
           <CardDescription>
             Bring your own keys. They&apos;re encrypted at rest and tied to your account —
             we never show them again or send them back to the browser. Leave everything blank
-            to run Coagentix in mock mode.
+            to run Co.AI in mock mode.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -703,7 +703,7 @@ function CliSection({ isAdvanced }: { isAdvanced: boolean }) {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Terminal className="size-4 text-primary" /> Coagentix Code CLI
+            <Terminal className="size-4 text-primary" /> CoCode CLI
           </CardTitle>
           <CardDescription>
             AI-powered terminal coding agent — reads your repo, writes code, commits changes.
@@ -715,7 +715,7 @@ function CliSection({ isAdvanced }: { isAdvanced: boolean }) {
             <div>
               <p className="text-sm font-medium">Advanced subscription required</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Upgrade to Advanced to access Coagentix Code CLI
+                Upgrade to Advanced to access CoCode CLI
               </p>
             </div>
             <Button variant="default" onClick={() => toast("Upgrade coming soon — check Billing tab")}>
@@ -733,7 +733,7 @@ function CliSection({ isAdvanced }: { isAdvanced: boolean }) {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Terminal className="size-4 text-primary" /> Coagentix Code CLI
+            <Terminal className="size-4 text-primary" /> CoCode CLI
           </CardTitle>
           <CardDescription>
             Personal access token for the <code className="text-xs text-primary">coai</code> CLI.

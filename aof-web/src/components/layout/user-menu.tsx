@@ -42,7 +42,7 @@ export function UserMenu({ expanded = false }: UserMenuProps) {
   // mode (or when signed out) we surface a clear Sign in button instead.
   const realSession = configured && !!user;
 
-  const name = user?.name ?? "Coagentix User";
+  const name = user?.name ?? "Co.AI User";
   const email = user?.email ?? "you@coagentix.ai";
   const avatarUrl = user?.avatarUrl;
   const initials = initialsOf(name);

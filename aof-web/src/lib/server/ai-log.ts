@@ -1,4 +1,4 @@
-// ── Coagentix — server-side structured logging ────────────────────────────────
+// ── Co.AI — server-side structured logging ────────────────────────────────────
 // Every provider failure is logged here in a consistent, greppable format so an
 // operator can correlate a user-facing AOF_ERROR_xxx with the exact upstream
 // status, request id and stack. Logs go to stderr/stdout (picked up by the host

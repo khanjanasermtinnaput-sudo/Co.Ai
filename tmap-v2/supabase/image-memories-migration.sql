@@ -1,4 +1,4 @@
--- Coagentix — Image Memory (TMAP image understanding pipeline)
+-- Co.AI — Image Memory (TMAP image understanding pipeline)
 -- วิธีใช้: เปิด Supabase Dashboard → SQL Editor → วางทั้งหมด → Run
 --
 -- ACCESS MODEL: เหมือนตารางอื่น — เปิด RLS แต่ "ไม่สร้าง policy"

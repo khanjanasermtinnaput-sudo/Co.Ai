@@ -1,4 +1,4 @@
-// ── Coagentix — server-side provider layer ────────────────────────────────────
+// ── Co.AI — server-side provider layer ────────────────────────────────────────
 // Owns everything that actually talks to an AI provider: the registry of runtime
 // providers, key detection, the streaming adapters, unified error extraction,
 // the "prime then stream" wrapper that converts an early provider failure into a
@@ -341,7 +341,7 @@ const OPENROUTER_MAX_ATTEMPTS = 3;
 const OPENROUTER_BACKOFF_MS = [300, 800];
 
 // Free OpenRouter models get saturated independently, so when the configured one is
-// overloaded Coagentix falls through to another free model — staying answerable with no
+// overloaded Co.AI falls through to another free model — staying answerable with no
 // paid key. The configured OPENROUTER_MODEL is always tried first; override the whole
 // chain with OPENROUTER_MODELS (comma-separated).
 const OPENROUTER_FREE_FALLBACKS = [
@@ -385,7 +385,7 @@ async function openrouterConnect(
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKeyFor(meta, input.overrides)!}`,
         "HTTP-Referer": process.env.NEXT_PUBLIC_SITE_URL || "https://coagentix.app",
-        "X-Title": "Coagentix",
+        "X-Title": "Co.AI",
       },
       body,
       signal: input.signal,
