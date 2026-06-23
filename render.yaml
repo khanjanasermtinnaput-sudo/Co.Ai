@@ -33,3 +33,11 @@ services:
       # Optional: pin admin allowlist for /v1 privileged ops (backup/restore/DR).
       - key: COAGENTIX_ADMIN_USERNAMES
         sync: false
+      # ── Provider fallback key (fixes /v1/health "providers: []") ───────────────
+      # Server-level OpenRouter key used as a fallback when a user has no BYOK key.
+      # Without it, every /v1/* multi-agent route fail-closes for keyless users.
+      # OpenRouter exposes free models, so this costs nothing. Set the value in the
+      # Render dashboard (sync: false keeps the secret out of source control); the
+      # same key already lives in the repo's OPENROUTER_API_KEY GitHub secret.
+      - key: OPENROUTER_API_KEY
+        sync: false

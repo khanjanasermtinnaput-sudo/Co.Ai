@@ -1,0 +1,42 @@
+name: Keep Render warm
+
+# Free cold-start mitigation for the Render free tier (which sleeps after ~15 min
+# idle, causing 503s on the first request). A lightweight cron pings the backend
+# health endpoint every 10 min so the instance stays awake. Public-repo Actions
+# minutes are free; a single always-on service fits Render's 750 free hours/month.
+#
+# Caveats (honest): GitHub cron can drift several minutes under load, and
+# scheduled workflows auto-disable after 60 days with no repo commits. For a more
+# reliable free backup, also add a monitor on cron-job.org → GET the same URL.
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch: {}
+
+# Don't pile up runs if one is slow (e.g. waking a cold instance).
+concurrency:
+  group: keep-warm
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    name: Ping backend health
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping /v1/health (retry through cold start)
+        env:
+          # The Render service the project actually controls.
+          TARGET: https://aof-code.onrender.com/v1/health
+        run: |
+          for attempt in 1 2 3 4 5 6; do
+            code=$(curl -s -m 40 -o /dev/null -w '%{http_code}' "$TARGET" || echo 000)
+            echo "attempt $attempt -> HTTP $code"
+            if [ "$code" = "200" ]; then
+              echo "Backend awake."
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Backend did not return 200 after retries."
+          exit 1
