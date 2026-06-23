@@ -20,7 +20,9 @@ export const PROVIDERS: Record<string, ProviderDef> = {
     baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai',
     defaultModel: 'gemini-2.5-flash',
     modelEnv: 'GEMINI_MODEL',
-    openrouterModel: 'google/gemini-2.5-flash',
+    // Free model so the pipeline runs on a $0 OpenRouter account (planner role).
+    // Swap back to 'google/gemini-2.5-flash' once the account has credits.
+    openrouterModel: 'openai/gpt-oss-120b:free',
   },
   deepseek: {
     name: 'DeepSeek',
@@ -28,7 +30,8 @@ export const PROVIDERS: Record<string, ProviderDef> = {
     baseURL: 'https://api.deepseek.com/v1',
     defaultModel: 'deepseek-chat',
     modelEnv: 'DEEPSEEK_MODEL',
-    openrouterModel: 'deepseek/deepseek-chat',
+    // Free coding model (coder role). Swap to 'deepseek/deepseek-chat' with credits.
+    openrouterModel: 'qwen/qwen3-coder:free',
   },
   qwen: {
     name: 'Qwen',
@@ -39,7 +42,8 @@ export const PROVIDERS: Record<string, ProviderDef> = {
     baseURL: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
     defaultModel: 'qwen-plus',
     modelEnv: 'QWEN_MODEL',
-    openrouterModel: 'qwen/qwen-2.5-coder-32b-instruct',
+    // Free model (reviewer role). Swap to a paid Qwen model once credited.
+    openrouterModel: 'openai/gpt-oss-20b:free',
   },
   llama: {
     name: 'Llama',
@@ -50,7 +54,8 @@ export const PROVIDERS: Record<string, ProviderDef> = {
     baseURL: 'https://api.groq.com/openai/v1',
     defaultModel: 'llama-3.3-70b-versatile',
     modelEnv: 'LLAMA_MODEL',
-    openrouterModel: 'meta-llama/llama-3.3-70b-instruct',
+    // Free tier of the same Llama model (validator role).
+    openrouterModel: 'meta-llama/llama-3.3-70b-instruct:free',
   },
 };
 
