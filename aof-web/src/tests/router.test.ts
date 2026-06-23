@@ -12,7 +12,7 @@ function att(kind: Attachment['kind'], name = 'file.txt'): Attachment {
 test('general question routes to chat', () => {
   const r = routeRequest('What is the capital of France?');
   assert.equal(r.target, 'chat');
-  assert.equal(r.label, 'CoAgentix Chat');
+  assert.equal(r.label, 'Coagentix Chat');
 });
 
 test('greeting routes to chat', () => {
@@ -30,7 +30,7 @@ test('empty-ish question routes to chat (default fallback)', () => {
 test('explicit code keyword routes to code', () => {
   const r = routeRequest('write me some code');
   assert.equal(r.target, 'code');
-  assert.equal(r.label, 'CoAgentix Code');
+  assert.equal(r.label, 'Coagentix Code');
 });
 
 test('debug keyword routes to code', () => {
@@ -109,8 +109,8 @@ test('pdf attachment without coding ask routes to chat', () => {
 // ── routeLabel ────────────────────────────────────────────────────────────────
 
 test('routeLabel returns correct labels for all targets', () => {
-  assert.equal(routeLabel('chat'), 'CoAgentix Chat');
-  assert.equal(routeLabel('code'), 'CoAgentix Code');
+  assert.equal(routeLabel('chat'), 'Coagentix Chat');
+  assert.equal(routeLabel('code'), 'Coagentix Code');
   assert.equal(routeLabel('search'), 'Search Agent');
 });
 

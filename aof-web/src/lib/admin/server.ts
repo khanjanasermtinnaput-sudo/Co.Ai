@@ -8,9 +8,40 @@
 //   src/lib/admin/permissions.ts       — meetsMinRole(), isElevatedRole()
 
 import { NextResponse } from "next/server";
-import { getAdminSupabase, getUserFromRequest } from "@/lib/server/supabase-admin";
+import { getAdminSupabase, getUserFromRequest, isAdminConfigured } from "@/lib/server/supabase-admin";
 import type { AdminRole, LogAction, LogSeverity } from "./types";
 import { meetsMinRole, isElevatedRole } from "./permissions";
+
+// ── requireAdmin ──────────────────────────────────────────────────────────────
+
+/**
+ * Canonical admin guard for API routes. Replaces the per-route copies that each
+ * re-implemented the same "verify JWT → look up user_roles → check role" logic.
+ *
+ * Returns the SAME shape the routes already destructure so the swap is
+ * behaviour-preserving:
+ *   const { user, role, error } = await requireAdmin(req);   // default: ADMIN+
+ *   if (error) return error;
+ *
+ * `minRole` is hierarchy-aware (OWNER > ADMIN > STAFF > BETA_TESTER > USER), so
+ * requireAdmin(req, "ADMIN") admits OWNER+ADMIN and requireAdmin(req, "STAFF")
+ * admits OWNER+ADMIN+STAFF — exactly matching the old explicit role lists.
+ */
+export type RequireAdminResult =
+  | { user: { id: string; email?: string }; role: AdminRole; error?: undefined }
+  | { error: NextResponse; user?: undefined; role?: undefined };
+
+export async function requireAdmin(
+  req: Request,
+  minRole: AdminRole = "ADMIN",
+): Promise<RequireAdminResult> {
+  if (!isAdminConfigured()) {
+    return { error: NextResponse.json({ error: "admin-not-configured" }, { status: 503 }) };
+  }
+  const result = await requireRole(req, minRole);
+  if (result instanceof NextResponse) return { error: result };
+  return { user: result.user, role: result.role };
+}
 
 // ── getUserRole ───────────────────────────────────────────────────────────────
 

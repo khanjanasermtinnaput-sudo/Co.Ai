@@ -4,6 +4,7 @@
 
 import { NextResponse } from "next/server";
 import { getAdminSupabase, getUserFromRequest, isAdminConfigured } from "@/lib/server/supabase-admin";
+import { requireAdmin } from "@/lib/admin/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,23 +18,10 @@ async function getCallerRole(userId: string): Promise<string> {
   return data?.role ?? "USER";
 }
 
-async function requireAdminUser(req: Request) {
-  if (!isAdminConfigured()) {
-    return { error: NextResponse.json({ error: "admin-not-configured" }, { status: 503 }) };
-  }
-  const user = await getUserFromRequest(req);
-  if (!user) {
-    return { error: NextResponse.json({ error: "unauthorized" }, { status: 401 }) };
-  }
-  const role = await getCallerRole(user.id);
-  if (!["OWNER", "ADMIN", "STAFF"].includes(role)) {
-    return { error: NextResponse.json({ error: "forbidden" }, { status: 403 }) };
-  }
-  return { user, role };
-}
+
 
 export async function GET(req: Request) {
-  const { user: _user, role: _role, error } = await requireAdminUser(req);
+  const { user: _user, role: _role, error } = await requireAdmin(req);
   if (error) return error;
 
   const { searchParams } = new URL(req.url);

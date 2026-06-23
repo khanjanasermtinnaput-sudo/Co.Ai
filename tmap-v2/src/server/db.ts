@@ -59,6 +59,12 @@ const SUPABASE_URL = process.env.SUPABASE_URL?.replace(/\/$/, '');
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const useSupabase = Boolean(SUPABASE_URL && SUPABASE_KEY);
 
+/** True when durable Postgres (Supabase) is configured. The JSON file store is a
+ *  dev-only fallback; in production the startup gate refuses to boot without this. */
+export function isDbConfigured(): boolean {
+  return useSupabase;
+}
+
 interface SupabaseUserRow {
   id: string;
   username: string;

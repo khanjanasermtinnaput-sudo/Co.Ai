@@ -36,6 +36,8 @@ import { bagHasAnyKey, mockAllowed, resolveAllWith, ROLE_PROVIDER, type Credenti
 import { createBlackboard } from '../core/blackboard.js';
 import { runTMAP } from '../core/orchestrator.js';
 import { runV2 } from '../v2/run.js';
+import { globalRoutingTelemetry } from '../v2/routing-telemetry.js';
+import { estimateCost, estimateTokens } from '../core/cost-budget.js';
 import { runRAA } from '../core/raa.js';
 import { runTitan } from '../core/titan.js';
 import { runDebugger } from '../core/debugger.js';
@@ -52,6 +54,7 @@ import {
   searchImageMemories, imageMemoriesToContext, clearImageMemories, purgeExpiredImageMemories,
 } from '../core/image-memory.js';
 import { handleCliAuth, handleCliStatus } from './cli-auth.js';
+import { assessPreflight } from './preflight.js';
 import { correlationMiddleware } from './correlation.js';
 import { prometheusMiddleware, registry } from './prometheus.js';
 import { buildHealthReport } from './health.js';
@@ -718,10 +721,16 @@ app.post('/v1/run', requireAuth, requireSubscription('LITE', 'Coagentix Code'), 
   res.end();
 });
 
-// ── v2 ORCHESTRATION — score-based RAA + DAG executor (opt-in) ───────────────
-// Parallel to v1; only mounted when COAGENTIX_V2=1 so the live system is
-// untouched and rollback is a flag flip.
-if (process.env.COAGENTIX_V2 === '1') {
+// ── v2 ORCHESTRATION — score-based RAA + DAG executor (DEFAULT ON) ───────────
+// The score-based RAA (intent → decompose → score → dynamic agent selection →
+// orchestrator) is now the primary routing engine and is mounted by default.
+// It self-protects: low plan confidence or any execution error drops to the
+// legacy single route (fallback_used=true) rather than crashing. Disable the
+// whole v2 surface with COAGENTIX_V2=0 (or COAGENTIX_LEGACY_ROUTING=1) as a
+// rollback kill-switch.
+const v2RoutingEnabled =
+  process.env.COAGENTIX_V2 !== '0' && process.env.COAGENTIX_LEGACY_ROUTING !== '1';
+if (v2RoutingEnabled) {
   app.post('/v2/run', requireAuth, async (req: AuthedRequest, res) => {
     const task = String(req.body?.task ?? '').trim();
     if (!task) return res.status(400).json({ error: 'task required' });
@@ -745,16 +754,41 @@ if (process.env.COAGENTIX_V2 === '1') {
       return res.end();
     }
 
+    // Cost control: reject when the user is already over their daily/monthly
+    // token or cost budget (shared Redis counters — holds across instances).
+    const v2Quota = await checkQuota(u.id);
+    if (!v2Quota.ok) {
+      incQuotaViolation();
+      send({ role: 'system', kind: 'error', text: v2Quota.reason ?? 'Usage quota exceeded' });
+      return res.end();
+    }
+
+    // Pre-flight cost estimate (logged + surfaced to the client so the spend is
+    // visible before the run starts).
+    const estTokens = estimateTokens(task) * 10; // input + a typical multi-agent output
+    const estCostUsd = estimateCost('default', estimateTokens(task), estTokens);
+    logger.info('v2_cost_estimate', { user: u.username, estimated_tokens: estTokens, estimated_cost: estCostUsd });
+    send({ role: 'system', kind: 'status', text: `estimated cost ~$${estCostUsd.toFixed(4)} (${estTokens.toLocaleString()} tokens)` });
+
     logger.info('v2_run_start', { user: u.username, taskLen: task.length });
     try {
       const result = await runV2(task, { creds, userId: u.id, emit: send });
-      logger.info('v2_run_done', { requestId: result.requestId, mode: result.mode, confidence: result.confidence });
+      // Record actual consumption against the user's quota and log estimated vs actual.
+      await recordUsage(u.id, { tokens: result.totalTokens, costUsd: result.totalCostUsd });
+      addTokens(result.totalTokens, result.totalCostUsd);
+      logger.info('v2_run_done', {
+        requestId: result.requestId, mode: result.mode, confidence: result.confidence,
+        route: result.route, fallback_used: result.fallbackUsed,
+        estimated_cost: estCostUsd, actual_cost: result.totalCostUsd, actual_tokens: result.totalTokens,
+      });
       send({
         role: 'system',
         kind: 'done',
         requestId: result.requestId,
         mode: result.mode,
         confidence: result.confidence,
+        route: result.route,
+        fallbackUsed: result.fallbackUsed,
         output: result.output,
         trace: result.trace,
       });
@@ -765,7 +799,13 @@ if (process.env.COAGENTIX_V2 === '1') {
     }
     res.end();
   });
-  logger.info('v2_enabled', { route: 'POST /v2/run' });
+
+  // RAA routing health: success rate, fallback rate, average confidence.
+  app.get('/v2/routing-metrics', requireAuth, (_req: AuthedRequest, res) => {
+    res.json(globalRoutingTelemetry.metrics());
+  });
+
+  logger.info('v2_enabled', { routes: ['POST /v2/run', 'GET /v2/routing-metrics'] });
 }
 
 // ── ORCHESTRATE — Coagentix Universal Chief Agent (SSE stream) ───────────────
@@ -1617,36 +1657,10 @@ export default app;
  * in an insecure half-configured state; in dev it only warns so local runs work.
  */
 function preflightEnv(): void {
-  const required: Array<{ name: string; ok: boolean }> = [
-    { name: "JWT_SECRET", ok: (process.env.JWT_SECRET?.length ?? 0) >= 16 },
-    {
-      name: "COAGENTIX_MASTER_KEY",
-      ok: ((process.env.COAGENTIX_MASTER_KEY ?? process.env.AOF_MASTER_KEY)?.length ?? 0) >= 16,
-    },
-  ];
-  const missing = required.filter((r) => !r.ok).map((r) => r.name);
+  const { problems } = assessPreflight();
+  if (problems.length === 0) return;
 
-  // Durable storage: without Supabase, user accounts + their encrypted provider
-  // keys live on ephemeral disk and are WIPED on every redeploy/cold start. Treat
-  // that as a misconfiguration in production unless explicitly opted into.
-  const hasSupabase = Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
-  const allowEphemeral = ["1", "true"].includes(
-    (process.env.COAGENTIX_ALLOW_EPHEMERAL_DB ?? "").trim().toLowerCase(),
-  );
-  const storageInsecure = !hasSupabase && !allowEphemeral;
-
-  if (missing.length === 0 && !storageInsecure) return;
-
-  const parts: string[] = [];
-  if (missing.length) parts.push(`Missing/weak required env: ${missing.join(", ")} (need 16+ chars)`);
-  if (storageInsecure) {
-    parts.push(
-      "No durable storage: set SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY, or user " +
-      "accounts and encrypted API keys are lost on redeploy. " +
-      "Set COAGENTIX_ALLOW_EPHEMERAL_DB=1 to override intentionally.",
-    );
-  }
-  const msg = `[preflight] ${parts.join(" | ")}`;
+  const msg = `[preflight] ${problems.join(" | ")}`;
   if (process.env.NODE_ENV === "production") {
     console.error(`${msg} — refusing to start in production.`);
     process.exit(1);

@@ -16,6 +16,7 @@ import {
   type AofErrorCode,
   type AofProviderError,
 } from "@/lib/errors";
+import { z } from "zod";
 import { decideSearch, runSearch } from "@/lib/server/search/manager";
 import { buildSearchContext } from "@/lib/server/search/context-builder";
 import { normalizeSearchMode } from "@/lib/server/search/types";
@@ -96,6 +97,24 @@ interface ChatBody {
   /** Universal Search mode: "auto" (default) | "off" | "force". */
   searchMode?: string;
 }
+
+// Runtime validation for the untrusted request body. Permissive by design
+// (every field optional, unknown keys passed through) so it rejects malformed
+// *types* — e.g. message as an object, history as a string — without changing
+// which well-formed requests are accepted. Caps bound abusive payloads.
+const ChatBodySchema = z
+  .object({
+    message: z.string().max(100_000).optional(),
+    style: z.string().optional(),
+    route: z.object({}).passthrough().optional(),
+    history: z
+      .array(z.object({ role: z.string(), content: z.string() }).passthrough())
+      .max(200)
+      .optional(),
+    agent: z.string().optional(),
+    searchMode: z.string().optional(),
+  })
+  .passthrough();
 
 function buildSystem(style: ResponseStyle | undefined, route: RouteDecision | undefined): string {
   const persona =
@@ -204,7 +223,7 @@ export async function POST(req: Request): Promise<Response> {
     // "Coagentix is unavailable" panel. This also logs the real stack for diagnosis.
     const e = err as { message?: string; status?: number; stack?: string };
     const error = classifyProviderError({
-      provider: "CoAgentix",
+      provider: "Coagentix",
       message: e?.message ?? "Unexpected server error",
       status: typeof e?.status === "number" ? e.status : undefined,
       stack: e?.stack,
@@ -228,7 +247,7 @@ async function handleChat(req: Request): Promise<Response> {
     const headers = new Headers({ "Content-Type": "application/json; charset=utf-8" });
     applyRateLimitHeaders(headers, rl);
     const error = classifyProviderError({
-      provider: "CoAgentix",
+      provider: "Coagentix",
       message: `Rate limit exceeded. Try again in ${rl.retryAfterSec}s.`,
       status: 429,
     });
@@ -246,7 +265,7 @@ async function handleChat(req: Request): Promise<Response> {
       const headers = new Headers({ "Content-Type": "application/json; charset=utf-8" });
       applyRateLimitHeaders(headers, dailyRl);
       const error = classifyProviderError({
-        provider: "CoAgentix",
+        provider: "Coagentix",
         message: "Guest daily limit reached. Sign in to continue.",
         status: 429,
       });
@@ -259,11 +278,12 @@ async function handleChat(req: Request): Promise<Response> {
 
   let body: ChatBody;
   try {
-    body = (await req.json()) as ChatBody;
+    const raw = await req.json();
+    body = ChatBodySchema.parse(raw) as ChatBody;
   } catch {
     const error = classifyProviderError({
-      provider: "CoAgentix",
-      message: "Request body was not valid JSON.",
+      provider: "Coagentix",
+      message: "Request body was not valid JSON or failed validation.",
       hint: "config",
     });
     return errorResponse(error);

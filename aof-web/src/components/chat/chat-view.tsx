@@ -70,7 +70,7 @@ export function ChatView() {
       {/* header */}
       <div className="sticky top-0 z-10 flex h-14 items-center justify-between gap-3 border-b border-border/70 bg-background/70 px-3 backdrop-blur-xl sm:px-5">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="font-semibold text-foreground">CoAgentix Chat</span>
+          <span className="font-semibold text-foreground">Coagentix Chat</span>
           <span className="hidden items-center gap-1 rounded-full border border-border bg-secondary/60 px-2 py-0.5 text-[11px] text-muted-foreground sm:inline-flex">
             <Wand2 className="size-3 text-primary" /> Auto-routed
           </span>
@@ -116,7 +116,7 @@ export function ChatView() {
             >
               <LogoMark size={30} />
             </motion.div>
-            <h2 className="mt-5 text-xl font-semibold">CoAgentix Chat</h2>
+            <h2 className="mt-5 text-xl font-semibold">Coagentix Chat</h2>
             <p className="mt-2 max-w-sm text-sm text-muted-foreground">
               Ask anything, attach images, PDFs or code — CoAI picks the right agent
               automatically. Choose how detailed the answer should be above.

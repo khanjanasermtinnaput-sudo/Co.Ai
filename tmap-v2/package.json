@@ -13,8 +13,9 @@
     "server": "tsx src/server/index.ts",
     "start": "tsx src/server/index.ts",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test src/tests/*.test.ts",
-    "test:live": "tsx --test src/tests/e2e.live.test.ts"
+    "test": "node scripts/test.mjs",
+    "test:integration": "node scripts/test.mjs",
+    "test:live": "node scripts/test.mjs --live"
   },
   "dependencies": {
     "cors": "^2.8.5",

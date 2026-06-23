@@ -225,6 +225,16 @@ export class Logger {
       .reduce((sum, e) => sum + ((e.meta.costUsd as number) ?? 0), 0);
   }
 
+  /** Sum of input+output tokens across all cost entries that carried token meta. */
+  totalTokens(): number {
+    return this.entries
+      .filter((e) => e.category === 'cost')
+      .reduce((sum, e) => {
+        const t = e.meta.tokens as { input?: number; output?: number } | null | undefined;
+        return sum + (t ? (t.input ?? 0) + (t.output ?? 0) : 0);
+      }, 0);
+  }
+
   /**
    * Root Cause Analysis: identifies the first failure, the cascade chain it
    * triggered, and whether the run eventually recovered.

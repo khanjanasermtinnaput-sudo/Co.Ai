@@ -3,8 +3,10 @@
 // Any authenticated user can call this.
 
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { getAdminSupabase, getUserFromRequest, isAdminConfigured } from "@/lib/server/supabase-admin";
 import { logAdminAction } from "@/lib/admin/server";
+import { parseJsonBody } from "@/lib/server/validate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,13 +19,9 @@ export async function POST(req: Request) {
   const user = await getUserFromRequest(req);
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-  let body: { code?: string };
-  try { body = await req.json(); } catch {
-    return NextResponse.json({ error: "invalid-json" }, { status: 400 });
-  }
-
-  const code = typeof body.code === "string" ? body.code.trim().toUpperCase() : "";
-  if (!code) return NextResponse.json({ error: "code-required" }, { status: 400 });
+  const parsed = await parseJsonBody(req, z.object({ code: z.string().min(1).max(64) }));
+  if (parsed.error) return parsed.error;
+  const code = parsed.data.code.trim().toUpperCase();
 
   const supabase = getAdminSupabase();
 

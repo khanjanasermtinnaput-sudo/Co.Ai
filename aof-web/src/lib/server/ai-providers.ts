@@ -385,7 +385,7 @@ async function openrouterConnect(
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKeyFor(meta, input.overrides)!}`,
         "HTTP-Referer": process.env.NEXT_PUBLIC_SITE_URL || "https://coagentix.app",
-        "X-Title": "CoAgentix",
+        "X-Title": "Coagentix",
       },
       body,
       signal: input.signal,

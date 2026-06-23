@@ -1,4 +1,5 @@
 import type { AnyMessage, ResolvedProvider, ChatOpts, TokenUsage } from '../types.js';
+import { forceOfflineForTest } from '../config.js';
 
 const MOCK_NOTE =
   '[mock] No API key configured. Set one in .env (run `npm run doctor`).';
@@ -32,7 +33,9 @@ export async function chatWithUsage(
   messages: AnyMessage[],
   opts: ChatOpts = {},
 ): Promise<ChatResult> {
-  if (provider.mode === 'mock') {
+  // Mock providers, and ANY provider while the hermetic test suite is running,
+  // resolve to a canned reply so no live (billed) upstream is ever contacted.
+  if (provider.mode === 'mock' || forceOfflineForTest()) {
     return { text: mockReply(provider.role, messages) };
   }
 
@@ -43,8 +46,8 @@ export async function chatWithUsage(
   };
   // OpenRouter recommends these (optional) attribution headers.
   if (provider.mode === 'openrouter') {
-    headers['HTTP-Referer'] = 'https://github.com/aof-code';
-    headers['X-Title'] = 'AOF Code';
+    headers['HTTP-Referer'] = 'https://github.com/coagentix';
+    headers['X-Title'] = 'Coagentix Code';
   }
 
   const body = JSON.stringify({
@@ -130,7 +133,7 @@ function mockReply(role: string, messages: AnyMessage[]): string {
   if (role === 'planner')
     return `1. entrypoint — main module\n2. core logic — feature implementation\n3. tests — basic coverage\n${MOCK_NOTE}`;
   if (role === 'coder')
-    return `\`\`\`js\n// main.js — ${MOCK_NOTE}\nexport function main() {\n  console.log("hello from AOF mock");\n}\nmain();\n\`\`\``;
+    return `\`\`\`js\n// main.js — ${MOCK_NOTE}\nexport function main() {\n  console.log("hello from Coagentix mock");\n}\nmain();\n\`\`\``;
   if (role === 'reviewer')
     return `LOW | general | ${MOCK_NOTE} Add error handling and tests.`;
   return `skipped | ${MOCK_NOTE}`;

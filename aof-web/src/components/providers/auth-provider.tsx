@@ -30,7 +30,7 @@ interface AuthContextValue {
 const DEMO_USER: AuthUser = {
   id: "demo",
   email: "you@coagentix.ai",
-  name: "CoAgentix User",
+  name: "Coagentix User",
   tier: "FREE",
 };
 
@@ -55,7 +55,7 @@ function toAuthUser(session: Session | null): AuthUser | null {
   const meta = (u.user_metadata ?? {}) as Record<string, string | undefined>;
   const email = u.email ?? meta.email ?? "";
   const name =
-    meta.full_name || meta.name || (email ? email.split("@")[0] : "CoAgentix User");
+    meta.full_name || meta.name || (email ? email.split("@")[0] : "Coagentix User");
   return {
     id: u.id,
     email,

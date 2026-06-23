@@ -34,6 +34,7 @@ import { rankMemories, memoriesToContextV2, contextFitFrom, updateUsageFrequency
 import { loadMemory, saveMemory } from '../core/memory.js';
 import { Logger } from './logger.js';
 import { globalRunQueue } from './queue.js';
+import { globalRoutingTelemetry, type RoutingRoute } from './routing-telemetry.js';
 
 export type V2Emit = (event: object) => void;
 
@@ -49,8 +50,22 @@ export interface RunV2Result {
   output:       string;
   confidence:   number;
   mode:         string;
+  /** Which engine actually produced the output. */
+  route:        RoutingRoute;
+  /** True when the score-based DAG was skipped/aborted and the legacy single
+   *  route served the request instead (low confidence or an execution error). */
+  fallbackUsed: boolean;
   trace:        ExecutionTrace;
   totalCostUsd: number;
+  totalTokens:  number;
+}
+
+/** Below this RAA plan confidence we don't execute the (guessy) DAG — we drop to
+ *  the cheaper, more predictable legacy single route. Read at call time so it is
+ *  tunable per deployment (and overridable in tests) without a restart. */
+export function raaMinConfidence(): number {
+  const v = Number(process.env.COAGENTIX_RAA_MIN_CONFIDENCE);
+  return Number.isFinite(v) ? v : 0.25;
 }
 
 export async function runV2(task: string, opts: RunV2Opts): Promise<RunV2Result> {
@@ -151,46 +166,111 @@ async function runV2Inner(task: string, opts: RunV2Opts): Promise<RunV2Result> {
     contextFit: () => contextFit,
   };
 
+  // Legacy single-route fallback: one direct model pass. Cheap, predictable, and
+  // contract-compatible (plain text output) — used when the score-based plan is
+  // low-confidence or the DAG execution fails. This is the legacy router kept
+  // strictly as a safety net, never the primary path.
+  const legacyRoute = async (): Promise<string> => {
+    const messages: ChatMessage[] = [
+      { role: 'system', content: 'You are a capable assistant. Complete the task directly and concisely.' },
+      { role: 'user', content: [memContext && `Project memory:\n${memContext}`, task].filter(Boolean).join('\n\n') },
+    ];
+    return callFor('planner')(messages);
+  };
+
   // ── RAA: build the execution plan (score-based, DAG) ──
   emit({ role: 'v2', kind: 'status', text: 'RAA: intent → decompose → score' });
-  const ep = await raaPlan(task, requestId, cfg, trace);
-  emit({
-    role: 'v2',
-    kind: 'plan',
-    confidence: ep.confidence,
-    nodes: [...ep.graph.nodes.values()].map((n) => ({ id: n.id, agent: n.agentId, deps: n.dependencies })),
-  });
 
-  // ── Orchestrator: probabilistic mode + parallelism ──
-  const decision = decideExecution(ep, health);
-  emit({ role: 'v2', kind: 'status', text: `orchestrator: ${decision.reason} → parallel=${decision.maxParallel}` });
+  let route: RoutingRoute = 'raa-v2';
+  let fallbackUsed = false;
+  let fallbackReason: string | undefined;
+  let confidence = 0;
+  let selectedAgents: string[] = [];
+  let mode = 'fallback';
+  let output = '';
 
-  // ── Event-driven execution ──
-  const bus = new EventBus();
-  bus.onAny((e: WorkflowEvent) => emit({ role: 'v2', kind: 'event', event: e }));
+  try {
+    const ep = await raaPlan(task, requestId, cfg, trace);
+    confidence = ep.confidence;
+    selectedAgents = [...ep.graph.nodes.values()].map((n) => n.agentId);
+    emit({
+      role: 'v2',
+      kind: 'plan',
+      confidence,
+      nodes: [...ep.graph.nodes.values()].map((n) => ({ id: n.id, agent: n.agentId, deps: n.dependencies })),
+    });
 
-  await executeGraph(ep.graph, trace, bus, {
-    maxParallel: decision.maxParallel,
-    maxReplans: decision.maxReplans,
-    replan: makeReplan(cfg, ep.subtasks),
-  });
+    const minConfidence = raaMinConfidence();
+    if (confidence < minConfidence) {
+      // Confidence gate: skip the guessy DAG, drop to the legacy single route.
+      route = 'legacy-fallback';
+      fallbackUsed = true;
+      fallbackReason = `confidence ${confidence.toFixed(3)} < threshold ${minConfidence}`;
+      emit({ role: 'v2', kind: 'status', text: `RAA low confidence → legacy fallback (${fallbackReason})` });
+      output = await legacyRoute();
+    } else {
+      // ── Orchestrator: probabilistic mode + parallelism ──
+      const decision = decideExecution(ep, health);
+      mode = decision.mode;
+      emit({ role: 'v2', kind: 'status', text: `orchestrator: ${decision.reason} → parallel=${decision.maxParallel}` });
 
-  // ── Assemble output from sink nodes (no dependents), else all completed ──
-  const nodes = [...ep.graph.nodes.values()];
-  const isDependedOn = new Set<string>();
-  for (const n of nodes) n.dependencies.forEach((d) => isDependedOn.add(d));
-  const sinks = nodes.filter((n) => !isDependedOn.has(n.id) && n.status === 'done');
-  const pick = sinks.length ? sinks : nodes.filter((n) => n.status === 'done');
-  const output = pick.map((n) => String(n.output ?? '')).join('\n\n').trim();
+      // ── Event-driven execution ──
+      const bus = new EventBus();
+      bus.onAny((e: WorkflowEvent) => emit({ role: 'v2', kind: 'event', event: e }));
 
-  logger.logSystem('runV2 complete', { mode: decision.mode, confidence: ep.confidence });
+      await executeGraph(ep.graph, trace, bus, {
+        maxParallel: decision.maxParallel,
+        maxReplans: decision.maxReplans,
+        replan: makeReplan(cfg, ep.subtasks),
+      });
+
+      // ── Assemble output from sink nodes (no dependents), else all completed ──
+      const nodes = [...ep.graph.nodes.values()];
+      const isDependedOn = new Set<string>();
+      for (const n of nodes) n.dependencies.forEach((d) => isDependedOn.add(d));
+      const sinks = nodes.filter((n) => !isDependedOn.has(n.id) && n.status === 'done');
+      const pick = sinks.length ? sinks : nodes.filter((n) => n.status === 'done');
+      output = pick.map((n) => String(n.output ?? '')).join('\n\n').trim();
+    }
+  } catch (err) {
+    // Never crash the request: any RAA planning or DAG execution failure drops to
+    // the legacy single route so the user still gets an answer.
+    route = 'legacy-fallback';
+    fallbackUsed = true;
+    fallbackReason = (err as Error).message;
+    emit({ role: 'v2', kind: 'status', text: `RAA error → legacy fallback: ${fallbackReason}` });
+    try {
+      output = await legacyRoute();
+    } catch (e2) {
+      output = '';
+      fallbackReason = `${fallbackReason}; legacy fallback also failed: ${(e2 as Error).message}`;
+    }
+  }
+
+  // ── Structured routing decision: log + metrics ──
+  const decisionLog = {
+    requestId,
+    route,
+    confidence,
+    selected_agents: selectedAgents,
+    fallback_used: fallbackUsed,
+    reason: fallbackReason,
+    ts: new Date().toISOString(),
+  };
+  globalRoutingTelemetry.record(decisionLog);
+  logger.logSystem('routing_decision', decisionLog);
+  emit({ role: 'v2', kind: 'routing', ...decisionLog });
+
   await trace.persist();
   return {
     requestId,
     output,
-    confidence:   ep.confidence,
-    mode:         decision.mode,
+    confidence,
+    mode,
+    route,
+    fallbackUsed,
     trace:        trace.get(),
     totalCostUsd: logger.totalCost(),
+    totalTokens:  logger.totalTokens(),
   };
 }

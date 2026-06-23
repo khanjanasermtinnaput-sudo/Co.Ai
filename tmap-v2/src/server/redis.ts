@@ -213,6 +213,13 @@ export function getRedis(): RedisClient {
   return _client;
 }
 
+/** True when the operator has configured Redis (REDIS_URL or REDIS_HOST present).
+ *  Synchronous env check — used by the production startup gate so a missing
+ *  configuration is caught before the server begins serving traffic. */
+export function isRedisConfigured(): boolean {
+  return Boolean(process.env.REDIS_URL || process.env.REDIS_HOST);
+}
+
 /** Returns true when a real Redis connection is available (not the in-memory mock). */
 export async function isRedisAvailable(): Promise<boolean> {
   if (_usingMock || !_client) {
