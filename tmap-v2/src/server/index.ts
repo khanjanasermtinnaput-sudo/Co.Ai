@@ -36,6 +36,7 @@ import { bagHasAnyKey, mockAllowed, resolveAllWith, ROLE_PROVIDER, type Credenti
 import { createBlackboard } from '../core/blackboard.js';
 import { runTMAP } from '../core/orchestrator.js';
 import { runV2 } from '../v2/run.js';
+import { globalRoutingTelemetry } from '../v2/routing-telemetry.js';
 import { runRAA } from '../core/raa.js';
 import { runTitan } from '../core/titan.js';
 import { runDebugger } from '../core/debugger.js';
@@ -718,10 +719,16 @@ app.post('/v1/run', requireAuth, requireSubscription('LITE', 'Coagentix Code'), 
   res.end();
 });
 
-// ── v2 ORCHESTRATION — score-based RAA + DAG executor (opt-in) ───────────────
-// Parallel to v1; only mounted when COAGENTIX_V2=1 so the live system is
-// untouched and rollback is a flag flip.
-if (process.env.COAGENTIX_V2 === '1') {
+// ── v2 ORCHESTRATION — score-based RAA + DAG executor (DEFAULT ON) ───────────
+// The score-based RAA (intent → decompose → score → dynamic agent selection →
+// orchestrator) is now the primary routing engine and is mounted by default.
+// It self-protects: low plan confidence or any execution error drops to the
+// legacy single route (fallback_used=true) rather than crashing. Disable the
+// whole v2 surface with COAGENTIX_V2=0 (or COAGENTIX_LEGACY_ROUTING=1) as a
+// rollback kill-switch.
+const v2RoutingEnabled =
+  process.env.COAGENTIX_V2 !== '0' && process.env.COAGENTIX_LEGACY_ROUTING !== '1';
+if (v2RoutingEnabled) {
   app.post('/v2/run', requireAuth, async (req: AuthedRequest, res) => {
     const task = String(req.body?.task ?? '').trim();
     if (!task) return res.status(400).json({ error: 'task required' });
@@ -748,13 +755,18 @@ if (process.env.COAGENTIX_V2 === '1') {
     logger.info('v2_run_start', { user: u.username, taskLen: task.length });
     try {
       const result = await runV2(task, { creds, userId: u.id, emit: send });
-      logger.info('v2_run_done', { requestId: result.requestId, mode: result.mode, confidence: result.confidence });
+      logger.info('v2_run_done', {
+        requestId: result.requestId, mode: result.mode, confidence: result.confidence,
+        route: result.route, fallback_used: result.fallbackUsed,
+      });
       send({
         role: 'system',
         kind: 'done',
         requestId: result.requestId,
         mode: result.mode,
         confidence: result.confidence,
+        route: result.route,
+        fallbackUsed: result.fallbackUsed,
         output: result.output,
         trace: result.trace,
       });
@@ -765,7 +777,13 @@ if (process.env.COAGENTIX_V2 === '1') {
     }
     res.end();
   });
-  logger.info('v2_enabled', { route: 'POST /v2/run' });
+
+  // RAA routing health: success rate, fallback rate, average confidence.
+  app.get('/v2/routing-metrics', requireAuth, (_req: AuthedRequest, res) => {
+    res.json(globalRoutingTelemetry.metrics());
+  });
+
+  logger.info('v2_enabled', { routes: ['POST /v2/run', 'GET /v2/routing-metrics'] });
 }
 
 // ── ORCHESTRATE — Coagentix Universal Chief Agent (SSE stream) ───────────────
