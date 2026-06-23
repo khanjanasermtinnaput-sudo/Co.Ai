@@ -6,7 +6,7 @@ import type {
 // Canonical line format: "N. <path> — <create|modify> — <intent>"
 // The delimiter is em-dash (—) or double-dash (--), never a single dash (-).
 // This avoids mis-splitting file paths that contain hyphens (e.g. src/api-utils.ts).
-const PLANNER_SYS = `You are the Planner agent in AOF Code (TMAP v2).
+const PLANNER_SYS = `You are the Planner agent in Coagentix Code (TMAP v2).
 Break the user's task into a concrete build plan.
 Output ONLY a numbered list, max 7 lines, each line EXACTLY:
 "N. <path/filename> — <action: create|modify> — <short intent>"
@@ -46,7 +46,7 @@ export async function runPlanner(call: LLMCall, bb: Blackboard): Promise<{ steps
 }
 
 // ── CODER ────────────────────────────────────────────────────────────────────
-const CODER_SYS = `You are the Coder agent in AOF Code (TMAP v2). You write production-grade code.
+const CODER_SYS = `You are the Coder agent in Coagentix Code (TMAP v2). You write production-grade code.
 Implement the plan as complete, working files.
 
 QUALITY BAR (non-negotiable):
@@ -125,7 +125,7 @@ function resolveBlockPath(info: string, idx: number): string {
 }
 
 // ── REVIEWER ─────────────────────────────────────────────────────────────────
-const REVIEWER_SYS = `You are the Reviewer agent in AOF Code (TMAP v2).
+const REVIEWER_SYS = `You are the Reviewer agent in Coagentix Code (TMAP v2).
 Review the generated files for correctness, security and quality.
 Output ONLY issues, one per line, format:
 "<HIGH|MED|LOW> | <file> | <concrete problem and fix>"

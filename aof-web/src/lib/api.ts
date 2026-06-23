@@ -120,7 +120,7 @@ function isAbortError(e: unknown): boolean {
 /** Same-origin/network failure (the Coagentix server itself is unreachable). */
 function networkError(e: unknown): AofProviderError {
   return classifyProviderError({
-    provider: "CoAgentix",
+    provider: "Coagentix",
     hint: "network",
     message: (e as Error)?.message ?? "request failed",
   });
@@ -129,7 +129,7 @@ function networkError(e: unknown): AofProviderError {
 /** The optional tmap-v2 backend is configured but unreachable / erroring. */
 function backendUnavailableError(detail: string, e?: unknown): AofProviderError {
   const suffix = e ? ` (${(e as Error)?.message ?? String(e)})` : "";
-  return classifyProviderError({ provider: "CoAgentix Backend", status: 502, message: `${detail}${suffix}` });
+  return classifyProviderError({ provider: "Coagentix Backend", status: 502, message: `${detail}${suffix}` });
 }
 
 export interface SSEEvent {
@@ -198,12 +198,12 @@ async function readAofStream(
     const body = await res.json().catch(() => null);
     const err = isAofProviderError(body)
       ? body
-      : classifyProviderError({ provider: "CoAgentix", status: res.status, message: `Request failed (${res.status})` });
+      : classifyProviderError({ provider: "Coagentix", status: res.status, message: `Request failed (${res.status})` });
     handlers.onError?.(err);
     return { errored: true, text: "" };
   }
   if (!res.body) {
-    handlers.onError?.(emptyResponseError("CoAgentix"));
+    handlers.onError?.(emptyResponseError("Coagentix"));
     return { errored: true, text: "" };
   }
 
@@ -638,7 +638,7 @@ export interface OrchestrationHandlers {
 }
 
 /**
- * Stream a universal orchestration request through the AOF AI Chief Agent.
+ * Stream a universal orchestration request through the Coagentix AI Chief Agent.
  * The Chief Agent classifies intent, expands the prompt, delegates to specialized
  * agents, runs a quality review loop, and returns the best possible response.
  */

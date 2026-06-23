@@ -121,18 +121,18 @@ export function PwaInstaller() {
           transition={{ type: "spring", stiffness: 380, damping: 30 }}
           className="fixed inset-x-0 bottom-0 z-[60] flex justify-center px-4 pb-[max(1rem,env(safe-area-inset-bottom))]"
           role="dialog"
-          aria-label="Install CoAgentix"
+          aria-label="Install Coagentix"
         >
           <div className="flex w-full max-w-md items-center gap-3 rounded-2xl border border-border/70 bg-card/95 p-3 pr-2.5 shadow-2xl backdrop-blur supports-[backdrop-filter]:bg-card/80">
             <Image
               src="/aof-logo.png"
-              alt="CoAgentix"
+              alt="Coagentix"
               width={44}
               height={44}
               className="size-11 shrink-0 rounded-[22%] object-cover"
             />
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold leading-tight">ติดตั้งแอป CoAgentix</p>
+              <p className="text-sm font-semibold leading-tight">ติดตั้งแอป Coagentix</p>
               {iosHint ? (
                 <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
                   แตะ <Share className="inline size-3.5" /> แล้วเลือก “Add to Home Screen”

@@ -15,7 +15,7 @@ export default function NotFound() {
         workspace.
       </p>
       <Button asChild className="mt-6">
-        <Link href="/">Back to CoAgentix</Link>
+        <Link href="/">Back to Coagentix</Link>
       </Button>
     </div>
   );

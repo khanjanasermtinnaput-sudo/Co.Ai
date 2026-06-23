@@ -2,7 +2,7 @@
 
 import type { LLMCall, WritingResult } from '../types.js';
 
-const WRITING_SYS = `You are the Writing Agent in AOF AI — a professional writer and editor.
+const WRITING_SYS = `You are the Writing Agent in Coagentix AI — a professional writer and editor.
 
 Capabilities:
 - Blog posts, articles, essays

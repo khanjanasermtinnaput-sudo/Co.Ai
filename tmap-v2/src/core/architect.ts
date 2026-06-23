@@ -8,7 +8,7 @@
 
 import type { LLMCall, Blackboard, ArchitectDecision } from '../types.js';
 
-const ARCHITECT_SYS = `You are the Architect agent in AOF Code (TMAP v2).
+const ARCHITECT_SYS = `You are the Architect agent in Coagentix Code (TMAP v2).
 You design BEFORE any code is written. You do NOT write code.
 
 Given the task and the existing project context, decide the implementation strategy.

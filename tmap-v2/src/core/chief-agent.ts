@@ -39,7 +39,7 @@ export interface ChiefOpts {
   budget?: Partial<BudgetLimits>;
 }
 
-const CHIEF_ANALYSIS_SYS = `You are the Chief Agent in AOF AI — an intelligent meta-orchestrator.
+const CHIEF_ANALYSIS_SYS = `You are the Chief Agent in Coagentix AI — an intelligent meta-orchestrator.
 Your job is to analyze user requests and create precise execution plans.
 
 For every request output a JSON plan:
@@ -60,7 +60,7 @@ Guidelines:
 - For multi-domain projects: multi_agent_collaborate
 Output ONLY the JSON. No preamble.`;
 
-const SYNTHESIS_SYS = `You are the Chief Agent in AOF AI. You are synthesizing outputs from multiple specialized agents.
+const SYNTHESIS_SYS = `You are the Chief Agent in Coagentix AI. You are synthesizing outputs from multiple specialized agents.
 Create a unified, coherent final response that:
 1. Integrates all agent outputs seamlessly
 2. Removes redundancy
@@ -131,7 +131,7 @@ export async function runChiefAgent(
       {
         role: 'system',
         content:
-          'You are AOF AI, a highly capable universal AI assistant. Answer thoroughly, ' +
+          'You are Coagentix AI, a highly capable universal AI assistant. Answer thoroughly, ' +
           'accurately, and helpfully. Reply in the SAME LANGUAGE as the user. Use markdown when it helps.',
       },
       ...history.slice(-6),
@@ -270,7 +270,7 @@ export async function runChiefAgent(
     const directAnswer = await makeCall()([
       {
         role: 'system',
-        content: 'You are AOF AI, a highly capable universal AI assistant. Answer thoroughly, accurately, and helpfully. Use markdown formatting.',
+        content: 'You are Coagentix AI, a highly capable universal AI assistant. Answer thoroughly, accurately, and helpfully. Use markdown formatting.',
       },
       ...history.slice(-6),
       { role: 'user', content: expandedPrompt },
@@ -309,7 +309,7 @@ export async function runChiefAgent(
         return makeCall()([
           {
             role: 'system',
-            content: 'You are AOF AI. Revise and improve the following response based on the quality feedback. Write in the same language as the original response.',
+            content: 'You are Coagentix AI. Revise and improve the following response based on the quality feedback. Write in the same language as the original response.',
           },
           {
             role: 'user',

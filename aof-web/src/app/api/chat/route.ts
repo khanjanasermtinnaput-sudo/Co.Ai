@@ -223,7 +223,7 @@ export async function POST(req: Request): Promise<Response> {
     // "Coagentix is unavailable" panel. This also logs the real stack for diagnosis.
     const e = err as { message?: string; status?: number; stack?: string };
     const error = classifyProviderError({
-      provider: "CoAgentix",
+      provider: "Coagentix",
       message: e?.message ?? "Unexpected server error",
       status: typeof e?.status === "number" ? e.status : undefined,
       stack: e?.stack,
@@ -247,7 +247,7 @@ async function handleChat(req: Request): Promise<Response> {
     const headers = new Headers({ "Content-Type": "application/json; charset=utf-8" });
     applyRateLimitHeaders(headers, rl);
     const error = classifyProviderError({
-      provider: "CoAgentix",
+      provider: "Coagentix",
       message: `Rate limit exceeded. Try again in ${rl.retryAfterSec}s.`,
       status: 429,
     });
@@ -265,7 +265,7 @@ async function handleChat(req: Request): Promise<Response> {
       const headers = new Headers({ "Content-Type": "application/json; charset=utf-8" });
       applyRateLimitHeaders(headers, dailyRl);
       const error = classifyProviderError({
-        provider: "CoAgentix",
+        provider: "Coagentix",
         message: "Guest daily limit reached. Sign in to continue.",
         status: 429,
       });
@@ -282,7 +282,7 @@ async function handleChat(req: Request): Promise<Response> {
     body = ChatBodySchema.parse(raw) as ChatBody;
   } catch {
     const error = classifyProviderError({
-      provider: "CoAgentix",
+      provider: "Coagentix",
       message: "Request body was not valid JSON or failed validation.",
       hint: "config",
     });
