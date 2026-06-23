@@ -5,6 +5,7 @@
 
 import { NextResponse } from "next/server";
 import { getAdminSupabase, getUserFromRequest, isAdminConfigured } from "@/lib/server/supabase-admin";
+import { requireAdmin } from "@/lib/admin/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,20 +19,7 @@ async function getCallerRole(userId: string): Promise<string> {
   return data?.role ?? "USER";
 }
 
-async function requireAdmin(req: Request, minRoles: string[] = ["OWNER", "ADMIN"]) {
-  if (!isAdminConfigured()) {
-    return { error: NextResponse.json({ error: "admin-not-configured" }, { status: 503 }) };
-  }
-  const user = await getUserFromRequest(req);
-  if (!user) {
-    return { error: NextResponse.json({ error: "unauthorized" }, { status: 401 }) };
-  }
-  const role = await getCallerRole(user.id);
-  if (!minRoles.includes(role)) {
-    return { error: NextResponse.json({ error: "forbidden" }, { status: 403 }) };
-  }
-  return { user, role };
-}
+
 
 async function logAction(
   actorId: string,
@@ -54,7 +42,7 @@ export async function GET(
   req: Request,
   { params }: { params: { id: string } }
 ) {
-  const { user: caller, error } = await requireAdmin(req, ["OWNER", "ADMIN", "STAFF"]);
+  const { user: caller, error } = await requireAdmin(req, "STAFF");
   if (error) return error;
 
   const supabase = getAdminSupabase();
@@ -96,7 +84,7 @@ export async function PATCH(
   req: Request,
   { params }: { params: { id: string } }
 ) {
-  const { user: caller, role: callerRole, error } = await requireAdmin(req, ["OWNER", "ADMIN"]);
+  const { user: caller, role: callerRole, error } = await requireAdmin(req, "ADMIN");
   if (error) return error;
 
   let body: Record<string, unknown>;
@@ -196,7 +184,7 @@ export async function DELETE(
   req: Request,
   { params }: { params: { id: string } }
 ) {
-  const { user: caller, error } = await requireAdmin(req, ["OWNER"]);
+  const { user: caller, error } = await requireAdmin(req, "OWNER");
   if (error) return error;
 
   const supabase = getAdminSupabase();
