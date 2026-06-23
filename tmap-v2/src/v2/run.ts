@@ -57,6 +57,7 @@ export interface RunV2Result {
   fallbackUsed: boolean;
   trace:        ExecutionTrace;
   totalCostUsd: number;
+  totalTokens:  number;
 }
 
 /** Below this RAA plan confidence we don't execute the (guessy) DAG — we drop to
@@ -270,5 +271,6 @@ async function runV2Inner(task: string, opts: RunV2Opts): Promise<RunV2Result> {
     fallbackUsed,
     trace:        trace.get(),
     totalCostUsd: logger.totalCost(),
+    totalTokens:  logger.totalTokens(),
   };
 }

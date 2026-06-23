@@ -37,6 +37,7 @@ import { createBlackboard } from '../core/blackboard.js';
 import { runTMAP } from '../core/orchestrator.js';
 import { runV2 } from '../v2/run.js';
 import { globalRoutingTelemetry } from '../v2/routing-telemetry.js';
+import { estimateCost, estimateTokens } from '../core/cost-budget.js';
 import { runRAA } from '../core/raa.js';
 import { runTitan } from '../core/titan.js';
 import { runDebugger } from '../core/debugger.js';
@@ -753,12 +754,32 @@ if (v2RoutingEnabled) {
       return res.end();
     }
 
+    // Cost control: reject when the user is already over their daily/monthly
+    // token or cost budget (shared Redis counters — holds across instances).
+    const v2Quota = await checkQuota(u.id);
+    if (!v2Quota.ok) {
+      incQuotaViolation();
+      send({ role: 'system', kind: 'error', text: v2Quota.reason ?? 'Usage quota exceeded' });
+      return res.end();
+    }
+
+    // Pre-flight cost estimate (logged + surfaced to the client so the spend is
+    // visible before the run starts).
+    const estTokens = estimateTokens(task) * 10; // input + a typical multi-agent output
+    const estCostUsd = estimateCost('default', estimateTokens(task), estTokens);
+    logger.info('v2_cost_estimate', { user: u.username, estimated_tokens: estTokens, estimated_cost: estCostUsd });
+    send({ role: 'system', kind: 'status', text: `estimated cost ~$${estCostUsd.toFixed(4)} (${estTokens.toLocaleString()} tokens)` });
+
     logger.info('v2_run_start', { user: u.username, taskLen: task.length });
     try {
       const result = await runV2(task, { creds, userId: u.id, emit: send });
+      // Record actual consumption against the user's quota and log estimated vs actual.
+      await recordUsage(u.id, { tokens: result.totalTokens, costUsd: result.totalCostUsd });
+      addTokens(result.totalTokens, result.totalCostUsd);
       logger.info('v2_run_done', {
         requestId: result.requestId, mode: result.mode, confidence: result.confidence,
         route: result.route, fallback_used: result.fallbackUsed,
+        estimated_cost: estCostUsd, actual_cost: result.totalCostUsd, actual_tokens: result.totalTokens,
       });
       send({
         role: 'system',
