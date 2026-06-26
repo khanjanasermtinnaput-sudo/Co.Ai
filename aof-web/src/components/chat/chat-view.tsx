@@ -2,10 +2,11 @@
 
 import { useEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import { Sparkles, Wand2, Download, FileText, FileJson } from "lucide-react";
+import { Sparkles, Download, FileText, FileJson } from "lucide-react";
 import { useChatStore } from "@/store/chat-store";
 import { exportConversation } from "@/lib/export";
 import { Composer } from "@/components/composer/composer";
+import { ChatModelSelector } from "./chat-model-selector";
 import { ResponseStyleSelector } from "./response-style-selector";
 import { SearchModeSelector } from "./search-mode-selector";
 import { ChatThread } from "./chat-thread";
@@ -29,6 +30,8 @@ const STARTERS = [
 export function ChatView() {
   const conversations = useChatStore((s) => s.conversations);
   const activeId = useChatStore((s) => s.activeId);
+  const model = useChatStore((s) => s.model);
+  const setModel = useChatStore((s) => s.setModel);
   const style = useChatStore((s) => s.style);
   const setStyle = useChatStore((s) => s.setStyle);
   const searchMode = useChatStore((s) => s.searchMode);
@@ -70,10 +73,7 @@ export function ChatView() {
       {/* header */}
       <div className="sticky top-0 z-10 flex h-14 items-center justify-between gap-3 border-b border-border/70 bg-background/70 px-3 backdrop-blur-xl sm:px-5">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="font-semibold text-foreground">Co.AI</span>
-          <span className="hidden items-center gap-1 rounded-full border border-border bg-secondary/60 px-2 py-0.5 text-[11px] text-muted-foreground sm:inline-flex">
-            <Wand2 className="size-3 text-primary" /> Auto-routed
-          </span>
+          <ChatModelSelector value={model} onChange={setModel} />
         </div>
         <div className="flex items-center gap-2">
           {active && messages.length > 0 && (

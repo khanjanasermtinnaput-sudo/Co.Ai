@@ -6,7 +6,7 @@
 // is *explicitly* put in demo mode (`NEXT_PUBLIC_AOF_DEMO=1`); it is off by
 // default so the UI never appears to work when AI is actually down.
 
-import type { ProjectBrief, ResponseStyle, RouteDecision } from "./types";
+import type { ChatModel, ProjectBrief, ResponseStyle, RouteDecision } from "./types";
 import {
   mockChat,
   mockCodeChat,
@@ -266,6 +266,8 @@ export interface ChatHistoryItem {
 }
 
 export interface ChatRequest {
+  /** Manual model choice from the CoChat header: "lite" (Mikros) | "normal" (Kanon). */
+  model: ChatModel;
   style: ResponseStyle;
   route: RouteDecision;
   history: ChatHistoryItem[];
@@ -273,8 +275,13 @@ export interface ChatRequest {
   searchMode?: "auto" | "off" | "force";
 }
 
-/** Stream a Chat-with-Co.AI reply. Live `/v1/chat` → real `/api/chat`; failures
- *  surface as structured errors. Mock only in explicit demo mode. */
+/**
+ * Stream a CoChat reply. CoChat is a fast single-pass assistant: it ALWAYS uses
+ * the same-origin `/api/chat` provider route and never the multi-agent tmap-v2
+ * backend (no orchestration, no TMAP, no memory-blocking) — that pipeline belongs
+ * to CoCode only. The user-selected model (Mikros/Kanon) is sent through and
+ * decides the provider chain + answer depth. Mock only in explicit demo mode.
+ */
 export async function streamChat(
   message: string,
   req: ChatRequest,
@@ -284,35 +291,13 @@ export async function streamChat(
     return mockChat(message, { style: req.style, route: req.route }, handlers);
   }
 
-  if (isLive()) {
-    try {
-      await postSSE(
-        "/v1/chat",
-        {
-          message,
-          style: req.style,
-          route: req.route.target,
-          history: req.history.map((h) => ({ role: h.role, content: h.content })),
-        },
-        (e) => {
-          if (e.kind === "output" && typeof e.text === "string") handlers.onToken(e.text);
-        },
-        handlers.signal,
-      );
-      return; // backend handled it — skip /api/chat fallback
-    } catch (e) {
-      if (isAbortError(e)) return;
-      // backend unreachable — fall through to /api/chat below
-    }
-  }
-
-  // Default: Co.AI's own provider route (also the fallback when backend is down).
   try {
     const res = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         message,
+        model: req.model,
         style: req.style,
         route: req.route,
         searchMode: req.searchMode ?? "auto",

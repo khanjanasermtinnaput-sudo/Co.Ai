@@ -85,6 +85,11 @@ interface ChatHistoryItem {
   content: string;
 }
 
+/** CoChat model the user picked in the header selector. Maps to a branding
+ *  name in model-branding.ts: "lite" = Mikros (fast), "normal" = Kanon (reasoning).
+ *  Only consulted on the plain chat path (no `agent`); CoCode is unaffected. */
+type ChatModelId = "lite" | "normal";
+
 interface ChatBody {
   message?: string;
   style?: ResponseStyle;
@@ -94,6 +99,8 @@ interface ChatBody {
    *  CoCode NORMAL_CHAT; "code-gen"/"plan"/"analyze"/"debug" = serverless build
    *  pipeline (used when the tmap-v2 backend is not configured). */
   agent?: Agent;
+  /** CoChat manual model selection: "lite" (Mikros) | "normal" (Kanon). */
+  model?: ChatModelId;
   /** Universal Search mode: "auto" (default) | "off" | "force". */
   searchMode?: string;
 }
@@ -112,9 +119,38 @@ const ChatBodySchema = z
       .max(200)
       .optional(),
     agent: z.string().optional(),
+    model: z.string().optional(),
     searchMode: z.string().optional(),
   })
   .passthrough();
+
+/** Single-pass config for the user-selected CoChat model. Mikros stays fast and
+ *  lightweight; Kanon reasons internally first then answers in a structured way —
+ *  all in one LLM call so latency and token use stay low (no second round-trip). */
+function chatModelConfig(
+  model: ChatModelId | undefined,
+  style: ResponseStyle | undefined,
+  route: RouteDecision | undefined,
+): { system: string; temperature: number; maxTokens: number } {
+  const base = buildSystem(style, route);
+  if (model === "normal") {
+    // Kanon — better reasoning, higher quality, structured answers.
+    const kanon =
+      `${base}\n\nREASONING DEPTH: Think the problem through internally first, then give ` +
+      `a clear, well-organized answer — use brief sections or bullet points when they aid ` +
+      `clarity. Keep the internal reasoning out of the reply unless the user asks to see it.`;
+    return { system: kanon, temperature: 0.6, maxTokens: Math.max(maxTokensFor(style), 1200) };
+  }
+  // Mikros (default) — fast, lightweight, low token, general chat.
+  return { system: base, temperature: 0.7, maxTokens: maxTokensFor(style) };
+}
+
+/** Provider-priority chain for a CoChat turn. Kanon prefers reasoning-capable
+ *  models; Mikros the fast general-chat chain. Search intent still wins. */
+function chatTaskCategory(model: ChatModelId | undefined, route: RouteDecision | undefined): TaskCategory {
+  if (route?.target === "search") return "research";
+  return model === "normal" ? "reasoning" : "chat";
+}
 
 function buildSystem(style: ResponseStyle | undefined, route: RouteDecision | undefined): string {
   const persona =
@@ -298,7 +334,11 @@ async function handleChat(req: Request): Promise<Response> {
     (h) => h && (h.role === "user" || h.role === "assistant") && typeof h.content === "string",
   );
 
-  const { system: baseSystem, temperature, maxTokens } = agentConfig(body.agent, body.style, body.route);
+  // Plain CoChat (no agent) honours the user's manual Mikros/Kanon choice; the
+  // agent-driven paths (RAA, code-*, build pipeline) keep their own personas.
+  const { system: baseSystem, temperature, maxTokens } = body.agent
+    ? agentConfig(body.agent, body.style, body.route)
+    : chatModelConfig(body.model, body.style, body.route);
   let system = baseSystem;
 
   // ── Universal Search ─────────────────────────────────────────────────────────
@@ -323,7 +363,9 @@ async function handleChat(req: Request): Promise<Response> {
   }
 
   // ── Task-aware provider order (model-registry.ts), filtered to what's configured. ──
-  const task = taskCategoryFor(body.agent, body.route);
+  const task = body.agent
+    ? taskCategoryFor(body.agent, body.route)
+    : chatTaskCategory(body.model, body.route);
   const providers = configuredProvidersForOrder(routeOrder(task), overrides);
 
   if (providers.length === 0) {

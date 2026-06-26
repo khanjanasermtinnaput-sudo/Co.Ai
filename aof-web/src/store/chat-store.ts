@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { toast } from "sonner";
 import { uid } from "@/lib/utils";
-import { streamChat, streamOrchestrate, streamOrchestrateV2, isLive, isV2Enabled, type ChatHistoryItem } from "@/lib/api";
+import { streamChat, type ChatHistoryItem } from "@/lib/api";
 import { routeRequest } from "@/lib/router";
 import { composeLearningReply, isLearningProblem } from "@/lib/mock";
 import {
@@ -21,7 +21,6 @@ import type {
   ResponseStyle,
   SearchMode,
 } from "@/lib/types";
-import type { AofProviderError } from "@/lib/errors";
 import { checkUserAccess } from "@/lib/access";
 import { useAuthStore } from "@/store/auth-store";
 import { useGuestStore } from "@/store/guest-store";
@@ -35,12 +34,15 @@ interface PendingMessage {
 interface ChatState {
   conversations: Conversation[];
   activeId: string | null;
+  /** Manually-selected CoChat model: "lite" = Mikros, "normal" = Kanon. */
+  model: ChatModel;
   style: ResponseStyle;
   searchMode: SearchMode;
   streaming: boolean;
   pendingFirstMessage: PendingMessage | null;
   abort: AbortController | null;
 
+  setModel: (m: ChatModel) => void;
   setStyle: (s: ResponseStyle) => void;
   setSearchMode: (m: SearchMode) => void;
   newConversation: () => string;
@@ -62,21 +64,20 @@ function titleFrom(text: string): string {
   return t.length > 42 ? `${t.slice(0, 42)}…` : t || "New chat";
 }
 
-function modelForStyle(style: ResponseStyle): ChatModel {
-  return style === "short" ? "lite" : "normal";
-}
-
 export const useChatStore = create<ChatState>()(
   persist(
     (set, get) => ({
       conversations: [],
       activeId: null,
+      // Kanon is the balanced default (the "Default"-badged model in CHAT_MODELS).
+      model: "normal",
       style: "normal",
       searchMode: "auto",
       streaming: false,
       pendingFirstMessage: null,
       abort: null,
 
+      setModel: (model) => set({ model }),
       setStyle: (style) => set({ style }),
       setSearchMode: (searchMode) => set({ searchMode }),
 
@@ -86,7 +87,7 @@ export const useChatStore = create<ChatState>()(
         const conv: Conversation = {
           id,
           title: "New chat",
-          model: modelForStyle(get().style),
+          model: get().model,
           messages: [],
           createdAt: now,
           updatedAt: now,
@@ -215,6 +216,7 @@ export const useChatStore = create<ChatState>()(
         if (!activeId) activeId = get().newConversation();
 
         const style = get().style;
+        const model = get().model;
         const route = routeRequest(content, attachments ?? []);
         const now = new Date().toISOString();
 
@@ -232,7 +234,7 @@ export const useChatStore = create<ChatState>()(
           content: "",
           createdAt: now,
           streaming: true,
-          model: modelForStyle(style),
+          model,
           route,
           style,
         };
@@ -349,43 +351,22 @@ export const useChatStore = create<ChatState>()(
         };
 
         try {
-          if (isLive()) {
-            // Universal orchestration. Default: v1 Chief Agent (/v1/orchestrate).
-            // Opt-in (NEXT_PUBLIC_COAGENTIX_V2=1 + backend COAGENTIX_V2=1): the
-            // score-based v2 engine (/v2/run). Same handler contract either way.
-            const orchestrate = isV2Enabled() ? streamOrchestrateV2 : streamOrchestrate;
-            await orchestrate(
-              content,
-              history,
-              {
-                onStatus: (agent, text) =>
-                  patchAssistant({ agentStatus: `${agent}: ${text}` }),
-                onToken: appendToken,
-                onDone: (result) =>
-                  patchAssistant({
-                    agentsUsed: result.agentsUsed,
-                    qualityScore: result.qualityScore,
-                    categories: result.categories,
-                    agentStatus: undefined,
-                  }),
-                onError: (error) => patchAssistant({ error: error as AofProviderError, streaming: false }),
-                signal: controller.signal,
-              },
-            );
-          } else {
-            await streamChat(
-              content,
-              { style, route, history, searchMode: get().searchMode },
-              {
-                onToken: appendToken,
-                signal: controller.signal,
-                onError: (error) => patchAssistant({ error, streaming: false }),
-                onFailover: (failover) => patchAssistant({ failover }),
-                onModel: (activeModel) => patchAssistant({ activeModel }),
-                onSources: (sources) => patchAssistant({ sources }),
-              },
-            );
-          }
+          // CoChat = fast single-pass assistant. One provider call to /api/chat with
+          // the user's chosen model (Mikros/Kanon). No orchestration, no TMAP, no
+          // multi-agent — that pipeline lives in CoCode only. Memory/persistence runs
+          // asynchronously in finish() after the response, never blocking it.
+          await streamChat(
+            content,
+            { model, style, route, history, searchMode: get().searchMode },
+            {
+              onToken: appendToken,
+              signal: controller.signal,
+              onError: (error) => patchAssistant({ error, streaming: false }),
+              onFailover: (failover) => patchAssistant({ failover }),
+              onModel: (activeModel) => patchAssistant({ activeModel }),
+              onSources: (sources) => patchAssistant({ sources }),
+            },
+          );
         } finally {
           finish(accumulated || undefined);
         }
@@ -444,6 +425,7 @@ export const useChatStore = create<ChatState>()(
     {
       name: "aof.chat",
       partialize: (s) => ({
+        model: s.model,
         style: s.style,
         searchMode: s.searchMode,
         conversations: s.conversations.map((c) => ({
