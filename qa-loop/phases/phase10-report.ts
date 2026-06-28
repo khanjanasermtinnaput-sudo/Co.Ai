@@ -48,7 +48,15 @@ export function buildRunReport(
   }
 
   const recommendations: string[] = [];
-  if (criticalBugs.some((b) => b.phase === 7)) {
+  const hasRateLimitFinding = phases.some(
+    (p) => p.tests.some((t) => t.details?.["rateLimitedCompletely"] || t.details?.["rateLimited"]),
+  );
+  if (hasRateLimitFinding) {
+    recommendations.push(
+      "ACTION REQUIRED: /v1/health is 100% rate-limited — exempt health endpoints from rate limiting in tmap-v2/src/server/rateLimit.ts. This also fixes keep-warm pings being throttled.",
+    );
+  }
+  if (criticalBugs.some((b) => b.phase === 7 && !b.error?.includes("rate"))) {
     recommendations.push("Upgrade Render instance size or enable Redis caching to handle load");
   }
   if (criticalBugs.some((b) => b.phase === 8)) {

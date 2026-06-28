@@ -171,9 +171,12 @@ export async function runPhase9(runDir: string): Promise<PhaseResult> {
     // First call may hit a cold-starting Render instance
     const first = await httpGet(`${config.backendUrl}/v1/health`, { timeoutMs: 35_000 });
     const second = await httpGet(`${config.backendUrl}/v1/health`, { timeoutMs: config.timeoutMs });
-    const ok = second.ok; // second call should succeed after warm-up
+    // 429 = rate-limited (backend IS running, just throttling) — counts as alive
+    const isAlive = (s: number) => s === 200 || s === 429;
+    const ok = isAlive(second.status);
+    const rateLimited = second.status === 429;
     tests.push({
-      name: "Backend cold-start recovery — second request succeeds",
+      name: "Backend cold-start recovery — backend responds after second request",
       passed: ok,
       durationMs: Date.now() - t0,
       details: {
@@ -181,12 +184,15 @@ export async function runPhase9(runDir: string): Promise<PhaseResult> {
         firstMs: first.durationMs,
         secondStatus: second.status,
         secondMs: second.durationMs,
+        rateLimited,
       },
-      error: ok ? undefined : `Both health checks failed: ${second.status}`,
-      rootCause: "Render free-tier instance spinning down after inactivity",
-      suggestedFix: "Ensure .github/workflows/keep-warm.yml is enabled and pinging every 10 min",
+      error: ok ? undefined : `Backend unreachable: ${second.status}${second.error ? ` — ${second.error}` : ""}`,
+      rootCause: ok ? undefined : "Render free-tier instance spinning down after inactivity",
+      suggestedFix: rateLimited
+        ? "FINDING: /v1/health rate-limited — exempt health endpoint from rate limiting so keep-warm pings work"
+        : "Ensure .github/workflows/keep-warm.yml is enabled and pinging every 10 min",
     });
-    ok ? log.ok(`Cold-start recovery — first=${first.status}(${first.durationMs}ms) second=${second.status}(${second.durationMs}ms)`)
+    ok ? log.ok(`Cold-start check — first=${first.status}(${first.durationMs}ms) second=${second.status}(${second.durationMs}ms)${rateLimited ? " [rate-limited]" : ""}`)
        : log.fail("Cold-start recovery failed");
   }
 
