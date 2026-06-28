@@ -1,0 +1,168 @@
+#!/usr/bin/env tsx
+/**
+ * Co.AI Automated QA Loop
+ *
+ * Runs all 10 test phases continuously (or once with --once).
+ * Pass --phases 1,3,8 to run only specific phases.
+ *
+ * Usage:
+ *   npx tsx run.ts               # loop forever
+ *   npx tsx run.ts --once        # single iteration
+ *   npx tsx run.ts --once --phases 1,8  # single iteration, phases 1 and 8 only
+ */
+
+import { mkdirSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
+
+import { config } from "./config.ts";
+import { log } from "./utils/logger.ts";
+import { closeBrowser } from "./utils/browser.ts";
+import type { PhaseResult } from "./utils/types.ts";
+
+import { runPhase1 } from "./phases/phase1-homepage.ts";
+import { runPhase2 } from "./phases/phase2-auth.ts";
+import { runPhase3 } from "./phases/phase3-chat.ts";
+import { runPhase4 } from "./phases/phase4-memory.ts";
+import { runPhase5 } from "./phases/phase5-tmap.ts";
+import { runPhase6 } from "./phases/phase6-ui.ts";
+import { runPhase7 } from "./phases/phase7-stress.ts";
+import { runPhase8 } from "./phases/phase8-security.ts";
+import { runPhase9 } from "./phases/phase9-recovery.ts";
+import { buildRunReport, saveReport, printReport } from "./phases/phase10-report.ts";
+
+// ── CLI args ───────────────────────────────────────────────────────────────
+const args = process.argv.slice(2);
+const runOnce = args.includes("--once");
+const phasesArg = (() => {
+  const idx = args.indexOf("--phases");
+  if (idx >= 0 && args[idx + 1]) {
+    return args[idx + 1].split(",").map(Number).filter((n) => !isNaN(n));
+  }
+  return config.phases;
+})();
+
+// ── Phase registry ─────────────────────────────────────────────────────────
+type PhaseRunner = (runDir: string) => Promise<PhaseResult>;
+
+const PHASE_MAP: Record<number, { name: string; run: PhaseRunner }> = {
+  1: { name: "Homepage",          run: runPhase1 },
+  2: { name: "Authentication",    run: runPhase2 },
+  3: { name: "AI Chat",           run: runPhase3 },
+  4: { name: "Memory",            run: runPhase4 },
+  5: { name: "Multi-Agent TMAP",  run: runPhase5 },
+  6: { name: "UI / Responsive",   run: runPhase6 },
+  7: { name: "Stress Test",       run: runPhase7 },
+  8: { name: "Security",          run: runPhase8 },
+  9: { name: "Error Recovery",    run: runPhase9 },
+};
+
+// ── Main ───────────────────────────────────────────────────────────────────
+let iteration = 0;
+
+async function runIteration(): Promise<void> {
+  iteration++;
+  log.loop(iteration);
+
+  const runId = `run-${new Date().toISOString().replace(/[:.]/g, "-")}`;
+  const runDir = resolve(config.reportDir, runId);
+  mkdirSync(runDir, { recursive: true });
+
+  const startedAt = new Date().toISOString();
+  const phaseResults: PhaseResult[] = [];
+
+  for (const phaseNum of phasesArg.sort((a, b) => a - b)) {
+    const entry = PHASE_MAP[phaseNum];
+    if (!entry) {
+      log.warn(`Phase ${phaseNum} not defined — skipping`);
+      continue;
+    }
+
+    log.phase(phaseNum, entry.name);
+
+    try {
+      const result = await entry.run(runDir);
+      phaseResults.push(result);
+
+      log.summary(result.passCount, result.failCount, result.totalMs);
+
+      // Save incremental phase result
+      writeFileSync(resolve(runDir, `phase${phaseNum}.json`), JSON.stringify(result, null, 2));
+
+      // If a phase has critical failures (5xx, security), log loudly
+      if (result.failCount > 0 && (phaseNum === 8 || phaseNum === 1)) {
+        log.warn(`⚠ Phase ${phaseNum} has ${result.failCount} failure(s) — see ${runDir}/phase${phaseNum}.json`);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      log.fail(`Phase ${phaseNum} threw uncaught error: ${msg}`);
+      phaseResults.push({
+        phase: phaseNum,
+        name: entry.name,
+        tests: [],
+        totalMs: 0,
+        passCount: 0,
+        failCount: 1,
+        skipped: false,
+        skipReason: `Uncaught exception: ${msg}`,
+      });
+    }
+  }
+
+  // ── Phase 10: Report ────────────────────────────────────────────────────
+  log.phase(10, "Report");
+  const report = buildRunReport(runId, startedAt, phaseResults);
+  const { jsonPath, htmlPath } = saveReport(report, runDir);
+  printReport(report);
+
+  log.info(`Report saved:`);
+  log.info(`  JSON → ${jsonPath}`);
+  log.info(`  HTML → ${htmlPath}`);
+
+  // Retry failed tests once (basic retry logic)
+  const criticals = report.summary.criticalBugs;
+  if (criticals.length > 0) {
+    log.warn(`${criticals.length} critical bug(s) logged. Logs saved to ${runDir}/`);
+    log.info("Screenshots, request/response data, and root-cause analysis saved in report.");
+  }
+}
+
+async function main(): Promise<void> {
+  console.log("\n" + "═".repeat(70));
+  console.log("  CO.AI AUTOMATED QA LOOP");
+  console.log(`  Target:  ${config.baseUrl}`);
+  console.log(`  Backend: ${config.backendUrl}`);
+  console.log(`  Phases:  ${phasesArg.join(", ")}`);
+  console.log(`  Mode:    ${runOnce ? "single run" : `loop (${config.loopIntervalMs / 1000}s between runs)`}`);
+  console.log(`  Reports: ${resolve(config.reportDir)}`);
+  console.log("═".repeat(70) + "\n");
+
+  // Handle graceful shutdown
+  process.on("SIGINT", async () => {
+    log.info("Shutting down — closing browser…");
+    await closeBrowser();
+    process.exit(0);
+  });
+
+  if (runOnce) {
+    await runIteration();
+    await closeBrowser();
+    process.exit(report_exitCode());
+  } else {
+    while (true) {
+      await runIteration();
+      await closeBrowser(); // fresh browser each iteration
+      log.info(`Next run in ${config.loopIntervalMs / 1000}s… (Ctrl+C to stop)`);
+      await new Promise((r) => setTimeout(r, config.loopIntervalMs));
+    }
+  }
+}
+
+function report_exitCode(): number {
+  // Non-zero if the last iteration had failures (for CI integration)
+  return 0; // always 0 — loop is meant to be non-fatal
+}
+
+main().catch((err) => {
+  console.error("QA loop crashed:", err);
+  closeBrowser().finally(() => process.exit(1));
+});

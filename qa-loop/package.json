@@ -1,0 +1,20 @@
+{
+  "name": "@coagentix/qa-loop",
+  "version": "1.0.0",
+  "description": "Automated stress test & QA loop for Co.AI platform",
+  "type": "module",
+  "scripts": {
+    "start": "tsx run.ts",
+    "once": "tsx run.ts --once",
+    "phase": "tsx run.ts --once --phases",
+    "install-browsers": "playwright install chromium --with-deps"
+  },
+  "dependencies": {
+    "playwright": "^1.48.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0"
+  }
+}
