@@ -48,12 +48,12 @@ export function buildRunReport(
   }
 
   const recommendations: string[] = [];
-  const hasRateLimitFinding = phases.some(
-    (p) => p.tests.some((t) => t.details?.["rateLimitedCompletely"] || t.details?.["rateLimited"]),
+  const hasHealthRateLimitFinding = phases.some(
+    (p) => p.tests.some((t) => t.details?.["rateLimitedCompletely"] === true),
   );
-  if (hasRateLimitFinding) {
+  if (hasHealthRateLimitFinding) {
     recommendations.push(
-      "ACTION REQUIRED: /v1/health is 100% rate-limited — exempt health endpoints from rate limiting in tmap-v2/src/server/rateLimit.ts. This also fixes keep-warm pings being throttled.",
+      "ACTION REQUIRED: /v1/health is 100% rate-limited — exempt health endpoints from rate limiting in tmap-v2/src/server/index.ts. This also fixes keep-warm pings being throttled.",
     );
   }
   if (criticalBugs.some((b) => b.phase === 7 && !b.error?.includes("rate"))) {
