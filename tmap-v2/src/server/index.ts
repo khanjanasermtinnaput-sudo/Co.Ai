@@ -132,8 +132,14 @@ app.use(botProtectionMiddleware({ skipPaths: /^\/(v1\/health|v1\/metrics)/ }));
 
 // ── REDIS RATE LIMITING ───────────────────────────────────────────────────────
 // Global IP-based sliding window — 120 req/min per IP for all /v1/ routes.
+// Health and public metrics are exempted so monitoring tools, keep-warm pings,
+// and Prometheus scrapers are never throttled.
 // Auth routes get a tighter 10 req/min limit applied below.
-app.use('/v1/', rateLimitMiddleware(120, 60, 'global'));
+const _globalRateLimit = rateLimitMiddleware(120, 60, 'global');
+app.use('/v1/', (req, res, next) => {
+  if (req.path === '/health' || req.path === '/metrics/prometheus') return next();
+  return _globalRateLimit(req, res, next);
+});
 
 // ── REQUEST LOGGING middleware ────────────────────────────────────────────────
 app.use((req, _res, next) => {
