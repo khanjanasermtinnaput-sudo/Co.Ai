@@ -15,7 +15,15 @@ import { AttachmentList } from "@/components/chat/attachment-list";
 
 interface ComposerProps {
   placeholder?: string;
-  onSubmit: (value: string, attachments: Attachment[]) => void;
+  /**
+   * Handle a submitted message. Return `false` (or a promise resolving to `false`)
+   * to signal the send was rejected — the composer will then restore the user's
+   * draft instead of discarding it. Any other value is treated as accepted.
+   */
+  onSubmit: (
+    value: string,
+    attachments: Attachment[],
+  ) => void | boolean | Promise<void | boolean>;
   disabled?: boolean;
   streaming?: boolean;
   onStop?: () => void;
@@ -62,12 +70,27 @@ export function Composer({
   const canSend =
     (value.trim().length > 0 || attachments.length > 0) && !disabled && !streaming;
 
-  const submit = () => {
+  const submit = async () => {
     if (!canSend) return;
-    onSubmit(value.trim(), attachments);
+    const text = value.trim();
+    const atts = attachments;
+    // Optimistically clear for a snappy feel, but never lose the message: if the
+    // handler reports a rejection (not initialized yet, access gate, etc.) we
+    // restore the draft — only clobbering nothing the user has since retyped.
     setValue("");
     setAttachments([]);
     requestAnimationFrame(resize);
+    const restore = () => {
+      setValue((cur) => (cur.length ? cur : text));
+      setAttachments((cur) => (cur.length ? cur : atts));
+      requestAnimationFrame(resize);
+    };
+    try {
+      const accepted = await onSubmit(text, atts);
+      if (accepted === false) restore();
+    } catch {
+      restore();
+    }
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -129,7 +152,7 @@ export function Composer({
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              className="mb-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+              className="mb-0.5 flex size-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
               aria-label="Attach files"
             >
               <Plus className="size-[18px]" />
@@ -167,7 +190,7 @@ export function Composer({
           <button
             type="button"
             onClick={onStop}
-            className="mb-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-foreground transition-colors hover:bg-accent"
+            className="mb-0.5 flex size-11 shrink-0 items-center justify-center rounded-lg bg-secondary text-foreground transition-colors hover:bg-accent"
             aria-label="Stop"
           >
             <Square className="size-4 fill-current" />
@@ -178,7 +201,7 @@ export function Composer({
             onClick={submit}
             disabled={!canSend}
             className={cn(
-              "mb-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg transition-all",
+              "mb-0.5 flex size-11 shrink-0 items-center justify-center rounded-lg transition-all",
               canSend
                 ? "bg-primary text-primary-foreground shadow-glow-sm hover:shadow-glow active:scale-95"
                 : "cursor-not-allowed bg-secondary text-muted-foreground/50",

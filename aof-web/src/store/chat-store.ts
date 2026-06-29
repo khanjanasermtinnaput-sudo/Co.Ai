@@ -53,7 +53,13 @@ interface ChatState {
   migrateGuestConversations: () => Promise<void>;
   queueFirstMessage: (text: string, attachments?: Attachment[]) => void;
   consumePending: () => PendingMessage | null;
-  send: (text: string, attachments?: Attachment[]) => Promise<void>;
+  /**
+   * Dispatch a message. Resolves `true` once the message has been committed to the
+   * conversation (the composer may then clear its draft), or `false` when the send
+   * was rejected up-front (empty, already streaming, or blocked by the access gate)
+   * — in which case the caller must preserve the user's unsent text.
+   */
+  send: (text: string, attachments?: Attachment[]) => Promise<boolean>;
   editMessage: (messageId: string, newContent: string) => Promise<void>;
   regenerate: () => Promise<void>;
   stop: () => void;
@@ -190,7 +196,7 @@ export const useChatStore = create<ChatState>()(
 
       send: async (text, attachments) => {
         const content = text.trim();
-        if ((!content && !(attachments && attachments.length)) || get().streaming) return;
+        if ((!content && !(attachments && attachments.length)) || get().streaming) return false;
 
         // ── Access gate ──────────────────────────────────────────────────────
         // Guests can chat up to the limit; past it we surface the login wall and
@@ -205,7 +211,7 @@ export const useChatStore = create<ChatState>()(
           } else {
             useAuthStore.getState().openLoginModal(access.reason);
           }
-          return;
+          return false;
         }
         if (useAuthStore.getState().tier === "GUEST") {
           useGuestStore.getState().increment();
@@ -306,7 +312,7 @@ export const useChatStore = create<ChatState>()(
             }));
           }
           finish();
-          return;
+          return true;
         }
 
         const history: ChatHistoryItem[] = (
@@ -361,7 +367,15 @@ export const useChatStore = create<ChatState>()(
             {
               onToken: appendToken,
               signal: controller.signal,
-              onError: (error) => patchAssistant({ error, streaming: false }),
+              onError: (error) => {
+                patchAssistant({ error, streaming: false });
+                const description = (error as { message?: string })?.message;
+                toast.error("Couldn't send message", {
+                  id: "send-error",
+                  description,
+                  duration: 5000,
+                });
+              },
               onFailover: (failover) => patchAssistant({ failover }),
               onModel: (activeModel) => patchAssistant({ activeModel }),
               onSources: (sources) => patchAssistant({ sources }),
@@ -370,6 +384,9 @@ export const useChatStore = create<ChatState>()(
         } finally {
           finish(accumulated || undefined);
         }
+        // Message was committed and the stream completed (success or surfaced
+        // error). The draft was already accepted, so report success to the caller.
+        return true;
       },
 
       editMessage: async (messageId, newContent) => {

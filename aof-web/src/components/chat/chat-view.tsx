@@ -134,7 +134,8 @@ export function ChatView() {
           <ComposerMascot state={mascotState}>
             <Composer
               placeholder="Message Co.AI — or attach an image, PDF or code file…"
-              onSubmit={(v, atts) => void send(v, atts)}
+              onSubmit={(v, atts) => send(v, atts)}
+              disabled={!ready}
               streaming={streaming}
               onStop={stop}
               autoFocus={!empty}
