@@ -224,9 +224,9 @@ export const TITAN_PHASES: TitanPhase[] = [
 export const BRAND = {
   name: "Co.AI",
   tagline: "Many Minds. One Intelligence.",
-  welcome: "Welcome to Co.AI",
-  welcomeSub: "What would you like to do today?",
-  composerPlaceholder: "Ask anything or start a project...",
+  welcome: "Co.AI",
+  welcomeSub: "Your AI Workspace",
+  composerPlaceholder: "Ask anything...",
 } as const;
 
 export const Sparkle = Sparkles;

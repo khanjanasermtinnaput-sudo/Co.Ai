@@ -2,27 +2,18 @@
 
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Code2, Sparkles } from "lucide-react";
-import { BRAND } from "@/lib/constants";
 import { useChatStore } from "@/store/chat-store";
 import { Composer } from "@/components/composer/composer";
-import { ResponseStyleSelector } from "@/components/chat/response-style-selector";
-import { SearchModeSelector } from "@/components/chat/search-mode-selector";
 import type { Attachment } from "@/lib/types";
+import { BRAND } from "@/lib/constants";
 
-const SUGGESTIONS = [
-  "Explain a concept simply",
-  "Solve a math problem step by step",
-  "Build a landing page",
-  "Debug my code",
-];
+interface HomePromptProps {
+  /** Auto-focus the textarea on mount. Disable on mobile to avoid keyboard pop-up. */
+  autoFocus?: boolean;
+}
 
-export function HomePrompt() {
+export function HomePrompt({ autoFocus = false }: HomePromptProps) {
   const router = useRouter();
-  const style = useChatStore((s) => s.style);
-  const setStyle = useChatStore((s) => s.setStyle);
-  const searchMode = useChatStore((s) => s.searchMode);
-  const setSearchMode = useChatStore((s) => s.setSearchMode);
   const queueFirstMessage = useChatStore((s) => s.queueFirstMessage);
   const selectConversation = useChatStore((s) => s.selectConversation);
 
@@ -34,46 +25,18 @@ export function HomePrompt() {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 16 }}
+      initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, delay: 0.18, ease: [0.22, 1, 0.36, 1] }}
+      transition={{ duration: 0.4, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
       className="w-full"
     >
       <Composer
         size="lg"
-        autoFocus
+        autoFocus={autoFocus}
         placeholder={BRAND.composerPlaceholder}
         onSubmit={startChat}
-        toolbar={
-          <div className="flex w-full items-center justify-between gap-2">
-            <div className="flex min-w-0 items-center gap-2 overflow-x-auto no-scrollbar">
-              <SearchModeSelector value={searchMode} onChange={setSearchMode} size="compact" />
-              <ResponseStyleSelector value={style} onChange={setStyle} size="compact" />
-            </div>
-            <button
-              type="button"
-              onClick={() => router.push("/code")}
-              className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
-            >
-              <Code2 className="size-3.5" /> Switch to CoCode
-            </button>
-          </div>
-        }
+        className="border-border/50 shadow-[0_4px_24px_-4px_rgba(0,0,0,0.08),0_1px_4px_rgba(0,0,0,0.04)] focus-within:shadow-[0_8px_32px_-4px_rgba(0,0,0,0.12)] dark:shadow-none"
       />
-
-      <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-        {SUGGESTIONS.map((s) => (
-          <button
-            key={s}
-            type="button"
-            onClick={() => startChat(s)}
-            className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card/50 px-3 py-1.5 text-xs text-muted-foreground transition-all hover:border-primary/30 hover:text-foreground"
-          >
-            <Sparkles className="size-3 text-primary/70" />
-            {s}
-          </button>
-        ))}
-      </div>
     </motion.div>
   );
 }

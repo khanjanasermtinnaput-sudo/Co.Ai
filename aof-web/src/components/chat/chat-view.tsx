@@ -1,31 +1,24 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { motion } from "framer-motion";
 import { Sparkles, Download, FileText, FileJson } from "lucide-react";
 import { useChatStore } from "@/store/chat-store";
+import { useAuthStore } from "@/store/auth-store";
 import { exportConversation } from "@/lib/export";
 import { Composer } from "@/components/composer/composer";
 import { ChatModelSelector } from "./chat-model-selector";
 import { ResponseStyleSelector } from "./response-style-selector";
 import { SearchModeSelector } from "./search-mode-selector";
 import { ChatThread } from "./chat-thread";
-import { LogoMark } from "@/components/brand/logo";
 import { ComposerMascot, type ComposerMascotState } from "@/components/mascot";
 import { GuestMeter } from "@/components/auth/guest-meter";
+import type { Attachment } from "@/lib/types";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-
-const STARTERS = [
-  "Summarize this article for me",
-  "Solve 12 × (3 + 4) step by step",
-  "Build a landing page in React",
-  "Search the web for the latest AI news",
-];
 
 export function ChatView() {
   const conversations = useChatStore((s) => s.conversations);
@@ -41,25 +34,42 @@ export function ChatView() {
   const stop = useChatStore((s) => s.stop);
   const consumePending = useChatStore((s) => s.consumePending);
 
+  // Auth readiness — we wait for this before firing the queued first message.
+  // This prevents the race condition where send() is called before the Supabase
+  // session resolves, causing access-gate checks to run against stale state.
+  const ready = useAuthStore((s) => s.ready);
+
   const active = conversations.find((c) => c.id === activeId) ?? null;
   const messages = active?.messages ?? [];
-  const started = useRef(false);
 
-  // Pick up a message handed off from the homepage composer (run once).
+  // Hold the homepage-queued message in a local ref so it survives across
+  // the auth-readiness wait without being lost in the Zustand store.
+  const pendingRef = useRef<{ text: string; attachments?: Attachment[] } | null>(null);
+  const sentRef = useRef(false);
+
+  // Step 1 — capture the pending message from the store immediately on mount.
+  // consumePending() clears it from Zustand, so it won't be double-consumed.
   useEffect(() => {
-    if (started.current) return;
-    started.current = true;
     const pending = consumePending();
-    if (pending) void send(pending.text, pending.attachments);
-  }, [consumePending, send]);
+    if (pending) pendingRef.current = pending;
+  }, [consumePending]);
+
+  // Step 2 — once auth has resolved, fire the captured message.
+  // Re-runs whenever `ready` flips true (which happens at most once per session).
+  useEffect(() => {
+    if (!ready) return;
+    if (sentRef.current) return;
+    const pending = pendingRef.current;
+    if (!pending) return;
+    sentRef.current = true;
+    pendingRef.current = null;
+    void send(pending.text, pending.attachments);
+  }, [ready, send]);
 
   const empty = messages.length === 0;
 
-  // TAOTAO's mood on the input box: playful while waiting, two cats tossing a
-  // yarn ball while the AI works, sad on error / quota.
   const lastMsg = messages[messages.length - 1];
-  const lastError =
-    lastMsg && lastMsg.role === "assistant" ? lastMsg.error : undefined;
+  const lastError = lastMsg?.role === "assistant" ? lastMsg.error : undefined;
   const mascotState: ComposerMascotState = streaming
     ? "processing"
     : lastError?.code === "AOF_ERROR_004"
@@ -70,7 +80,7 @@ export function ChatView() {
 
   return (
     <div className="flex h-full flex-col">
-      {/* header */}
+      {/* ── Header ──────────────────────────────────────────────────────────── */}
       <div className="sticky top-0 z-10 flex h-14 items-center justify-between gap-3 border-b border-border/70 bg-background/70 px-3 backdrop-blur-xl sm:px-5">
         <div className="flex min-w-0 items-center gap-2">
           <ChatModelSelector value={model} onChange={setModel} />
@@ -104,62 +114,40 @@ export function ChatView() {
         </div>
       </div>
 
-      {/* body */}
+      {/* ── Body ────────────────────────────────────────────────────────────── */}
       <div className="min-h-0 flex-1 overflow-y-auto">
         {empty ? (
-          <div className="mx-auto flex h-full w-full max-w-2xl flex-col items-center justify-center px-4 text-center">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.4 }}
-              className="flex size-14 items-center justify-center rounded-2xl border border-white/10 bg-card"
-            >
-              <LogoMark size={30} />
-            </motion.div>
-            <h2 className="mt-5 text-xl font-semibold">Co.AI</h2>
-            <p className="mt-2 max-w-sm text-sm text-muted-foreground">
-              Ask anything, attach images, PDFs or code — CoAI picks the right agent
-              automatically. Choose how detailed the answer should be above.
-            </p>
-            <div className="mt-6 flex flex-wrap justify-center gap-2">
-              {STARTERS.map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => void send(s)}
-                  className="rounded-full border border-border bg-card/50 px-3.5 py-2 text-sm text-muted-foreground transition-all hover:border-primary/30 hover:text-foreground"
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
+          <div className="flex h-full flex-col items-center justify-center px-4 text-center">
+            <span className="text-3xl" role="img" aria-label="wave">👋</span>
+            <h2 className="mt-4 text-xl font-medium text-foreground">Welcome to Co.AI</h2>
+            <p className="mt-2 text-sm text-muted-foreground">Start a conversation.</p>
           </div>
         ) : (
           <ChatThread messages={messages} streaming={streaming} />
         )}
       </div>
 
-      {/* composer */}
+      {/* ── Composer ────────────────────────────────────────────────────────── */}
       <div className="border-t border-border/70 bg-background/60 px-3 py-3 backdrop-blur-xl sm:px-5 sm:py-4">
         <GuestMeter />
         <div className="mx-auto w-full max-w-3xl">
-         <ComposerMascot state={mascotState}>
-          <Composer
-            placeholder="Message CoAI — or attach an image, PDF or code file…"
-            onSubmit={(v, atts) => void send(v, atts)}
-            streaming={streaming}
-            onStop={stop}
-            autoFocus={!empty}
-            toolbar={
-              <div className="flex items-center gap-2">
-                <Sparkles className="size-3.5 text-primary/70" />
-                <span className="text-xs text-muted-foreground">
-                  CoAI can make mistakes. Verify important info.
-                </span>
-              </div>
-            }
-          />
-         </ComposerMascot>
+          <ComposerMascot state={mascotState}>
+            <Composer
+              placeholder="Message Co.AI — or attach an image, PDF or code file…"
+              onSubmit={(v, atts) => void send(v, atts)}
+              streaming={streaming}
+              onStop={stop}
+              autoFocus={!empty}
+              toolbar={
+                <div className="flex items-center gap-2">
+                  <Sparkles className="size-3.5 text-primary/70" />
+                  <span className="text-xs text-muted-foreground">
+                    Co.AI can make mistakes. Verify important info.
+                  </span>
+                </div>
+              }
+            />
+          </ComposerMascot>
         </div>
       </div>
     </div>
