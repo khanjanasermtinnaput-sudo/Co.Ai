@@ -65,7 +65,7 @@ export function MultiPreview({ className }: { className?: string }) {
   const html = useMemo(() => {
     if (!allFiles.length) return null;
     try { return buildHtml(allFiles); } catch { return null; }
-  }, [allFiles, nonce]);
+  }, [allFiles]);
 
   const finalHtml = useMemo(() => {
     if (!html) return null;

@@ -50,18 +50,17 @@ export function CICDBuilder({ className }: { className?: string }) {
   const allFiles = useMemo(() => flattenFiles(fs).map((f) => ({ path: f.path, content: f.content })), [fs]);
   const deployConfig = useMemo(() => detectDeployConfig(allFiles, projectMap), [allFiles, projectMap]);
 
-  const config: CICDConfig = {
-    target,
-    triggers: [...triggers] as CICDConfig["triggers"],
-    steps: STEPS_OPTIONS.filter((s) => steps.has(s.id)).map((s) => s.id),
-    deployTarget: steps.has("deploy") ? deployConfig.target : null,
-  };
-
   const yaml = useMemo(() => {
+    const config: CICDConfig = {
+      target,
+      triggers: [...triggers] as CICDConfig["triggers"],
+      steps: STEPS_OPTIONS.filter((s) => steps.has(s.id)).map((s) => s.id),
+      deployTarget: steps.has("deploy") ? deployConfig.target : null,
+    };
     if (target === "github-actions") return generateGitHubActions(config, deployConfig);
     if (target === "gitlab-ci") return generateGitLabCI(config, deployConfig);
     return `# ${target} pipeline\n# Support coming soon — contribute at github.com/coagentix\n`;
-  }, [config, deployConfig, target]);
+  }, [deployConfig, steps, target, triggers]);
 
   const targetInfo = CICD_TARGETS.find((t) => t.id === target)!;
 

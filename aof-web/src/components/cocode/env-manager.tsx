@@ -4,7 +4,7 @@
 // Manage environment variables: view, add, edit, delete, export to .env.local.
 // Secret masking — values are hidden by default. Never logged or persisted.
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { KeyRound, Eye, EyeOff, Plus, Trash2, Download, Upload, Copy, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -27,11 +27,12 @@ export function EnvManager({ className }: { className?: string }) {
   const [copied, setCopied] = useState(false);
   const fs = useCocodeIDEStore((s) => s.fs);
   const upsertFile = useCocodeIDEStore((s) => s.upsertFile);
+  const initialFsRef = useRef(fs);
 
-  // Load from virtual FS .env.local on mount
+  // Load from virtual FS .env.local on mount only (snapshot initial FS state)
   useEffect(() => {
     const { flattenFiles } = require("@/lib/cocode/virtual-fs") as typeof import("@/lib/cocode/virtual-fs");
-    const envFile = flattenFiles(fs).find((f) => f.path === ".env.local" || f.path === ".env");
+    const envFile = flattenFiles(initialFsRef.current).find((f) => f.path === ".env.local" || f.path === ".env");
     if (!envFile) return;
     const parsed: EnvVar[] = envFile.content
       .split("\n")

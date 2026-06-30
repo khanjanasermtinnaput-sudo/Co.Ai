@@ -4,7 +4,7 @@
 // Continuously monitors files for TS/ESLint/hydration/runtime errors.
 // Bug Investigation: collects context → root cause → confidence → recommended fix.
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import {
   AlertCircle, AlertTriangle, Info, Bug, RefreshCw,
   Loader2, ChevronDown, ChevronRight, Wrench, Search,
@@ -220,16 +220,16 @@ export function DiagnosticsPanel({ className }: { className?: string }) {
 
   const allFiles = useMemo(() => flattenFiles(fs), [fs]);
 
-  // Auto-run on mount
-  useEffect(() => { void analyze(); }, []);
-
-  async function analyze() {
+  const analyze = useCallback(async () => {
     setRunning(true);
     await new Promise((r) => setTimeout(r, 50));
     const d = analyzeFiles(allFiles.map((f) => ({ path: f.path, content: f.content })));
     setDiags(d);
     setRunning(false);
-  }
+  }, [allFiles]);
+
+  // Auto-run on mount and whenever files change
+  useEffect(() => { void analyze(); }, [analyze]);
 
   const filtered = diags.filter((d) =>
     filter === "all" || d.severity === filter,

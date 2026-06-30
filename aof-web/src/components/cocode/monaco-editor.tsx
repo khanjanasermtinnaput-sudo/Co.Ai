@@ -131,7 +131,6 @@ export const MonacoEditor = memo(function MonacoEditor({ className }: MonacoEdit
     editorRef.current = editor;
 
     // Configure TypeScript — use numeric enum values for cross-version compat
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const ts = (monaco.languages.typescript as any);
     ts.typescriptDefaults.setCompilerOptions({
       target: 99,           // ESNext

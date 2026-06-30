@@ -113,7 +113,7 @@ export function KnowledgeGraphView() {
 
   useEffect(() => {
     if (!graph && allFiles().length > 0) buildGraph();
-  }, []);
+  }, [graph, allFiles, buildGraph]);
 
   const handleNodeClick = useCallback((id: string) => {
     openTab(id);

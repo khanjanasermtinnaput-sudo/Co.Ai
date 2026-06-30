@@ -130,7 +130,7 @@ export function I18nPanel({ className }: { className?: string }) {
                         {strings.map((s, i) => (
                           <div key={i} className="flex items-center gap-3 px-3 py-2">
                             <code className="shrink-0 text-[11px] text-primary font-mono">{s.key}</code>
-                            <span className="truncate text-[11px] text-muted-foreground/70">"{s.value}"</span>
+                            <span className="truncate text-[11px] text-muted-foreground/70">&quot;{s.value}&quot;</span>
                             <span className="ml-auto shrink-0 text-[10px] text-muted-foreground/40">:{s.line}</span>
                           </div>
                         ))}

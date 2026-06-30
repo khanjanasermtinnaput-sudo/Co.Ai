@@ -102,7 +102,7 @@ export function LivePreview({ className, splitMode = false }: LivePreviewProps) 
     } catch {
       return null;
     }
-  }, [debouncedFiles, nonce]);
+  }, [debouncedFiles]);
 
   // Console relay from iframe
   useEffect(() => {

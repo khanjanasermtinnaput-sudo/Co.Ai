@@ -156,7 +156,7 @@ export function SemanticSearchPanel({ className }: { className?: string }) {
 
         {query.trim() && totalResults === 0 && (
           <div className="py-12 text-center text-[12px] text-muted-foreground/50">
-            No results for <span className="font-mono">"{query}"</span>
+            No results for <span className="font-mono">&quot;{query}&quot;</span>
           </div>
         )}
       </div>
