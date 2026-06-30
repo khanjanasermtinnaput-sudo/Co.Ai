@@ -122,8 +122,38 @@ export function buildRunReport(
   if (criticalBugs.some((b) => b.phase === 50)) {
     recommendations.push("AI-SEOS NOT READY — overall readiness score below threshold; check Phase 50 report for failed criteria");
   }
+  if (criticalBugs.some((b) => b.phase === 51)) {
+    recommendations.push("Voice coding engine degraded — /api/voice not deployed or destructive gate not enforcing (Phase 51)");
+  }
+  if (criticalBugs.some((b) => b.phase === 52)) {
+    recommendations.push("Screenshot→Code engine failure — /api/vision/screenshot-to-code missing or auth not enforced (Phase 52)");
+  }
+  if (criticalBugs.some((b) => b.phase === 53)) {
+    recommendations.push("Design→Code engine failure — /api/vision/design-to-code missing or design source validation broken (Phase 53)");
+  }
+  if (criticalBugs.some((b) => b.phase === 54)) {
+    recommendations.push("Prompt understanding degraded — intent classification not routing to correct workflows (Phase 54)");
+  }
+  if (criticalBugs.some((b) => b.phase === 55)) {
+    recommendations.push("AI Mentor mode failure — /api/ai/mentor not deployed or level adaptation not working (Phase 55)");
+  }
+  if (criticalBugs.some((b) => b.phase === 56)) {
+    recommendations.push("Project timeline failure — /api/timeline not deployed or event validation broken (Phase 56)");
+  }
+  if (criticalBugs.some((b) => b.phase === 57)) {
+    recommendations.push("Decision engine failure — /api/ai/decisions not deployed or multi-approach analysis broken (Phase 57)");
+  }
+  if (criticalBugs.some((b) => b.phase === 58)) {
+    recommendations.push("Plugin platform failure — /api/plugins not deployed or sandbox enforcement missing (Phase 58)");
+  }
+  if (criticalBugs.some((b) => b.phase === 59)) {
+    recommendations.push("Multi-model intelligence degraded — AI provider chain broken or routing not working (Phase 59)");
+  }
+  if (criticalBugs.some((b) => b.phase === 60)) {
+    recommendations.push("Self-improvement engine failure — learning patterns not persisting or TypeScript consistency broken (Phase 60)");
+  }
   if (criticalBugs.length === 0 && warnings.length === 0) {
-    recommendations.push("All systems healthy — all 29 phases passed. AI-SEOS fully operational. Safe to deploy.");
+    recommendations.push("All systems healthy — all 39 phases passed. Adaptive Engineering Platform fully operational. Safe to deploy.");
   }
 
   return {

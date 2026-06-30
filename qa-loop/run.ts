@@ -49,6 +49,16 @@ import { runPhase47 } from "./phases/phase47-search-engine.ts";
 import { runPhase48 } from "./phases/phase48-root-cause-engine.ts";
 import { runPhase49 } from "./phases/phase49-workflow-automation.ts";
 import { runPhase50 } from "./phases/phase50-ai-seos.ts";
+import { runPhase51 } from "./phases/phase51-voice-coding-engine.ts";
+import { runPhase52 } from "./phases/phase52-screenshot-to-code.ts";
+import { runPhase53 } from "./phases/phase53-design-to-code.ts";
+import { runPhase54 } from "./phases/phase54-prompt-understanding.ts";
+import { runPhase55 } from "./phases/phase55-ai-mentor-mode.ts";
+import { runPhase56 } from "./phases/phase56-project-timeline.ts";
+import { runPhase57 } from "./phases/phase57-decision-engine.ts";
+import { runPhase58 } from "./phases/phase58-plugin-platform.ts";
+import { runPhase59 } from "./phases/phase59-multi-model-intelligence.ts";
+import { runPhase60 } from "./phases/phase60-self-improvement.ts";
 
 // ── CLI args ───────────────────────────────────────────────────────────────
 const args = process.argv.slice(2);
@@ -97,6 +107,17 @@ const PHASE_MAP: Record<number, { name: string; run: PhaseRunner }> = {
   48: { name: "AI Root Cause Engine",          run: runPhase48 },
   49: { name: "Intelligent Workflow Automation",run: runPhase49 },
   50: { name: "AI-SEOS Operating System",      run: runPhase50 },
+  // Part 6: Adaptive platform phases (51–60)
+  51: { name: "AI Voice Coding Engine",        run: runPhase51 },
+  52: { name: "Screenshot → Code Engine",      run: runPhase52 },
+  53: { name: "Design → Code Engine",          run: runPhase53 },
+  54: { name: "Prompt Understanding Engine",   run: runPhase54 },
+  55: { name: "AI Mentor Mode",                run: runPhase55 },
+  56: { name: "AI Project Timeline",           run: runPhase56 },
+  57: { name: "AI Decision Engine",            run: runPhase57 },
+  58: { name: "AI Plugin Platform",            run: runPhase58 },
+  59: { name: "Multi-Model Intelligence",      run: runPhase59 },
+  60: { name: "Continuous Self-Improvement",   run: runPhase60 },
 };
 
 // ── Main ───────────────────────────────────────────────────────────────────
