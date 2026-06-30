@@ -66,6 +66,17 @@ export const PANEL_DEFS: Record<string, PanelDef> = {
   "simulation":         { id: "simulation",         label: "Simulate",          description: "Pre-implementation simulation — perf, scale, cost, failure",  devModeOnly: true  },
   "global-intel":       { id: "global-intel",       label: "Global Intel",      description: "Aggregate engineering trends across all repositories",        devModeOnly: true  },
   "engineering-os":     { id: "engineering-os",     label: "Eng OS",            description: "Core services: orchestrator, agents, runtime, model router",  devModeOnly: true  },
+  // Phase 91–100
+  "autonomous-company": { id: "autonomous-company",  label: "AI Company",        description: "AI organization: 11 departments with specialized agents",        devModeOnly: true  },
+  "biz-requirements":   { id: "biz-requirements",    label: "Biz Intel",         description: "Business requirements, revenue impact, market trends analysis",   devModeOnly: false },
+  "product-designer":   { id: "product-designer",    label: "AI Design",         description: "AI-generated user flows, wireframes, and UX analysis",           devModeOnly: false },
+  "ai-governance":      { id: "ai-governance",       label: "AI Governance",     description: "Every AI action traced: reasoning, confidence, risk, rollback",   devModeOnly: true  },
+  "qa-platform":        { id: "qa-platform",         label: "QA Platform",       description: "Continuous QA across UI, backend, DB, infra, a11y, SEO, API",    devModeOnly: true  },
+  "predictive-intel":   { id: "predictive-intel",    label: "Predict",           description: "Forecast bottlenecks, storage, costs, security risks in advance", devModeOnly: true  },
+  "innovation-engine":  { id: "innovation-engine",   label: "Innovate",          description: "Evidence-based innovation suggestions across every engineering domain", devModeOnly: false },
+  "universal-platform": { id: "universal-platform",  label: "All Platforms",     description: "Support web, mobile, desktop, AI/ML, IoT, games, CLI, embedded", devModeOnly: true  },
+  "intel-network":      { id: "intel-network",       label: "Intel Network",     description: "Cross-org knowledge sharing, templates, benchmarking, patterns",  devModeOnly: true  },
+  "ultimate-vision":    { id: "ultimate-vision",     label: "Vision",            description: "Complete software lifecycle: idea → deployment → continuous learning", devModeOnly: false },
 };
 
 export type FileContext = "style" | "api" | "test" | "component" | "config" | "markdown" | "default";

@@ -85,6 +85,18 @@ const SimulationEnginePanel   = lazy(() => import("./simulation-engine-panel").t
 const GlobalIntelligencePanel = lazy(() => import("./global-intelligence-panel").then((m) => ({ default: m.GlobalIntelligencePanel })));
 const EngineeringOSPanel      = lazy(() => import("./engineering-os-panel").then((m) => ({ default: m.EngineeringOSPanel })));
 
+// ── Phase 91-100 panels ───────────────────────────────────────────────────────
+const AutonomousCompanyPanel  = lazy(() => import("./autonomous-company-panel").then((m) => ({ default: m.AutonomousCompanyPanel })));
+const BizRequirementsPanel    = lazy(() => import("./biz-requirements-panel").then((m) => ({ default: m.BizRequirementsPanel })));
+const ProductDesignerPanel    = lazy(() => import("./product-designer-panel").then((m) => ({ default: m.ProductDesignerPanel })));
+const AIGovernancePanel       = lazy(() => import("./ai-governance-panel").then((m) => ({ default: m.AIGovernancePanel })));
+const QAPlatformPanel         = lazy(() => import("./qa-platform-panel").then((m) => ({ default: m.QAPlatformPanel })));
+const PredictiveIntelPanel    = lazy(() => import("./predictive-intel-panel").then((m) => ({ default: m.PredictiveIntelPanel })));
+const InnovationEnginePanel   = lazy(() => import("./innovation-engine-panel").then((m) => ({ default: m.InnovationEnginePanel })));
+const UniversalPlatformPanel  = lazy(() => import("./universal-platform-panel").then((m) => ({ default: m.UniversalPlatformPanel })));
+const IntelNetworkPanel       = lazy(() => import("./intel-network-panel").then((m) => ({ default: m.IntelNetworkPanel })));
+const UltimateVisionPanel     = lazy(() => import("./ultimate-vision-panel").then((m) => ({ default: m.UltimateVisionPanel })));
+
 // ── Loader fallback ────────────────────────────────────────────────────────────
 function PanelLoader() {
   return (
@@ -249,6 +261,17 @@ function ActivePanel({ panel }: { panel: IDEPanel }) {
     simulation:         <SimulationEnginePanel className="h-full" />,
     "global-intel":     <GlobalIntelligencePanel className="h-full" />,
     "engineering-os":   <EngineeringOSPanel className="h-full" />,
+    // Phase 91-100
+    "autonomous-company": <AutonomousCompanyPanel className="h-full" />,
+    "biz-requirements":   <BizRequirementsPanel className="h-full" />,
+    "product-designer":   <ProductDesignerPanel className="h-full" />,
+    "ai-governance":      <AIGovernancePanel className="h-full" />,
+    "qa-platform":        <QAPlatformPanel className="h-full" />,
+    "predictive-intel":   <PredictiveIntelPanel className="h-full" />,
+    "innovation-engine":  <InnovationEnginePanel className="h-full" />,
+    "universal-platform": <UniversalPlatformPanel className="h-full" />,
+    "intel-network":      <IntelNetworkPanel className="h-full" />,
+    "ultimate-vision":    <UltimateVisionPanel className="h-full" />,
   };
   return <>{map[panel] ?? null}</>;
 }

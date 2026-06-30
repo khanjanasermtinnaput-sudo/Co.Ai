@@ -98,7 +98,12 @@ export type IDEPanel =
   // Phase 81–90
   | "self-improving" | "knowledge-base" | "arch-evolution" | "auto-refactor"
   | "docs-platform" | "marketplace" | "cross-project" | "simulation"
-  | "global-intel" | "engineering-os";
+  | "global-intel" | "engineering-os"
+  // Phase 91–100
+  | "autonomous-company" | "biz-requirements" | "product-designer"
+  | "ai-governance" | "qa-platform" | "predictive-intel"
+  | "innovation-engine" | "universal-platform" | "intel-network"
+  | "ultimate-vision";
 
 // ── Full store interface ──────────────────────────────────────────────────────
 
