@@ -88,7 +88,8 @@ export interface EditorTab {
 
 export type IDEPanel =
   | "explorer" | "diff" | "preview" | "graph" | "checkpoints" | "github"
-  | "design" | "multi-preview" | "deps" | "docs" | "diagnostics" | "pair";
+  | "design" | "multi-preview" | "deps" | "docs" | "diagnostics" | "pair"
+  | "deploy" | "cicd" | "collab" | "env" | "perf" | "security" | "api" | "db" | "mobile" | "review";
 
 // ── Full store interface ──────────────────────────────────────────────────────
 

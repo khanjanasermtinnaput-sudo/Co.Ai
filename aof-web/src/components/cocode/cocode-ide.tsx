@@ -11,7 +11,9 @@ import {
   History, Eye, Github, Wrench, FlaskConical,
   SplitSquareHorizontal, Loader2, Hammer, Upload, Zap, X,
   MousePointer2, Palette, Laptop, Package2, BookOpen,
-  AlertCircle, Bot,
+  AlertCircle, Bot, Rocket, GitMerge as GitMerge2, Users as Users2,
+  KeyRound, Gauge as GaugeCircle, ShieldCheck, Globe as Globe2,
+  Database as DatabaseIcon, Star, Smartphone,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -35,6 +37,16 @@ const DependencyPanel = lazy(() => import("./dependency-panel").then((m) => ({ d
 const DocsGenerator = lazy(() => import("./docs-generator").then((m) => ({ default: m.DocsGenerator })));
 const DiagnosticsPanel = lazy(() => import("./diagnostics-panel").then((m) => ({ default: m.DiagnosticsPanel })));
 const PairPanel = lazy(() => import("./pair-panel").then((m) => ({ default: m.PairPanel })));
+const DeploymentPanel = lazy(() => import("./deployment-panel").then((m) => ({ default: m.DeploymentPanel })));
+const CICDBuilder = lazy(() => import("./cicd-builder").then((m) => ({ default: m.CICDBuilder })));
+const CollaborationPanel = lazy(() => import("./collaboration-panel").then((m) => ({ default: m.CollaborationPanel })));
+const EnvManager = lazy(() => import("./env-manager").then((m) => ({ default: m.EnvManager })));
+const PerformancePanel = lazy(() => import("./performance-panel").then((m) => ({ default: m.PerformancePanel })));
+const SecurityPanel = lazy(() => import("./security-panel").then((m) => ({ default: m.SecurityPanel })));
+const ApiStudio = lazy(() => import("./api-studio").then((m) => ({ default: m.ApiStudio })));
+const DatabaseStudio = lazy(() => import("./database-studio").then((m) => ({ default: m.DatabaseStudio })));
+const AIReviewPanel = lazy(() => import("./ai-review-panel").then((m) => ({ default: m.AIReviewPanel })));
+const MobilePreview = lazy(() => import("./mobile-preview").then((m) => ({ default: m.MobilePreview })));
 
 // ── AI Chat with Repo Context (Phase 6) ──────────────────────────────────────
 
@@ -152,6 +164,16 @@ const RIGHT_PANELS = [
   { id: "docs" as const, icon: BookOpen, label: "Docs" },
   { id: "diagnostics" as const, icon: AlertCircle, label: "Issues" },
   { id: "pair" as const, icon: Bot, label: "Pair" },
+  { id: "deploy" as const, icon: Rocket, label: "Deploy" },
+  { id: "cicd" as const, icon: GitMerge2, label: "CI/CD" },
+  { id: "collab" as const, icon: Users2, label: "Collab" },
+  { id: "env" as const, icon: KeyRound, label: "Env" },
+  { id: "perf" as const, icon: GaugeCircle, label: "Perf" },
+  { id: "security" as const, icon: ShieldCheck, label: "Security" },
+  { id: "api" as const, icon: Globe2, label: "API" },
+  { id: "db" as const, icon: DatabaseIcon, label: "DB" },
+  { id: "mobile" as const, icon: Smartphone, label: "Mobile" },
+  { id: "review" as const, icon: Star, label: "Review" },
 ] as const;
 
 type PanelId = typeof RIGHT_PANELS[number]["id"];
@@ -345,6 +367,16 @@ export function CocodeIDE() {
                 {activePanel === "docs" && <DocsGenerator className="h-full" />}
                 {activePanel === "diagnostics" && <DiagnosticsPanel className="h-full" />}
                 {activePanel === "pair" && <PairPanel className="h-full" />}
+                {activePanel === "deploy" && <DeploymentPanel className="h-full" />}
+                {activePanel === "cicd" && <CICDBuilder className="h-full" />}
+                {activePanel === "collab" && <CollaborationPanel className="h-full" />}
+                {activePanel === "env" && <EnvManager className="h-full" />}
+                {activePanel === "perf" && <PerformancePanel className="h-full" />}
+                {activePanel === "security" && <SecurityPanel className="h-full" />}
+                {activePanel === "api" && <ApiStudio className="h-full" />}
+                {activePanel === "db" && <DatabaseStudio className="h-full" />}
+                {activePanel === "mobile" && <MobilePreview className="h-full" />}
+                {activePanel === "review" && <AIReviewPanel className="h-full" />}
               </Suspense>
             </div>
           </div>
