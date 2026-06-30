@@ -73,6 +73,18 @@ const BusinessIntelligencePanel = lazy(() => import("./business-intelligence-pan
 const GovernancePanel         = lazy(() => import("./governance-panel").then((m) => ({ default: m.GovernancePanel })));
 const AutonomousEnginePanel   = lazy(() => import("./autonomous-engine-panel").then((m) => ({ default: m.AutonomousEnginePanel })));
 
+// ── Phase 81-90 panels ────────────────────────────────────────────────────────
+const SelfImprovingPanel      = lazy(() => import("./self-improving-panel").then((m) => ({ default: m.SelfImprovingPanel })));
+const KnowledgeBasePanel      = lazy(() => import("./knowledge-base-panel").then((m) => ({ default: m.KnowledgeBasePanel })));
+const ArchEvolutionPanel      = lazy(() => import("./arch-evolution-panel").then((m) => ({ default: m.ArchEvolutionPanel })));
+const AutoRefactorPanel       = lazy(() => import("./auto-refactor-panel").then((m) => ({ default: m.AutoRefactorPanel })));
+const DocsPlatformPanel       = lazy(() => import("./docs-platform-panel").then((m) => ({ default: m.DocsPlatformPanel })));
+const MarketplacePanel        = lazy(() => import("./marketplace-panel").then((m) => ({ default: m.MarketplacePanel })));
+const CrossProjectPanel       = lazy(() => import("./cross-project-panel").then((m) => ({ default: m.CrossProjectPanel })));
+const SimulationEnginePanel   = lazy(() => import("./simulation-engine-panel").then((m) => ({ default: m.SimulationEnginePanel })));
+const GlobalIntelligencePanel = lazy(() => import("./global-intelligence-panel").then((m) => ({ default: m.GlobalIntelligencePanel })));
+const EngineeringOSPanel      = lazy(() => import("./engineering-os-panel").then((m) => ({ default: m.EngineeringOSPanel })));
+
 // ── Loader fallback ────────────────────────────────────────────────────────────
 function PanelLoader() {
   return (
@@ -226,6 +238,17 @@ function ActivePanel({ panel }: { panel: IDEPanel }) {
     "business-intel":    <BusinessIntelligencePanel className="h-full" />,
     governance:          <GovernancePanel className="h-full" />,
     "autonomous-engine": <AutonomousEnginePanel className="h-full" />,
+    // Phase 81-90
+    "self-improving":   <SelfImprovingPanel className="h-full" />,
+    "knowledge-base":   <KnowledgeBasePanel className="h-full" />,
+    "arch-evolution":   <ArchEvolutionPanel className="h-full" />,
+    "auto-refactor":    <AutoRefactorPanel className="h-full" />,
+    "docs-platform":    <DocsPlatformPanel className="h-full" />,
+    marketplace:        <MarketplacePanel className="h-full" />,
+    "cross-project":    <CrossProjectPanel className="h-full" />,
+    simulation:         <SimulationEnginePanel className="h-full" />,
+    "global-intel":     <GlobalIntelligencePanel className="h-full" />,
+    "engineering-os":   <EngineeringOSPanel className="h-full" />,
   };
   return <>{map[panel] ?? null}</>;
 }

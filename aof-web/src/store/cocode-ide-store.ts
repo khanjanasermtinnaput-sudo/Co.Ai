@@ -94,7 +94,11 @@ export type IDEPanel =
   // Phase 71–80
   | "cloud-workspace" | "realtime-collab" | "project-manager" | "analytics"
   | "devops" | "infrastructure" | "incident-response" | "business-intel"
-  | "governance" | "autonomous-engine";
+  | "governance" | "autonomous-engine"
+  // Phase 81–90
+  | "self-improving" | "knowledge-base" | "arch-evolution" | "auto-refactor"
+  | "docs-platform" | "marketplace" | "cross-project" | "simulation"
+  | "global-intel" | "engineering-os";
 
 // ── Full store interface ──────────────────────────────────────────────────────
 

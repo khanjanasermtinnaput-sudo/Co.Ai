@@ -55,6 +55,17 @@ export const PANEL_DEFS: Record<string, PanelDef> = {
   "business-intel":     { id: "business-intel",     label: "Biz Intel",         description: "Feature usage, conversion impact, revenue analysis",    devModeOnly: true  },
   "governance":         { id: "governance",         label: "Governance",        description: "RBAC, audit logs, compliance, SSO, branch policies",    devModeOnly: true  },
   "autonomous-engine":  { id: "autonomous-engine",  label: "Autonomous",        description: "Full AI software engineering loop with human approval",  devModeOnly: true  },
+  // Phase 81–90
+  "self-improving":     { id: "self-improving",     label: "Self-Improve",      description: "AI learns from every task — stores validated patterns",      devModeOnly: true  },
+  "knowledge-base":     { id: "knowledge-base",     label: "Knowledge",         description: "Living engineering knowledge base linked to source files",    devModeOnly: false },
+  "arch-evolution":     { id: "arch-evolution",     label: "Arch Roadmap",      description: "6 & 12-month architecture roadmap, scaling & debt forecast",  devModeOnly: true  },
+  "auto-refactor":      { id: "auto-refactor",      label: "Refactor AI",       description: "Continuous codebase audit — proposals with risk & diff",      devModeOnly: true  },
+  "docs-platform":      { id: "docs-platform",      label: "Living Docs",       description: "Docs synced with every approved change — never outdated",     devModeOnly: false },
+  "marketplace":        { id: "marketplace",        label: "Marketplace",       description: "Sandboxed AI agent extensions, prompt packs, connectors",     devModeOnly: false },
+  "cross-project":      { id: "cross-project",      label: "Cross-Project",     description: "Impact analysis across frontend, backend, SDK, mobile, infra", devModeOnly: true  },
+  "simulation":         { id: "simulation",         label: "Simulate",          description: "Pre-implementation simulation — perf, scale, cost, failure",  devModeOnly: true  },
+  "global-intel":       { id: "global-intel",       label: "Global Intel",      description: "Aggregate engineering trends across all repositories",        devModeOnly: true  },
+  "engineering-os":     { id: "engineering-os",     label: "Eng OS",            description: "Core services: orchestrator, agents, runtime, model router",  devModeOnly: true  },
 };
 
 export type FileContext = "style" | "api" | "test" | "component" | "config" | "markdown" | "default";
