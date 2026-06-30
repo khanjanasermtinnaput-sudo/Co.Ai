@@ -92,8 +92,38 @@ export function buildRunReport(
   if (criticalBugs.some((b) => b.phase === 40)) {
     recommendations.push("PRODUCTION MERGE BLOCKED — production readiness validator failed (Phase 40)");
   }
+  if (criticalBugs.some((b) => b.phase === 41)) {
+    recommendations.push("Requirements engine degraded — AI requirements agent not responding or not clarifying needs (Phase 41)");
+  }
+  if (criticalBugs.some((b) => b.phase === 42)) {
+    recommendations.push("Planning canvas failure — AI plan agent not producing structured plans (Phase 42)");
+  }
+  if (criticalBugs.some((b) => b.phase === 43)) {
+    recommendations.push("Background agents not running — check keep-warm workflow and CI automation (Phase 43)");
+  }
+  if (criticalBugs.some((b) => b.phase === 44)) {
+    recommendations.push("High technical debt detected — schedule cleanup sprint; address large files and TODOs (Phase 44)");
+  }
+  if (criticalBugs.some((b) => b.phase === 45)) {
+    recommendations.push("Architecture health below threshold — review security, performance, and code structure scores (Phase 45)");
+  }
+  if (criticalBugs.some((b) => b.phase === 46)) {
+    recommendations.push("Learning engine failure — /api/ai/learning endpoint not functional (Phase 46)");
+  }
+  if (criticalBugs.some((b) => b.phase === 47)) {
+    recommendations.push("Search engine not operational — /api/search returning errors or missing auth (Phase 47)");
+  }
+  if (criticalBugs.some((b) => b.phase === 48)) {
+    recommendations.push("Root cause engine degraded — debug agent not providing actionable analysis (Phase 48)");
+  }
+  if (criticalBugs.some((b) => b.phase === 49)) {
+    recommendations.push("Workflow automation incomplete — CI pipeline missing gates or workflow API failing (Phase 49)");
+  }
+  if (criticalBugs.some((b) => b.phase === 50)) {
+    recommendations.push("AI-SEOS NOT READY — overall readiness score below threshold; check Phase 50 report for failed criteria");
+  }
   if (criticalBugs.length === 0 && warnings.length === 0) {
-    recommendations.push("All systems healthy — all 19 phases passed. Safe to deploy.");
+    recommendations.push("All systems healthy — all 29 phases passed. AI-SEOS fully operational. Safe to deploy.");
   }
 
   return {

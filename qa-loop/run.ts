@@ -39,6 +39,16 @@ import { runPhase37 } from "./phases/phase37-rollback-engine.ts";
 import { runPhase38 } from "./phases/phase38-release-manager.ts";
 import { runPhase39 } from "./phases/phase39-collaboration-engine.ts";
 import { runPhase40 } from "./phases/phase40-production-validator.ts";
+import { runPhase41 } from "./phases/phase41-requirements-engine.ts";
+import { runPhase42 } from "./phases/phase42-planning-canvas.ts";
+import { runPhase43 } from "./phases/phase43-background-agents.ts";
+import { runPhase44 } from "./phases/phase44-technical-debt.ts";
+import { runPhase45 } from "./phases/phase45-architecture-health.ts";
+import { runPhase46 } from "./phases/phase46-learning-engine.ts";
+import { runPhase47 } from "./phases/phase47-search-engine.ts";
+import { runPhase48 } from "./phases/phase48-root-cause-engine.ts";
+import { runPhase49 } from "./phases/phase49-workflow-automation.ts";
+import { runPhase50 } from "./phases/phase50-ai-seos.ts";
 
 // ── CLI args ───────────────────────────────────────────────────────────────
 const args = process.argv.slice(2);
@@ -76,6 +86,17 @@ const PHASE_MAP: Record<number, { name: string; run: PhaseRunner }> = {
   38: { name: "AI Release Manager",            run: runPhase38 },
   39: { name: "Enterprise Collaboration",      run: runPhase39 },
   40: { name: "Production Readiness Validator",run: runPhase40 },
+  // Part 5: AI-SEOS platform phases (41–50)
+  41: { name: "AI Requirement Understanding",  run: runPhase41 },
+  42: { name: "AI Planning Canvas",            run: runPhase42 },
+  43: { name: "Continuous Background Agents",  run: runPhase43 },
+  44: { name: "Technical Debt Analyzer",       run: runPhase44 },
+  45: { name: "Architecture Health Engine",    run: runPhase45 },
+  46: { name: "AI Learning Engine",            run: runPhase46 },
+  47: { name: "Intelligent Search Engine",     run: runPhase47 },
+  48: { name: "AI Root Cause Engine",          run: runPhase48 },
+  49: { name: "Intelligent Workflow Automation",run: runPhase49 },
+  50: { name: "AI-SEOS Operating System",      run: runPhase50 },
 };
 
 // ── Main ───────────────────────────────────────────────────────────────────
