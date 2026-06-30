@@ -39,7 +39,7 @@ export const config = {
   loopIntervalMs: envInt("QA_LOOP_INTERVAL_MS", 60_000),
   phases: env("QA_PHASES")
     ? env("QA_PHASES").split(",").map(Number).filter((n) => !isNaN(n))
-    : [1, 2, 3, 4, 5, 6, 7, 8, 9],
+    : [1, 2, 3, 4, 5, 6, 7, 8, 9, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40],
 };
 
 export type Config = typeof config;

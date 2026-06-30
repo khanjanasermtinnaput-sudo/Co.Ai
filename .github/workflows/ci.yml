@@ -1,6 +1,6 @@
-name: CI — Type Check & Tests
+name: CI — Type Check, Tests & Phase 31-40 Gates
 
-# Blocks merges to main when type checking or tests fail.
+# Blocks merges to main when any gate fails.
 # Runs on every PR and on every push to main/feature branches.
 
 on:
@@ -12,10 +12,34 @@ on:
       - 'claude/**'
 
 jobs:
-  # ── aof-web: Next.js TypeScript check ─────────────────────────────────────
-  typecheck-web:
-    name: aof-web / tsc
+  # ── aof-web: Lint ─────────────────────────────────────────────────────────
+  lint-web:
+    name: aof-web / ESLint
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: aof-web
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: aof-web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint (Phase 36 Gate 1)
+        run: npm run lint -- --max-warnings=0
+
+  # ── aof-web: TypeScript check ─────────────────────────────────────────────
+  typecheck-web:
+    name: aof-web / tsc (Phase 36 Gate 2)
+    runs-on: ubuntu-latest
+    needs: lint-web
     defaults:
       run:
         working-directory: aof-web
@@ -34,6 +58,61 @@ jobs:
 
       - name: TypeScript check
         run: npx tsc --noEmit
+
+  # ── aof-web: Unit Tests ───────────────────────────────────────────────────
+  test-web:
+    name: aof-web / tests (Phase 36 Gate 3)
+    runs-on: ubuntu-latest
+    needs: typecheck-web
+    defaults:
+      run:
+        working-directory: aof-web
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: aof-web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test -- --passWithNoTests
+        env:
+          NODE_ENV: test
+
+  # ── aof-web: Production Build ─────────────────────────────────────────────
+  build-web:
+    name: aof-web / next build (Phase 36 Gate 4)
+    runs-on: ubuntu-latest
+    needs: [typecheck-web, test-web]
+    defaults:
+      run:
+        working-directory: aof-web
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: aof-web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Production build
+        run: npm run build
+        env:
+          # Use dummy env values for build-time checks (not real API calls)
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co' }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder' }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY || 'placeholder' }}
 
   # ── tmap-v2: TypeScript check ─────────────────────────────────────────────
   typecheck-tmap:
@@ -82,15 +161,9 @@ jobs:
       - name: Run tests
         run: npm test
         env:
-          # Tests run without real API keys; mock mode is activated automatically
-          # when OPENROUTER_API_KEY is absent.
           NODE_ENV: test
 
   # ── tmap-v2: real-LLM E2E smoke (non-gating) ───────────────────────────────
-  # Proves the v2/v1 engines produce real output (not just mock canned strings).
-  # Runs on pushes to main only; self-skips when the OPENROUTER_API_KEY secret is
-  # absent, so it never blocks merges and forks are unaffected. Deliberately NOT
-  # in ci-gate's needs: real model calls can be slow/flaky and must not gate PRs.
   test-live:
     name: tmap-v2 / real-LLM E2E (non-gating)
     runs-on: ubuntu-latest
@@ -118,19 +191,100 @@ jobs:
           NODE_ENV: development
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
 
+  # ── Phase 31: AI Security Engine (live scan, non-gating on missing secret) ─
+  security-scan:
+    name: Phase 31 / AI Security Engine
+    runs-on: ubuntu-latest
+    needs: build-web
+    if: github.event_name == 'push' && secrets.QA_BASE_URL != ''
+    continue-on-error: false
+    defaults:
+      run:
+        working-directory: qa-loop
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: qa-loop/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Phase 31 — Security Engine
+        run: npx tsx run.ts --once --phases 31
+        env:
+          QA_BASE_URL: ${{ secrets.QA_BASE_URL }}
+          QA_BACKEND_URL: ${{ secrets.QA_BACKEND_URL }}
+          QA_SUPABASE_URL: ${{ secrets.QA_SUPABASE_URL }}
+          QA_SUPABASE_ANON_KEY: ${{ secrets.QA_SUPABASE_ANON_KEY }}
+          QA_TIMEOUT_MS: "20000"
+
+  # ── Phase 40: Production Readiness Validator (PR gate) ────────────────────
+  production-gate:
+    name: Phase 40 / Production Readiness Validator
+    runs-on: ubuntu-latest
+    needs: build-web
+    if: github.event_name == 'push' && secrets.QA_BASE_URL != ''
+    continue-on-error: false
+    defaults:
+      run:
+        working-directory: qa-loop
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: qa-loop/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Phase 40 — Production Readiness Validator
+        run: npx tsx run.ts --once --phases 40
+        env:
+          QA_BASE_URL: ${{ secrets.QA_BASE_URL }}
+          QA_BACKEND_URL: ${{ secrets.QA_BACKEND_URL }}
+          QA_SUPABASE_URL: ${{ secrets.QA_SUPABASE_URL }}
+          QA_SUPABASE_ANON_KEY: ${{ secrets.QA_SUPABASE_ANON_KEY }}
+          QA_TIMEOUT_MS: "20000"
+
   # ── Gate: all checks must pass before merge ────────────────────────────────
   ci-gate:
-    name: CI Gate
+    name: CI Gate — All Phases
     runs-on: ubuntu-latest
-    needs: [typecheck-web, typecheck-tmap, test-tmap]
+    needs:
+      - lint-web
+      - typecheck-web
+      - test-web
+      - build-web
+      - typecheck-tmap
+      - test-tmap
     if: always()
     steps:
-      - name: Check all jobs passed
+      - name: Check all required jobs passed
         run: |
-          if [[ "${{ needs.typecheck-web.result }}" != "success" || \
-                "${{ needs.typecheck-tmap.result }}" != "success" || \
-                "${{ needs.test-tmap.result }}" != "success" ]]; then
-            echo "One or more CI checks failed."
+          if [[ "${{ needs.lint-web.result }}"       != "success" || \
+                "${{ needs.typecheck-web.result }}"   != "success" || \
+                "${{ needs.test-web.result }}"        != "success" || \
+                "${{ needs.build-web.result }}"       != "success" || \
+                "${{ needs.typecheck-tmap.result }}"  != "success" || \
+                "${{ needs.test-tmap.result }}"       != "success" ]]; then
+            echo "One or more CI gate checks failed."
+            echo ""
+            echo "Gate results:"
+            echo "  lint-web:      ${{ needs.lint-web.result }}"
+            echo "  typecheck-web: ${{ needs.typecheck-web.result }}"
+            echo "  test-web:      ${{ needs.test-web.result }}"
+            echo "  build-web:     ${{ needs.build-web.result }}"
+            echo "  typecheck-tmap:${{ needs.typecheck-tmap.result }}"
+            echo "  test-tmap:     ${{ needs.test-tmap.result }}"
             exit 1
           fi
-          echo "All CI checks passed."
+          echo "All CI gate checks passed — safe to merge."

@@ -29,6 +29,16 @@ import { runPhase7 } from "./phases/phase7-stress.ts";
 import { runPhase8 } from "./phases/phase8-security.ts";
 import { runPhase9 } from "./phases/phase9-recovery.ts";
 import { buildRunReport, saveReport, printReport } from "./phases/phase10-report.ts";
+import { runPhase31 } from "./phases/phase31-security-engine.ts";
+import { runPhase32 } from "./phases/phase32-performance-engine.ts";
+import { runPhase33 } from "./phases/phase33-accessibility-engine.ts";
+import { runPhase34 } from "./phases/phase34-database-architect.ts";
+import { runPhase35 } from "./phases/phase35-api-architect.ts";
+import { runPhase36 } from "./phases/phase36-deployment-center.ts";
+import { runPhase37 } from "./phases/phase37-rollback-engine.ts";
+import { runPhase38 } from "./phases/phase38-release-manager.ts";
+import { runPhase39 } from "./phases/phase39-collaboration-engine.ts";
+import { runPhase40 } from "./phases/phase40-production-validator.ts";
 
 // ── CLI args ───────────────────────────────────────────────────────────────
 const args = process.argv.slice(2);
@@ -45,15 +55,27 @@ const phasesArg = (() => {
 type PhaseRunner = (runDir: string) => Promise<PhaseResult>;
 
 const PHASE_MAP: Record<number, { name: string; run: PhaseRunner }> = {
-  1: { name: "Homepage",          run: runPhase1 },
-  2: { name: "Authentication",    run: runPhase2 },
-  3: { name: "AI Chat",           run: runPhase3 },
-  4: { name: "Memory",            run: runPhase4 },
-  5: { name: "Multi-Agent TMAP",  run: runPhase5 },
-  6: { name: "UI / Responsive",   run: runPhase6 },
-  7: { name: "Stress Test",       run: runPhase7 },
-  8: { name: "Security",          run: runPhase8 },
-  9: { name: "Error Recovery",    run: runPhase9 },
+  // Part 1–3: Core platform phases
+  1:  { name: "Homepage",                      run: runPhase1 },
+  2:  { name: "Authentication",                run: runPhase2 },
+  3:  { name: "AI Chat",                       run: runPhase3 },
+  4:  { name: "Memory",                        run: runPhase4 },
+  5:  { name: "Multi-Agent TMAP",              run: runPhase5 },
+  6:  { name: "UI / Responsive",               run: runPhase6 },
+  7:  { name: "Stress Test",                   run: runPhase7 },
+  8:  { name: "Security",                      run: runPhase8 },
+  9:  { name: "Error Recovery",                run: runPhase9 },
+  // Part 4: Enterprise platform phases (31–40)
+  31: { name: "AI Security Engine",            run: runPhase31 },
+  32: { name: "AI Performance Engine",         run: runPhase32 },
+  33: { name: "AI Accessibility Engine",       run: runPhase33 },
+  34: { name: "AI Database Architect",         run: runPhase34 },
+  35: { name: "AI API Architect",              run: runPhase35 },
+  36: { name: "AI Deployment Center",          run: runPhase36 },
+  37: { name: "Rollback Engine",               run: runPhase37 },
+  38: { name: "AI Release Manager",            run: runPhase38 },
+  39: { name: "Enterprise Collaboration",      run: runPhase39 },
+  40: { name: "Production Readiness Validator",run: runPhase40 },
 };
 
 // ── Main ───────────────────────────────────────────────────────────────────

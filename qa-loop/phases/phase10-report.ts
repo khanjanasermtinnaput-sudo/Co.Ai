@@ -59,8 +59,8 @@ export function buildRunReport(
   if (criticalBugs.some((b) => b.phase === 7 && !b.error?.includes("rate"))) {
     recommendations.push("Upgrade Render instance size or enable Redis caching to handle load");
   }
-  if (criticalBugs.some((b) => b.phase === 8)) {
-    recommendations.push("URGENT: Security vulnerabilities detected — review Phase 8 failures immediately");
+  if (criticalBugs.some((b) => b.phase === 8 || b.phase === 31)) {
+    recommendations.push("URGENT: Security vulnerabilities detected — review Phase 8/31 failures immediately");
   }
   if (criticalBugs.some((b) => (b.phase === 1 || b.phase === 2) && phases.some((p) => p.phase === b.phase))) {
     recommendations.push("Core platform unreachable or auth broken — check Vercel deployment status");
@@ -68,8 +68,32 @@ export function buildRunReport(
   if (phases.some((p) => p.totalMs > 120_000)) {
     recommendations.push("Some phases exceeding 2 min — consider parallelizing browser and API tests");
   }
+  if (criticalBugs.some((b) => b.phase === 32)) {
+    recommendations.push("Performance regressions detected — review Phase 32 for bundle/latency issues");
+  }
+  if (criticalBugs.some((b) => b.phase === 33)) {
+    recommendations.push("Accessibility violations found — review Phase 33 WCAG failures before release");
+  }
+  if (criticalBugs.some((b) => b.phase === 34)) {
+    recommendations.push("Database health issues — check RLS, indexes, and schema (Phase 34)");
+  }
+  if (criticalBugs.some((b) => b.phase === 35)) {
+    recommendations.push("API architecture issues — broken endpoints or missing auth detected (Phase 35)");
+  }
+  if (criticalBugs.some((b) => b.phase === 36)) {
+    recommendations.push("DEPLOYMENT BLOCKED — pre-deployment gate failures (Phase 36)");
+  }
+  if (criticalBugs.some((b) => b.phase === 37)) {
+    recommendations.push("Rollback capability compromised — fix rollback engine failures (Phase 37)");
+  }
+  if (criticalBugs.some((b) => b.phase === 39)) {
+    recommendations.push("Collaboration/isolation issues — data leakage or session pollution detected (Phase 39)");
+  }
+  if (criticalBugs.some((b) => b.phase === 40)) {
+    recommendations.push("PRODUCTION MERGE BLOCKED — production readiness validator failed (Phase 40)");
+  }
   if (criticalBugs.length === 0 && warnings.length === 0) {
-    recommendations.push("All systems healthy. Continue monitoring.");
+    recommendations.push("All systems healthy — all 19 phases passed. Safe to deploy.");
   }
 
   return {
