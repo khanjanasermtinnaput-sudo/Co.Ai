@@ -89,7 +89,8 @@ export interface EditorTab {
 export type IDEPanel =
   | "explorer" | "diff" | "preview" | "graph" | "checkpoints" | "github"
   | "design" | "multi-preview" | "deps" | "docs" | "diagnostics" | "pair"
-  | "deploy" | "cicd" | "collab" | "env" | "perf" | "security" | "api" | "db" | "mobile" | "review";
+  | "deploy" | "cicd" | "collab" | "env" | "perf" | "security" | "api" | "db" | "mobile" | "review"
+  | "testgen" | "search" | "translate" | "changelog" | "arch" | "runtime" | "a11y" | "i18n" | "coverage" | "scaffold";
 
 // ── Full store interface ──────────────────────────────────────────────────────
 

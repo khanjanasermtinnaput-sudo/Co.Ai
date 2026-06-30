@@ -14,6 +14,9 @@ import {
   AlertCircle, Bot, Rocket, GitMerge as GitMerge2, Users as Users2,
   KeyRound, Gauge as GaugeCircle, ShieldCheck, Globe as Globe2,
   Database as DatabaseIcon, Star, Smartphone,
+  FlaskConical as TestTube, Search as SearchIcon, Languages,
+  ScrollText, Network as NetworkIcon, Activity, Accessibility,
+  Globe as GlobeIcon, BarChart3, Wand2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -47,6 +50,17 @@ const ApiStudio = lazy(() => import("./api-studio").then((m) => ({ default: m.Ap
 const DatabaseStudio = lazy(() => import("./database-studio").then((m) => ({ default: m.DatabaseStudio })));
 const AIReviewPanel = lazy(() => import("./ai-review-panel").then((m) => ({ default: m.AIReviewPanel })));
 const MobilePreview = lazy(() => import("./mobile-preview").then((m) => ({ default: m.MobilePreview })));
+const TestGeneratorPanel = lazy(() => import("./test-generator-panel").then((m) => ({ default: m.TestGeneratorPanel })));
+const SemanticSearchPanel = lazy(() => import("./semantic-search-panel").then((m) => ({ default: m.SemanticSearchPanel })));
+const CodeTranslatorPanel = lazy(() => import("./code-translator-panel").then((m) => ({ default: m.CodeTranslatorPanel })));
+const ChangelogPanel = lazy(() => import("./changelog-panel").then((m) => ({ default: m.ChangelogPanel })));
+const ArchitecturePanel = lazy(() => import("./architecture-panel").then((m) => ({ default: m.ArchitecturePanel })));
+const RuntimeMonitor = lazy(() => import("./runtime-monitor").then((m) => ({ default: m.RuntimeMonitor })));
+const AccessibilityPanel = lazy(() => import("./accessibility-panel").then((m) => ({ default: m.AccessibilityPanel })));
+const I18nPanel = lazy(() => import("./i18n-panel").then((m) => ({ default: m.I18nPanel })));
+const CoveragePanel = lazy(() => import("./coverage-panel").then((m) => ({ default: m.CoveragePanel })));
+const ScaffolderPanel = lazy(() => import("./scaffolder-panel").then((m) => ({ default: m.ScaffolderPanel })));
+
 
 // ── AI Chat with Repo Context (Phase 6) ──────────────────────────────────────
 
@@ -174,6 +188,16 @@ const RIGHT_PANELS = [
   { id: "db" as const, icon: DatabaseIcon, label: "DB" },
   { id: "mobile" as const, icon: Smartphone, label: "Mobile" },
   { id: "review" as const, icon: Star, label: "Review" },
+  { id: "testgen" as const, icon: TestTube, label: "TestGen" },
+  { id: "search" as const, icon: SearchIcon, label: "Search" },
+  { id: "translate" as const, icon: Languages, label: "Translate" },
+  { id: "changelog" as const, icon: ScrollText, label: "Changelog" },
+  { id: "arch" as const, icon: NetworkIcon, label: "Arch" },
+  { id: "runtime" as const, icon: Activity, label: "Runtime" },
+  { id: "a11y" as const, icon: Accessibility, label: "A11y" },
+  { id: "i18n" as const, icon: GlobeIcon, label: "i18n" },
+  { id: "coverage" as const, icon: BarChart3, label: "Coverage" },
+  { id: "scaffold" as const, icon: Wand2, label: "Scaffold" },
 ] as const;
 
 type PanelId = typeof RIGHT_PANELS[number]["id"];
@@ -377,6 +401,16 @@ export function CocodeIDE() {
                 {activePanel === "db" && <DatabaseStudio className="h-full" />}
                 {activePanel === "mobile" && <MobilePreview className="h-full" />}
                 {activePanel === "review" && <AIReviewPanel className="h-full" />}
+                {activePanel === "testgen" && <TestGeneratorPanel className="h-full" />}
+                {activePanel === "search" && <SemanticSearchPanel className="h-full" />}
+                {activePanel === "translate" && <CodeTranslatorPanel className="h-full" />}
+                {activePanel === "changelog" && <ChangelogPanel className="h-full" />}
+                {activePanel === "arch" && <ArchitecturePanel className="h-full" />}
+                {activePanel === "runtime" && <RuntimeMonitor className="h-full" />}
+                {activePanel === "a11y" && <AccessibilityPanel className="h-full" />}
+                {activePanel === "i18n" && <I18nPanel className="h-full" />}
+                {activePanel === "coverage" && <CoveragePanel className="h-full" />}
+                {activePanel === "scaffold" && <ScaffolderPanel className="h-full" />}
               </Suspense>
             </div>
           </div>
