@@ -90,7 +90,11 @@ export type IDEPanel =
   | "explorer" | "diff" | "preview" | "graph" | "checkpoints" | "github"
   | "design" | "multi-preview" | "deps" | "docs" | "diagnostics" | "pair"
   | "deploy" | "cicd" | "collab" | "env" | "perf" | "security" | "api" | "db" | "mobile" | "review"
-  | "testgen" | "search" | "translate" | "changelog" | "arch" | "runtime" | "a11y" | "i18n" | "coverage" | "scaffold";
+  | "tests" | "testgen" | "search" | "translate" | "changelog" | "arch" | "runtime" | "a11y" | "i18n" | "coverage" | "scaffold"
+  // Phase 71–80
+  | "cloud-workspace" | "realtime-collab" | "project-manager" | "analytics"
+  | "devops" | "infrastructure" | "incident-response" | "business-intel"
+  | "governance" | "autonomous-engine";
 
 // ── Full store interface ──────────────────────────────────────────────────────
 

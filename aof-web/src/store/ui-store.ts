@@ -1,15 +1,34 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
+export type FileContext =
+  | "css" | "tailwind" | "ts" | "tsx" | "jsx" | "js"
+  | "api" | "test" | "config" | "markdown" | "sql"
+  | "docker" | "json" | "yaml" | "unknown";
+
 interface UIState {
-  /** Desktop sidebar expanded (labels visible) vs. collapsed (icons only). */
   sidebarExpanded: boolean;
   toggleSidebar: () => void;
   setSidebarExpanded: (v: boolean) => void;
 
-  /** Mobile slide-over navigation. */
   mobileNavOpen: boolean;
   setMobileNav: (v: boolean) => void;
+
+  /** Developer Mode — OFF by default. Shows TMAP, Agent Monitor, advanced panels. */
+  developerMode: boolean;
+  toggleDeveloperMode: () => void;
+
+  /** Command palette (Ctrl+Shift+P). */
+  commandPaletteOpen: boolean;
+  setCommandPaletteOpen: (v: boolean) => void;
+
+  /** Adaptive sidebar context — derived from the active file extension. */
+  activeFileContext: FileContext;
+  setActiveFileContext: (ctx: FileContext) => void;
+
+  /** Status bar cursor position. */
+  cursorPosition: { line: number; col: number };
+  setCursorPosition: (pos: { line: number; col: number }) => void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -21,10 +40,25 @@ export const useUIStore = create<UIState>()(
 
       mobileNavOpen: false,
       setMobileNav: (v) => set({ mobileNavOpen: v }),
+
+      developerMode: false,
+      toggleDeveloperMode: () => set((s) => ({ developerMode: !s.developerMode })),
+
+      commandPaletteOpen: false,
+      setCommandPaletteOpen: (v) => set({ commandPaletteOpen: v }),
+
+      activeFileContext: "unknown",
+      setActiveFileContext: (ctx) => set({ activeFileContext: ctx }),
+
+      cursorPosition: { line: 1, col: 1 },
+      setCursorPosition: (pos) => set({ cursorPosition: pos }),
     }),
     {
       name: "aof.ui",
-      partialize: (s) => ({ sidebarExpanded: s.sidebarExpanded }),
+      partialize: (s) => ({
+        sidebarExpanded: s.sidebarExpanded,
+        developerMode: s.developerMode,
+      }),
     },
   ),
 );
