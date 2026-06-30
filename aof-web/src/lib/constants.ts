@@ -2,6 +2,7 @@ import {
   Sparkles,
   MessageSquare,
   Code2,
+  Terminal,
   FolderKanban,
   GraduationCap,
   type LucideIcon,
@@ -44,6 +45,13 @@ export const PRIMARY_NAV: NavItem[] = [
     href: "/code",
     icon: Code2,
     description: "Build software",
+  },
+  {
+    key: "cocode",
+    label: "CoCode IDE",
+    href: "/cocode",
+    icon: Terminal,
+    description: "Full AI-powered IDE — GitHub, visual editing, multi-agent",
   },
 ];
 
