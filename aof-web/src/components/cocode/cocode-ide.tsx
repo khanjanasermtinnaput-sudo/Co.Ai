@@ -10,6 +10,8 @@ import {
   PanelLeftClose, PanelLeftOpen, GitBranch, Network,
   History, Eye, Github, Wrench, FlaskConical,
   SplitSquareHorizontal, Loader2, Hammer, Upload, Zap, X,
+  MousePointer2, Palette, Laptop, Package2, BookOpen,
+  AlertCircle, Bot,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -27,6 +29,12 @@ const CheckpointPanel = lazy(() => import("./checkpoint-panel").then((m) => ({ d
 const GitHubPanel = lazy(() => import("./github-panel").then((m) => ({ default: m.GitHubPanel })));
 const RefactorMenu = lazy(() => import("./refactor-menu").then((m) => ({ default: m.RefactorMenu })));
 const TestingAgent = lazy(() => import("./testing-agent").then((m) => ({ default: m.TestingAgent })));
+const DesignInspector = lazy(() => import("./design-inspector").then((m) => ({ default: m.DesignInspector })));
+const MultiPreview = lazy(() => import("./multi-preview").then((m) => ({ default: m.MultiPreview })));
+const DependencyPanel = lazy(() => import("./dependency-panel").then((m) => ({ default: m.DependencyPanel })));
+const DocsGenerator = lazy(() => import("./docs-generator").then((m) => ({ default: m.DocsGenerator })));
+const DiagnosticsPanel = lazy(() => import("./diagnostics-panel").then((m) => ({ default: m.DiagnosticsPanel })));
+const PairPanel = lazy(() => import("./pair-panel").then((m) => ({ default: m.PairPanel })));
 
 // ── AI Chat with Repo Context (Phase 6) ──────────────────────────────────────
 
@@ -133,11 +141,17 @@ function IDEChatInput() {
 const RIGHT_PANELS = [
   { id: "diff" as const, icon: SplitSquareHorizontal, label: "Diff" },
   { id: "preview" as const, icon: Eye, label: "Preview" },
+  { id: "multi-preview" as const, icon: Laptop, label: "Devices" },
   { id: "github" as const, icon: Github, label: "GitHub" },
   { id: "graph" as const, icon: Network, label: "Graph" },
   { id: "checkpoints" as const, icon: History, label: "History" },
   { id: "explorer" as const, icon: Wrench, label: "Refactor" },
   { id: "tests" as const, icon: FlaskConical, label: "Tests" },
+  { id: "design" as const, icon: Palette, label: "Design" },
+  { id: "deps" as const, icon: Package2, label: "Deps" },
+  { id: "docs" as const, icon: BookOpen, label: "Docs" },
+  { id: "diagnostics" as const, icon: AlertCircle, label: "Issues" },
+  { id: "pair" as const, icon: Bot, label: "Pair" },
 ] as const;
 
 type PanelId = typeof RIGHT_PANELS[number]["id"];
@@ -320,11 +334,17 @@ export function CocodeIDE() {
               <Suspense fallback={<div className="flex h-full items-center justify-center"><Loader2 className="size-4 animate-spin text-muted-foreground" /></div>}>
                 {activePanel === "diff" && <DiffViewer />}
                 {activePanel === "preview" && <LivePreview className="h-full" />}
+                {activePanel === "multi-preview" && <MultiPreview className="h-full" />}
                 {activePanel === "github" && <GitHubPanel />}
                 {activePanel === "graph" && <KnowledgeGraphView />}
                 {activePanel === "checkpoints" && <CheckpointPanel />}
                 {activePanel === "explorer" && <RefactorMenu className="overflow-y-auto" />}
-                {(activePanel as string) === "tests" && <TestingAgent />}
+                {activePanel === "tests" && <TestingAgent />}
+                {activePanel === "design" && <DesignInspector className="h-full" />}
+                {activePanel === "deps" && <DependencyPanel className="h-full" />}
+                {activePanel === "docs" && <DocsGenerator className="h-full" />}
+                {activePanel === "diagnostics" && <DiagnosticsPanel className="h-full" />}
+                {activePanel === "pair" && <PairPanel className="h-full" />}
               </Suspense>
             </div>
           </div>

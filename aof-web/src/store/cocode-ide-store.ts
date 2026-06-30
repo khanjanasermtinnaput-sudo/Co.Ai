@@ -23,6 +23,10 @@ import {
   type VirtualFile,
 } from "@/lib/cocode/virtual-fs";
 import {
+  buildDOMSourceMap,
+  type DOMSourceMap,
+} from "@/lib/cocode/dom-source-map";
+import {
   parseDiff,
   extractDiffs,
   applyAcceptedHunks,
@@ -82,7 +86,9 @@ export interface EditorTab {
 
 // ── IDE panel layout ──────────────────────────────────────────────────────────
 
-export type IDEPanel = "explorer" | "diff" | "preview" | "graph" | "checkpoints" | "github";
+export type IDEPanel =
+  | "explorer" | "diff" | "preview" | "graph" | "checkpoints" | "github"
+  | "design" | "multi-preview" | "deps" | "docs" | "diagnostics" | "pair";
 
 // ── Full store interface ──────────────────────────────────────────────────────
 
@@ -174,6 +180,17 @@ interface CocodeIDEState {
     selection?: { start: number; end: number; text: string };
     symbol?: { name: string; newName: string };
   }) => Promise<void>;
+
+  // ── DOM Source Map (Phase 22) ────────────────────────────────────────────
+  domMap: DOMSourceMap | null;
+  buildDOMMap: () => void;
+
+  // ── Multi Preview (Phase 24) ─────────────────────────────────────────────
+  previewWidth: number | null;
+  setPreviewWidth: (width: number | null) => void;
+
+  // ── Virtual FS upsert (for docs, etc.) ──────────────────────────────────
+  upsertFile: (path: string, content: string) => void;
 }
 
 // ── Store ─────────────────────────────────────────────────────────────────────
@@ -700,6 +717,26 @@ export const useCocodeIDEStore = create<CocodeIDEState>()(
       allCheckpoints: () => {
         const { past, future } = get().checkpoints;
         return [...past, ...future.slice().reverse()];
+      },
+
+      // ── DOM Source Map (Phase 22) ─────────────────────────────────────────────
+      domMap: null,
+
+      buildDOMMap: () => {
+        const files = get().allFiles().map((f) => ({ path: f.path, content: f.content }));
+        if (!files.length) return;
+        const domMap = buildDOMSourceMap(files);
+        set({ domMap });
+      },
+
+      // ── Multi Preview width (Phase 24) ────────────────────────────────────────
+      previewWidth: null,
+      setPreviewWidth: (width) => set({ previewWidth: width }),
+
+      // ── Upsert file helper ────────────────────────────────────────────────────
+      upsertFile: (path, content) => {
+        set((s) => ({ fs: upsertFile(s.fs, path, content) }));
+        get().openTab(path);
       },
 
       // ── Refactoring ───────────────────────────────────────────────────────────
