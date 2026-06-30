@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
   const user = await getUserFromRequest(req);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const defaults = { monthlyRequests: 1000, avgTokensPerRequest: 1000, storageGb: 1, bandwidthGb: 10, buildMinutesPerMonth: 60, enableCaching: false };
+  const defaults = { monthlyRequests: 1000, avgTokensPerRequest: 1000, storageGb: 1, bandwidthGb: 10, buildMinutesPerMonth: 60, currentModel: "claude-sonnet", enableCaching: false };
   const costs = estimateCosts(defaults);
 
   return NextResponse.json({
