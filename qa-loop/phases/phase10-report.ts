@@ -152,8 +152,38 @@ export function buildRunReport(
   if (criticalBugs.some((b) => b.phase === 60)) {
     recommendations.push("Self-improvement engine failure — learning patterns not persisting or TypeScript consistency broken (Phase 60)");
   }
+  if (criticalBugs.some((b) => b.phase === 61)) {
+    recommendations.push("Autonomous task engine failure — /api/tasks not deployed or task type validation broken (Phase 61)");
+  }
+  if (criticalBugs.some((b) => b.phase === 62)) {
+    recommendations.push("Smart task queue failure — /api/queue not deployed or queue type enum incomplete (Phase 62)");
+  }
+  if (criticalBugs.some((b) => b.phase === 63)) {
+    recommendations.push("Distributed agent runtime degraded — multi-agent parallel execution blocked or context leaking between agents (Phase 63)");
+  }
+  if (criticalBugs.some((b) => b.phase === 64)) {
+    recommendations.push("Agent Communication Protocol broken — /api/agents/messages not deployed, ACP schema validation missing, or status lifecycle incomplete (Phase 64)");
+  }
+  if (criticalBugs.some((b) => b.phase === 65)) {
+    recommendations.push("AI Memory Engine V2 failure — /api/ai/memory not deployed, memory type enum incomplete, or TTL expiry not working (Phase 65)");
+  }
+  if (criticalBugs.some((b) => b.phase === 66)) {
+    recommendations.push("Intelligence dashboard degraded — /api/intelligence not deployed, health endpoint failing, or aggregated metrics not available (Phase 66)");
+  }
+  if (criticalBugs.some((b) => b.phase === 67)) {
+    recommendations.push("Code ownership engine failure — /api/ownership not deployed, risk level enum invalid, or reviewer minimum-1 not enforced (Phase 67)");
+  }
+  if (criticalBugs.some((b) => b.phase === 68)) {
+    recommendations.push("Architecture evolution engine degraded — /api/ai/architecture not deployed or analyze agent not producing architecture recommendations (Phase 68)");
+  }
+  if (criticalBugs.some((b) => b.phase === 69)) {
+    recommendations.push("Cost optimization engine failure — /api/ai/cost not deployed or savings percentages outside expected ranges (Phase 69)");
+  }
+  if (criticalBugs.some((b) => b.phase === 70)) {
+    recommendations.push("Engineering Control Center failure — /api/control not deployed, subsystems incomplete, or control actions not acknowledged (Phase 70)");
+  }
   if (criticalBugs.length === 0 && warnings.length === 0) {
-    recommendations.push("All systems healthy — all 39 phases passed. Adaptive Engineering Platform fully operational. Safe to deploy.");
+    recommendations.push("All systems healthy — all 49 phases passed. Autonomous Engineering Platform fully operational. Safe to deploy.");
   }
 
   return {

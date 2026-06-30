@@ -59,6 +59,16 @@ import { runPhase57 } from "./phases/phase57-decision-engine.ts";
 import { runPhase58 } from "./phases/phase58-plugin-platform.ts";
 import { runPhase59 } from "./phases/phase59-multi-model-intelligence.ts";
 import { runPhase60 } from "./phases/phase60-self-improvement.ts";
+import { runPhase61 } from "./phases/phase61-autonomous-task-engine.ts";
+import { runPhase62 } from "./phases/phase62-smart-task-queue.ts";
+import { runPhase63 } from "./phases/phase63-distributed-agent-runtime.ts";
+import { runPhase64 } from "./phases/phase64-agent-communication-protocol.ts";
+import { runPhase65 } from "./phases/phase65-ai-memory-engine-v2.ts";
+import { runPhase66 } from "./phases/phase66-intelligence-dashboard.ts";
+import { runPhase67 } from "./phases/phase67-code-ownership.ts";
+import { runPhase68 } from "./phases/phase68-architecture-evolution.ts";
+import { runPhase69 } from "./phases/phase69-cost-optimization.ts";
+import { runPhase70 } from "./phases/phase70-engineering-control-center.ts";
 
 // ── CLI args ───────────────────────────────────────────────────────────────
 const args = process.argv.slice(2);
@@ -118,6 +128,17 @@ const PHASE_MAP: Record<number, { name: string; run: PhaseRunner }> = {
   58: { name: "AI Plugin Platform",            run: runPhase58 },
   59: { name: "Multi-Model Intelligence",      run: runPhase59 },
   60: { name: "Continuous Self-Improvement",   run: runPhase60 },
+  // Part 7: Autonomous platform phases (61–70)
+  61: { name: "Autonomous Task Engine",         run: runPhase61 },
+  62: { name: "Smart Task Queue",               run: runPhase62 },
+  63: { name: "Distributed Agent Runtime",      run: runPhase63 },
+  64: { name: "Agent Communication Protocol",   run: runPhase64 },
+  65: { name: "AI Memory Engine V2",            run: runPhase65 },
+  66: { name: "Repository Intelligence Dashboard", run: runPhase66 },
+  67: { name: "Intelligent Code Ownership",     run: runPhase67 },
+  68: { name: "AI Architecture Evolution",      run: runPhase68 },
+  69: { name: "AI Cost Optimization Engine",    run: runPhase69 },
+  70: { name: "Engineering Control Center",     run: runPhase70 },
 };
 
 // ── Main ───────────────────────────────────────────────────────────────────
