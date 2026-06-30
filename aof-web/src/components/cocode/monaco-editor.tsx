@@ -108,7 +108,7 @@ interface MonacoEditorProps {
 export const MonacoEditor = memo(function MonacoEditor({ className }: MonacoEditorProps) {
   const activeFile = useCocodeIDEStore((s) => s.activeFile());
   const updateFile = useCocodeIDEStore((s) => s.updateFile);
-  const editorRef = useRef<import("monaco-editor").editor.IStandaloneCodeEditor | null>(null);
+  const editorRef = useRef<any>(null);
   const currentPathRef = useRef<string | null>(null);
 
   // When active file changes, update editor content without full remount
@@ -124,14 +124,10 @@ export const MonacoEditor = memo(function MonacoEditor({ className }: MonacoEdit
     currentPathRef.current = activeFile.path;
   }, [activeFile]);
 
-  function handleMount(
-    editor: import("monaco-editor").editor.IStandaloneCodeEditor,
-    monaco: typeof import("monaco-editor"),
-  ) {
+  function handleMount(editor: any, monaco: any) {
     editorRef.current = editor;
 
     // Configure TypeScript — use numeric enum values for cross-version compat
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const ts = (monaco.languages.typescript as any);
     ts.typescriptDefaults.setCompilerOptions({
       target: 99,           // ESNext
@@ -206,7 +202,7 @@ export const MonacoEditor = memo(function MonacoEditor({ className }: MonacoEdit
             stickyScroll: { enabled: true },
             bracketPairColorization: { enabled: true },
           }}
-          onChange={(value) => {
+          onChange={(value: string | undefined) => {
             if (value !== undefined && activeFile) {
               updateFile(activeFile.path, value);
             }

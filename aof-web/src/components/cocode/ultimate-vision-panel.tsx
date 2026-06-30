@@ -93,7 +93,7 @@ export function UltimateVisionPanel({ className }: UltimateVisionPanelProps) {
           <span className="ml-auto text-[10px] text-muted-foreground/40">Phase 100 · Complete</span>
         </div>
         <p className="text-[10px] text-muted-foreground/50 italic">
-          "Build an AI Software Engineering OS that augments engineers, not replaces them."
+          &quot;Build an AI Software Engineering OS that augments engineers, not replaces them.&quot;
         </p>
       </div>
 
@@ -168,7 +168,7 @@ export function UltimateVisionPanel({ className }: UltimateVisionPanelProps) {
           <div className="space-y-2">
             <div className="rounded-xl border border-primary/20 bg-primary/5 px-3 py-2.5 mb-3">
               <p className="text-[11px] font-medium text-primary/80 leading-relaxed">
-                "Build an AI Software Engineering Operating System that augments engineers, not replaces them. Every feature should reduce cognitive load, increase software quality, and preserve human oversight."
+                &quot;Build an AI Software Engineering Operating System that augments engineers, not replaces them. Every feature should reduce cognitive load, increase software quality, and preserve human oversight.&quot;
               </p>
             </div>
             {CORE_PRINCIPLES.map((p, i) => {

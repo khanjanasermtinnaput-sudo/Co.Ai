@@ -56,7 +56,7 @@ export function IDEStatusBar({
   const aiLabel = applying
     ? "Applying…"
     : workflow
-    ? workflow.type
+    ? workflow.mode
     : "Ready";
 
   const aiActive = applying || !!workflow;
