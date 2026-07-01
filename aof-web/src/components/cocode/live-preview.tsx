@@ -102,6 +102,7 @@ export function LivePreview({ className, splitMode = false }: LivePreviewProps) 
     } catch {
       return null;
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- nonce is a manual refresh trigger, not read in the callback
   }, [debouncedFiles, nonce]);
 
   // Console relay from iframe

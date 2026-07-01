@@ -8,7 +8,7 @@ import { httpGet } from "../utils/http.ts";
 import { config } from "../config.ts";
 import { log } from "../utils/logger.ts";
 import type { PhaseResult, TestResult } from "../utils/types.ts";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, statSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const BASE = config.baseUrl;
@@ -28,7 +28,7 @@ function findRepoRoot(): string | null {
 function localCodeSearch(query: string, srcDir: string): Array<{ file: string; line: number; snippet: string }> {
   const results: Array<{ file: string; line: number; snippet: string }> = [];
   const terms = query.toLowerCase().split(/\s+/);
-  const { readdirSync: rs, statSync: ss, readFileSync: rfs } = require("node:fs");
+  const rs = readdirSync, ss = statSync, rfs = readFileSync;
 
   function walkSync(d: string) {
     if (results.length >= 20) return;
@@ -166,7 +166,7 @@ export async function runPhase47(_runDir: string): Promise<PhaseResult> {
       const compDir = resolve(webSrc, "components");
       if (existsSync(compDir)) {
         function findComponents(dir: string): string[] {
-          const { readdirSync: rs, statSync: ss } = require("node:fs");
+          const rs = readdirSync, ss = statSync;
           const files: string[] = [];
           try {
             for (const entry of rs(dir)) {
@@ -211,7 +211,7 @@ export async function runPhase47(_runDir: string): Promise<PhaseResult> {
       const apiDir = resolve(webSrc, "app", "api");
       if (existsSync(apiDir)) {
         function findRoutes(dir: string): string[] {
-          const { readdirSync: rs, statSync: ss } = require("node:fs");
+          const rs = readdirSync, ss = statSync;
           const routes: string[] = [];
           try {
             for (const entry of rs(dir)) {

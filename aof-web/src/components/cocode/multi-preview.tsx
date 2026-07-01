@@ -65,6 +65,7 @@ export function MultiPreview({ className }: { className?: string }) {
   const html = useMemo(() => {
     if (!allFiles.length) return null;
     try { return buildHtml(allFiles); } catch { return null; }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- nonce is a manual refresh trigger, not read in the callback
   }, [allFiles, nonce]);
 
   const finalHtml = useMemo(() => {

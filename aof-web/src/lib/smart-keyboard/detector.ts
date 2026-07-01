@@ -7,7 +7,7 @@ import {
   THAI_TRAILING_VOWELS,
   THAI_RANGE_RE,
 } from './keyboard-map';
-import { convertEnToTh, convertThToEn } from './converter';
+import { convertEnToTh, convertThToEn, isSafeToConvert } from './converter';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -145,6 +145,10 @@ export function detectWrongLayout(text: string): DetectionResult {
   const NONE: DetectionResult = { confidence: 0, type: 'none', converted: null };
 
   if (!text || text.trim().length < 2) return NONE;
+
+  // Code, URLs, emails, and file paths must never be auto-converted — even
+  // callers that skip the isSafeToConvert() gate should get a benign result.
+  if (!isSafeToConvert(text)) return NONE;
 
   const thaiCharCount = (text.match(/[฀-๿]/g) ?? []).length;
   const totalChars = [...text].filter((c) => !/\s/.test(c)).length;

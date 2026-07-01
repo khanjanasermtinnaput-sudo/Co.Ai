@@ -28,7 +28,8 @@ export function EnvManager({ className }: { className?: string }) {
   const fs = useCocodeIDEStore((s) => s.fs);
   const upsertFile = useCocodeIDEStore((s) => s.upsertFile);
 
-  // Load from virtual FS .env.local on mount
+  // Load from virtual FS .env.local on mount only — intentionally not
+  // re-parsing on every fs change, which would clobber in-progress edits.
   useEffect(() => {
     const { flattenFiles } = require("@/lib/cocode/virtual-fs") as typeof import("@/lib/cocode/virtual-fs");
     const envFile = flattenFiles(fs).find((f) => f.path === ".env.local" || f.path === ".env");
@@ -48,6 +49,7 @@ export function EnvManager({ className }: { className?: string }) {
       })
       .filter((v) => v.key);
     if (parsed.length) setVars(parsed);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function add() { setVars((v) => [...v, newVar()]); }

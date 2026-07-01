@@ -137,6 +137,8 @@ export function Composer({
         accept={acceptRef.current}
         onChange={onFiles}
         className="hidden"
+        aria-label="Attach files"
+        tabIndex={-1}
       />
 
       {attachments.length > 0 && (
@@ -179,6 +181,7 @@ export function Composer({
           rows={1}
           autoFocus={autoFocus}
           placeholder={placeholder}
+          aria-label={placeholder}
           className={cn(
             "no-scrollbar flex-1 resize-none border-0 bg-transparent py-2 text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:ring-0",
             size === "lg" ? "text-base leading-relaxed" : "text-sm",

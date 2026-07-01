@@ -389,6 +389,7 @@ function NewChatButton({
     <button
       type="button"
       onClick={onClick}
+      aria-label="New chat"
       className={cn(
         "group flex items-center rounded-xl bg-primary font-medium text-primary-foreground shadow-glow-sm transition-all hover:shadow-glow active:scale-[0.98]",
         expanded ? "h-11 w-full gap-2 px-3 text-sm" : "size-11 justify-center",

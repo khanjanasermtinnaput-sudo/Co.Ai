@@ -220,7 +220,9 @@ export function DiagnosticsPanel({ className }: { className?: string }) {
 
   const allFiles = useMemo(() => flattenFiles(fs), [fs]);
 
-  // Auto-run on mount
+  // Auto-run on mount only — analyze() is redefined every render, so it's
+  // intentionally excluded from deps to avoid re-running on every state change.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { void analyze(); }, []);
 
   async function analyze() {
