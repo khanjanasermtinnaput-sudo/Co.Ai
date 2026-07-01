@@ -69,6 +69,9 @@ import { runPhase67 } from "./phases/phase67-code-ownership.ts";
 import { runPhase68 } from "./phases/phase68-architecture-evolution.ts";
 import { runPhase69 } from "./phases/phase69-cost-optimization.ts";
 import { runPhase70 } from "./phases/phase70-engineering-control-center.ts";
+import { runPhase71 } from "./phases/phase71-conversation-quality.ts";
+import { runPhase72 } from "./phases/phase72-ide-workflow.ts";
+import { runPhase73 } from "./phases/phase73-monkey-chaos.ts";
 
 // ── CLI args ───────────────────────────────────────────────────────────────
 const args = process.argv.slice(2);
@@ -139,6 +142,10 @@ const PHASE_MAP: Record<number, { name: string; run: PhaseRunner }> = {
   68: { name: "AI Architecture Evolution",      run: runPhase68 },
   69: { name: "AI Cost Optimization Engine",    run: runPhase69 },
   70: { name: "Engineering Control Center",     run: runPhase70 },
+  // Part 8: Conversation-level quality (71) + end-to-end workflow & chaos (72-73)
+  71: { name: "AI Conversation Quality",        run: runPhase71 },
+  72: { name: "IDE Developer Workflow",         run: runPhase72 },
+  73: { name: "Monkey / Chaos Test",            run: runPhase73 },
 };
 
 // ── Main ───────────────────────────────────────────────────────────────────

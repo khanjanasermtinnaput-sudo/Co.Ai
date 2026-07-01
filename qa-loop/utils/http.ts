@@ -60,6 +60,63 @@ async function httpReq(
   }
 }
 
+/** Consume a raw text/plain stream (this app's /api/chat wire format — NOT SSE:
+ *  no "data:" prefix, no reliable "\n\n" framing) and return the full concatenated
+ *  body. Unlike collectSSE, this never drops a trailing chunk that lacks a "\n\n"
+ *  terminator, which matters for short answers. */
+export async function collectRawStream(
+  url: string,
+  body: unknown,
+  opts: { timeoutMs?: number; token?: string } = {},
+): Promise<{ text: string; status: number; durationMs: number; error?: string }> {
+  const start = Date.now();
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), opts.timeoutMs ?? 60_000);
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "User-Agent": "CoAI-QA-Loop/1.0",
+        ...(opts.token ? { Authorization: `Bearer ${opts.token}` } : {}),
+      },
+      body: JSON.stringify(body),
+      signal: ctrl.signal,
+    });
+
+    if (!res.ok || !res.body) {
+      const text = await res.text().catch(() => "");
+      return { text: "", status: res.status, durationMs: Date.now() - start, error: `HTTP ${res.status}: ${text.slice(0, 200)}` };
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let raw = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      raw += decoder.decode(value, { stream: true });
+    }
+    return { text: raw, status: res.status, durationMs: Date.now() - start };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { text: "", status: 0, durationMs: Date.now() - start, error: msg };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Strip this app's NUL-delimited control frames (model/failover/sources/error
+ *  notices — see lib/errors.ts encode*Frame) leaving only the assistant's
+ *  plain-text answer. Built from String.fromCharCode(0) rather than a literal
+ *  NUL in the regex source, so this file stays plain ASCII/UTF-8 text. */
+const NUL = String.fromCharCode(0);
+const CONTROL_FRAME_RE = new RegExp(`${NUL}CGNTX_[A-Z]+${NUL}[\\s\\S]*?${NUL}/CGNTX_[A-Z]+${NUL}`, "g");
+export function stripControlFrames(raw: string): string {
+  return raw.replace(CONTROL_FRAME_RE, "");
+}
+
 /** Consume an SSE stream and collect all data frames. Returns when stream ends or timeout. */
 export async function collectSSE(
   url: string,

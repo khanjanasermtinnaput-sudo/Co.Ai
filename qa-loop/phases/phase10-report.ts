@@ -182,6 +182,15 @@ export function buildRunReport(
   if (criticalBugs.some((b) => b.phase === 70)) {
     recommendations.push("Engineering Control Center failure — /api/control not deployed, subsystems incomplete, or control actions not acknowledged (Phase 70)");
   }
+  if (criticalBugs.some((b) => b.phase === 71)) {
+    recommendations.push("Conversation quality regression — chat is losing memory/context, breaking streaming, mangling markdown/code, or hallucinating (Phase 71)");
+  }
+  if (criticalBugs.some((b) => b.phase === 72)) {
+    recommendations.push("IDE developer workflow broken — GitHub connect, repo indexing, search, diff/apply, or refactor endpoints regressed (Phase 72)");
+  }
+  if (criticalBugs.some((b) => b.phase === 73)) {
+    recommendations.push("Stability regression under chaos load — a route is 5xx-ing, hanging, or leaking state on malformed/concurrent/oversized input (Phase 73)");
+  }
   if (criticalBugs.length === 0 && warnings.length === 0) {
     recommendations.push("All systems healthy — all 49 phases passed. Autonomous Engineering Platform fully operational. Safe to deploy.");
   }
