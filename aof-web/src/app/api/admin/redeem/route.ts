@@ -94,8 +94,9 @@ export async function POST(req: Request) {
     subscription_id: subscription.id,
   });
 
-  // Increment use_count
-  await supabase.from("redeem_codes").update({ use_count: redeemCode.use_count + 1 }).eq("id", redeemCode.id);
+  // Increment use_count atomically — a prior read-then-write here lost
+  // increments under concurrent redemptions of the same code.
+  await supabase.rpc("increment_redeem_code_use_count", { p_code_id: redeemCode.id });
 
   // Update app_metadata.tier
   const { data: authUser } = await supabase.auth.admin.getUserById(user.id);
