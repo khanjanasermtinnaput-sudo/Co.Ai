@@ -1,12 +1,23 @@
 /** @type {import('next').NextConfig} */
 
+// Monaco (CoCode's editor) is loaded at runtime from the jsdelivr CDN by
+// @monaco-editor/react's default loader — its script tags, worker scripts,
+// stylesheet, and codicon font all come from this origin, so it must be
+// allow-listed alongside 'self' or the editor silently hangs on "Loading...".
+const MONACO_CDN = "https://cdn.jsdelivr.net";
+
 const CSP = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-  "font-src 'self' https://fonts.gstatic.com",
+  `script-src 'self' 'unsafe-eval' 'unsafe-inline' ${MONACO_CDN}`,
+  // Monaco's tokenizer/language services run in web workers instantiated from
+  // blob: URLs. worker-src has no fallback-from-script-src exemption for blob:,
+  // so it needs its own directive rather than relying on the script-src fallback.
+  "worker-src 'self' blob:",
+  `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com ${MONACO_CDN}`,
+  // data: is needed for Monaco's inlined codicon font (base64 data: URI).
+  `font-src 'self' data: https://fonts.gstatic.com ${MONACO_CDN}`,
   "img-src 'self' data: blob: https:",
-  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.anthropic.com https://openrouter.ai https://generativelanguage.googleapis.com https://api.deepseek.com https://dashscope.aliyuncs.com https://api.groq.com https://api.tavily.com https://www.googleapis.com",
+  `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.anthropic.com https://openrouter.ai https://generativelanguage.googleapis.com https://api.deepseek.com https://dashscope.aliyuncs.com https://api.groq.com https://api.tavily.com https://www.googleapis.com ${MONACO_CDN}`,
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
