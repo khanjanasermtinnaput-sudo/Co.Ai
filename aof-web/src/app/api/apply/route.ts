@@ -21,15 +21,19 @@ interface ApplyResult {
 }
 
 export async function POST(req: Request): Promise<Response> {
-  let body: ApplyRequest;
+  let body: unknown;
   try {
-    body = (await req.json()) as ApplyRequest;
+    body = await req.json();
   } catch {
     return Response.json({ error: "Invalid JSON" }, { status: 400 });
   }
+  if (typeof body !== "object" || body === null || Array.isArray(body)) {
+    return Response.json({ error: "Request body must be a JSON object" }, { status: 400 });
+  }
 
-  const { diff: rawDiff, files, acceptAll = true } = body;
+  const { diff: rawDiff, files, acceptAll = true } = body as ApplyRequest;
   if (!rawDiff) return Response.json({ error: "diff required" }, { status: 400 });
+  if (!Array.isArray(files)) return Response.json({ error: "files array required" }, { status: 400 });
 
   const parsed = parseDiff(rawDiff);
   const fileMap = new Map(files.map((f) => [f.path, f.content]));

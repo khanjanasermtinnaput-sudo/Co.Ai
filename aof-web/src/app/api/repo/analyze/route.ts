@@ -32,14 +32,17 @@ interface ProjectMap {
 }
 
 export async function POST(req: Request): Promise<Response> {
-  let body: AnalyzeRequest;
+  let body: unknown;
   try {
-    body = (await req.json()) as AnalyzeRequest;
+    body = await req.json();
   } catch {
     return Response.json({ error: "Invalid JSON" }, { status: 400 });
   }
+  if (typeof body !== "object" || body === null || Array.isArray(body)) {
+    return Response.json({ error: "Request body must be a JSON object" }, { status: 400 });
+  }
 
-  const { files } = body;
+  const { files } = body as AnalyzeRequest;
   if (!Array.isArray(files) || !files.length) {
     return Response.json({ error: "files array required" }, { status: 400 });
   }

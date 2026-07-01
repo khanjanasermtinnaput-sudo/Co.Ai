@@ -16,14 +16,20 @@ interface RefactorRequest {
 }
 
 export async function POST(req: Request): Promise<Response> {
-  let body: RefactorRequest;
+  let body: unknown;
   try {
-    body = (await req.json()) as RefactorRequest;
+    body = await req.json();
   } catch {
     return Response.json({ error: "Invalid JSON" }, { status: 400 });
   }
+  if (typeof body !== "object" || body === null || Array.isArray(body)) {
+    return Response.json({ error: "Request body must be a JSON object" }, { status: 400 });
+  }
 
-  const { kind, file, selection, symbol, allFiles } = body;
+  const { kind, file, selection, symbol, allFiles } = body as RefactorRequest;
+  if (typeof file !== "object" || file === null || typeof file.path !== "string" || typeof file.content !== "string") {
+    return Response.json({ error: "file: { path: string; content: string } required" }, { status: 400 });
+  }
 
   // ── Non-AI: rename-symbol ────────────────────────────────────────────────
   if (kind === "rename-symbol" && symbol) {
