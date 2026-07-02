@@ -1,5 +1,6 @@
 import { openPage, navigate, screenshot } from "../utils/browser.ts";
 import { httpGet, httpPost } from "../utils/http.ts";
+import { authConfigured, mintSession, passwordGrant } from "../utils/auth.ts";
 import { config } from "../config.ts";
 import { log } from "../utils/logger.ts";
 import type { PhaseResult, TestResult } from "../utils/types.ts";
@@ -208,6 +209,76 @@ export async function runPhase2(runDir: string): Promise<PhaseResult> {
     }
   } else {
     log.warn("QA_TEST_EMAIL / QA_TEST_PASSWORD not set — skipping login flow test");
+  }
+
+  // ── Test 6: Authenticated API session (Supabase password grant) ─────────
+  // The /login UI is Google-OAuth-only, so API-level session minting is the
+  // automatable path to authenticated coverage. Needs QA_SUPABASE_ANON_KEY.
+  if (authConfigured()) {
+    {
+      const t0 = Date.now();
+      const session = await mintSession();
+      const passed = "token" in session;
+      const t: TestResult = {
+        name: "Supabase password grant issues a session (API)",
+        passed,
+        durationMs: Date.now() - t0,
+        details: passed ? { userId: session.userId } : {},
+      };
+      if (!passed) {
+        t.error = (session as { error: string }).error;
+        t.rootCause = "Test account missing/unconfirmed, email provider disabled, or bad anon key";
+        t.suggestedFix = "Verify the user exists (auto-confirmed) in Supabase Auth and QA_SUPABASE_ANON_KEY is the anon public key";
+      }
+      tests.push(t);
+      ok(passed, t.name);
+    }
+
+    {
+      const t0 = Date.now();
+      const bad = await passwordGrant(config.testEmail, "definitely-wrong-password-1!");
+      const passed = "error" in bad && (bad.status === 400 || bad.status === 401 || bad.status === 403);
+      const t: TestResult = {
+        name: "Wrong password rejected by token endpoint (400/401/403)",
+        passed,
+        durationMs: Date.now() - t0,
+        details: { status: "status" in bad ? bad.status : undefined },
+      };
+      if (!passed) {
+        t.error = "token" in bad ? "Wrong password ACCEPTED — credential check broken" : `Unexpected outcome: ${JSON.stringify(bad).slice(0, 120)}`;
+        t.rootCause = "Supabase credential validation not rejecting bad passwords as expected";
+      }
+      tests.push(t);
+      ok(passed, t.name);
+    }
+
+    {
+      const t0 = Date.now();
+      const session = await mintSession();
+      if ("token" in session) {
+        const res = await httpGet(`${config.baseUrl}/api/conversations`, {
+          token: session.token, timeoutMs: config.timeoutMs,
+        });
+        let hasList = false;
+        try { hasList = Array.isArray((JSON.parse(res.body) as { conversations?: unknown }).conversations); } catch {}
+        const passed = res.status === 200 && hasList;
+        const t: TestResult = {
+          name: "GET /api/conversations with valid session → 200 + list",
+          passed,
+          durationMs: Date.now() - t0,
+          details: { status: res.status, hasList },
+        };
+        if (!passed) {
+          t.error = `HTTP ${res.status} — ${res.body.slice(0, 120)}`;
+          t.rootCause = "Frontend route not accepting a valid Supabase access token";
+          t.suggestedFix = "Check getUserFromRequest / SUPABASE_SERVICE_ROLE_KEY on Vercel";
+        }
+        tests.push(t);
+        ok(passed, t.name);
+      }
+    }
+  } else {
+    log.warn("QA_SUPABASE_ANON_KEY not set — skipping authenticated API tests");
   }
 
   function ok(passed: boolean, name: string) {

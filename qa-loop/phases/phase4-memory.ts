@@ -1,5 +1,6 @@
-import { httpGet, httpPost } from "../utils/http.ts";
+import { httpGet, httpPost, httpPatch, httpDelete } from "../utils/http.ts";
 import { openPage, navigate, screenshot } from "../utils/browser.ts";
+import { authConfigured, mintSession } from "../utils/auth.ts";
 import { config } from "../config.ts";
 import { log } from "../utils/logger.ts";
 import type { PhaseResult, TestResult } from "../utils/types.ts";
@@ -123,6 +124,72 @@ export async function runPhase4(runDir: string): Promise<PhaseResult> {
     }
     tests.push(t);
     ok ? log.ok(t.name) : log.fail(t.name + " — " + t.error);
+  }
+
+  // ── Test 5: Authenticated conversation CRUD roundtrip ──────────────────
+  // Create → list contains it → rename → delete → list no longer contains it.
+  // Exercises the real persistence path (Supabase `conversations` table) as a
+  // signed-in user. The created row is always deleted, even on mid-test failure.
+  if (authConfigured()) {
+    const session = await mintSession();
+    if ("token" in session) {
+      const token = session.token;
+      const t0 = Date.now();
+      const title = `qa-loop e2e ${Date.now()}`;
+      let convId: string | null = null;
+      const steps: string[] = [];
+      let error: string | undefined;
+
+      try {
+        const created = await httpPost(`${config.baseUrl}/api/conversations`, { title }, { token, timeoutMs: config.timeoutMs });
+        const createdBody = JSON.parse(created.body || "{}") as { ok?: boolean; id?: string };
+        if (created.status !== 200 || !createdBody.id) throw new Error(`create failed: HTTP ${created.status} ${created.body.slice(0, 100)}`);
+        convId = createdBody.id;
+        steps.push("create");
+
+        const list = await httpGet(`${config.baseUrl}/api/conversations`, { token, timeoutMs: config.timeoutMs });
+        const items = (JSON.parse(list.body || "{}") as { conversations?: Array<{ id: string; title: string }> }).conversations ?? [];
+        if (!items.some((c) => c.id === convId)) throw new Error("created conversation missing from list");
+        steps.push("list");
+
+        const renamed = await httpPatch(`${config.baseUrl}/api/conversations/${convId}`, { title: `${title} renamed` }, { token, timeoutMs: config.timeoutMs });
+        if (renamed.status !== 200) throw new Error(`rename failed: HTTP ${renamed.status}`);
+        steps.push("rename");
+      } catch (e: unknown) {
+        error = e instanceof Error ? e.message : String(e);
+      } finally {
+        if (convId) {
+          const del = await httpDelete(`${config.baseUrl}/api/conversations/${convId}`, { token, timeoutMs: config.timeoutMs });
+          if (!error && del.status !== 200) error = `delete failed: HTTP ${del.status}`;
+          else if (!error) {
+            steps.push("delete");
+            const after = await httpGet(`${config.baseUrl}/api/conversations`, { token, timeoutMs: config.timeoutMs });
+            const remaining = (JSON.parse(after.body || "{}") as { conversations?: Array<{ id: string }> }).conversations ?? [];
+            if (remaining.some((c) => c.id === convId)) error = "conversation still listed after delete";
+            else steps.push("verify-gone");
+          }
+        }
+      }
+
+      const passed = !error && steps.length === 5;
+      const t: TestResult = {
+        name: "Authenticated conversation CRUD roundtrip (create→list→rename→delete)",
+        passed,
+        durationMs: Date.now() - t0,
+        details: { steps },
+      };
+      if (!passed) {
+        t.error = error ?? `incomplete: ${steps.join(",")}`;
+        t.rootCause = "Conversation persistence path failing for an authenticated user";
+        t.suggestedFix = "Check conversations routes + Supabase service-role config on Vercel";
+      }
+      tests.push(t);
+      passed ? log.ok(t.name) : log.fail(`${t.name} — ${t.error}`);
+    } else {
+      log.warn(`Could not mint session for CRUD test: ${(session as { error: string }).error}`);
+    }
+  } else {
+    log.warn("QA_SUPABASE_ANON_KEY not set — skipping authenticated CRUD test");
   }
 
   const passCount = tests.filter((t) => t.passed).length;

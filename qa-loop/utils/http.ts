@@ -22,6 +22,21 @@ export async function httpPost(
   return httpReq("POST", url, body, opts);
 }
 
+export async function httpPatch(
+  url: string,
+  body: unknown,
+  opts: { timeoutMs?: number; headers?: Record<string, string>; token?: string } = {},
+): Promise<HttpResult> {
+  return httpReq("PATCH", url, body, opts);
+}
+
+export async function httpDelete(
+  url: string,
+  opts: { timeoutMs?: number; headers?: Record<string, string>; token?: string } = {},
+): Promise<HttpResult> {
+  return httpReq("DELETE", url, undefined, opts);
+}
+
 async function httpReq(
   method: string,
   url: string,
