@@ -161,6 +161,12 @@ export async function collectSSE(
       }
     }
 
+    // /api/chat streams text/plain with in-band control frames, not SSE — a
+    // short answer ("4") may contain no \n\n at all and would otherwise be
+    // discarded here, making the stream look empty (false "no frames" failure).
+    const tail = buf.replace(/^data:\s*/m, "").trim();
+    if (tail && tail !== "[DONE]") frames.push(tail);
+
     return { frames, durationMs: Date.now() - start };
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
