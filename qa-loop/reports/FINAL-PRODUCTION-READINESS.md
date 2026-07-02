@@ -78,7 +78,7 @@ Also: committed the previous session's unfinished env-gate work (17 phases + `ut
 
 ## Coverage & Remaining Gaps
 
-- **Auth-dependent live tests run unauthenticated** — `qa-loop/.env` has no `QA_TEST_EMAIL/PASSWORD`. Adding a dedicated test account would light up deeper phase-2/39 coverage.
+- **Auth-dependent live tests run unauthenticated.** QA credentials were added (2026-07-02) and phases 2/4 pass — but the /login page is Google-OAuth-only (no email/password form), so the UI login flow cannot be driven by a password account. Deeper authenticated coverage requires `QA_SUPABASE_ANON_KEY` in `qa-loop/.env` (harness would mint a session via the Supabase token API and call authenticated routes directly) — or an email/password form on /login.
 - **coagentix-cli has no test suite** (build-only gate). No CLI bug surfaced this session; add smoke tests when the CLI next changes.
 - **Supabase MCP access denied** this session — advisor security/performance scan not independently corroborated.
 - 25 overlapping audit markdown files at repo root describe already-fixed states; consider deleting to stop future sessions re-chasing ghosts.
