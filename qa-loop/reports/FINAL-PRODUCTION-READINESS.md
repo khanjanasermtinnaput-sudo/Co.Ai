@@ -76,16 +76,36 @@ Also: committed the previous session's unfinished env-gate work (17 phases + `ut
 | Scalability | **8/10** | Redis cross-instance state; free-tier infra is the ceiling, not the code |
 | Maintainability | **8.5/10** | 763 hermetic tests, 54-phase harness, debt score 100% post-precision-fix; 25 stale audit docs should be pruned |
 
+## Authenticated API Coverage (added 2026-07-02, post-report)
+
+The /login UI is Google-OAuth-only, so a password account can't drive the browser
+login flow — so the harness now mints a real session directly via the Supabase
+password-grant API (`qa-loop/utils/auth.ts`) and calls authenticated routes with it:
+
+- **Phase 2** (+3 tests): session mint succeeds; wrong password rejected (400/401/403);
+  `GET /api/conversations` with a valid token → 200 + list.
+- **Phase 4** (+1 test): full CRUD roundtrip as a signed-in user against the real
+  `conversations` table — create → appears in list → rename → delete → verify gone.
+  The created row is always cleaned up, even on mid-test failure.
+
+Setup performed this session: created QA test account
+`khanjanasermtinnaput+qaloop@gmail.com` via Supabase's public signup endpoint
+(user-authorized), confirmed via the emailed confirmation link (the initial
+`qa-loop@example.com` attempt was rejected by Supabase's `email_address_invalid`
+domain block — `example.com` is blocklisted). Credentials live in the gitignored
+`qa-loop/.env`.
+
+**Result:** Phase 2 now **7/7**, Phase 4 now **5/5** — 12/12, live, authenticated. Harness code pushed in `65a9a50`.
+
 ## Coverage & Remaining Gaps
 
-- **Auth-dependent live tests run unauthenticated.** QA credentials were added (2026-07-02) and phases 2/4 pass — but the /login page is Google-OAuth-only (no email/password form), so the UI login flow cannot be driven by a password account. Deeper authenticated coverage requires `QA_SUPABASE_ANON_KEY` in `qa-loop/.env` (harness would mint a session via the Supabase token API and call authenticated routes directly) — or an email/password form on /login.
 - **coagentix-cli has no test suite** (build-only gate). No CLI bug surfaced this session; add smoke tests when the CLI next changes.
 - **Supabase MCP access denied** this session — advisor security/performance scan not independently corroborated.
 - 25 overlapping audit markdown files at repo root describe already-fixed states; consider deleting to stop future sessions re-chasing ghosts.
 
 ## Priority Recommendations
 
-1. Add QA test credentials to `qa-loop/.env` (unlocks authenticated live coverage).
+1. ~~Add QA test credentials to `qa-loop/.env`~~ — done 2026-07-02; authenticated coverage live.
 2. Prune the stale audit/remediation markdown files.
 3. Migrate CLI to Supabase tokens, then sunset the PIN+JWT path.
 4. If provider budget appears, restore paid model IDs (free models are 20–60s/run).
