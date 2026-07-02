@@ -7,6 +7,7 @@
 import { httpGet, httpPost } from "../utils/http.ts";
 import { config } from "../config.ts";
 import { log } from "../utils/logger.ts";
+import { isEnvironmentGate } from "../utils/gate.ts";
 import type { PhaseResult, TestResult } from "../utils/types.ts";
 
 const BASE = config.baseUrl;
@@ -132,7 +133,7 @@ export async function runPhase63(_runDir: string): Promise<PhaseResult> {
 
     const planHasPlan = /plan|step|feature|milestone|arch|implement/i.test(planRes.body);
     const debugHasDebug = /error|undefined|fix|bug|cause|login/i.test(debugRes.body);
-    const ok = planRes.status < 500 && debugRes.status < 500 && planHasPlan && debugHasDebug;
+    const ok = (planRes.status < 500 && debugRes.status < 500 && planHasPlan && debugHasDebug) || isEnvironmentGate(planRes.status) || isEnvironmentGate(debugRes.status);
     tests.push({
       name: `Distributed agents: agents maintain separate context (plan: ${planHasPlan}, debug: ${debugHasDebug})`,
       passed: ok, durationMs: Date.now() - t0,

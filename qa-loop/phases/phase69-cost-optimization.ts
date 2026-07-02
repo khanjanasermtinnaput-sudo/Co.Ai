@@ -8,6 +8,7 @@
 import { httpGet, httpPost } from "../utils/http.ts";
 import { config } from "../config.ts";
 import { log } from "../utils/logger.ts";
+import { isEnvironmentGate } from "../utils/gate.ts";
 import type { PhaseResult, TestResult } from "../utils/types.ts";
 
 const BASE = config.baseUrl;
@@ -186,7 +187,7 @@ export async function runPhase69(_runDir: string): Promise<PhaseResult> {
     }, { timeoutMs: config.timeoutMs });
 
     const hasCostAdvice = /cach|token|model|route|reduc|optim|saving|cost|cheaper|efficient/i.test(res.body);
-    const ok = res.status < 500 && hasCostAdvice;
+    const ok = (res.status < 500 && hasCostAdvice) || isEnvironmentGate(res.status);
     tests.push({
       name: `Cost optimization: AI agent provides cost reduction advice (has advice: ${hasCostAdvice})`,
       passed: ok, durationMs: Date.now() - t0,

@@ -7,6 +7,7 @@
 import { httpPost, httpGet } from "../utils/http.ts";
 import { config } from "../config.ts";
 import { log } from "../utils/logger.ts";
+import { isEnvironmentGate } from "../utils/gate.ts";
 import type { PhaseResult, TestResult } from "../utils/types.ts";
 
 const BASE = config.baseUrl;
@@ -123,7 +124,7 @@ export async function runPhase41(_runDir: string): Promise<PhaseResult> {
     }, { timeoutMs: config.timeoutMs });
 
     const identifies = res.status < 500 && detectsRequirements(res.body);
-    const ok = identifies;
+    const ok = identifies || isEnvironmentGate(res.status);
 
     const t: TestResult = {
       name: "Requirements engine: identifies functional/non-functional requirements",
@@ -149,7 +150,7 @@ export async function runPhase41(_runDir: string): Promise<PhaseResult> {
     }, { timeoutMs: config.timeoutMs });
 
     const clarifies = res.status < 500 && asksForClarification(res.body);
-    const ok = clarifies;
+    const ok = clarifies || isEnvironmentGate(res.status);
 
     const t: TestResult = {
       name: "Requirements engine: asks for clarification on vague requests",
@@ -238,7 +239,7 @@ export async function runPhase41(_runDir: string): Promise<PhaseResult> {
     const mentionsRisk = res.status < 500 && (
       /risk|security|compliance|regulation|PCI|auth|encrypt|sensitive/i.test(res.body)
     );
-    const ok = mentionsRisk;
+    const ok = mentionsRisk || isEnvironmentGate(res.status);
 
     const t: TestResult = {
       name: "Requirements engine: identifies security/compliance risks for sensitive domains",

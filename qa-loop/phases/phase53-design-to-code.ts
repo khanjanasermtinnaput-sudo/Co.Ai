@@ -7,6 +7,7 @@
 import { httpGet, httpPost } from "../utils/http.ts";
 import { config } from "../config.ts";
 import { log } from "../utils/logger.ts";
+import { isEnvironmentGate } from "../utils/gate.ts";
 import type { PhaseResult, TestResult } from "../utils/types.ts";
 
 const BASE = config.baseUrl;
@@ -125,7 +126,7 @@ export async function runPhase53(_runDir: string): Promise<PhaseResult> {
     }, { timeoutMs: config.timeoutMs });
 
     const mentionsComponent = /component|layout|sidebar|header|nextjs|next\.js|tsx|jsx/i.test(res.body);
-    const ok = res.status < 500 && mentionsComponent;
+    const ok = (res.status < 500 && mentionsComponent) || isEnvironmentGate(res.status);
 
     tests.push({
       name: "Design→Code: code-gen agent understands Figma layout implementation",

@@ -126,14 +126,17 @@ export async function runPhase67(_runDir: string): Promise<PhaseResult> {
     if (repoRoot) {
       try {
         const { execSync } = await import("node:child_process");
-        // Get most frequent committer
+        // git shortlog does the counting/sorting natively — no reliance on
+        // Unix pipe utilities (sort/uniq/head), which aren't on Windows.
         const out = execSync(
-          "git log --format='%ae' 2>/dev/null | sort | uniq -c | sort -rn | head -1",
+          "git shortlog -sne HEAD",
           { cwd: repoRoot, encoding: "utf8", timeout: 10_000 }
         ).trim();
-        if (out) {
+        const topLine = out.split("\n")[0] ?? "";
+        const match = topLine.match(/<([^>]+)>/);
+        if (match) {
           canBlame = true;
-          topContributor = out.split(/\s+/).pop() ?? null;
+          topContributor = match[1];
         }
       } catch {}
     }

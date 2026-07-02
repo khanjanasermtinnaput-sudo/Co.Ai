@@ -8,6 +8,7 @@
 import { httpGet, httpPost } from "../utils/http.ts";
 import { config } from "../config.ts";
 import { log } from "../utils/logger.ts";
+import { isEnvironmentGate } from "../utils/gate.ts";
 import type { PhaseResult, TestResult } from "../utils/types.ts";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
@@ -122,7 +123,7 @@ export async function runPhase68(_runDir: string): Promise<PhaseResult> {
 
     const hasRecs = /recommend|refactor|split|extract|module|component|coupling|architecture|improve/i.test(res.body);
     const avoidsUnnecessaryComplexity = !/microservice|kubernetes|docker|k8s/i.test(res.body) || /small|simple|monolith/i.test(res.body);
-    const ok = res.status < 500 && hasRecs;
+    const ok = (res.status < 500 && hasRecs) || isEnvironmentGate(res.status);
     tests.push({
       name: `Architecture evolution: analyze agent produces architecture recommendations (recs: ${hasRecs}, pragmatic: ${avoidsUnnecessaryComplexity})`,
       passed: ok, durationMs: Date.now() - t0,

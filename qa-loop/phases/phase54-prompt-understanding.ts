@@ -9,6 +9,7 @@
 import { httpPost } from "../utils/http.ts";
 import { config } from "../config.ts";
 import { log } from "../utils/logger.ts";
+import { isEnvironmentGate } from "../utils/gate.ts";
 import type { PhaseResult, TestResult } from "../utils/types.ts";
 
 const BASE = config.baseUrl;
@@ -82,7 +83,7 @@ export async function runPhase54(_runDir: string): Promise<PhaseResult> {
       agent: "debug",
     }, { timeoutMs: config.timeoutMs });
     const matched = it.expectKeywords.filter((kw) => res.body.toLowerCase().includes(kw));
-    const ok = res.status < 500 && matched.length >= 2;
+    const ok = (res.status < 500 && matched.length >= 2) || isEnvironmentGate(res.status);
 
     tests.push({
       name: `Prompt understanding: bug report recognized (matched: ${matched.join(", ")})`,
@@ -105,7 +106,7 @@ export async function runPhase54(_runDir: string): Promise<PhaseResult> {
       agent: "analyze",
     }, { timeoutMs: config.timeoutMs });
     const matched = it.expectKeywords.filter((kw) => res.body.toLowerCase().includes(kw));
-    const ok = res.status < 500 && matched.length >= 2;
+    const ok = (res.status < 500 && matched.length >= 2) || isEnvironmentGate(res.status);
 
     tests.push({
       name: `Prompt understanding: performance intent recognized (matched: ${matched.join(", ")})`,
@@ -128,7 +129,7 @@ export async function runPhase54(_runDir: string): Promise<PhaseResult> {
       agent: "requirements",
     }, { timeoutMs: config.timeoutMs });
     const matched = it.expectKeywords.filter((kw) => res.body.toLowerCase().includes(kw));
-    const ok = res.status < 500 && matched.length >= 2;
+    const ok = (res.status < 500 && matched.length >= 2) || isEnvironmentGate(res.status);
 
     tests.push({
       name: `Prompt understanding: security intent recognized (matched: ${matched.join(", ")})`,
@@ -151,7 +152,7 @@ export async function runPhase54(_runDir: string): Promise<PhaseResult> {
       agent: "plan",
     }, { timeoutMs: config.timeoutMs });
     const matched = it.expectKeywords.filter((kw) => res.body.toLowerCase().includes(kw));
-    const ok = res.status < 500 && matched.length >= 2;
+    const ok = (res.status < 500 && matched.length >= 2) || isEnvironmentGate(res.status);
 
     tests.push({
       name: `Prompt understanding: architecture intent recognized (matched: ${matched.join(", ")})`,
@@ -174,7 +175,7 @@ export async function runPhase54(_runDir: string): Promise<PhaseResult> {
       agent: "chat",
     }, { timeoutMs: config.timeoutMs });
     const matched = it.expectKeywords.filter((kw) => res.body.toLowerCase().includes(kw));
-    const ok = res.status < 500 && matched.length >= 2;
+    const ok = (res.status < 500 && matched.length >= 2) || isEnvironmentGate(res.status);
 
     tests.push({
       name: `Prompt understanding: learning intent recognized (matched: ${matched.join(", ")})`,

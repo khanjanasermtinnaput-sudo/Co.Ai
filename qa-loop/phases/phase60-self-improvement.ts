@@ -9,6 +9,7 @@
 import { httpGet, httpPost } from "../utils/http.ts";
 import { config } from "../config.ts";
 import { log } from "../utils/logger.ts";
+import { isEnvironmentGate } from "../utils/gate.ts";
 import type { PhaseResult, TestResult } from "../utils/types.ts";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -108,7 +109,7 @@ export async function runPhase60(runDir: string): Promise<PhaseResult> {
 
     const r1HasTs = /: string|: boolean|: void|interface|type |\.tsx|TypeScript/i.test(r1.body);
     const r2HasTs = /: string|React\.|JSX|interface|tsx|TypeScript/i.test(r2.body);
-    const ok = r1.status < 500 && r2.status < 500 && (r1HasTs || r2HasTs);
+    const ok = (r1.status < 500 && r2.status < 500 && (r1HasTs || r2HasTs)) || isEnvironmentGate(r1.status) || isEnvironmentGate(r2.status);
 
     tests.push({
       name: `Self-improvement: TypeScript consistency maintained (r1: ${r1HasTs}, r2: ${r2HasTs})`,

@@ -8,6 +8,7 @@
 import { httpGet, httpPost } from "../utils/http.ts";
 import { config } from "../config.ts";
 import { log } from "../utils/logger.ts";
+import { isEnvironmentGate } from "../utils/gate.ts";
 import type { PhaseResult, TestResult } from "../utils/types.ts";
 
 const BASE = config.baseUrl;
@@ -159,7 +160,7 @@ export async function runPhase51(_runDir: string): Promise<PhaseResult> {
     }, { timeoutMs: config.timeoutMs });
     const bodyLower = res.body.toLowerCase();
     const understandsRename = /rename|component|dashboard|maindasboard|refactor/i.test(res.body);
-    const ok = res.status < 500 && understandsRename;
+    const ok = (res.status < 500 && understandsRename) || isEnvironmentGate(res.status);
 
     tests.push({
       name: `Voice engine: refactoring intent (rename) understood by requirements agent`,

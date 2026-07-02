@@ -120,8 +120,9 @@ export async function runPhase37(_runDir: string): Promise<PhaseResult> {
 
     try {
       const { execSync } = await import("node:child_process");
-      const gitRoot = resolve(import.meta.dirname ?? ".", "..");
-      if (existsSync(resolve(gitRoot, ".git"))) {
+      const candidates = [resolve(import.meta.dirname ?? ".", ".."), resolve(process.cwd(), ".."), process.cwd()];
+      const gitRoot = candidates.find((p) => existsSync(resolve(p, ".git")));
+      if (gitRoot) {
         hasGit = true;
         const countOut = execSync("git rev-list --count HEAD", { cwd: gitRoot, encoding: "utf8", timeout: 10_000 }).trim();
         commitCount = parseInt(countOut) || 0;

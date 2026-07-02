@@ -167,11 +167,14 @@ export async function runPhase34(_runDir: string): Promise<PhaseResult> {
     let dbConnected = false;
     try {
       const json = JSON.parse(res.body) as Record<string, unknown>;
+      const checklist = Array.isArray(json.checklist) ? (json.checklist as Array<Record<string, unknown>>) : [];
+      const dbChecklistEntry = checklist.find((c) => typeof c.label === "string" && c.label.toLowerCase().includes("database"));
       dbConnected =
         json.status === "ok" ||
         json.db === "ok" ||
         json.database === "connected" ||
         json.supabase === "ok" ||
+        dbChecklistEntry?.ok === true ||
         (typeof json.status === "string" && json.status.toLowerCase().includes("ok"));
     } catch {}
     const ok = res.status === 200 && dbConnected;
