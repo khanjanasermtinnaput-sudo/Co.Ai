@@ -1,9 +1,11 @@
 import jwt from 'jsonwebtoken';
+import { randomUUID } from 'node:crypto';
 import type { Request, Response, NextFunction } from 'express';
 import { findUserById, loadProviderKeysFromSupabase, getUserRole, type UserRecord, type ProviderKeyName } from './db.js';
 import { verifySupabaseToken } from './supabase-auth.js';
 import { decryptSecret } from './crypto.js';
 import { logAuditEvent, AuditAction, getClientIp } from './audit.js';
+import { getRedis } from './redis.js';
 
 /**
  * Keep only ciphertexts that actually decrypt with THIS server's master key. If
@@ -51,9 +53,62 @@ function jwtSecret(): string {
 // valid, non-expired token is exchanged for a fresh one — sliding session). This
 // limits the blast radius of a leaked token to ~7 days instead of a month.
 const TOKEN_TTL = '7d';
+const TOKEN_TTL_SEC = 7 * 24 * 60 * 60;
 
 export function signToken(userId: string): string {
-  return jwt.sign({ sub: userId }, jwtSecret(), { expiresIn: TOKEN_TTL });
+  // jti makes each token individually revocable (see revokeToken below).
+  return jwt.sign({ sub: userId, jti: randomUUID() }, jwtSecret(), { expiresIn: TOKEN_TTL });
+}
+
+// ── Token revocation (denylist) ───────────────────────────────────────────────
+// Leaked or logged-out tokens must die before their 7-day expiry. Two levels:
+//   • per-token:  cgntx:jwt:deny:<jti> — set on logout / refresh rotation.
+//   • per-user:   cgntx:jwt:denyuser:<sub> = epoch-ms — tokens ISSUED BEFORE
+//     that moment are rejected (kills every outstanding session at once).
+// Keys carry a TTL matching the token lifetime, so the denylist self-cleans.
+// Backed by Redis when configured (cross-instance); the in-memory mock covers
+// single-instance dev. Denylist read failures fail OPEN by design: revocation
+// is a hardening layer on top of the 7-day expiry, and failing closed here
+// would turn a Redis blip into a total login outage.
+
+interface TokenPayload { sub: string; jti?: string; iat?: number; exp?: number }
+
+const DENY_KEY     = (jti: string) => `cgntx:jwt:deny:${jti}`;
+const DENYUSER_KEY = (sub: string) => `cgntx:jwt:denyuser:${sub}`;
+
+/** Revoke a single (still-valid) token. Returns false when the token has no jti (pre-rollout). */
+export async function revokeToken(token: string): Promise<boolean> {
+  let payload: TokenPayload | null = null;
+  try {
+    payload = jwt.verify(token, jwtSecret()) as TokenPayload;
+  } catch {
+    return false; // invalid/expired — nothing to revoke
+  }
+  if (!payload.jti) return false;
+  const ttl = payload.exp ? Math.max(1, payload.exp - Math.floor(Date.now() / 1000)) : TOKEN_TTL_SEC;
+  try {
+    await getRedis().setex(DENY_KEY(payload.jti), ttl, '1');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Revoke EVERY token issued to a user before this moment. */
+export async function revokeAllUserTokens(userId: string): Promise<void> {
+  try {
+    await getRedis().setex(DENYUSER_KEY(userId), TOKEN_TTL_SEC, String(Date.now()));
+  } catch { /* fail open — see note above */ }
+}
+
+async function isTokenRevoked(payload: TokenPayload): Promise<boolean> {
+  try {
+    const redis = getRedis();
+    if (payload.jti && (await redis.get(DENY_KEY(payload.jti)))) return true;
+    const deniedAt = await redis.get(DENYUSER_KEY(payload.sub));
+    if (deniedAt && payload.iat && payload.iat * 1000 < Number(deniedAt)) return true;
+  } catch { /* fail open — see note above */ }
+  return false;
 }
 
 export interface AuthedRequest extends Request {
@@ -65,14 +120,18 @@ export async function requireAuth(req: AuthedRequest, res: Response, next: NextF
   if (!token) { res.status(401).json({ error: 'missing token' }); return; }
 
   // 1) Native tmap-v2 JWT (username/PIN web accounts + CLI).
-  let payload: { sub: string } | null = null;
+  let payload: TokenPayload | null = null;
   try {
-    payload = jwt.verify(token, jwtSecret()) as { sub: string };
+    payload = jwt.verify(token, jwtSecret()) as TokenPayload;
   } catch {
     payload = null;
   }
 
   if (payload) {
+    if (await isTokenRevoked(payload)) {
+      res.status(401).json({ error: 'token revoked' });
+      return;
+    }
     try {
       const user = await findUserById(payload.sub);
       if (!user) { res.status(401).json({ error: 'user not found' }); return; }

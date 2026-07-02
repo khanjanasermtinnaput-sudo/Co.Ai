@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 import { hashPassword, verifyPassword, encryptSecret, decryptSecret, maskKey } from './crypto.js';
-import { signToken, requireAuth, requireAdmin, type AuthedRequest } from './auth.js';
+import { signToken, requireAuth, requireAdmin, revokeToken, revokeAllUserTokens, type AuthedRequest } from './auth.js';
 import {
   createUser, findUserByUsername, setUserKey, deleteUserKey,
   createSession, updateSession, getUserSessions, getSession, getSessionLogs,
@@ -257,10 +257,25 @@ app.post('/v1/auth/login', async (req, res) => {
 });
 
 // Exchange a still-valid token for a fresh one (sliding session). Keeps the
-// short 7-day TTL from forcing a re-login while the user is active.
-app.post('/v1/auth/refresh', requireAuth, (req: AuthedRequest, res) => {
+// short 7-day TTL from forcing a re-login while the user is active. The old
+// token is revoked on rotation so only ONE live token exists per session.
+app.post('/v1/auth/refresh', requireAuth, async (req: AuthedRequest, res) => {
   const u = req.user!;
-  res.json({ token: signToken(u.id), username: u.username });
+  const fresh = signToken(u.id);
+  const old = (req.headers.authorization || '').replace('Bearer ', '');
+  await revokeToken(old); // no-op for Supabase-bridge or pre-jti tokens
+  res.json({ token: fresh, username: u.username });
+});
+
+// Invalidate the presented token immediately (denylist) instead of waiting out
+// the 7-day TTL. Body { all: true } kills every outstanding session for the
+// user — the compromised-account response.
+app.post('/v1/auth/logout', requireAuth, async (req: AuthedRequest, res) => {
+  const token = (req.headers.authorization || '').replace('Bearer ', '');
+  const revoked = await revokeToken(token);
+  const all = Boolean((req.body as { all?: unknown } | undefined)?.all);
+  if (all) await revokeAllUserTokens(req.user!.id);
+  res.json({ ok: true, revoked, allSessions: all });
 });
 
 // ── ACCOUNT + KEYS ────────────────────────────────────────────────────────────
