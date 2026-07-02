@@ -31,14 +31,23 @@ export async function runPhase1(runDir: string): Promise<PhaseResult> {
   // ── Test 2: Backend /v1/health ──────────────────────────────────────────
   {
     const t0 = Date.now();
-    const res = await httpGet(`${config.backendUrl}/v1/health`, { timeoutMs: config.timeoutMs });
+    // Render free tier spins down when idle; the FIRST request wakes the
+    // instance and can exceed the timeout (HTTP 0 / abort). Retry once with a
+    // longer budget — a real outage still fails both attempts.
+    let res = await httpGet(`${config.backendUrl}/v1/health`, { timeoutMs: config.timeoutMs });
+    let attempts = 1;
+    if (res.status !== 200 && res.status !== 429) {
+      await new Promise((r) => setTimeout(r, 15_000));
+      res = await httpGet(`${config.backendUrl}/v1/health`, { timeoutMs: config.timeoutMs * 2 });
+      attempts = 2;
+    }
     // 429 on a health endpoint = rate-limiter incorrectly covers health checks (real finding, warn not fail)
     const ok = res.status === 200 || res.status === 429;
     const t: TestResult = {
       name: "GET /v1/health (backend) responds (200 or rate-limited)",
       passed: ok,
       durationMs: Date.now() - t0,
-      details: { status: res.status, body: res.body.slice(0, 300) },
+      details: { status: res.status, attempts, body: res.body.slice(0, 300) },
     };
     if (!ok) {
       t.error = `Backend health check failed: HTTP ${res.status}${res.error ? ` — ${res.error}` : ""}`;

@@ -308,9 +308,27 @@ export async function runPhase33(runDir: string): Promise<PhaseResult> {
         const btns = [...document.querySelectorAll("button, a, [role='button']")];
         const small = btns.filter((el) => {
           const r = el.getBoundingClientRect();
-          return (r.width > 0 && r.height > 0) && (r.width < 44 || r.height < 44);
+          // ≤2px = visually hidden (sr-only skip links etc.) — a screen-reader
+          // affordance, not a tap target.
+          if (r.width <= 2 || r.height <= 2) return false;
+          if (r.width >= 44 && r.height >= 44) return false;
+          // WCAG 2.5.8 inline exception: targets inside a sentence/text flow
+          // are exempt (their size is constrained by the line height).
+          return getComputedStyle(el).display !== "inline";
         });
-        return { total: btns.length, tooSmall: small.length };
+        return {
+          total: btns.length,
+          tooSmall: small.length,
+          offenders: small.slice(0, 10).map((el) => {
+            const r = el.getBoundingClientRect();
+            return {
+              tag: el.tagName.toLowerCase(),
+              text: (el.getAttribute("aria-label") ?? el.textContent ?? "").trim().slice(0, 40),
+              class: (typeof el.className === "string" ? el.className : "").slice(0, 60),
+              size: `${Math.round(r.width)}×${Math.round(r.height)}`,
+            };
+          }),
+        };
       });
       const ok = result.tooSmall === 0;
 
