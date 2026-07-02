@@ -60,8 +60,8 @@ export function UserMenu({ expanded = false }: UserMenuProps) {
         className={cn(
           "group flex items-center rounded-xl font-medium transition-colors",
           expanded
-            ? "w-full gap-3 bg-primary/10 p-2.5 text-sm text-foreground hover:bg-primary/15"
-            : "size-10 justify-center text-muted-foreground hover:bg-white/5",
+            ? "min-h-11 w-full gap-3 bg-primary/10 p-2.5 text-sm text-foreground hover:bg-primary/15"
+            : "size-11 justify-center text-muted-foreground hover:bg-white/5",
         )}
       >
         <LogIn className="size-[18px] shrink-0 text-primary" />

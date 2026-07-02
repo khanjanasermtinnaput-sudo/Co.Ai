@@ -24,8 +24,15 @@ const CSP = [
   "upgrade-insecure-requests",
 ].join("; ");
 
+// Vercel serves prerendered/static content with Access-Control-Allow-Origin: *
+// by default. Nothing on this site is meant to be read cross-origin (the /v1
+// proxy keeps API calls same-origin too), so pin CORS to the canonical origin.
+const SITE_ORIGIN =
+  process.env.NEXT_PUBLIC_SITE_URL ?? "https://aof-web.vercel.app";
+
 const SECURITY_HEADERS = [
   { key: "Content-Security-Policy",        value: CSP },
+  { key: "Access-Control-Allow-Origin",    value: SITE_ORIGIN },
   { key: "X-Frame-Options",                value: "DENY" },
   { key: "X-Content-Type-Options",         value: "nosniff" },
   { key: "X-XSS-Protection",               value: "1; mode=block" },

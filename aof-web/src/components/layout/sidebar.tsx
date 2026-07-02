@@ -115,14 +115,14 @@ export function Sidebar() {
       {/* ── Top: logo + new chat ─────────────────────────────────────────── */}
       <div className={cn("flex flex-col gap-3 p-3", expanded ? "items-stretch" : "items-center")}>
         <div className={cn("flex h-11 items-center", expanded ? "justify-between px-1" : "justify-center")}>
-          <Link href="/" aria-label="Co.AI home" className="inline-flex items-center">
+          <Link href="/" aria-label="Co.AI home" className="inline-flex min-h-11 min-w-11 items-center">
             {expanded ? <Logo size={30} /> : <LogoMark size={30} />}
           </Link>
           {expanded && (
             <button
               type="button"
               onClick={toggle}
-              className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+              className="flex size-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
               aria-label="Collapse sidebar"
             >
               <PanelLeftClose className="size-[18px]" />
@@ -240,7 +240,7 @@ export function Sidebar() {
               <button
                 type="button"
                 onClick={toggle}
-                className="flex size-10 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+                className="flex size-11 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
                 aria-label="Expand sidebar"
               >
                 <PanelLeftOpen className="size-[18px]" />

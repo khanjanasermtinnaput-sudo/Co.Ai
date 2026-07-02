@@ -80,7 +80,6 @@ export async function GET(req: Request) {
   }
 
   const user = data.user;
-  console.log("[/api/auth/check] authenticated:", user.id, user.email, { tokenPrefix });
 
   return NextResponse.json({
     authenticated: true,

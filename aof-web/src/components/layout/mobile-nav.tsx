@@ -39,7 +39,7 @@ export function MobileTopbar() {
         <Dialog.Trigger asChild>
           <button
             type="button"
-            className="flex size-10 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+            className="flex size-11 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
             aria-label="Open navigation"
           >
             <Menu className="size-5" />
@@ -56,7 +56,7 @@ export function MobileTopbar() {
               <Dialog.Close asChild>
                 <button
                   type="button"
-                  className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+                  className="flex size-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
                   aria-label="Close navigation"
                 >
                   <X className="size-5" />
@@ -104,14 +104,14 @@ export function MobileTopbar() {
         </Dialog.Portal>
       </Dialog.Root>
 
-      <Link href="/" className="inline-flex items-center" aria-label="Co.AI home">
+      <Link href="/" className="inline-flex min-h-11 min-w-11 items-center" aria-label="Co.AI home">
         <Logo size={28} />
       </Link>
 
       <button
         type="button"
         onClick={startNewChat}
-        className="ml-auto flex size-10 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-glow-sm"
+        className="ml-auto flex size-11 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-glow-sm"
         aria-label="New chat"
       >
         <Plus className="size-5" />
