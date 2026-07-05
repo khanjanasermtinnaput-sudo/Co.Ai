@@ -1,5 +1,6 @@
 "use client";
 
+import { forwardRef } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Pin, PinOff, MoreVertical, Clock, Trash2, FolderOpen } from "lucide-react";
@@ -18,7 +19,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { TYPE_META, STATUS_META } from "./project-meta";
 
-export function ProjectCard({ project }: { project: Project }) {
+export const ProjectCard = forwardRef<HTMLDivElement, { project: Project }>(function ProjectCard(
+  { project },
+  ref,
+) {
   const router = useRouter();
   const togglePin = useProjectStore((s) => s.togglePin);
   const remove = useProjectStore((s) => s.deleteProject);
@@ -30,6 +34,7 @@ export function ProjectCard({ project }: { project: Project }) {
 
   return (
     <motion.div
+      ref={ref}
       layout
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
@@ -111,7 +116,7 @@ export function ProjectCard({ project }: { project: Project }) {
       </div>
     </motion.div>
   );
-}
+});
 
 export function NewProjectCard({ onClick }: { onClick: () => void }) {
   return (
