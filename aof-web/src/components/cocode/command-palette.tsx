@@ -50,13 +50,13 @@ export function CommandPalette({
           onClose();
         },
       })),
-    // IDE actions
+    // Workspace actions
     {
       id: "action:dev-mode",
       label: developerMode ? "Disable Developer Mode" : "Enable Developer Mode",
       description: "Show or hide advanced AI engineering tools",
       shortcut: "Ctrl+Shift+`",
-      category: "IDE",
+      category: "Workspace",
       action: () => {
         onToggleDeveloperMode();
         onClose();
@@ -67,7 +67,7 @@ export function CommandPalette({
       label: "Close Active Panel",
       description: "Close the currently open right panel",
       shortcut: "Escape",
-      category: "IDE",
+      category: "Workspace",
       action: () => {
         setRightPanel(null);
         onClose();

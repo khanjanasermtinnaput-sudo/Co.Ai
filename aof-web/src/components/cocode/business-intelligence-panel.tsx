@@ -18,7 +18,7 @@ interface FeatureMetric {
 
 const FEATURES: FeatureMetric[] = [
   {
-    feature: "CoCode IDE",
+    feature: "CoCode",
     dau: 1840,
     dauTrend: +28,
     conversionImpact: +12,
@@ -113,7 +113,7 @@ export function BusinessIntelligencePanel({ className }: BusinessIntelligencePan
           <Zap className="size-3" /> AI Priority Recommendation
         </p>
         <p className="text-[11px] text-muted-foreground/80">
-          Focus engineering on <strong className="text-foreground">CoCode IDE performance</strong> and <strong className="text-foreground">GitHub sync reliability</strong> — highest ROI per engineering day based on conversion and churn data.
+          Focus engineering on <strong className="text-foreground">CoCode workspace performance</strong> and <strong className="text-foreground">GitHub sync reliability</strong> — highest ROI per engineering day based on conversion and churn data.
         </p>
       </div>
 

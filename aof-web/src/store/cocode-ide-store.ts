@@ -1,5 +1,5 @@
-// ── CoCode IDE Store ─────────────────────────────────────────────────────────
-// Unified Zustand store for all Phase 1-20 IDE state:
+// ── CoCode Workspace Store ────────────────────────────────────────────────────
+// Unified Zustand store for all Phase 1-20 workspace state:
 // • Virtual file system (Phase 2, 5)
 // • Open tabs (Phase 5)
 // • GitHub connection (Phase 4)

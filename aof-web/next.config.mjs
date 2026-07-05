@@ -77,6 +77,11 @@ const nextConfig = {
     if (!apiProxy) return [];
     return [{ source: "/v1/:path*", destination: `${apiProxy}/v1/:path*` }];
   },
+
+  // /cocode is a legacy bookmark for the CoCode workspace, which now lives at /code.
+  async redirects() {
+    return [{ source: "/cocode", destination: "/code", permanent: true }];
+  },
 };
 
 export default nextConfig;

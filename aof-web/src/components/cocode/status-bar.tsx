@@ -18,7 +18,7 @@ interface StatusBarProps {
   encoding?: string;
 }
 
-export function IDEStatusBar({
+export function WorkspaceStatusBar({
   className,
   tsErrorCount = 0,
   buildStatus = "idle",

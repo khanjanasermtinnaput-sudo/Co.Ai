@@ -39,8 +39,8 @@ interface UXIssue {
 const FLOWS: UserFlow[] = [
   {
     id: "1", name: "New User Onboarding",
-    steps: ["Land on /", "See CoCode hero", "Click 'Start Free'", "GitHub OAuth", "Choose/upload project", "IDE loads"],
-    exitPoints: ["GitHub OAuth denied", "No project files", "IDE load timeout"],
+    steps: ["Land on /", "See CoCode hero", "Click 'Start Free'", "GitHub OAuth", "Choose/upload project", "Workspace loads"],
+    exitPoints: ["GitHub OAuth denied", "No project files", "Workspace load timeout"],
     frictionPoints: ["GitHub OAuth required upfront", "No demo mode for evaluation"],
     aiNote: "68% drop-off at step 4 (OAuth). Recommend: offer demo sandbox before requiring auth.",
   },
@@ -62,7 +62,7 @@ const FLOWS: UserFlow[] = [
 
 const WIREFRAMES: WireframeSpec[] = [
   {
-    id: "1", screen: "IDE Main — Desktop", viewport: "desktop",
+    id: "1", screen: "Workspace Main — Desktop", viewport: "desktop",
     components: ["Top nav bar", "Left: File Explorer (240px)", "Center: Monaco Editor (flex)", "Right: Adaptive Panel (320px)", "Bottom: AI Chat + Status Bar"],
     layoutNote: "3-column layout. Right panel collapses to icon strip when no panel selected.",
     a11yNotes: ["All panel tabs need aria-label", "Monaco keyboard navigation required", "Status bar color indicators need text fallback"],
@@ -70,7 +70,7 @@ const WIREFRAMES: WireframeSpec[] = [
   {
     id: "2", screen: "Mobile — Chat Only", viewport: "mobile",
     components: ["Header with project name", "Full-screen AI chat", "Bottom sheet for file picker", "Floating action button for deploy"],
-    layoutNote: "Mobile drops IDE columns. Chat-first experience with slide-up file browser.",
+    layoutNote: "Mobile drops workspace columns. Chat-first experience with slide-up file browser.",
     a11yNotes: ["Bottom sheet must trap focus", "FAB needs aria-label='Deploy'"],
   },
   {
@@ -230,7 +230,7 @@ export function ProductDesignerPanel({ className }: ProductDesignerPanelProps) {
               { name: "Button",           usages: 47, variants: 4, a11y: "pass"  },
               { name: "SimpleTooltip",    usages: 31, variants: 2, a11y: "pass"  },
               { name: "CommandPalette",   usages: 1,  variants: 1, a11y: "warn"  },
-              { name: "IDEStatusBar",     usages: 1,  variants: 1, a11y: "warn"  },
+              { name: "WorkspaceStatusBar", usages: 1,  variants: 1, a11y: "warn"  },
               { name: "OverflowPanelMenu",usages: 1,  variants: 1, a11y: "pass"  },
               { name: "SmartContextMenu", usages: 1,  variants: 1, a11y: "pass"  },
             ].map((comp) => (

@@ -1,7 +1,7 @@
 // ── Virtual File System ───────────────────────────────────────────────────────
 // In-memory tree that represents the current project. Populated from GitHub API,
-// AI-generated code, or local file uploads. All CoCode IDE operations (editor,
-// diff, apply, refactor) read from and write to this FS.
+// AI-generated code, or local file uploads. All CoCode workspace operations
+// (editor, diff, apply, refactor) read from and write to this FS.
 
 export type FileLanguage =
   | "typescript" | "javascript" | "tsx" | "jsx"

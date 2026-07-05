@@ -1,13 +1,18 @@
 "use client";
 
+// ── Build panel ───────────────────────────────────────────────────────────────
+// The conversational build + Titan workflow, folded into the CoCode workspace.
+// Generated code is bridged into the workspace's file explorer/editor by
+// code-store's bridgeToWorkspace() once a run completes.
+
 import { useCodeStore } from "@/store/code-store";
 import { useChatStore } from "@/store/chat-store";
-import { CodeModeSelector } from "./code-mode-selector";
-import { CodeConversation } from "./code-conversation";
-import { TitanWorkflow } from "./titan-workflow";
+import { CodeModeSelector } from "@/components/code/code-mode-selector";
+import { CodeConversation } from "@/components/code/code-conversation";
+import { TitanWorkflow } from "@/components/code/titan-workflow";
 import { SearchModeSelector } from "@/components/chat/search-mode-selector";
 
-export function CodeWorkspace() {
+export function BuildPanel() {
   const mode = useCodeStore((s) => s.mode);
   const setMode = useCodeStore((s) => s.setMode);
   const searchMode = useChatStore((s) => s.searchMode);

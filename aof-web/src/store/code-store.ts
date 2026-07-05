@@ -26,6 +26,8 @@ import { TITAN_PHASES } from "@/lib/constants";
 import { checkUserAccess } from "@/lib/access";
 import { useAuthStore } from "@/store/auth-store";
 import { useChatStore } from "@/store/chat-store";
+import { useCocodeIDEStore } from "@/store/cocode-ide-store";
+import { extractGeneratedFiles } from "@/lib/export";
 import { uid } from "@/lib/utils";
 import { formatErrorBlock, type AofProviderError, type FailoverNotice } from "@/lib/errors";
 import type {
@@ -150,6 +152,17 @@ function deriveBuildInput(
   const firstUser = convo.find((m) => m.role === "user")?.content ?? "";
   const task = firstUser.trim().slice(0, 120) || "project from CoCode";
   return { task, context: conversationToContext(transcript), briefText: transcript };
+}
+
+/** After a build/Titan run produces code, load the generated files into the
+ *  CoCode workspace's file explorer/editor so Build output and Files stay
+ *  in sync — one workspace, not two disconnected views of the project. */
+function bridgeToWorkspace(buildLog: string): void {
+  if (!buildLog.trim()) return;
+  const files = extractGeneratedFiles(buildLog);
+  if (!files.length) return;
+  useCocodeIDEStore.getState().importFiles(files);
+  useCocodeIDEStore.getState().openTab(files[0].path);
 }
 
 export const useCodeStore = create<CodeState>()(
@@ -315,6 +328,7 @@ export const useCodeStore = create<CodeState>()(
       );
     } finally {
       set({ building: false, abort: null, phase: "done" });
+      if (!get().buildError) bridgeToWorkspace(get().buildLog);
     }
   },
 
@@ -478,19 +492,23 @@ export const useCodeStore = create<CodeState>()(
   titanApprove: async () => {
     set((s) => ({ titan: { ...s.titan, approved: true, phase: "generate", buildLog: "" } }));
     const prompt = get().titan.prompt;
+    let failed = false;
     // Only AFTER approval does Titan hand the blueprint to the build pipeline (Pro).
     await streamCodeRun(prompt, "pro", {
       onToken: (chunk) =>
         set((s) => ({ titan: { ...s.titan, buildLog: s.titan.buildLog + chunk } })),
       // Surface a provider failure inline in the Titan build log — no fake output.
-      onError: (error) =>
+      onError: (error) => {
+        failed = true;
         set((s) => ({
           titan: {
             ...s.titan,
             buildLog: `${s.titan.buildLog}\n\n\`\`\`\n${formatErrorBlock(error)}\n\`\`\`\n`,
           },
-        })),
+        }));
+      },
     });
+    if (!failed) bridgeToWorkspace(get().titan.buildLog);
   },
 
   titanReset: () => set({ titan: emptyTitan }),

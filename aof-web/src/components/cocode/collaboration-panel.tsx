@@ -51,7 +51,7 @@ export function CollaborationPanel({ className }: { className?: string }) {
   const activeFile = useCocodeIDEStore((s) => s.activeFile());
 
   async function copyInviteLink() {
-    const link = `${window.location.origin}/cocode?session=${sessionId}`;
+    const link = `${window.location.origin}/code?session=${sessionId}`;
     await navigator.clipboard.writeText(link);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);

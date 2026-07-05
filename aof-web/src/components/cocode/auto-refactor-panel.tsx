@@ -65,9 +65,9 @@ const PROPOSALS: RefactorProposal[] = [
   },
   {
     id: "4", type: "bundle-inflation", title: "Lazy-load lucide-react icon subsets per panel",
-    file: "src/components/cocode/cocode-ide.tsx", estimatedBenefit: "Initial bundle −18KB", riskLevel: "low", effort: "~2h",
+    file: "src/components/cocode/cocode-workspace.tsx", estimatedBenefit: "Initial bundle −18KB", riskLevel: "low", effort: "~2h",
     status: "pending",
-    description: "cocode-ide.tsx imports 40+ lucide icons upfront. Dynamic import per panel reduces initial JS parse time.",
+    description: "cocode-workspace.tsx imports 40+ lucide icons upfront. Dynamic import per panel reduces initial JS parse time.",
   },
   {
     id: "5", type: "memory-leak", title: "Fix useEffect missing cleanup in WorkflowIndicator",

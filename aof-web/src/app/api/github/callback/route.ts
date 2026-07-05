@@ -1,6 +1,6 @@
 // ── GitHub OAuth Callback (Phase 4) ──────────────────────────────────────────
 // Exchanges GitHub OAuth code for an access token, stores it in a secure
-// httpOnly cookie, and redirects back to the IDE.
+// httpOnly cookie, and redirects back to the CoCode workspace.
 
 import { NextResponse } from "next/server";
 
@@ -13,7 +13,7 @@ export async function GET(req: Request): Promise<Response> {
 
   if (!code) {
     return NextResponse.redirect(
-      new URL("/cocode?error=github_no_code", url.origin),
+      new URL("/code?error=github_no_code", url.origin),
     );
   }
 
@@ -22,7 +22,7 @@ export async function GET(req: Request): Promise<Response> {
 
   if (!clientId || !clientSecret) {
     return NextResponse.redirect(
-      new URL("/cocode?error=github_not_configured", url.origin),
+      new URL("/code?error=github_not_configured", url.origin),
     );
   }
 
@@ -50,13 +50,13 @@ export async function GET(req: Request): Promise<Response> {
 
     if (!data.access_token) {
       return NextResponse.redirect(
-        new URL(`/cocode?error=github_${data.error ?? "token_failed"}`, url.origin),
+        new URL(`/code?error=github_${data.error ?? "token_failed"}`, url.origin),
       );
     }
 
     // Store token in httpOnly cookie (7-day expiry)
     const response = NextResponse.redirect(
-      new URL("/cocode?github=connected", url.origin),
+      new URL("/code?github=connected", url.origin),
     );
     response.cookies.set("gh_token", data.access_token, {
       httpOnly: true,
@@ -68,7 +68,7 @@ export async function GET(req: Request): Promise<Response> {
     return response;
   } catch {
     return NextResponse.redirect(
-      new URL("/cocode?error=github_network", url.origin),
+      new URL("/code?error=github_network", url.origin),
     );
   }
 }

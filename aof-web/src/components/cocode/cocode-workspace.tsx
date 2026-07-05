@@ -1,6 +1,6 @@
 "use client";
 
-// ── CoCode IDE Shell ─────────────────────────────────────────────────────────
+// ── CoCode Workspace Shell ───────────────────────────────────────────────────
 // Parts 1-13 UX Redesign + Engineering Bible Phases 71-80
 // Layout: Explorer | Editor | Adaptive Right Panel
 // Developer Mode: hides advanced systems by default
@@ -19,9 +19,10 @@ import { WorkflowIndicator } from "./workflow-indicator";
 import { extractDiffs } from "@/lib/cocode/diff";
 import { getAdaptivePanels, PANEL_DEFS } from "@/lib/cocode/adaptive-panels";
 import { CommandPalette } from "./command-palette";
-import { IDEStatusBar } from "./status-bar";
+import { WorkspaceStatusBar } from "./status-bar";
 import { useSmartContextMenu, SmartContextMenu } from "./smart-context-menu";
 import { SimpleTooltip } from "./ide-tooltip";
+import { BuildPanel } from "./build-panel";
 import type { IDEPanel } from "@/store/cocode-ide-store";
 
 // ── Core panels ───────────────────────────────────────────────────────────────
@@ -108,7 +109,7 @@ function PanelLoader() {
 
 // ── AI Chat (Part 11 — Context-Aware AI) ─────────────────────────────────────
 
-function IDEChatInput({ onSend }: { onSend?: (msg: string) => void }) {
+function WorkspaceChatInput({ onSend }: { onSend?: (msg: string) => void }) {
   const [message, setMessage] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [response, setResponse] = useState("");
@@ -324,9 +325,9 @@ function OverflowPanelMenu({
   );
 }
 
-// ── Main IDE ──────────────────────────────────────────────────────────────────
+// ── Main Workspace ────────────────────────────────────────────────────────────
 
-export function CocodeIDE() {
+export function CoCodeWorkspace() {
   const explorerOpen   = useCocodeIDEStore((s) => s.explorerOpen);
   const toggleExplorer = useCocodeIDEStore((s) => s.toggleExplorer);
   const rightPanel     = useCocodeIDEStore((s) => s.rightPanel);
@@ -340,6 +341,12 @@ export function CocodeIDE() {
   const redo           = useCocodeIDEStore((s) => s.redo);
   const importFiles    = useCocodeIDEStore((s) => s.importFiles);
   const activeTab      = useCocodeIDEStore((s) => s.activeTab);
+  const hasFiles        = useCocodeIDEStore((s) => s.fs.children.length > 0);
+
+  // Build (conversational + Titan) is a full-view mode inside the workspace,
+  // not a side panel — the conversation UI needs full width. New/empty
+  // projects land here by default; existing projects open to the editor.
+  const [buildOpen, setBuildOpen] = useState(!hasFiles);
 
   const developerMode       = useUIStore((s) => s.developerMode);
   const toggleDeveloperMode = useUIStore((s) => s.toggleDeveloperMode);
@@ -369,14 +376,14 @@ export function CocodeIDE() {
       if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) {
         // Monaco handles its own undo; only intercept when editor not focused
         const active = document.activeElement;
-        if (active?.tagName === "BODY" || active?.closest(".ide-outer")) {
+        if (active?.tagName === "BODY" || active?.closest(".cocode-workspace-outer")) {
           e.preventDefault();
           undo();
         }
       }
       if ((e.ctrlKey || e.metaKey) && (e.key === "y" || (e.shiftKey && e.key === "Z"))) {
         const active = document.activeElement;
-        if (active?.tagName === "BODY" || active?.closest(".ide-outer")) {
+        if (active?.tagName === "BODY" || active?.closest(".cocode-workspace-outer")) {
           e.preventDefault();
           redo();
         }
@@ -417,7 +424,7 @@ export function CocodeIDE() {
   }
 
   return (
-    <div className="ide-outer flex h-full flex-col overflow-hidden">
+    <div className="cocode-workspace-outer flex h-full flex-col overflow-hidden">
       {/* ── Command Palette (Part 9) ──────────────────────────────────────── */}
       <CommandPalette
         open={commandPaletteOpen}
@@ -434,7 +441,36 @@ export function CocodeIDE() {
         onSendToChat={handleSendToChat}
       />
 
-      {/* ── IDE Titlebar ──────────────────────────────────────────────────── */}
+      {buildOpen ? (
+        <>
+          {/* ── Build Titlebar ───────────────────────────────────────────────── */}
+          <div className="flex h-10 items-center gap-2 border-b border-border/60 bg-card/50 px-3">
+            <Hammer className="size-3.5 text-primary" />
+            <span className="text-[13px] font-medium text-foreground">Build</span>
+            <span className="text-muted-foreground">·</span>
+            <span className="max-w-[160px] truncate text-[13px] text-muted-foreground">{projectName}</span>
+            <SimpleTooltip
+              label="Open Editor"
+              description={hasFiles ? "Switch to the file explorer and code editor" : "Switch to the file explorer — upload files or connect GitHub"}
+              side="bottom"
+            >
+              <button
+                type="button"
+                onClick={() => setBuildOpen(false)}
+                className="ml-auto flex items-center gap-1 rounded-md border border-border/40 px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground"
+              >
+                <Code2 className="size-3" />
+                Open Editor
+              </button>
+            </SimpleTooltip>
+          </div>
+          <div className="min-h-0 flex-1 overflow-hidden">
+            <BuildPanel />
+          </div>
+        </>
+      ) : (
+        <>
+      {/* ── Workspace Titlebar ────────────────────────────────────────────── */}
       <div className="flex h-10 items-center gap-2 border-b border-border/60 bg-card/50 px-3">
         {/* Part 1 — Hover tooltips on every button */}
         <SimpleTooltip
@@ -519,6 +555,18 @@ export function CocodeIDE() {
             </label>
           </SimpleTooltip>
 
+          {/* Build toggle */}
+          <SimpleTooltip label="Build" description="Describe what you want and let CoCode AI plan and generate it" side="bottom">
+            <button
+              type="button"
+              onClick={() => setBuildOpen(true)}
+              className="flex items-center gap-1 rounded-md border border-border/40 px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground"
+            >
+              <Hammer className="size-3" />
+              Build
+            </button>
+          </SimpleTooltip>
+
           {/* Command Palette button */}
           <SimpleTooltip label="Command Palette" description="Search all commands, panels, and actions" shortcut="Ctrl+Shift+P" side="bottom">
             <button
@@ -563,7 +611,7 @@ export function CocodeIDE() {
           <Suspense fallback={<PanelLoader />}>
             <MonacoEditor className="min-h-0 flex-1" />
           </Suspense>
-          <IDEChatInput />
+          <WorkspaceChatInput />
         </div>
 
         {/* Right panel — adaptive (Part 3) */}
@@ -648,7 +696,9 @@ export function CocodeIDE() {
       </div>
 
       {/* ── Status Bar (Part 8) ──────────────────────────────────────────────── */}
-      <IDEStatusBar />
+      <WorkspaceStatusBar />
+        </>
+      )}
     </div>
   );
 }
