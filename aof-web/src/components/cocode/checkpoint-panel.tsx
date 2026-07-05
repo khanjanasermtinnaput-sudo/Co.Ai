@@ -3,7 +3,7 @@
 // ── Checkpoint & Recovery Panel (Phase 20) ────────────────────────────────────
 // Lists all checkpoints, shows status, supports restore/undo/redo/branch.
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   History, RotateCcw, RotateCw, CheckCircle2, XCircle,
   AlertCircle, Clock, GitBranch, Trash2,
@@ -35,7 +35,9 @@ function StatusIcon({ checkpoint }: { checkpoint: Checkpoint }) {
 }
 
 export function CheckpointPanel() {
-  const checkpoints = useCocodeIDEStore((s) => s.allCheckpoints());
+  const past = useCocodeIDEStore((s) => s.checkpoints.past);
+  const future = useCocodeIDEStore((s) => s.checkpoints.future);
+  const checkpoints = useMemo(() => [...past, ...future.slice().reverse()], [past, future]);
   const currentCheckpoint = useCocodeIDEStore((s) => s.currentCheckpoint);
   const canUndo = useCocodeIDEStore((s) => s.canUndo);
   const canRedo = useCocodeIDEStore((s) => s.canRedo);
