@@ -17,7 +17,7 @@ import { useCocodeIDEStore } from "@/store/cocode-ide-store";
 import { useUIStore } from "@/store/ui-store";
 import { WorkflowIndicator } from "./workflow-indicator";
 import { extractDiffs } from "@/lib/cocode/diff";
-import { getAdaptivePanels, PANEL_DEFS } from "@/lib/cocode/adaptive-panels";
+import { getAdaptivePanels, PANEL_DEFS, type PanelDef } from "@/lib/cocode/adaptive-panels";
 import { CommandPalette } from "./command-palette";
 import { WorkspaceStatusBar } from "./status-bar";
 import { useSmartContextMenu, SmartContextMenu } from "./smart-context-menu";
@@ -284,7 +284,7 @@ function OverflowPanelMenu({
   activePanel,
   onSelect,
 }: {
-  panels: { id: string; label: string; description: string }[];
+  panels: PanelDef[];
   activePanel: IDEPanel | null;
   onSelect: (id: IDEPanel) => void;
 }) {
@@ -304,20 +304,26 @@ function OverflowPanelMenu({
         <>
           <div className="fixed inset-0 z-[150]" onClick={() => setOpen(false)} />
           <div className="absolute right-0 top-full z-[160] mt-1 w-52 overflow-hidden rounded-xl border border-border/60 bg-card/98 py-1.5 shadow-2xl backdrop-blur-2xl">
-            {panels.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => { onSelect(p.id as IDEPanel); setOpen(false); }}
-                className={cn(
-                  "flex w-full flex-col gap-0.5 px-3 py-2 text-left transition-colors hover:bg-white/5",
-                  activePanel === p.id && "bg-primary/10",
-                )}
-              >
-                <span className={cn("text-[12px] font-medium", activePanel === p.id ? "text-primary" : "text-foreground/80")}>{p.label}</span>
-                <span className="text-[10px] text-muted-foreground/50 leading-tight">{p.description}</span>
-              </button>
-            ))}
+            {panels.map((p) => {
+              const Icon = p.icon;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => { onSelect(p.id as IDEPanel); setOpen(false); }}
+                  className={cn(
+                    "flex w-full items-start gap-2 px-3 py-2 text-left transition-colors hover:bg-white/5",
+                    activePanel === p.id && "bg-primary/10",
+                  )}
+                >
+                  <Icon className={cn("size-3.5 mt-0.5 shrink-0", activePanel === p.id ? "text-primary" : "text-muted-foreground/70")} />
+                  <span className="flex flex-col gap-0.5">
+                    <span className={cn("text-[12px] font-medium", activePanel === p.id ? "text-primary" : "text-foreground/80")}>{p.label}</span>
+                    <span className="text-[10px] text-muted-foreground/50 leading-tight">{p.description}</span>
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </>
       )}
@@ -623,6 +629,7 @@ export function CoCodeWorkspace() {
                 const def = PANEL_DEFS[p.id];
                 if (!def) return null;
                 const isActive = activePanel === p.id;
+                const Icon = def.icon;
                 return (
                   <SimpleTooltip
                     key={p.id}
@@ -640,6 +647,7 @@ export function CoCodeWorkspace() {
                         isActive ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-white/5",
                       )}
                     >
+                      <Icon className="size-3" />
                       {p.label}
                     </button>
                   </SimpleTooltip>
@@ -679,14 +687,15 @@ export function CoCodeWorkspace() {
             {primaryPanels.slice(0, 12).map((p) => {
               const def = PANEL_DEFS[p.id];
               if (!def) return null;
+              const Icon = def.icon;
               return (
                 <SimpleTooltip key={p.id} label={def.label} description={def.description} side="left" delay={300}>
                   <button
                     type="button"
                     onClick={() => setRightPanel(p.id as IDEPanel)}
-                    className="flex w-8 items-center justify-center rounded-md py-1.5 text-[9px] font-medium text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+                    className="flex w-8 items-center justify-center rounded-md py-1.5 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
                   >
-                    {def.label.slice(0, 2)}
+                    <Icon className="size-4" />
                   </button>
                 </SimpleTooltip>
               );
