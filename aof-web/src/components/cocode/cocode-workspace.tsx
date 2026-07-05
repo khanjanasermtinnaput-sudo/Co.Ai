@@ -5,7 +5,8 @@
 // Layout: Explorer | Editor | Adaptive Right Panel
 // Developer Mode: hides advanced systems by default
 
-import { useEffect, useState, lazy, Suspense, useCallback } from "react";
+import { useEffect, useState, useRef, lazy, Suspense, useCallback } from "react";
+import { createPortal } from "react-dom";
 import {
   PanelLeftClose, PanelLeftOpen, GitBranch,
   Loader2, Upload, Zap, X, Hammer,
@@ -289,21 +290,36 @@ function OverflowPanelMenu({
   onSelect: (id: IDEPanel) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [coords, setCoords] = useState<{ top: number; right: number } | null>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  const toggle = () => {
+    if (!open && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setCoords({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
+    }
+    setOpen((o) => !o);
+  };
+
   return (
     <div className="relative">
       <SimpleTooltip label="More panels" description="Show all available panels" side="bottom">
         <button
+          ref={buttonRef}
           type="button"
-          onClick={() => setOpen((o) => !o)}
+          onClick={toggle}
           className="inline-flex items-center gap-0.5 rounded-md px-2 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors"
         >
           More <ChevronDown className={cn("size-3 transition-transform", open && "rotate-180")} />
         </button>
       </SimpleTooltip>
-      {open && (
+      {open && coords && typeof document !== "undefined" && createPortal(
         <>
           <div className="fixed inset-0 z-[150]" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-full z-[160] mt-1 w-52 overflow-hidden rounded-xl border border-border/60 bg-card/98 py-1.5 shadow-2xl backdrop-blur-2xl">
+          <div
+            style={{ top: coords.top, right: coords.right }}
+            className="fixed z-[160] w-52 max-h-[70vh] overflow-y-auto rounded-xl border border-border/60 bg-card/98 py-1.5 shadow-2xl backdrop-blur-2xl"
+          >
             {panels.map((p) => {
               const Icon = p.icon;
               return (
@@ -325,7 +341,8 @@ function OverflowPanelMenu({
               );
             })}
           </div>
-        </>
+        </>,
+        document.body,
       )}
     </div>
   );
