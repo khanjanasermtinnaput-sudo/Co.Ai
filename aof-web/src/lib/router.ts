@@ -208,6 +208,32 @@ const CATEGORY_RULES: CategoryRule[] = [
   },
 ];
 
+// ── Build-intent detection ────────────────────────────────────────────────────
+// Coding-related messages split into two kinds: *build intents* (the user wants
+// an artifact produced or worked on — CoCode territory) and *engineering
+// questions* (the user wants advice or an explanation — answer directly in
+// chat). Deflecting a question to CoCode reads as a brush-off, so only route
+// there when the user actually asked for work to be done.
+
+const BUILD_INTENT_PATTERNS: RegExp[] = [
+  // do-verb … artifact: "build a todo app", "create a REST API", "make me a game"
+  /\b(build|create|make|generate|scaffold|implement|develop|prototype)\b.{0,40}\b(app|apps|website|web ?app|site|page|api|game|bot|script|tool|dashboard|component|service|backend|frontend|cli|extension|plugin)\b/i,
+  // "write (me) some code / a script / a function"
+  /\bwrite\b.{0,20}\b(code|script|program|function|class|component|test)\b/i,
+  // working on a concrete artifact the user has: "debug this function", "fix my code"
+  /\b(debug|fix|refactor|optimize|review)\b.{0,10}\b(this|my|the)\b.{0,30}\b(code|function|class|component|script|bug|error|file)\b/i,
+  // designing a system/architecture is a work product, not a lookup
+  /\b(design|plan)\b.{0,30}\b(architecture|schema|system|database)\b/i,
+  // Thai build intents: สร้าง/ทำ/เขียน + สิ่งที่ได้ชิ้นงาน
+  /(สร้าง|ทำ|เขียน).{0,20}(เว็บ|แอป|เกม|api|บอท|ระบบ|โปรแกรม|โค้ด|สคริปต์|หน้าเว็บ)/i,
+  /(แก้บั๊ก|ดีบัก|แก้โค้ด|รีแฟคเตอร์)/i,
+];
+
+/** True when the user is asking for an artifact to be produced or worked on. */
+export function isBuildIntent(text: string): boolean {
+  return BUILD_INTENT_PATTERNS.some((p) => p.test(text));
+}
+
 // ── Web search patterns ───────────────────────────────────────────────────────
 
 const SEARCH_PATTERNS: RegExp[] = [
@@ -258,12 +284,6 @@ export function classifyRequest(text: string, attachments: Attachment[] = []): C
 
 // ── Route decision (backward-compatible with existing 3-route system) ─────────
 
-function categoriesToRoute(categories: TaskCategory[]): RouteTarget {
-  const codeCategories = new Set<TaskCategory>(['coding', 'data_analysis', 'ui_design']);
-  if (categories.some((c) => codeCategories.has(c))) return 'code';
-  return 'chat';
-}
-
 function countMatches(text: string, patterns: RegExp[]): number {
   return patterns.filter((re) => re.test(text)).length;
 }
@@ -294,11 +314,22 @@ export function routeRequest(text: string, attachments: Attachment[] = []): Rout
     };
   }
 
+  // Build intent → CoCode. Only actual work requests go there; engineering
+  // questions ("how do I deploy to Vercel?") are answered right here in chat,
+  // because deflecting a question to another surface reads as a brush-off.
+  if (isBuildIntent(text)) {
+    return {
+      target: "code",
+      label: LABEL.code,
+      reason: "This is a build request — routing to CoCode.",
+      confidence: 85,
+    };
+  }
+
   // Classify using 16-category system
   const classification = classifyRequest(text, attachments);
 
   if (classification.categories.length > 0) {
-    const target = categoriesToRoute(classification.categories);
     const primary = classification.primary;
 
     const categoryConfidence: Record<string, number> = {
@@ -308,14 +339,9 @@ export function routeRequest(text: string, attachments: Attachment[] = []): Rout
       research: 65, writing: 65, business: 65,
     };
 
-    const confidence = categoryConfidence[primary] ?? 70;
-    const reason = target === 'code'
-      ? `Detected ${primary.replace(/_/g, ' ')} task — routing to CoCode.`
-      : `Handling as ${classification.categories.slice(0, 2).map((c) => c.replace(/_/g, ' ')).join(' + ')} request.`;
-
-    // Images & PDFs without coding → Co.AI
+    // Images & PDFs → Co.AI reads them directly
     const visual = attachments.find((a) => a.kind === "image" || a.kind === "pdf");
-    if (visual && target !== 'code') {
+    if (visual) {
       return {
         target: "chat",
         label: LABEL.chat,
@@ -324,7 +350,12 @@ export function routeRequest(text: string, attachments: Attachment[] = []): Rout
       };
     }
 
-    return { target, label: LABEL[target], reason, confidence };
+    const codeTopics = new Set<TaskCategory>(['coding', 'data_analysis', 'ui_design']);
+    const reason = codeTopics.has(primary)
+      ? "Engineering question — answering here."
+      : `Handling as ${classification.categories.slice(0, 2).map((c) => c.replace(/_/g, ' ')).join(' + ')} request.`;
+
+    return { target: "chat", label: LABEL.chat, reason, confidence: categoryConfidence[primary] ?? 70 };
   }
 
   // Default → Co.AI

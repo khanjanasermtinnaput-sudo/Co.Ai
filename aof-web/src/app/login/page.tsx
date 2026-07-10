@@ -11,10 +11,12 @@ export default function LoginPage() {
   const router = useRouter();
   const [submitting, setSubmitting] = React.useState(false);
 
-  // Already signed in (or demo mode) → go straight to the app.
+  // Already signed in with a real session → go straight to the app. In demo
+  // mode the stand-in user must NOT redirect, so the sign-in UI stays
+  // reviewable (the button is disabled with a "not configured" notice).
   React.useEffect(() => {
-    if (user) router.replace("/");
-  }, [user, router]);
+    if (user && configured) router.replace("/");
+  }, [user, configured, router]);
 
   const onGoogle = async () => {
     setSubmitting(true);

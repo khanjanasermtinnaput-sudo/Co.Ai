@@ -18,6 +18,43 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+// The home page already greets the user — an empty thread shouldn't greet a
+// second time. Offer one-tap starters that send a real first message instead.
+const STARTERS = [
+  "Explain how HTTPS works, simply",
+  "Help me refactor a React component for performance",
+  "Build me a landing page with a pricing section",
+  "Solve: what is 15% of 240?",
+];
+
+function EmptyThread({
+  onPick,
+  disabled,
+}: {
+  onPick: (text: string) => void;
+  disabled: boolean;
+}) {
+  return (
+    <div className="flex h-full flex-col items-center justify-center px-4">
+      <p className="text-sm text-muted-foreground">Ask anything — or start from one of these:</p>
+      <div className="mt-4 flex w-full max-w-md flex-col gap-2">
+        {STARTERS.map((s) => (
+          <button
+            key={s}
+            type="button"
+            disabled={disabled}
+            onClick={() => onPick(s)}
+            className="flex items-center gap-3 rounded-xl border border-border/60 bg-card px-4 py-3 text-left text-sm text-muted-foreground transition-all hover:border-primary/20 hover:text-foreground disabled:opacity-50"
+          >
+            <Sparkles className="size-3.5 shrink-0 text-primary/50" />
+            {s}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function ChatView() {
   const conversations = useChatStore((s) => s.conversations);
   const activeId = useChatStore((s) => s.activeId);
@@ -109,11 +146,7 @@ export function ChatView() {
       {/* ── Body ────────────────────────────────────────────────────────────── */}
       <div className="min-h-0 flex-1 overflow-y-auto">
         {empty ? (
-          <div className="flex h-full flex-col items-center justify-center px-4 text-center">
-            <span className="text-3xl" role="img" aria-label="wave">👋</span>
-            <h2 className="mt-4 text-xl font-medium text-foreground">Welcome to Co.AI</h2>
-            <p className="mt-2 text-sm text-muted-foreground">Start a conversation.</p>
-          </div>
+          <EmptyThread onPick={(text) => void send(text)} disabled={!ready || streaming} />
         ) : (
           <ChatThread messages={messages} streaming={streaming} />
         )}

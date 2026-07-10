@@ -25,37 +25,54 @@ test('empty-ish question routes to chat (default fallback)', () => {
   assert.equal(r.target, 'chat');
 });
 
-// ── code keywords → CoCode ───────────────────────────────────────────
+// ── build intents → CoCode ───────────────────────────────────────────
 
-test('explicit code keyword routes to code', () => {
+test('explicit code-writing request routes to code', () => {
   const r = routeRequest('write me some code');
   assert.equal(r.target, 'code');
   assert.equal(r.label, 'CoCode');
 });
 
-test('debug keyword routes to code', () => {
+test('debugging a concrete artifact routes to code', () => {
   const r = routeRequest('help me debug this function');
   assert.equal(r.target, 'code');
 });
 
-test('framework name routes to code', () => {
+test('build request routes to code', () => {
   const r = routeRequest('build a landing page in React');
   assert.equal(r.target, 'code');
 });
 
-test('Thai programming keyword routes to code', () => {
+test('Thai programming request routes to code', () => {
   const r = routeRequest('เขียนโค้ด python ให้หน่อย');
   assert.equal(r.target, 'code');
 });
 
-test('architecture keyword routes to code', () => {
+test('architecture design work routes to code', () => {
   const r = routeRequest('design the architecture for a REST API');
   assert.equal(r.target, 'code');
 });
 
-test('deploy keyword routes to code', () => {
-  const r = routeRequest('how do I deploy to Vercel?');
+test('Thai build request routes to code', () => {
+  const r = routeRequest('สร้างเว็บขายของให้หน่อย');
   assert.equal(r.target, 'code');
+});
+
+// ── engineering questions → answered in chat, not deflected ──────────
+
+test('deploy how-to question is answered in chat', () => {
+  const r = routeRequest('how do I deploy to Vercel?');
+  assert.equal(r.target, 'chat');
+});
+
+test('refactor advice question is answered in chat', () => {
+  const r = routeRequest('help me refactor a react component for performance');
+  assert.equal(r.target, 'chat');
+});
+
+test('tech comparison question is answered in chat', () => {
+  const r = routeRequest('what is the difference between SQL and NoSQL databases?');
+  assert.equal(r.target, 'chat');
 });
 
 // ── search keywords → Search Agent ───────────────────────────────────────────

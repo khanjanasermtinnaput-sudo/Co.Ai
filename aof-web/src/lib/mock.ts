@@ -188,26 +188,23 @@ function composeChatReply(
   }
 
   if (route.target === "code") {
+    const task = message.trim().replace(/\s+/g, " ").slice(0, 70);
     if (th) {
-      const baseTh = `งานนี้เป็นงานวิศวกรรม ผมจะส่งต่อให้ **CoCode**`;
-      return `${pre}${baseTh}
+      return `${pre}รับทราบครับ — **${task}** เป็นงานที่ผมสร้างให้ได้จริงใน **CoCode** ก่อนลงมือ ผมจะยืนยันสามอย่างสั้น ๆ:
 
-1. **เป้าหมาย** — ระบุผลลัพธ์สำคัญที่สุดเพียงหนึ่งอย่าง
-2. **ขอบเขต** — อะไรอยู่ใน v1 และอะไรไว้ทีหลัง
-3. **เทคโนโลยี** — เลือกสิ่งที่ส่งมอบได้เร็วและดูแลต่อได้
-4. **หมุดหมาย** — ขั้นเล็ก ๆ ที่เดโมได้
+1. **เป้าหมาย** — ผลลัพธ์สำคัญที่สุดของงานนี้คืออะไร
+2. **ขอบเขต v1** — ฟีเจอร์ไหนต้องมีวันแรก อะไรไว้ทีหลัง
+3. **ข้อจำกัด** — stack ที่ต้องใช้ หรือของเดิมที่ต้องต่อยอด
 
-อยากให้ผมสร้างเลยไหมครับ? เปิด **CoCode** แล้วผมจะพาจากไอเดียไปเป็นโค้ดที่ใช้งานได้`;
+เปิด **CoCode** แล้วผมจะเริ่มจากแผนไฟล์ → โค้ดที่รันได้ → ตรวจทานให้ครบ หรือถ้าอยากคุยรายละเอียดตรงนี้ก่อนก็ได้ครับ`;
     }
-    const base = `This is an engineering task, so I'd hand it to **CoCode**.`;
-    return `${pre}${base}
+    return `${pre}Got it — **${task}** is something I can actually build for you in **CoCode**. Before I start, I'd confirm three things:
 
-1. **Goal** — nail the single most important outcome.
-2. **Scope** — what's in v1 vs. later.
-3. **Stack** — something you can ship fast and maintain.
-4. **Milestones** — small, demoable steps.
+1. **Goal** — the single most important outcome for this.
+2. **v1 scope** — what must work on day one vs. later.
+3. **Constraints** — a required stack, or existing code to build on.
 
-Want me to build it? Open **CoCode** and I'll take it from idea to working code.`;
+Open **CoCode** and I'll go from file plan → running code → review. Or keep talking here first if you'd rather shape the idea.`;
   }
 
   if (/(hello|hi|hey|สวัสดี|หวัดดี)/.test(m) && attachments.length === 0) {
@@ -215,6 +212,49 @@ Want me to build it? Open **CoCode** and I'll take it from idea to working code.
       return `สวัสดีครับ! ผมคือ **CoAI** — เวิร์กสเปซ AI ของคุณ ผมช่วยระดมไอเดีย ช่วยเรียนรู้ อ่านรูปภาพและ PDF หรือกระโดดเข้า **CoCode** เพื่อสร้างซอฟต์แวร์จริงได้ วันนี้อยากทำอะไรดีครับ?`;
     }
     return `Hi! I'm **CoAI** — your AI workspace. I can chat through ideas, help you learn, read images & PDFs, or jump into **CoCode** to build real software. What are we working on today?`;
+  }
+
+  // Engineering questions stay in chat and deserve a real answer — never a
+  // hand-off form. Two specialised flavours cover the most common asks.
+  if (/(performance|refactor|optimi[sz]e|slow|re-?render|เร็วขึ้น|ช้า|รีแฟคเตอร์)/.test(m)) {
+    if (th) {
+      return `${pre}เรื่อง performance ให้เริ่มจาก **วัดก่อนแก้** เสมอครับ
+
+1. **หาจุดช้าจริง** — ใช้ Profiler ดูว่า component ไหน render บ่อย/นานผิดปกติ อย่าเดา
+2. **ตัด render ที่ไม่จำเป็น** — \`memo\` สำหรับ component ที่ props ไม่เปลี่ยน, \`useMemo\`/\`useCallback\` เฉพาะค่าที่คำนวณแพงหรือ reference ที่หลุดไปทำให้ลูก re-render
+3. **แยก state ให้แคบ** — state ที่เปลี่ยนบ่อยไม่ควรอยู่บน parent ที่มีลูกเยอะ ย้ายลงใกล้จุดใช้งาน
+4. **รายการยาวใช้ virtualization** — render เฉพาะที่มองเห็น
+
+ข้อควรระวัง: \`useMemo\` ทุกอย่างโดยไม่วัด มักช้าลงและอ่านยากขึ้น ถ้าแปะโค้ดหรือไฟล์มาได้ ผมชี้จุดให้ตรง ๆ ได้เลยครับ`;
+    }
+    return `${pre}For performance work, always **measure before you change anything**.
+
+1. **Find the real hot spot** — use the Profiler to see which components render too often or too long. Don't guess.
+2. **Cut wasted renders** — \`memo\` for components whose props rarely change; \`useMemo\`/\`useCallback\` only for expensive computations or unstable references that cascade re-renders into children.
+3. **Narrow your state** — fast-changing state shouldn't live on a parent with many children; move it next to where it's used.
+4. **Virtualize long lists** — render only what's visible.
+
+One caution: blanket-memoizing everything without measuring usually makes code slower *and* harder to read. Paste the component (or attach the file) and I'll point at the exact lines.`;
+  }
+
+  if (/(deploy|hosting|vercel|railway|docker|kubernetes|ci\/?cd|database|postgres|mongo|sql|api|react|next\.?js|node|python|typescript|javascript|โค้ด|ฐานข้อมูล|เขียนโปรแกรม)/.test(m)) {
+    const topic = message.trim().replace(/\s+/g, " ").slice(0, 60);
+    if (th) {
+      return `${pre}คำถามดีครับ — สำหรับ **${topic}** แนวคิดหลักคือ:
+
+- **เริ่มจาก use case ไม่ใช่เครื่องมือ** — ข้อจำกัดจริง (ผู้ใช้, ข้อมูล, ทีม) ตัดตัวเลือกได้เกินครึ่ง
+- **ตัวเลือกที่ "ดีพอและเรียบง่าย" ชนะตัวเลือกที่ "เก่งสุดแต่ซับซ้อน"** เกือบทุกครั้งในระยะยาว
+- **ทางเลือกที่กลับตัวยาก** (data model, auth, โครงสร้าง service) ควรคิดนานกว่าทางเลือกที่เปลี่ยนได้ง่าย
+
+เล่าบริบทเพิ่มอีกนิดได้ไหมครับ — ทำอะไรอยู่ ผู้ใช้เป็นใคร แล้วผมจะตอบให้เจาะจงกว่านี้`;
+    }
+    return `${pre}Good question — for **${topic}**, here's the way I'd think about it:
+
+- **Start from your use case, not the tool** — real constraints (users, data shape, team size) eliminate more than half the options immediately.
+- **"Good enough and simple" beats "most powerful but complex"** almost every time over the life of a project.
+- **Spend your thinking on hard-to-reverse choices** (data model, auth, service boundaries) — cheap-to-change ones can be decided fast and revisited.
+
+Tell me a bit more about what you're building and who uses it, and I'll give you a specific recommendation.`;
   }
 
   if (th) {

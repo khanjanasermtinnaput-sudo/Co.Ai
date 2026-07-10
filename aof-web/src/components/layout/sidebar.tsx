@@ -256,10 +256,6 @@ export function Sidebar() {
   );
 }
 
-function highlight(text: string, query: string): string {
-  return text; // plain — keeping JSX in the component
-}
-
 function ConversationItem({
   id,
   title,

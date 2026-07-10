@@ -41,12 +41,36 @@ export function ProjectBriefPanel({
       </div>
 
       {!brief ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-2 px-2 text-center">
-          <Sparkles className="size-6 text-muted-foreground/50" />
-          <p className="text-xs text-muted-foreground">
-            Tell Co.AI what you want to build. The brief fills in as you talk —
-            then generate when it&apos;s ready.
+        <div className="flex flex-1 flex-col gap-4">
+          <p className="flex items-start gap-2 text-xs text-muted-foreground">
+            <Sparkles className="mt-0.5 size-3.5 shrink-0 text-primary/60" />
+            These fields fill in as you talk — generate when the brief is ready.
           </p>
+
+          {/* Ghost preview of the brief-to-be, so the panel explains itself. */}
+          <div aria-hidden className="flex flex-col gap-4 opacity-45">
+            <Field label="Project">
+              <GhostLine w="w-3/4" />
+            </Field>
+            <div className="grid grid-cols-2 gap-3">
+              <GhostMeta label="Type" />
+              <GhostMeta label="Complexity" />
+              <GhostMeta label="Stack" span />
+            </div>
+            <Field label="Features">
+              <div className="flex flex-col gap-1.5">
+                <GhostLine w="w-5/6" />
+                <GhostLine w="w-2/3" />
+                <GhostLine w="w-3/4" />
+              </div>
+            </Field>
+            <Field label="Files to create">
+              <div className="flex flex-col gap-1.5">
+                <GhostLine w="w-2/3" />
+                <GhostLine w="w-1/2" />
+              </div>
+            </Field>
+          </div>
         </div>
       ) : (
         <motion.div
@@ -118,6 +142,19 @@ export function ProjectBriefPanel({
         </p>
       </div>
     </aside>
+  );
+}
+
+function GhostLine({ w }: { w: string }) {
+  return <div className={cn("h-2.5 rounded-full bg-muted-foreground/20", w)} />;
+}
+
+function GhostMeta({ label, span }: { label: string; span?: boolean }) {
+  return (
+    <div className={cn("rounded-lg border border-border/40 bg-background/30 px-2.5 py-2", span && "col-span-2")}>
+      <span className="block text-[10px] uppercase tracking-wide text-muted-foreground/70">{label}</span>
+      <div className="mt-1.5 h-2.5 w-2/3 rounded-full bg-muted-foreground/20" />
+    </div>
   );
 }
 

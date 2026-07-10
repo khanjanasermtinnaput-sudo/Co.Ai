@@ -16,7 +16,18 @@ export function LogoMark({ className, size = 32 }: LogoMarkProps) {
       aria-hidden
       className={cn("shrink-0", className)}
     >
-      <rect width="24" height="24" rx="6" fill="#000000" />
+      {/* Inset stroke keeps the tile visible against dark sidebars where a
+          plain black fill would dissolve into the background. */}
+      <rect
+        x="0.5"
+        y="0.5"
+        width="23"
+        height="23"
+        rx="5.5"
+        fill="#000000"
+        stroke="#52525B"
+        strokeWidth="1"
+      />
       <circle cx="8.5" cy="12" r="2.4" fill="#ffffff" />
       <circle cx="15.5" cy="8.5" r="2.1" fill="#FF6A00" />
       <circle cx="15.5" cy="15.5" r="2.1" fill="#ffffff" />

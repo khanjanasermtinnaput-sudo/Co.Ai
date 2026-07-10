@@ -11,12 +11,39 @@
 // (see SKILL.md "Run (agent path)" for how to launch it).
 
 import { chromium } from "playwright";
+import { existsSync, readdirSync } from "fs";
+import { join } from "path";
 
 const BASE = process.env.AOF_WEB_BASE_URL ?? "http://localhost:3000";
 const ROUTES = ["/", "/chat", "/code", "/projects", "/settings", "/login"];
 
+// Playwright hard-pins a browser revision; when only a different revision is
+// cached (common on pre-provisioned machines), launch() fails asking for a
+// download. Resolve a usable binary instead: explicit env override first, the
+// pinned revision if present, then any chromium build in the browsers dir.
+function chromiumExecutablePath() {
+  const override = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
+  if (override) return override;
+  try {
+    if (existsSync(chromium.executablePath())) return undefined; // pinned revision is installed
+  } catch {
+    /* fall through to the cache scan */
+  }
+  const root = process.env.PLAYWRIGHT_BROWSERS_PATH;
+  if (root && existsSync(root)) {
+    for (const dir of readdirSync(root)) {
+      if (!/^chromium-\d+$/.test(dir)) continue;
+      for (const rel of ["chrome-linux/chrome", "chrome-win/chrome.exe", "chrome-mac/Chromium.app/Contents/MacOS/Chromium"]) {
+        const candidate = join(root, dir, rel);
+        if (existsSync(candidate)) return candidate;
+      }
+    }
+  }
+  return undefined; // let Playwright raise its usual install hint
+}
+
 async function withPage(fn) {
-  const browser = await chromium.launch();
+  const browser = await chromium.launch({ executablePath: chromiumExecutablePath() });
   try {
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
     const consoleErrors = [];
