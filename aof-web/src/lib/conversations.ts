@@ -112,7 +112,6 @@ export async function saveMessages(conversationId: string, msgs: ChatMessageT[])
       model: m.model ?? undefined,
       route_target: m.route?.target ?? undefined,
       route_label: m.route?.label ?? undefined,
-      style: m.style ?? undefined,
       created_at: m.createdAt,
     }));
 

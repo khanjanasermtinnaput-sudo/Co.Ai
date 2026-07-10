@@ -19,7 +19,6 @@ import {
 import { z } from "zod";
 import { decideSearch, runSearch } from "@/lib/server/search/manager";
 import { buildSearchContext } from "@/lib/server/search/context-builder";
-import { normalizeSearchMode } from "@/lib/server/search/types";
 import {
   adapterFor,
   allProviders,
@@ -37,7 +36,7 @@ import { logAofError, logAofInfo, runStartupCheckOnce } from "@/lib/server/ai-lo
 import { checkRateLimit, applyRateLimitHeaders } from "@/lib/server/rate-limit";
 import { getUserFromRequest } from "@/lib/server/supabase-admin";
 import { loadUserKeyOverrides } from "@/lib/server/keys-store";
-import type { ResponseStyle, RouteDecision } from "@/lib/types";
+import type { RouteDecision } from "@/lib/types";
 import {
   RAA_SYSTEM,
   AOF_CODE_CHAT_SYSTEM,
@@ -53,7 +52,6 @@ type Agent = "chat" | "requirements" | "code-chat" | "code-gen" | "plan" | "anal
 
 function agentConfig(
   agent: Agent | undefined,
-  style: ResponseStyle | undefined,
   route: RouteDecision | undefined,
 ): { system: string; temperature: number; maxTokens: number } {
   switch (agent) {
@@ -70,7 +68,7 @@ function agentConfig(
     case "debug":
       return { system: AOF_DEBUG_SYSTEM, temperature: 0.4, maxTokens: 2500 };
     default:
-      return { system: buildSystem(style, route), temperature: 0.7, maxTokens: maxTokensFor(style) };
+      return { system: buildSystem(route), temperature: 0.7, maxTokens: 1000 };
   }
 }
 
@@ -92,7 +90,6 @@ type ChatModelId = "lite" | "normal";
 
 interface ChatBody {
   message?: string;
-  style?: ResponseStyle;
   route?: RouteDecision;
   history?: ChatHistoryItem[];
   /** "chat" = general assistant; "requirements" = RAA (DISCOVERY); "code-chat" =
@@ -101,8 +98,6 @@ interface ChatBody {
   agent?: Agent;
   /** CoChat manual model selection: "lite" (Mikros) | "normal" (Kanon). */
   model?: ChatModelId;
-  /** Universal Search mode: "auto" (default) | "off" | "force". */
-  searchMode?: string;
 }
 
 // Runtime validation for the untrusted request body. Permissive by design
@@ -112,7 +107,6 @@ interface ChatBody {
 const ChatBodySchema = z
   .object({
     message: z.string().max(100_000).optional(),
-    style: z.string().optional(),
     route: z.object({}).passthrough().optional(),
     history: z
       .array(z.object({ role: z.string(), content: z.string() }).passthrough())
@@ -120,7 +114,6 @@ const ChatBodySchema = z
       .optional(),
     agent: z.string().optional(),
     model: z.string().optional(),
-    searchMode: z.string().optional(),
   })
   .passthrough();
 
@@ -129,20 +122,19 @@ const ChatBodySchema = z
  *  all in one LLM call so latency and token use stay low (no second round-trip). */
 function chatModelConfig(
   model: ChatModelId | undefined,
-  style: ResponseStyle | undefined,
   route: RouteDecision | undefined,
 ): { system: string; temperature: number; maxTokens: number } {
-  const base = buildSystem(style, route);
+  const base = buildSystem(route);
   if (model === "normal") {
     // Kanon — better reasoning, higher quality, structured answers.
     const kanon =
       `${base}\n\nREASONING DEPTH: Think the problem through internally first, then give ` +
       `a clear, well-organized answer — use brief sections or bullet points when they aid ` +
       `clarity. Keep the internal reasoning out of the reply unless the user asks to see it.`;
-    return { system: kanon, temperature: 0.6, maxTokens: Math.max(maxTokensFor(style), 1200) };
+    return { system: kanon, temperature: 0.6, maxTokens: 1200 };
   }
   // Mikros (default) — fast, lightweight, low token, general chat.
-  return { system: base, temperature: 0.7, maxTokens: maxTokensFor(style) };
+  return { system: base, temperature: 0.7, maxTokens: 1000 };
 }
 
 /** Provider-priority chain for a CoChat turn. Kanon prefers reasoning-capable
@@ -152,7 +144,7 @@ function chatTaskCategory(model: ChatModelId | undefined, route: RouteDecision |
   return model === "normal" ? "reasoning" : "chat";
 }
 
-function buildSystem(style: ResponseStyle | undefined, route: RouteDecision | undefined): string {
+function buildSystem(route: RouteDecision | undefined): string {
   const persona =
     "You are CoAI, a friendly, knowledgeable AI assistant. Have natural conversations, " +
     "answer general questions, explain ideas clearly, and help the user think things through. " +
@@ -160,12 +152,7 @@ function buildSystem(style: ResponseStyle | undefined, route: RouteDecision | un
   const language =
     "RESPONSE LANGUAGE: Always reply in the SAME LANGUAGE the user writes in. " +
     "Thai input → Thai reply. English input → English reply.";
-  const verbosity =
-    style === "short"
-      ? "Keep your answer brief and to the point — a few sentences at most."
-      : style === "detailed"
-        ? "Give a thorough, well-structured answer with helpful detail and examples where useful."
-        : "Answer clearly and helpfully at a natural length.";
+  const verbosity = "Answer clearly and helpfully at a natural length.";
   const search =
     route?.target === "search"
       ? "The user is looking for information. Answer from your knowledge. If the answer depends on " +
@@ -193,12 +180,6 @@ function taskCategoryFor(agent: Agent | undefined, route: RouteDecision | undefi
     default:
       return route?.target === "search" ? "research" : "chat";
   }
-}
-
-function maxTokensFor(style: ResponseStyle | undefined): number {
-  if (style === "short") return 500;
-  if (style === "detailed") return 1800;
-  return 1000;
 }
 
 /** Map an AOF error code onto a representative HTTP status for the JSON envelope. */
@@ -337,17 +318,17 @@ async function handleChat(req: Request): Promise<Response> {
   // Plain CoChat (no agent) honours the user's manual Mikros/Kanon choice; the
   // agent-driven paths (RAA, code-*, build pipeline) keep their own personas.
   const { system: baseSystem, temperature, maxTokens } = body.agent
-    ? agentConfig(body.agent, body.style, body.route)
-    : chatModelConfig(body.model, body.style, body.route);
+    ? agentConfig(body.agent, body.route)
+    : chatModelConfig(body.model, body.route);
   let system = baseSystem;
 
   // ── Universal Search ─────────────────────────────────────────────────────────
-  // Ground the answer in live web results when the query needs fresh information.
-  // OFF never searches, FORCE always does, AUTO decides from route + heuristics.
-  // Results become a system-prompt addendum and an in-band "sources" frame the UI
-  // renders as a citation block. Search failures degrade silently to model knowledge.
+  // Ground the answer in live web results when the query needs fresh information,
+  // decided from route + freshness/lookup heuristics. Results become a system-prompt
+  // addendum and an in-band "sources" frame the UI renders as a citation block.
+  // Search failures degrade silently to model knowledge.
   let sourcesFrame = "";
-  const decision = decideSearch(message, normalizeSearchMode(body.searchMode), body.route?.target);
+  const decision = decideSearch(message, body.route?.target);
   if (decision.search) {
     try {
       const outcome = await runSearch(message, { signal: req.signal, limit: 5 });

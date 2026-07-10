@@ -6,7 +6,7 @@
 // is *explicitly* put in demo mode (`NEXT_PUBLIC_AOF_DEMO=1`); it is off by
 // default so the UI never appears to work when AI is actually down.
 
-import type { ChatModel, ProjectBrief, ResponseStyle, RouteDecision } from "./types";
+import type { ChatModel, ProjectBrief, RouteDecision } from "./types";
 import {
   mockChat,
   mockCodeChat,
@@ -268,11 +268,8 @@ export interface ChatHistoryItem {
 export interface ChatRequest {
   /** Manual model choice from the CoChat header: "lite" (Mikros) | "normal" (Kanon). */
   model: ChatModel;
-  style: ResponseStyle;
   route: RouteDecision;
   history: ChatHistoryItem[];
-  /** Universal Search mode for this turn: "auto" | "off" | "force". */
-  searchMode?: "auto" | "off" | "force";
 }
 
 /**
@@ -288,7 +285,7 @@ export async function streamChat(
   handlers: StreamHandlers,
 ): Promise<void> {
   if (isDemoMode() && !isLive()) {
-    return mockChat(message, { style: req.style, route: req.route }, handlers);
+    return mockChat(message, { route: req.route }, handlers);
   }
 
   try {
@@ -298,9 +295,7 @@ export async function streamChat(
       body: JSON.stringify({
         message,
         model: req.model,
-        style: req.style,
         route: req.route,
-        searchMode: req.searchMode ?? "auto",
         history: req.history.map((h) => ({ role: h.role, content: h.content })),
       }),
       signal: handlers.signal,
@@ -417,7 +412,6 @@ export async function streamCodeChat(
   message: string,
   history: ChatHistoryItem[],
   handlers: StreamHandlers,
-  searchMode: "auto" | "off" | "force" = "auto",
 ): Promise<void> {
   if (isDemoMode()) {
     await mockCodeChat(message, handlers, history);
@@ -427,7 +421,7 @@ export async function streamCodeChat(
     const res = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, agent: "code-chat", searchMode, history: history.slice(-20) }),
+      body: JSON.stringify({ message, agent: "code-chat", history: history.slice(-20) }),
       signal: handlers.signal,
     });
     await readAofStream(res, handlers);

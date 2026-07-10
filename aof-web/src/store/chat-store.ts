@@ -18,8 +18,6 @@ import type {
   ChatMessageT,
   ChatModel,
   Conversation,
-  ResponseStyle,
-  SearchMode,
 } from "@/lib/types";
 import { checkUserAccess } from "@/lib/access";
 import { useAuthStore } from "@/store/auth-store";
@@ -36,15 +34,11 @@ interface ChatState {
   activeId: string | null;
   /** Manually-selected CoChat model: "lite" = Mikros, "normal" = Kanon. */
   model: ChatModel;
-  style: ResponseStyle;
-  searchMode: SearchMode;
   streaming: boolean;
   pendingFirstMessage: PendingMessage | null;
   abort: AbortController | null;
 
   setModel: (m: ChatModel) => void;
-  setStyle: (s: ResponseStyle) => void;
-  setSearchMode: (m: SearchMode) => void;
   newConversation: () => string;
   selectConversation: (id: string | null) => void;
   deleteConversation: (id: string) => void;
@@ -77,15 +71,11 @@ export const useChatStore = create<ChatState>()(
       activeId: null,
       // Kanon is the balanced default (the "Default"-badged model in CHAT_MODELS).
       model: "normal",
-      style: "normal",
-      searchMode: "auto",
       streaming: false,
       pendingFirstMessage: null,
       abort: null,
 
       setModel: (model) => set({ model }),
-      setStyle: (style) => set({ style }),
-      setSearchMode: (searchMode) => set({ searchMode }),
 
       newConversation: () => {
         const id = uid("conv");
@@ -221,7 +211,6 @@ export const useChatStore = create<ChatState>()(
         let activeId = get().activeId;
         if (!activeId) activeId = get().newConversation();
 
-        const style = get().style;
         const model = get().model;
         const route = routeRequest(content, attachments ?? []);
         const now = new Date().toISOString();
@@ -242,7 +231,6 @@ export const useChatStore = create<ChatState>()(
           streaming: true,
           model,
           route,
-          style,
         };
 
         const isFirstMessage =
@@ -363,7 +351,7 @@ export const useChatStore = create<ChatState>()(
           // asynchronously in finish() after the response, never blocking it.
           await streamChat(
             content,
-            { model, style, route, history, searchMode: get().searchMode },
+            { model, route, history },
             {
               onToken: appendToken,
               signal: controller.signal,
@@ -443,8 +431,6 @@ export const useChatStore = create<ChatState>()(
       name: "aof.chat",
       partialize: (s) => ({
         model: s.model,
-        style: s.style,
-        searchMode: s.searchMode,
         conversations: s.conversations.map((c) => ({
           ...c,
           // Truncate messages in localStorage — only keep last 20 per conversation

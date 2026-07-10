@@ -57,7 +57,6 @@ export function toJSON(conv: Conversation): string {
         content: m.content,
         model: m.model,
         route: m.route?.target,
-        style: m.style,
         createdAt: m.createdAt,
         attachments: m.attachments?.map((a) => ({
           name: a.name,

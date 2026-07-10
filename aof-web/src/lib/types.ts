@@ -14,13 +14,6 @@ export type CodeMode = "lite" | "1.0" | "pro" | "titan";
 
 export type Role = "user" | "assistant" | "system";
 
-/** How verbose the assistant should be. The user picks this; the model that
- *  actually answers is chosen automatically by the router. */
-export type ResponseStyle = "short" | "normal" | "detailed";
-
-/** Universal Search mode toggle: AI decides · always off · always search. */
-export type SearchMode = "auto" | "off" | "force";
-
 /** Where the router sends a request. Users never choose this directly. */
 export type RouteTarget = "chat" | "code" | "search";
 
@@ -68,8 +61,6 @@ export interface ChatMessageT {
   attachments?: Attachment[];
   /** which agent the router picked for this (assistant) reply */
   route?: RouteDecision;
-  /** verbosity this (assistant) reply was generated at */
-  style?: ResponseStyle;
   /** structured Math/Learning payload — when present, rendered with a toggle */
   learning?: LearningAnswer;
   /** present when the AI provider failed — rendered as an error panel, never a reply */

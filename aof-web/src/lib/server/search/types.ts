@@ -1,11 +1,5 @@
 // ── Universal Search — shared types ───────────────────────────────────────────
 
-export type SearchMode = "auto" | "off" | "force";
-
-export function normalizeSearchMode(v: unknown): SearchMode {
-  return v === "off" || v === "force" || v === "auto" ? v : "auto";
-}
-
 export interface SearchHit {
   title: string;
   url: string;

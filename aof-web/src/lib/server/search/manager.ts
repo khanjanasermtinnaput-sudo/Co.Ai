@@ -5,7 +5,7 @@
 // AI provider failover chain.
 
 import { SEARCH_PROVIDERS } from "./providers";
-import type { SearchMode, SearchOutcome } from "./types";
+import type { SearchOutcome } from "./types";
 
 /** Signals that a question likely needs fresh, post-training information. */
 const FRESHNESS_RE =
@@ -22,17 +22,13 @@ export interface SearchDecision {
 }
 
 /**
- * Decide whether to search. OFF never searches; FORCE always does; AUTO uses the
- * caller's route hint plus freshness/lookup heuristics.
+ * Decide whether to search, using the caller's route hint plus freshness/lookup
+ * heuristics.
  */
 export function decideSearch(
   message: string,
-  mode: SearchMode,
   routeTarget?: string,
 ): SearchDecision {
-  if (mode === "off") return { search: false, reason: "search disabled" };
-  if (mode === "force") return { search: true, reason: "force search" };
-
   if (routeTarget === "search") return { search: true, reason: "router classified as search" };
   if (FRESHNESS_RE.test(message)) return { search: true, reason: "freshness signal in query" };
   if (LOOKUP_RE.test(message)) return { search: true, reason: "documentation lookup" };

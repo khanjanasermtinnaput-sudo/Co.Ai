@@ -1,7 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { decideSearch } from "../lib/server/search/manager";
-import { normalizeSearchMode } from "../lib/server/search/types";
 import {
   encodeSourcesFrame,
   decodeFrames,
@@ -9,36 +8,20 @@ import {
   type Citation,
 } from "../lib/errors";
 
-// ── Search mode normalisation ─────────────────────────────────────────────────
-test("normalizeSearchMode defaults unknown values to auto", () => {
-  assert.equal(normalizeSearchMode(undefined), "auto");
-  assert.equal(normalizeSearchMode("weird"), "auto");
-  assert.equal(normalizeSearchMode("off"), "off");
-  assert.equal(normalizeSearchMode("force"), "force");
-});
-
 // ── decideSearch ──────────────────────────────────────────────────────────────
-test("OFF never searches, even with freshness words", () => {
-  assert.equal(decideSearch("latest news today", "off").search, false);
+test("searches when the router classified the turn as search", () => {
+  assert.equal(decideSearch("anything", "search").search, true);
 });
 
-test("FORCE always searches, even for static questions", () => {
-  assert.equal(decideSearch("what is 2 + 2", "force").search, true);
-});
-
-test("AUTO searches when the router classified the turn as search", () => {
-  assert.equal(decideSearch("anything", "auto", "search").search, true);
-});
-
-test("AUTO searches on freshness signals", () => {
+test("searches on freshness signals", () => {
   for (const q of ["latest React version", "news today", "current Bitcoin price"]) {
-    assert.equal(decideSearch(q, "auto").search, true, q);
+    assert.equal(decideSearch(q).search, true, q);
   }
 });
 
-test("AUTO skips search for static knowledge", () => {
-  assert.equal(decideSearch("explain recursion", "auto").search, false);
-  assert.equal(decideSearch("write a haiku about the sea", "auto").search, false);
+test("skips search for static knowledge", () => {
+  assert.equal(decideSearch("explain recursion").search, false);
+  assert.equal(decideSearch("write a haiku about the sea").search, false);
 });
 
 // ── Sources frame round-trip ──────────────────────────────────────────────────

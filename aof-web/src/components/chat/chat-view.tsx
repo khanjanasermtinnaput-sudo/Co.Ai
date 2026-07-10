@@ -7,8 +7,6 @@ import { useAuthStore } from "@/store/auth-store";
 import { exportConversation } from "@/lib/export";
 import { Composer } from "@/components/composer/composer";
 import { ChatModelSelector } from "./chat-model-selector";
-import { ResponseStyleSelector } from "./response-style-selector";
-import { SearchModeSelector } from "./search-mode-selector";
 import { ChatThread } from "./chat-thread";
 import { ComposerMascot, type ComposerMascotState } from "@/components/mascot";
 import { GuestMeter } from "@/components/auth/guest-meter";
@@ -25,10 +23,6 @@ export function ChatView() {
   const activeId = useChatStore((s) => s.activeId);
   const model = useChatStore((s) => s.model);
   const setModel = useChatStore((s) => s.setModel);
-  const style = useChatStore((s) => s.style);
-  const setStyle = useChatStore((s) => s.setStyle);
-  const searchMode = useChatStore((s) => s.searchMode);
-  const setSearchMode = useChatStore((s) => s.setSearchMode);
   const streaming = useChatStore((s) => s.streaming);
   const send = useChatStore((s) => s.send);
   const stop = useChatStore((s) => s.stop);
@@ -109,8 +103,6 @@ export function ChatView() {
               </DropdownMenuContent>
             </DropdownMenu>
           )}
-          <SearchModeSelector value={searchMode} onChange={setSearchMode} size="compact" />
-          <ResponseStyleSelector value={style} onChange={setStyle} size="compact" />
         </div>
       </div>
 

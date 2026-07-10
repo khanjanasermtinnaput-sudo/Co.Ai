@@ -7,7 +7,6 @@
 import type {
   Attachment,
   LearningAnswer,
-  ResponseStyle,
   RouteDecision,
 } from "./types";
 import type { AofProviderError, FailoverNotice, ModelNotice, SourcesNotice } from "./errors";
@@ -169,10 +168,9 @@ function attachmentPreamble(attachments: Attachment[], th: boolean): string {
   return `I've taken in your ${parts.join(", ")}.\n\n`;
 }
 
-/** Build a contextual chat reply honoring the requested verbosity. */
+/** Build a contextual chat reply. */
 function composeChatReply(
   message: string,
-  style: ResponseStyle,
   route: RouteDecision,
   attachments: Attachment[],
 ): string {
@@ -183,18 +181,15 @@ function composeChatReply(
   if (route.target === "search") {
     if (th) {
       const baseTh = `กำลังค้นหาเว็บสำหรับ **${message.trim().slice(0, 60)}**…\n\nในเวิร์กสเปซจริง **Search Agent** จะคืนผลลัพธ์ที่จัดอันดับพร้อมแหล่งอ้างอิง นี่คือวิธีที่ผมจะเรียบเรียงคำตอบเมื่อได้ผลลัพธ์มา:`;
-      if (style === "short") return `${pre}${baseTh}\n\n- ผลลัพธ์เด่นที่สุด\n- แหล่งอ้างอิงสนับสนุนหนึ่งแห่ง`;
       return `${pre}${baseTh}\n\n1. ดึงแหล่งข้อมูลที่ใหม่และน่าเชื่อถือที่สุด\n2. ตรวจสอบข้อมูลสำคัญข้ามอย่างน้อยสองแหล่ง\n3. สรุปพร้อมลิงก์เพื่อให้คุณตรวจสอบได้`;
     }
     const base = `Searching the web for **${message.trim().slice(0, 60)}**…\n\nIn a live workspace the **Search Agent** would return ranked results with citations. Here's how I'd frame the answer once results are in:`;
-    if (style === "short") return `${pre}${base}\n\n- Top finding\n- One supporting source`;
     return `${pre}${base}\n\n1. Pull the most recent, authoritative sources.\n2. Cross-check the key claim across two of them.\n3. Summarize with links so you can verify.`;
   }
 
   if (route.target === "code") {
     if (th) {
       const baseTh = `งานนี้เป็นงานวิศวกรรม ผมจะส่งต่อให้ **CoCode**`;
-      if (style === "short") return `${pre}${baseTh} เปิด **CoCode** แล้วผมจะวางแผน สร้าง และรีวิวไฟล์ให้ครับ`;
       return `${pre}${baseTh}
 
 1. **เป้าหมาย** — ระบุผลลัพธ์สำคัญที่สุดเพียงหนึ่งอย่าง
@@ -205,7 +200,6 @@ function composeChatReply(
 อยากให้ผมสร้างเลยไหมครับ? เปิด **CoCode** แล้วผมจะพาจากไอเดียไปเป็นโค้ดที่ใช้งานได้`;
     }
     const base = `This is an engineering task, so I'd hand it to **CoCode**.`;
-    if (style === "short") return `${pre}${base} Open **CoCode** and I'll plan, generate and review the files.`;
     return `${pre}${base}
 
 1. **Goal** — nail the single most important outcome.
@@ -230,35 +224,6 @@ Want me to build it? Open **CoCode** and I'll take it from idea to working code.
       "มาแยกเรื่องนี้กันทีละส่วนครับ",
     ]);
 
-    if (style === "short") {
-      return `${pre}${pick(["สรุปสั้น ๆ:", "พูดให้กระชับ:"])} ${pick([
-        "พอเห็นแก่นหลักแล้วเรื่องนี้ก็ตรงไปตรงมาครับ",
-        "มันสรุปลงที่หลักการสำคัญหนึ่งหรือสองข้อ",
-      ])} ถ้าอยากได้เพิ่มบอกได้เลย เดี๋ยวผมขยายความให้`;
-    }
-
-    if (style === "detailed") {
-      return `${pre}${openerTh}
-
-**ภาพรวม**
-ก่อนอื่นมองภาพใหญ่: ${pick([
-        "แก่นของเรื่องง่ายกว่าที่คิดเมื่อเราจับองค์ประกอบที่เกี่ยวข้องได้ครบ",
-        "ทั้งหมดวางอยู่บนหลักการไม่กี่ข้อที่นำไปใช้ซ้ำได้ทุกที่",
-      ])}
-
-**ทีละขั้น**
-1. เริ่มจากปัญหาที่มันแก้ ไม่ใช่ศัพท์เทคนิค
-2. สร้างแบบจำลองความคิดเล็ก ๆ ที่ทดสอบได้
-3. ลองทำตัวอย่างให้ครบตั้งแต่ต้นจนจบ
-4. แล้วค่อยเพิ่มกรณีขอบเข้าไป
-
-**ตัวอย่าง**
-ตัวอย่างจริงจะทำให้แต่ละขั้นชัดขึ้น บอกเคสของคุณมา เดี๋ยวผมใส่ให้
-
-อยากให้เจาะลึกส่วนไหนเพิ่มอีกไหมครับ?`;
-    }
-
-    // normal
     return `${pre}${openerTh}
 
 **สรุป** — ${pick([
@@ -271,7 +236,7 @@ Want me to build it? Open **CoCode** and I'll take it from idea to working code.
 - สร้างแบบจำลองความคิดเล็ก ๆ ที่ทดสอบได้
 - แล้วค่อยเพิ่มกรณีขอบเข้าไป
 
-บอกให้ผมเจาะลึกเพิ่ม หรือสลับเป็นโหมด **Detailed** เพื่อดูแบบเต็มได้ครับ`;
+บอกให้ผมเจาะลึกเพิ่มได้เลยครับ`;
   }
 
   const opener = pick([
@@ -280,38 +245,6 @@ Want me to build it? Open **CoCode** and I'll take it from idea to working code.
     "Let's break this down.",
   ]);
 
-  if (style === "short") {
-    return `${pre}${pick([
-      "Short version:",
-      "In brief:",
-    ])} ${pick([
-      "the essentials are straightforward once you see the core idea.",
-      "it comes down to one or two key principles.",
-    ])} Ask for more and I'll expand.`;
-  }
-
-  if (style === "detailed") {
-    return `${pre}${opener}
-
-**Overview**
-First, the big picture: ${pick([
-      "the core idea is simpler than it looks once you map the moving parts.",
-      "this rests on a few principles you can reuse everywhere.",
-    ])}
-
-**Step by step**
-1. Start from the problem it solves, not the jargon.
-2. Build a small mental model you can test.
-3. Work an example end to end.
-4. Then layer in the edge cases.
-
-**Example**
-A worked example here would make each step concrete — tell me your exact case and I'll plug it in.
-
-Want me to go even deeper on any part?`;
-  }
-
-  // normal
   return `${pre}${opener}
 
 **TL;DR** — ${pick([
@@ -324,20 +257,19 @@ Want me to go even deeper on any part?`;
 - Build a small mental model you can test.
 - Then layer in the edge cases.
 
-Ask me to go deeper or switch to **Detailed** for a full walkthrough.`;
+Ask me to go deeper on any part.`;
 }
 
 export interface ChatReplyOptions {
-  style: ResponseStyle;
   route: RouteDecision;
   attachments?: Attachment[];
 }
 
-/** Stream a mock chat reply, honoring style, route and attachments. */
+/** Stream a mock chat reply, honoring route and attachments. */
 export async function mockChat(message: string, opts: ChatReplyOptions, h: StreamHandlers) {
   await sleep(220 + Math.random() * 240);
   await streamText(
-    composeChatReply(message, opts.style, opts.route, opts.attachments ?? []),
+    composeChatReply(message, opts.route, opts.attachments ?? []),
     h,
   );
 }

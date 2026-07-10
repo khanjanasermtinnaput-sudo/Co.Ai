@@ -25,7 +25,6 @@ import {
 import { TITAN_PHASES } from "@/lib/constants";
 import { checkUserAccess } from "@/lib/access";
 import { useAuthStore } from "@/store/auth-store";
-import { useChatStore } from "@/store/chat-store";
 import { useCocodeIDEStore } from "@/store/cocode-ide-store";
 import { extractGeneratedFiles } from "@/lib/export";
 import { uid } from "@/lib/utils";
@@ -264,7 +263,7 @@ export const useCodeStore = create<CodeState>()(
           signal: controller.signal,
           onError,
           onFailover,
-        }, useChatStore.getState().searchMode);
+        });
       } else {
         // ── DISCOVERY: RAA gathers requirements, brief may be emitted ─────────
         // Mark the project active so all subsequent turns stay in DISCOVERY
