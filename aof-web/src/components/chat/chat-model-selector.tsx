@@ -12,11 +12,15 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  EffortPicker,
+  EffortSlider,
+  MODEL_MENU_BADGE,
+  MODEL_MENU_CHECK,
+  MODEL_MENU_DESC,
   MODEL_MENU_ITEM,
   MODEL_MENU_LABEL,
   MODEL_MENU_SEPARATOR,
   MODEL_MENU_SURFACE,
+  MODEL_MENU_TITLE,
   ModelIconTile,
 } from "@/components/ui/model-menu";
 
@@ -27,7 +31,7 @@ const ICON: Record<ChatModel, typeof Zap> = {
 };
 
 /** CoChat model picker. Mirrors CoCode's CodeModeSelector — same trigger style,
- *  same white card-deck menu — so both products feel consistent. Manual choice
+ *  same theme-aware card menu — so both products feel consistent. Manual choice
  *  only; there is no Auto mode. */
 export function ChatModelSelector({
   value,
@@ -69,23 +73,17 @@ export function ChatModelSelector({
               <ModelIconTile icon={ICON[m.id]} />
               <span className="flex-1">
                 <span className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-neutral-900">{m.name}</span>
-                  {m.badge && (
-                    <span className="rounded-full border border-neutral-200 bg-neutral-50 px-1.5 py-px text-[10px] font-medium text-neutral-600">
-                      {m.badge}
-                    </span>
-                  )}
+                  <span className={MODEL_MENU_TITLE}>{m.name}</span>
+                  {m.badge && <span className={MODEL_MENU_BADGE}>{m.badge}</span>}
                 </span>
-                <span className="mt-0.5 block text-xs text-neutral-500">
-                  {m.description}
-                </span>
+                <span className={MODEL_MENU_DESC}>{m.description}</span>
               </span>
-              {active && <Check className="mt-1 size-4 !text-neutral-900" />}
+              {active && <Check className={MODEL_MENU_CHECK} />}
             </DropdownMenuItem>
           );
         })}
         <DropdownMenuSeparator className={MODEL_MENU_SEPARATOR} />
-        <EffortPicker model={value} value={effort} onChange={onEffortChange} />
+        <EffortSlider model={value} value={effort} onChange={onEffortChange} />
       </DropdownMenuContent>
     </DropdownMenu>
   );

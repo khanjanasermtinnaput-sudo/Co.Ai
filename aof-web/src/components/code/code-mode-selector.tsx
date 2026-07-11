@@ -14,11 +14,15 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  EffortPicker,
+  EffortSlider,
+  MODEL_MENU_BADGE,
+  MODEL_MENU_CHECK,
+  MODEL_MENU_DESC,
   MODEL_MENU_ITEM,
   MODEL_MENU_LABEL,
   MODEL_MENU_SEPARATOR,
   MODEL_MENU_SURFACE,
+  MODEL_MENU_TITLE,
   ModelIconTile,
 } from "@/components/ui/model-menu";
 
@@ -75,19 +79,24 @@ export function CodeModeSelector({
                 <ModelIconTile icon={ICON[m.id]} locked />
                 <span className="flex-1">
                   <span className="flex items-center gap-2">
-                    <span className={cn("text-sm font-semibold", m.titan ? "text-gradient-gold" : "text-neutral-400")}>
+                    <span
+                      className={cn(
+                        "text-sm font-semibold",
+                        m.titan ? "text-gradient-gold" : "text-neutral-400 dark:text-neutral-500",
+                      )}
+                    >
                       {m.name}
                     </span>
-                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-100/80 px-1.5 py-px text-[10px] font-semibold text-amber-800">
-                      <Lock className="!size-2.5 !text-amber-800" strokeWidth={2.5} />
+                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-100/80 px-1.5 py-px text-[10px] font-semibold text-amber-800 dark:bg-amber-500/15 dark:text-amber-400">
+                      <Lock className="!size-2.5" strokeWidth={2.5} />
                       Locked
                     </span>
                   </span>
-                  <span className="mt-0.5 block text-xs text-neutral-400">
+                  <span className="mt-0.5 block text-xs text-neutral-400 dark:text-neutral-500">
                     {m.description}
                   </span>
                 </span>
-                <Lock className="mt-1 !size-4 !text-neutral-300" />
+                <Lock className="mt-1 !size-4 !text-neutral-300 dark:!text-neutral-600" />
               </DropdownMenuItem>
             );
           }
@@ -100,25 +109,19 @@ export function CodeModeSelector({
               <ModelIconTile icon={ICON[m.id]} />
               <span className="flex-1">
                 <span className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-neutral-900">{m.name}</span>
-                  {m.badge && (
-                    <span className="rounded-full border border-neutral-200 bg-neutral-50 px-1.5 py-px text-[10px] font-medium text-neutral-600">
-                      {m.badge}
-                    </span>
-                  )}
+                  <span className={MODEL_MENU_TITLE}>{m.name}</span>
+                  {m.badge && <span className={MODEL_MENU_BADGE}>{m.badge}</span>}
                 </span>
-                <span className="mt-0.5 block text-xs text-neutral-500">
-                  {m.description}
-                </span>
+                <span className={MODEL_MENU_DESC}>{m.description}</span>
               </span>
-              {active && <Check className="mt-1 size-4 !text-neutral-900" />}
+              {active && <Check className={MODEL_MENU_CHECK} />}
             </DropdownMenuItem>
           );
         })}
         {effortLevelsFor(value).length > 0 && (
           <>
             <DropdownMenuSeparator className={MODEL_MENU_SEPARATOR} />
-            <EffortPicker model={value} value={effort} onChange={onEffortChange} />
+            <EffortSlider model={value} value={effort} onChange={onEffortChange} />
           </>
         )}
       </DropdownMenuContent>

@@ -3,7 +3,7 @@
 // surface (CoChat / CoCode) it is picked from:
 //
 //   Mikros, Kanon  → Low · Normal · High
-//   Ypertatos      → Ultra · Extreme
+//   Ypertatos      → Low · Normal · High · Ultra · Extreme (the full range)
 //   Titan          → none (its enforced phase workflow replaces the dial)
 
 import type { ChatModel, CodeMode, EffortLevel } from "./types";
@@ -20,7 +20,9 @@ export const EFFORT_LABELS: Record<EffortLevel, string> = {
 export function effortLevelsFor(id: ChatModel | CodeMode): EffortLevel[] {
   const tier = modelTierFromId(id);
   if (tier === "titan") return [];
-  if (tier === "pro") return ["ultra", "extreme"];
+  // Ypertatos reaches into the premium band (Ultra/Extreme) on top of the
+  // baseline three, so its slider spans the whole scale.
+  if (tier === "pro") return ["low", "normal", "high", "ultra", "extreme"];
   return ["low", "normal", "high"];
 }
 
