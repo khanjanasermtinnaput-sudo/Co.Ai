@@ -6,6 +6,7 @@
 // here and then act strictly on that user's own rows.
 
 import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
+import type { UserTier } from "@/store/auth-store";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -64,4 +65,17 @@ export async function getUserFromRequest(req: Request): Promise<User | null> {
     return null;
   }
   return data.user;
+}
+
+/**
+ * Resolve a signed-in user's plan tier from `app_metadata.tier` — same source
+ * and default (FREE) the client reads in AuthProvider's `tierForSession`, kept
+ * in sync here so server-side gates (rate limiting, quotas) see the same tier
+ * the UI shows the user.
+ */
+export function tierForUser(user: User): UserTier {
+  const meta = (user.app_metadata ?? {}) as Record<string, unknown>;
+  const raw = String(meta.tier ?? "").toUpperCase();
+  if (raw === "ADVANCED" || raw === "PRO" || raw === "LITE" || raw === "FREE") return raw;
+  return "FREE";
 }
