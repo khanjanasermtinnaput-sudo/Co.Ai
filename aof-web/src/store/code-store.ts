@@ -26,7 +26,7 @@ import { TITAN_PHASES } from "@/lib/constants";
 import { checkUserAccess } from "@/lib/access";
 import { useAuthStore } from "@/store/auth-store";
 import { useCocodeIDEStore } from "@/store/cocode-ide-store";
-import { extractGeneratedFiles } from "@/lib/export";
+import { extractGeneratedFiles, buildProjectHtml, canBuildHtml } from "@/lib/export";
 import { uid } from "@/lib/utils";
 import { formatErrorBlock, type AofProviderError, type FailoverNotice } from "@/lib/errors";
 import type {
@@ -96,6 +96,9 @@ interface CodeState {
   generate: () => Promise<void>;
   canGenerate: () => boolean;
   resetConversation: () => void;
+  /** Re-import the last generated output as a full multi-file breakdown
+   *  instead of the merged single index.html — "Split into files". */
+  splitGeneratedFiles: () => void;
 
   // ── Action buttons (trigger existing systems) ─────────────────────────────
   /** which action produced the current output panel */
@@ -160,13 +163,33 @@ function deriveBuildInput(
 
 /** After a build/Titan run produces code, load the generated files into the
  *  CoCode workspace's file explorer/editor so Build output and Files stay
- *  in sync — one workspace, not two disconnected views of the project. */
-function bridgeToWorkspace(buildLog: string): void {
+ *  in sync — one workspace, not two disconnected views of the project — then
+ *  jump straight into the editor with a live preview showing.
+ *
+ *  Default ("single") merges the project down to one self-contained
+ *  `index.html` (mirrors what "Export as HTML" already produces) so simple
+ *  generations don't dump a raw multi-file breakdown on the user. "split"
+ *  (user explicitly asked) imports the full file-by-file output instead.
+ *  Non-web projects (no renderable HTML/CSS/JS — e.g. a backend/CLI project)
+ *  always get the full breakdown since there's nothing to merge into HTML. */
+function bridgeToWorkspace(buildLog: string, mode: "single" | "split" = "single"): void {
   if (!buildLog.trim()) return;
   const files = extractGeneratedFiles(buildLog);
   if (!files.length) return;
-  useCocodeIDEStore.getState().importFiles(files);
-  useCocodeIDEStore.getState().openTab(files[0].path);
+
+  const ide = useCocodeIDEStore.getState();
+  const previewable = canBuildHtml(files);
+
+  if (mode === "single" && previewable) {
+    ide.importFiles([{ path: "index.html", content: buildProjectHtml(files) }]);
+    ide.openTab("index.html");
+  } else {
+    ide.importFiles(files);
+    ide.openTab(files[0].path);
+  }
+
+  ide.setViewMode("editor");
+  if (previewable) ide.setRightPanel("preview");
 }
 
 export const useCodeStore = create<CodeState>()(
@@ -342,6 +365,8 @@ export const useCodeStore = create<CodeState>()(
       if (!get().buildError) bridgeToWorkspace(get().buildLog);
     }
   },
+
+  splitGeneratedFiles: () => bridgeToWorkspace(get().buildLog, "split"),
 
   createPlan: async () => {
     const { mode, building, convo, brief } = get();

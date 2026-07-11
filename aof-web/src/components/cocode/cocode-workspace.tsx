@@ -10,7 +10,7 @@ import { createPortal } from "react-dom";
 import {
   PanelLeftClose, PanelLeftOpen, GitBranch,
   Loader2, Upload, Zap, X, Hammer,
-  ChevronDown, Terminal, Code2,
+  ChevronDown, Terminal, Code2, ArrowLeft,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -369,7 +369,10 @@ export function CoCodeWorkspace() {
   // Build (conversational + Titan) is a full-view mode inside the workspace,
   // not a side panel — the conversation UI needs full width. New/empty
   // projects land here by default; existing projects open to the editor.
-  const [buildOpen, setBuildOpen] = useState(!hasFiles);
+  // Lives in the shared store (not local state) so generation completing
+  // can switch the workspace into the editor automatically.
+  const viewMode    = useCocodeIDEStore((s) => s.viewMode);
+  const setViewMode = useCocodeIDEStore((s) => s.setViewMode);
 
   const developerMode       = useUIStore((s) => s.developerMode);
   const toggleDeveloperMode = useUIStore((s) => s.toggleDeveloperMode);
@@ -464,7 +467,7 @@ export function CoCodeWorkspace() {
         onSendToChat={handleSendToChat}
       />
 
-      {buildOpen ? (
+      {viewMode === "build" ? (
         <>
           {/* ── Build Titlebar ───────────────────────────────────────────────── */}
           <div className="flex h-10 items-center gap-2 border-b border-border/60 bg-card/50 px-3">
@@ -479,7 +482,7 @@ export function CoCodeWorkspace() {
             >
               <button
                 type="button"
-                onClick={() => setBuildOpen(false)}
+                onClick={() => setViewMode("editor")}
                 className="ml-auto flex items-center gap-1 rounded-md border border-border/40 px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground"
               >
                 <Code2 className="size-3" />
@@ -578,15 +581,15 @@ export function CoCodeWorkspace() {
             </label>
           </SimpleTooltip>
 
-          {/* Build toggle */}
-          <SimpleTooltip label="Build" description="Describe what you want and let CoCode AI plan and generate it" side="bottom">
+          {/* Back to CoCode */}
+          <SimpleTooltip label="Back to CoCode" description="Return to the CoCode chat/build view" side="bottom">
             <button
               type="button"
-              onClick={() => setBuildOpen(true)}
+              onClick={() => setViewMode("build")}
               className="flex items-center gap-1 rounded-md border border-border/40 px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground"
             >
-              <Hammer className="size-3" />
-              Build
+              <ArrowLeft className="size-3" />
+              Back to CoCode
             </button>
           </SimpleTooltip>
 

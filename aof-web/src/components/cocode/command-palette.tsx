@@ -33,6 +33,7 @@ export function CommandPalette({
   const [selectedIdx, setSelectedIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const setRightPanel = useCocodeIDEStore((s) => s.setRightPanel);
+  const setViewMode = useCocodeIDEStore((s) => s.setViewMode);
   const github = useCocodeIDEStore((s) => s.github);
 
   const commands: Command[] = [
@@ -46,6 +47,7 @@ export function CommandPalette({
         shortcut: def.shortcut,
         category: "Panels",
         action: () => {
+          setViewMode("editor");
           setRightPanel(def.id as IDEPanel);
           onClose();
         },
@@ -82,6 +84,7 @@ export function CommandPalette({
             description: "Commit current changes to GitHub",
             category: "Git",
             action: () => {
+              setViewMode("editor");
               setRightPanel("github");
               onClose();
             },
@@ -92,6 +95,7 @@ export function CommandPalette({
             description: "Create a pull request on GitHub",
             category: "Git",
             action: () => {
+              setViewMode("editor");
               setRightPanel("github");
               onClose();
             },
@@ -102,6 +106,7 @@ export function CommandPalette({
             description: `Current: ${github.repo?.branch ?? "unknown"}`,
             category: "Git",
             action: () => {
+              setViewMode("editor");
               setRightPanel("github");
               onClose();
             },

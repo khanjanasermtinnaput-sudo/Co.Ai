@@ -136,6 +136,10 @@ interface CocodeIDEState {
   setRightPanel: (panel: IDEPanel | null) => void;
   toggleExplorer: () => void;
 
+  // ── View mode — Build (chat/generator) vs Editor (explorer/Monaco/panels) ──
+  viewMode: "build" | "editor";
+  setViewMode: (mode: "build" | "editor") => void;
+
   // ── GitHub (Phase 4) ─────────────────────────────────────────────────────
   github: GitHubConnection;
   connectGitHub: () => Promise<void>;
@@ -308,6 +312,10 @@ export const useCocodeIDEStore = create<CocodeIDEState>()(
       explorerOpen: true,
       setRightPanel: (panel) => set({ rightPanel: panel }),
       toggleExplorer: () => set((s) => ({ explorerOpen: !s.explorerOpen })),
+
+      // ── View mode ─────────────────────────────────────────────────────────
+      viewMode: "build",
+      setViewMode: (viewMode) => set({ viewMode }),
 
       // ── GitHub ──────────────────────────────────────────────────────────────
       github: { connected: false, user: null, repo: null, loading: false, error: null },

@@ -1,10 +1,13 @@
 "use client";
 
+import { useMemo } from "react";
 import { motion } from "framer-motion";
 import {
   Boxes,
   Bug,
   FileCode2,
+  Files,
+  Github,
   Hammer,
   ListChecks,
   RotateCcw,
@@ -12,6 +15,8 @@ import {
   Terminal,
 } from "lucide-react";
 import { useCodeStore } from "@/store/code-store";
+import { useCocodeIDEStore } from "@/store/cocode-ide-store";
+import { extractGeneratedFiles } from "@/lib/export";
 import { CODE_MODES } from "@/lib/constants";
 import type { CodeMode } from "@/lib/types";
 import { Composer } from "@/components/composer/composer";
@@ -56,6 +61,10 @@ export function CodeConversation({ mode }: { mode: Exclude<CodeMode, "titan"> })
   const setDebugMode = useCodeStore((s) => s.setDebugMode);
   const outputKind = useCodeStore((s) => s.outputKind);
   const reset = useCodeStore((s) => s.resetConversation);
+  const splitGeneratedFiles = useCodeStore((s) => s.splitGeneratedFiles);
+  const setViewMode = useCocodeIDEStore((s) => s.setViewMode);
+  const setRightPanel = useCocodeIDEStore((s) => s.setRightPanel);
+  const fileCount = useMemo(() => extractGeneratedFiles(buildLog).length, [buildLog]);
 
   const info = CODE_MODES.find((m) => m.id === mode)!;
   const empty = convo.length === 0;
@@ -114,7 +123,26 @@ export function CodeConversation({ mode }: { mode: Exclude<CodeMode, "titan"> })
                           buildLog && (
                             <div className="ml-auto flex items-center gap-2">
                               <CodePreview buildLog={buildLog} />
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => splitGeneratedFiles()}
+                                disabled={fileCount <= 1}
+                                title={fileCount <= 1 ? "Only one file was generated" : "Show the full multi-file breakdown"}
+                              >
+                                <Files className="size-3.5" /> Split into files
+                              </Button>
                               <ExportMenu buildLog={buildLog} brief={brief} />
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => {
+                                  setViewMode("editor");
+                                  setRightPanel("github");
+                                }}
+                              >
+                                <Github className="size-3.5" /> Push to GitHub
+                              </Button>
                             </div>
                           )
                         )}
