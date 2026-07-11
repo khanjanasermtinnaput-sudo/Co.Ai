@@ -86,12 +86,19 @@ async function supabaseCheck(key: string, cfg: WindowConfig): Promise<RateLimitR
  *
  * @param userId - Supabase user ID (or IP string for unauthenticated)
  * @param bucket - one of "chat" | "search" | "api"
+ * @param maxRequestsOverride - replaces the preset's request cap (same window),
+ *   used to scale the "chat" bucket by plan tier (spec §13 Priority Queue).
  */
 export async function checkRateLimit(
   userId: string,
   bucket: keyof typeof PRESETS = "api",
+  maxRequestsOverride?: number,
 ): Promise<RateLimitResult> {
-  const cfg = PRESETS[bucket] ?? PRESETS.api;
+  const preset = PRESETS[bucket] ?? PRESETS.api;
+  const cfg: WindowConfig =
+    maxRequestsOverride && maxRequestsOverride > 0
+      ? { ...preset, maxRequests: maxRequestsOverride }
+      : preset;
   const key = `${bucket}::${userId}`;
 
   if (isAdminConfigured()) {

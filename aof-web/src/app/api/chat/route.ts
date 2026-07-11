@@ -34,8 +34,9 @@ import {
 import { bestModelFor, matchScore, ROLE_LABEL, routeOrder, type TaskCategory } from "@/lib/server/model-registry";
 import { logAofError, logAofInfo, runStartupCheckOnce } from "@/lib/server/ai-log";
 import { checkRateLimit, applyRateLimitHeaders } from "@/lib/server/rate-limit";
-import { getUserFromRequest } from "@/lib/server/supabase-admin";
+import { getUserFromRequest, tierForUser } from "@/lib/server/supabase-admin";
 import { loadUserKeyOverrides } from "@/lib/server/keys-store";
+import { planFor } from "@/lib/plans";
 import type { EffortLevel, RouteDecision } from "@/lib/types";
 import {
   effortMaxTokens,
@@ -276,7 +277,10 @@ async function handleChat(req: Request): Promise<Response> {
   const rateLimitKey =
     user?.id ??
     (req.headers.get("x-forwarded-for") ?? req.headers.get("x-real-ip") ?? "anon").split(",")[0].trim();
-  const rl = await checkRateLimit(rateLimitKey, "chat");
+  // Paid tiers get a higher per-minute cap (spec §13 "Priority Queue" for
+  // ADVANCED) — signed-out callers fall back to the FREE-tier default.
+  const chatRpm = planFor(user ? tierForUser(user) : "FREE").limits.chatRpm;
+  const rl = await checkRateLimit(rateLimitKey, "chat", chatRpm);
   if (!rl.allowed) {
     const headers = new Headers({ "Content-Type": "application/json; charset=utf-8" });
     applyRateLimitHeaders(headers, rl);

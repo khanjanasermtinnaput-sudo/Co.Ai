@@ -34,6 +34,10 @@ export interface PlanLimits {
   dailyMessages: number;
   /** Max saved projects (0 = cannot save). */
   maxProjects: number;
+  /** Chat requests/minute the server-side rate limiter allows (spec §13
+   *  "Priority Queue" for ADVANCED). Kept finite even at the top tier since
+   *  it's passed to a SQL counter that can't take Infinity. */
+  chatRpm: number;
 }
 
 export interface Plan {
@@ -93,7 +97,7 @@ export const PLANS: Record<UserTier, Plan> = {
     tagline: "ลองก่อนได้ ไม่ต้องล็อกอิน",
     purchasable: false,
     features: [],
-    limits: { dailyMessages: 3, maxProjects: 0 },
+    limits: { dailyMessages: 3, maxProjects: 0, chatRpm: 10 },
     byokMultiplier: 1,
     highlights: ["ใช้งานได้ 3 ข้อความ", "ไม่ต้อง Login", "หลังจากนั้นล็อกอิน Google"],
   },
@@ -104,7 +108,7 @@ export const PLANS: Record<UserTier, Plan> = {
     tagline: "เหมาะสำหรับทดลองใช้งาน",
     purchasable: true,
     features: FREE_FEATURES,
-    limits: { dailyMessages: 20, maxProjects: 0 },
+    limits: { dailyMessages: 20, maxProjects: 0, chatRpm: 30 },
     byokMultiplier: 3,
     highlights: [
       "Login Google",
@@ -121,7 +125,7 @@ export const PLANS: Record<UserTier, Plan> = {
     tagline: "เหมาะสำหรับผู้ใช้ทั่วไป",
     purchasable: true,
     features: LITE_FEATURES,
-    limits: { dailyMessages: 200, maxProjects: 10 },
+    limits: { dailyMessages: 200, maxProjects: 10, chatRpm: 60 },
     byokMultiplier: 2,
     highlights: [
       "ทุกอย่างใน Free",
@@ -138,7 +142,7 @@ export const PLANS: Record<UserTier, Plan> = {
     tagline: "เหมาะสำหรับนักพัฒนา",
     purchasable: true,
     features: PRO_FEATURES,
-    limits: { dailyMessages: 600, maxProjects: Infinity },
+    limits: { dailyMessages: 600, maxProjects: Infinity, chatRpm: 120 },
     byokMultiplier: 1.5,
     highlights: [
       "ทุกอย่างใน Lite",
@@ -155,7 +159,7 @@ export const PLANS: Record<UserTier, Plan> = {
     tagline: "เหมาะสำหรับ Power Users",
     purchasable: true,
     features: ADVANCED_FEATURES,
-    limits: { dailyMessages: Infinity, maxProjects: Infinity },
+    limits: { dailyMessages: Infinity, maxProjects: Infinity, chatRpm: 300 },
     byokMultiplier: 1.25,
     highlights: [
       "ทุกอย่างใน Pro",
