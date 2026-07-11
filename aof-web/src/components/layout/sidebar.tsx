@@ -49,6 +49,11 @@ export function Sidebar() {
   const inCoCode = isCoCodeArea(pathname);
 
   const startNewChat = useCallback(() => {
+    // Clear the active conversation first — when already on /chat the push is a
+    // no-op, and without this the next send appends to the current conversation
+    // instead of starting a new one. getState() avoids subscribing the whole
+    // sidebar to chat-store (only CoChatHistoryPanel needs live updates).
+    useChatStore.getState().selectConversation(null);
     router.push("/chat");
   }, [router]);
 
