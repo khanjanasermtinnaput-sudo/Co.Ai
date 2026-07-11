@@ -18,7 +18,9 @@ import type {
   ChatMessageT,
   ChatModel,
   Conversation,
+  EffortLevel,
 } from "@/lib/types";
+import { clampEffort } from "@/lib/effort";
 import { checkUserAccess } from "@/lib/access";
 import { useAuthStore } from "@/store/auth-store";
 import { useGuestStore } from "@/store/guest-store";
@@ -34,11 +36,14 @@ interface ChatState {
   activeId: string | null;
   /** Manually-selected CoChat model: "lite" = Mikros, "normal" = Kanon. */
   model: ChatModel;
+  /** Reasoning-effort dial for the selected model (Low/Normal/High). */
+  effort: EffortLevel;
   streaming: boolean;
   pendingFirstMessage: PendingMessage | null;
   abort: AbortController | null;
 
   setModel: (m: ChatModel) => void;
+  setEffort: (e: EffortLevel) => void;
   newConversation: () => string;
   selectConversation: (id: string | null) => void;
   deleteConversation: (id: string) => void;
@@ -71,11 +76,15 @@ export const useChatStore = create<ChatState>()(
       activeId: null,
       // Kanon is the balanced default (the "Default"-badged model in CHAT_MODELS).
       model: "normal",
+      effort: "normal",
       streaming: false,
       pendingFirstMessage: null,
       abort: null,
 
-      setModel: (model) => set({ model }),
+      // Effort is snapped to the incoming model's scale so a persisted High
+      // never survives a switch onto a model that doesn't offer it.
+      setModel: (model) => set({ model, effort: clampEffort(model, get().effort) }),
+      setEffort: (effort) => set({ effort: clampEffort(get().model, effort) }),
 
       newConversation: () => {
         const id = uid("conv");
@@ -431,6 +440,7 @@ export const useChatStore = create<ChatState>()(
       name: "aof.chat",
       partialize: (s) => ({
         model: s.model,
+        effort: s.effort,
         conversations: s.conversations.map((c) => ({
           ...c,
           // Truncate messages in localStorage — only keep last 20 per conversation

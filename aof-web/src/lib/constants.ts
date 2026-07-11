@@ -130,6 +130,8 @@ export interface CodeModeInfo {
   description: string;
   badge?: string;
   titan?: boolean;
+  /** Temporarily unavailable — rendered with a padlock and not selectable. */
+  locked?: boolean;
 }
 
 export const CODE_MODES: CodeModeInfo[] = [
@@ -160,6 +162,7 @@ export const CODE_MODES: CodeModeInfo[] = [
       "Think first, build later. Discovery, planning & approval gate before any code.",
     badge: "Highest",
     titan: true,
+    locked: true,
   },
 ];
 

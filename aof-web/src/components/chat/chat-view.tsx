@@ -23,6 +23,8 @@ export function ChatView() {
   const activeId = useChatStore((s) => s.activeId);
   const model = useChatStore((s) => s.model);
   const setModel = useChatStore((s) => s.setModel);
+  const effort = useChatStore((s) => s.effort);
+  const setEffort = useChatStore((s) => s.setEffort);
   const streaming = useChatStore((s) => s.streaming);
   const send = useChatStore((s) => s.send);
   const stop = useChatStore((s) => s.stop);
@@ -77,7 +79,12 @@ export function ChatView() {
       {/* ── Header ──────────────────────────────────────────────────────────── */}
       <div className="sticky top-0 z-10 flex h-14 items-center justify-between gap-3 border-b border-border/70 bg-background/70 px-3 backdrop-blur-xl sm:px-5">
         <div className="flex min-w-0 items-center gap-2">
-          <ChatModelSelector value={model} onChange={setModel} />
+          <ChatModelSelector
+            value={model}
+            onChange={setModel}
+            effort={effort}
+            onEffortChange={setEffort}
+          />
         </div>
         <div className="flex items-center gap-2">
           {active && messages.length > 0 && (

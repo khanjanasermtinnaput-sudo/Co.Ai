@@ -12,6 +12,11 @@ export type ChatModel = "lite" | "normal";
 /** CoCode modes. `titan` only appears inside the Code workspace. */
 export type CodeMode = "lite" | "1.0" | "pro" | "titan";
 
+/** Reasoning-effort dial shown in the model menus.
+ *  Low / Normal / High belong to Mikros & Kanon; Ultra / Extreme are
+ *  Ypertatos-only. Titan has no dial — it is gated by its own workflow. */
+export type EffortLevel = "low" | "normal" | "high" | "ultra" | "extreme";
+
 export type Role = "user" | "assistant" | "system";
 
 /** Where the router sends a request. Users never choose this directly. */

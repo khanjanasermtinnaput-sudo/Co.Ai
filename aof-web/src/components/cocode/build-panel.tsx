@@ -13,11 +13,18 @@ import { TitanWorkflow } from "@/components/code/titan-workflow";
 export function BuildPanel() {
   const mode = useCodeStore((s) => s.mode);
   const setMode = useCodeStore((s) => s.setMode);
+  const effort = useCodeStore((s) => s.effort);
+  const setEffort = useCodeStore((s) => s.setEffort);
 
   return (
     <div className="flex h-full flex-col">
       <div className="sticky top-0 z-10 flex h-14 items-center justify-between gap-2 border-b border-border/70 bg-background/70 px-3 backdrop-blur-xl sm:px-5">
-        <CodeModeSelector value={mode} onChange={setMode} />
+        <CodeModeSelector
+          value={mode}
+          onChange={setMode}
+          effort={effort}
+          onEffortChange={setEffort}
+        />
       </div>
 
       <div className="min-h-0 flex-1 overflow-hidden">

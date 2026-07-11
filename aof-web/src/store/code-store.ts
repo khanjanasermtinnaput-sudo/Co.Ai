@@ -34,11 +34,13 @@ import type {
   ClarifyQuestion,
   CodeMode,
   CodePhase,
+  EffortLevel,
   ProjectBrief,
   TitanPhaseKey,
   TitanPlanOption,
   TitanRisk,
 } from "@/lib/types";
+import { clampEffort } from "@/lib/effort";
 
 interface TitanState {
   active: boolean;
@@ -73,6 +75,9 @@ const emptyTitan: TitanState = {
 interface CodeState {
   mode: CodeMode;
   setMode: (m: CodeMode) => void;
+  /** Reasoning-effort dial: Low/Normal/High (Mikros, Kanon) or Ultra/Extreme (Ypertatos). */
+  effort: EffortLevel;
+  setEffort: (e: EffortLevel) => void;
 
   // ── Conversation-first workflow (RAA → brief → generate) ──────────────────
   // CoCode discusses the project first; TMAP only runs on an explicit trigger
@@ -168,15 +173,21 @@ export const useCodeStore = create<CodeState>()(
   persist(
     (set, get) => ({
   mode: "1.0",
+  effort: "normal",
   setMode: (mode) => {
+    // Titan is temporarily locked — the menu renders it with a padlock and
+    // never calls this, but other entry points must not switch into it either.
+    if (mode === "titan") return;
     // Pro / Titan are premium — guests are asked to sign in instead of switching.
     const access = checkUserAccess("premium-model", { codeMode: mode });
     if (!access.allowed) {
       useAuthStore.getState().openLoginModal(access.reason);
       return;
     }
-    set({ mode });
+    // Snap effort onto the new mode's scale (e.g. Kanon@High → Ypertatos@Ultra).
+    set({ mode, effort: clampEffort(mode, get().effort) });
   },
+  setEffort: (effort) => set({ effort: clampEffort(get().mode, effort) }),
 
   // ── Conversation-first workflow ────────────────────────────────────────────
   convo: [],
@@ -516,7 +527,15 @@ export const useCodeStore = create<CodeState>()(
       // Project session memory — remember the conversation, brief and mode across
       // reloads so CoCode doesn't re-ask what's already been decided.
       name: "aof.code",
-      partialize: (s) => ({ convo: s.convo, brief: s.brief, mode: s.mode, projectActive: s.projectActive }),
+      partialize: (s) => ({ convo: s.convo, brief: s.brief, mode: s.mode, effort: s.effort, projectActive: s.projectActive }),
+      // Sessions persisted before the Titan lock may still carry mode:"titan" —
+      // land them on the default mode instead of a mode they can no longer pick.
+      merge: (persisted, current) => {
+        const merged = { ...current, ...(persisted as Partial<CodeState>) };
+        if (merged.mode === "titan") merged.mode = "1.0";
+        merged.effort = clampEffort(merged.mode, merged.effort ?? "normal");
+        return merged;
+      },
     },
   ),
 );
