@@ -5,7 +5,7 @@
 
 import { useState } from "react";
 import { Users, Mic, MicOff, MessageSquare, GitMerge, AlertTriangle, Circle, CheckCircle } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, readableTextColor } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
 interface Collaborator {
@@ -77,7 +77,7 @@ export function RealtimeCollabPanel({ className }: RealtimeCollabPanelProps) {
           <span className="font-semibold text-foreground">Live Collaboration</span>
           <div className="flex -space-x-1 ml-1">
             {COLLABORATORS.filter((c) => c.status === "active").map((c) => (
-              <div key={c.id} className="size-5 rounded-full border-2 border-background flex items-center justify-center text-[8px] font-bold text-white" style={{ backgroundColor: c.color }}>
+              <div key={c.id} className="size-5 rounded-full border-2 border-background flex items-center justify-center text-[8px] font-bold" style={{ backgroundColor: c.color, color: readableTextColor(c.color) }}>
                 {c.name[0]}
               </div>
             ))}
@@ -126,7 +126,7 @@ export function RealtimeCollabPanel({ className }: RealtimeCollabPanelProps) {
             {COLLABORATORS.map((c) => (
               <div key={c.id} className="flex items-center gap-2.5 rounded-xl border border-border/40 bg-card/30 px-3 py-2.5 hover:bg-card/50 transition-colors">
                 <div className="relative">
-                  <div className="size-7 rounded-full flex items-center justify-center text-[11px] font-bold text-white" style={{ backgroundColor: c.color }}>
+                  <div className="size-7 rounded-full flex items-center justify-center text-[11px] font-bold" style={{ backgroundColor: c.color, color: readableTextColor(c.color) }}>
                     {c.name[0]}
                   </div>
                   <div className={cn("absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full border-2 border-background", STATUS_COLOR[c.status])} />
@@ -201,7 +201,7 @@ export function RealtimeCollabPanel({ className }: RealtimeCollabPanelProps) {
               <div key={comment.id} className={cn("rounded-xl border px-3 py-2.5 transition-colors",
                 comment.resolved ? "border-border/30 bg-card/20 opacity-60" : "border-border/40 bg-card/30 hover:bg-card/50")}>
                 <div className="flex items-center gap-2 mb-1.5">
-                  <div className="size-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white" style={{ backgroundColor: comment.color }}>
+                  <div className="size-5 rounded-full flex items-center justify-center text-[9px] font-bold" style={{ backgroundColor: comment.color, color: readableTextColor(comment.color) }}>
                     {comment.author[0]}
                   </div>
                   <span className="font-medium text-foreground">{comment.author}</span>

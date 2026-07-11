@@ -10,7 +10,7 @@ import {
   Users, Copy, CheckCircle2, MessageSquare, UserPlus,
   Circle, Send, Trash2,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, readableTextColor } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useCocodeIDEStore } from "@/store/cocode-ide-store";
 
@@ -96,8 +96,8 @@ export function CollaborationPanel({ className }: { className?: string }) {
         <div className="ml-auto flex -space-x-1">
           {collaborators.slice(0, 4).map((c) => (
             <div key={c.id}
-              className="flex size-6 items-center justify-center rounded-full border-2 border-card text-[10px] font-bold text-white"
-              style={{ backgroundColor: c.color }}
+              className="flex size-6 items-center justify-center rounded-full border-2 border-card text-[10px] font-bold"
+              style={{ backgroundColor: c.color, color: readableTextColor(c.color) }}
               title={c.name}>
               {c.avatar}
             </div>
@@ -146,8 +146,8 @@ export function CollaborationPanel({ className }: { className?: string }) {
               {collaborators.map((c) => (
                 <div key={c.id} className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-white/5">
                   <div className="relative">
-                    <div className="flex size-8 items-center justify-center rounded-full text-[12px] font-bold text-white"
-                      style={{ backgroundColor: c.color }}>
+                    <div className="flex size-8 items-center justify-center rounded-full text-[12px] font-bold"
+                      style={{ backgroundColor: c.color, color: readableTextColor(c.color) }}>
                       {c.avatar}
                     </div>
                     <div className={cn("absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full border border-card", STATUS_DOT[c.status])} />
@@ -186,8 +186,8 @@ export function CollaborationPanel({ className }: { className?: string }) {
               {comments.map((c) => (
                 <div key={c.id} className={cn("p-3", c.resolved && "opacity-50")}>
                   <div className="flex items-start gap-2">
-                    <div className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
-                      style={{ backgroundColor: c.authorColor }}>
+                    <div className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
+                      style={{ backgroundColor: c.authorColor, color: readableTextColor(c.authorColor) }}>
                       {c.author[0]}
                     </div>
                     <div className="flex-1">

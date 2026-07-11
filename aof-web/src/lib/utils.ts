@@ -42,3 +42,20 @@ export function timeAgo(input: string | number | Date): string {
 export function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
+
+/** Black or white, whichever reads better on the given hex background color. */
+export function readableTextColor(hex: string): "#000000" | "#ffffff" {
+  const match = /^#?([0-9a-f]{6})$/i.exec(hex);
+  if (!match) return "#ffffff";
+  const int = parseInt(match[1], 16);
+  const r = (int >> 16) & 255;
+  const g = (int >> 8) & 255;
+  const b = int & 255;
+  // Relative luminance (WCAG), sRGB channels linearized.
+  const [lr, lg, lb] = [r, g, b].map((c) => {
+    const v = c / 255;
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  });
+  const luminance = 0.2126 * lr + 0.7152 * lg + 0.0722 * lb;
+  return luminance > 0.55 ? "#000000" : "#ffffff";
+}
