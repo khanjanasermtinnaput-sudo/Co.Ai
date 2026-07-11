@@ -36,7 +36,13 @@ import { logAofError, logAofInfo, runStartupCheckOnce } from "@/lib/server/ai-lo
 import { checkRateLimit, applyRateLimitHeaders } from "@/lib/server/rate-limit";
 import { getUserFromRequest } from "@/lib/server/supabase-admin";
 import { loadUserKeyOverrides } from "@/lib/server/keys-store";
-import type { RouteDecision } from "@/lib/types";
+import type { EffortLevel, RouteDecision } from "@/lib/types";
+import {
+  effortMaxTokens,
+  effortSystemAddon,
+  effortTemperature,
+  normalizeEffort,
+} from "@/lib/effort";
 import {
   RAA_SYSTEM,
   AOF_CODE_CHAT_SYSTEM,
@@ -98,6 +104,16 @@ interface ChatBody {
   agent?: Agent;
   /** CoChat manual model selection: "lite" (Mikros) | "normal" (Kanon). */
   model?: ChatModelId;
+  /** Reasoning-effort dial (low → extreme). Sizes token budget, temperature and
+   *  the depth of the reasoning system prompt; extreme also makes conversational
+   *  agents clarify before acting. Defaults to "normal" when absent/invalid. */
+  effort?: string;
+}
+
+/** Agents that hold a conversation with the user (vs. one-shot generators) —
+ *  only these are asked to clarify first at extreme effort. */
+function isConversationalAgent(agent: Agent | undefined): boolean {
+  return !agent || agent === "chat" || agent === "requirements" || agent === "code-chat";
 }
 
 // Runtime validation for the untrusted request body. Permissive by design
@@ -114,6 +130,7 @@ const ChatBodySchema = z
       .optional(),
     agent: z.string().optional(),
     model: z.string().optional(),
+    effort: z.string().optional(),
   })
   .passthrough();
 
@@ -317,10 +334,19 @@ async function handleChat(req: Request): Promise<Response> {
 
   // Plain CoChat (no agent) honours the user's manual Mikros/Kanon choice; the
   // agent-driven paths (RAA, code-*, build pipeline) keep their own personas.
-  const { system: baseSystem, temperature, maxTokens } = body.agent
+  const { system: baseSystem, temperature: baseTemperature, maxTokens: baseMaxTokens } = body.agent
     ? agentConfig(body.agent, body.route)
     : chatModelConfig(body.model, body.route);
-  let system = baseSystem;
+
+  // ── Effort dial → real knobs ─────────────────────────────────────────────────
+  // The user's chosen effort (low → extreme) actually resizes the token budget,
+  // caps the temperature, and appends a reasoning-depth instruction to the system
+  // prompt. At extreme, conversational agents are told to clarify before acting.
+  const effort: EffortLevel = normalizeEffort(body.effort);
+  const maxTokens = effortMaxTokens(baseMaxTokens, effort);
+  const temperature = effortTemperature(baseTemperature, effort);
+  const effortAddon = effortSystemAddon(effort, { conversational: isConversationalAgent(body.agent) });
+  let system = effortAddon ? `${baseSystem}\n\n${effortAddon}` : baseSystem;
 
   // ── Universal Search ─────────────────────────────────────────────────────────
   // Ground the answer in live web results when the query needs fresh information,

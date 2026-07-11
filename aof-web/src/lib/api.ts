@@ -6,7 +6,7 @@
 // is *explicitly* put in demo mode (`NEXT_PUBLIC_AOF_DEMO=1`); it is off by
 // default so the UI never appears to work when AI is actually down.
 
-import type { ChatModel, ProjectBrief, RouteDecision } from "./types";
+import type { ChatModel, EffortLevel, ProjectBrief, RouteDecision } from "./types";
 import {
   mockChat,
   mockCodeChat,
@@ -270,6 +270,8 @@ export interface ChatRequest {
   model: ChatModel;
   route: RouteDecision;
   history: ChatHistoryItem[];
+  /** Reasoning-effort dial for the chosen model (low → high for CoChat). */
+  effort: EffortLevel;
 }
 
 /**
@@ -296,6 +298,7 @@ export async function streamChat(
         message,
         model: req.model,
         route: req.route,
+        effort: req.effort,
         history: req.history.map((h) => ({ role: h.role, content: h.content })),
       }),
       signal: handlers.signal,
@@ -314,12 +317,13 @@ async function streamViaChat(
   agent: "code-gen" | "plan" | "analyze" | "debug",
   message: string,
   handlers: StreamHandlers,
+  effort: EffortLevel = "normal",
 ): Promise<void> {
   try {
     const res = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, agent }),
+      body: JSON.stringify({ message, agent, effort }),
       signal: handlers.signal,
     });
     await readAofStream(res, handlers);
@@ -336,19 +340,20 @@ export async function streamCodeRun(
   mode: "lite" | "1.0" | "pro",
   handlers: StreamHandlers,
   context?: string,
+  effort: EffortLevel = "normal",
 ): Promise<void> {
   if (isDemoMode()) {
     await mockCodeRun(task, mode, handlers);
     return;
   }
   if (!isLive()) {
-    await streamViaChat("code-gen", context ? `${task}\n\nProject context:\n${context}` : task, handlers);
+    await streamViaChat("code-gen", context ? `${task}\n\nProject context:\n${context}` : task, handlers, effort);
     return;
   }
 
   // Opt-in v2 engine (score-based RAA + DAG). Default off; see isV2Enabled().
   if (isV2Enabled()) {
-    await streamCodeRunV2(task, handlers, context);
+    await streamCodeRunV2(task, handlers, context, effort);
     return;
   }
 
@@ -356,7 +361,7 @@ export async function streamCodeRun(
   try {
     await postSSE(
       "/v1/run",
-      { task, mode: backendMode, context: context ?? "" },
+      { task, mode: backendMode, context: context ?? "", effort },
       (e) => {
         if (typeof e.text === "string" && e.kind !== "done") handlers.onToken(`${e.text}\n`);
       },
@@ -364,7 +369,7 @@ export async function streamCodeRun(
     );
   } catch (e) {
     if (isAbortError(e)) return;
-    await streamViaChat("code-gen", context ? `${task}\n\nProject context:\n${context}` : task, handlers);
+    await streamViaChat("code-gen", context ? `${task}\n\nProject context:\n${context}` : task, handlers, effort);
   }
 }
 
@@ -381,12 +386,13 @@ async function streamCodeRunV2(
   task: string,
   handlers: StreamHandlers,
   context?: string,
+  effort: EffortLevel = "normal",
 ): Promise<void> {
   const fullTask = context ? `${task}\n\nProject context:\n${context}` : task;
   try {
     await postSSE(
       "/v2/run",
-      { task: fullTask },
+      { task: fullTask, effort },
       (e) => {
         if (e.kind === "done") {
           if (typeof e.output === "string" && e.output) handlers.onToken(e.output);
@@ -401,7 +407,7 @@ async function streamCodeRunV2(
     );
   } catch (e) {
     if (isAbortError(e)) return;
-    await streamViaChat("code-gen", fullTask, handlers);
+    await streamViaChat("code-gen", fullTask, handlers, effort);
   }
 }
 
@@ -412,6 +418,7 @@ export async function streamCodeChat(
   message: string,
   history: ChatHistoryItem[],
   handlers: StreamHandlers,
+  effort: EffortLevel = "normal",
 ): Promise<void> {
   if (isDemoMode()) {
     await mockCodeChat(message, handlers, history);
@@ -421,7 +428,7 @@ export async function streamCodeChat(
     const res = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, agent: "code-chat", history: history.slice(-20) }),
+      body: JSON.stringify({ message, agent: "code-chat", effort, history: history.slice(-20) }),
       signal: handlers.signal,
     });
     await readAofStream(res, handlers);
@@ -445,6 +452,7 @@ export async function streamRequirements(
   message: string,
   history: ChatHistoryItem[],
   handlers: StreamHandlers,
+  effort: EffortLevel = "normal",
 ): Promise<RequirementsResult> {
   const hist = history.map((h) => ({ role: h.role, content: h.content }));
   const none: RequirementsResult = { brief: null, hasBrief: false };
@@ -462,7 +470,7 @@ export async function streamRequirements(
       let hasBriefFlag = false;
       await postSSE(
         "/v1/chat",
-        { message, history: hist },
+        { message, history: hist, effort },
         (e) => {
           if (e.kind === "output" && typeof e.text === "string") handlers.onToken(e.text);
           else if (e.kind === "done") {
@@ -486,7 +494,7 @@ export async function streamRequirements(
     const res = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, agent: "requirements", history: hist }),
+      body: JSON.stringify({ message, agent: "requirements", effort, history: hist }),
       signal: handlers.signal,
     });
     const { errored, text } = await readAofStream(res, handlers);
@@ -507,20 +515,21 @@ export async function streamPlan(
   mode: "lite" | "1.0" | "pro",
   handlers: StreamHandlers,
   context?: string,
+  effort: EffortLevel = "normal",
 ): Promise<void> {
   if (isDemoMode()) {
     await mockPlan(task, handlers);
     return;
   }
   if (!isLive()) {
-    await streamViaChat("plan", context ? `${task}\n\nProject context:\n${context}` : task, handlers);
+    await streamViaChat("plan", context ? `${task}\n\nProject context:\n${context}` : task, handlers, effort);
     return;
   }
   const backendMode = mode === "1.0" ? "normal" : mode;
   try {
     await postSSE(
       "/v1/run",
-      { task, mode: backendMode, context: context ?? "", planOnly: true },
+      { task, mode: backendMode, context: context ?? "", planOnly: true, effort },
       (e) => {
         if (typeof e.text === "string" && e.kind !== "done") handlers.onToken(`${e.text}\n`);
       },
@@ -528,25 +537,29 @@ export async function streamPlan(
     );
   } catch (e) {
     if (isAbortError(e)) return;
-    await streamViaChat("plan", context ? `${task}\n\nProject context:\n${context}` : task, handlers);
+    await streamViaChat("plan", context ? `${task}\n\nProject context:\n${context}` : task, handlers, effort);
   }
 }
 
 /** Stream a project analysis ("Analyze"). tmap-v2 `/v1/analyze` when configured,
  *  otherwise a serverless analysis via `/api/chat`. */
-export async function streamAnalyze(brief: string, handlers: StreamHandlers): Promise<void> {
+export async function streamAnalyze(
+  brief: string,
+  handlers: StreamHandlers,
+  effort: EffortLevel = "normal",
+): Promise<void> {
   if (isDemoMode()) {
     await mockAnalyze(brief, handlers);
     return;
   }
   if (!isLive()) {
-    await streamViaChat("analyze", brief, handlers);
+    await streamViaChat("analyze", brief, handlers, effort);
     return;
   }
   try {
     await postSSE(
       "/v1/analyze",
-      { brief },
+      { brief, effort },
       (e) => {
         if (e.kind === "output" && typeof e.text === "string") handlers.onToken(e.text);
       },
@@ -554,7 +567,7 @@ export async function streamAnalyze(brief: string, handlers: StreamHandlers): Pr
     );
   } catch (e) {
     if (isAbortError(e)) return;
-    await streamViaChat("analyze", brief, handlers);
+    await streamViaChat("analyze", brief, handlers, effort);
   }
 }
 
@@ -566,7 +579,11 @@ export interface DebugInput {
 
 /** Stream a senior-engineer debug pass. tmap-v2 `/v1/debug` when configured,
  *  otherwise a serverless debug via `/api/chat`. */
-export async function streamDebug(input: DebugInput, handlers: StreamHandlers): Promise<void> {
+export async function streamDebug(
+  input: DebugInput,
+  handlers: StreamHandlers,
+  effort: EffortLevel = "normal",
+): Promise<void> {
   if (isDemoMode()) {
     await mockDebug(input.error, handlers);
     return;
@@ -575,13 +592,13 @@ export async function streamDebug(input: DebugInput, handlers: StreamHandlers): 
     const parts = [`Error:\n${input.error}`];
     if (input.code) parts.push(`Code:\n${input.code}`);
     if (input.context) parts.push(`Context:\n${input.context}`);
-    await streamViaChat("debug", parts.join("\n\n"), handlers);
+    await streamViaChat("debug", parts.join("\n\n"), handlers, effort);
     return;
   }
   try {
     await postSSE(
       "/v1/debug",
-      input,
+      { ...input, effort },
       (e) => {
         if (e.kind === "output" && typeof e.text === "string") handlers.onToken(e.text);
       },
@@ -592,7 +609,7 @@ export async function streamDebug(input: DebugInput, handlers: StreamHandlers): 
     const parts = [`Error:\n${input.error}`];
     if (input.code) parts.push(`Code:\n${input.code}`);
     if (input.context) parts.push(`Context:\n${input.context}`);
-    await streamViaChat("debug", parts.join("\n\n"), handlers);
+    await streamViaChat("debug", parts.join("\n\n"), handlers, effort);
   }
 }
 

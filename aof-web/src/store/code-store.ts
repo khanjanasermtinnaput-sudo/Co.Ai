@@ -274,7 +274,7 @@ export const useCodeStore = create<CodeState>()(
           signal: controller.signal,
           onError,
           onFailover,
-        });
+        }, get().effort);
       } else {
         // ── DISCOVERY: RAA gathers requirements, brief may be emitted ─────────
         // Mark the project active so all subsequent turns stay in DISCOVERY
@@ -286,7 +286,7 @@ export const useCodeStore = create<CodeState>()(
           signal: controller.signal,
           onError,
           onFailover,
-        });
+        }, get().effort);
         // On a fresh brief, capture it and strip the summary block from the bubble
         // (the structured brief is shown in its own panel).
         set((s) => ({
@@ -335,6 +335,7 @@ export const useCodeStore = create<CodeState>()(
           onError: (error) => set({ buildError: error }),
         },
         context,
+        get().effort,
       );
     } finally {
       set({ building: false, abort: null, phase: "done" });
@@ -358,6 +359,7 @@ export const useCodeStore = create<CodeState>()(
           onError: (error) => set({ buildError: error }),
         },
         context,
+        get().effort,
       );
     } finally {
       set({ building: false, abort: null });
@@ -375,7 +377,7 @@ export const useCodeStore = create<CodeState>()(
         onToken: (chunk) => set((s) => ({ buildLog: s.buildLog + chunk })),
         signal: controller.signal,
         onError: (error) => set({ buildError: error }),
-      });
+      }, get().effort);
     } finally {
       set({ building: false, abort: null });
     }
@@ -395,6 +397,7 @@ export const useCodeStore = create<CodeState>()(
           signal: controller.signal,
           onError: (error) => set({ buildError: error }),
         },
+        get().effort,
       );
     } finally {
       set({ building: false, abort: null });
@@ -431,7 +434,7 @@ export const useCodeStore = create<CodeState>()(
         onToken: (chunk) => set((s) => ({ buildLog: s.buildLog + chunk })),
         signal: controller.signal,
         onError: (error) => set({ buildError: error }),
-      });
+      }, undefined, get().effort);
     } finally {
       set({ building: false, abort: null });
     }
@@ -504,6 +507,7 @@ export const useCodeStore = create<CodeState>()(
     const prompt = get().titan.prompt;
     let failed = false;
     // Only AFTER approval does Titan hand the blueprint to the build pipeline (Pro).
+    // Titan is the fullest workflow, so its build runs at extreme effort.
     await streamCodeRun(prompt, "pro", {
       onToken: (chunk) =>
         set((s) => ({ titan: { ...s.titan, buildLog: s.titan.buildLog + chunk } })),
@@ -517,7 +521,7 @@ export const useCodeStore = create<CodeState>()(
           },
         }));
       },
-    });
+    }, undefined, "extreme");
     if (!failed) bridgeToWorkspace(get().titan.buildLog);
   },
 

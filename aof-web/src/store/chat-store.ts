@@ -360,7 +360,7 @@ export const useChatStore = create<ChatState>()(
           // asynchronously in finish() after the response, never blocking it.
           await streamChat(
             content,
-            { model, route, history },
+            { model, route, history, effort: get().effort },
             {
               onToken: appendToken,
               signal: controller.signal,
