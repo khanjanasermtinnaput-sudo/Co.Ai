@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Copy, Check, RefreshCw, ThumbsUp, ThumbsDown, Pencil, X } from "lucide-react";
+import { Copy, Check, RefreshCw, ThumbsUp, ThumbsDown, Pencil, X, Coins } from "lucide-react";
 import { useState, useRef, useEffect, memo } from "react";
 import { cn } from "@/lib/utils";
 import { estimateTokens } from "@/lib/export";
@@ -279,7 +279,13 @@ function ChatMessageImpl({
 
                 {/* Token count estimate */}
                 {tokens !== null && tokens > 10 && (
-                  <span className="ml-1 text-[10px] text-muted-foreground/40">
+                  <span
+                    className={cn(
+                      "ml-1 inline-flex items-center gap-1 rounded-full border border-border",
+                      "bg-secondary/40 px-2 py-0.5 text-[10px] font-medium text-muted-foreground",
+                    )}
+                  >
+                    <Coins className="size-3" />
                     ~{tokens > 999 ? `${(tokens / 1000).toFixed(1)}k` : tokens} tokens
                   </span>
                 )}
