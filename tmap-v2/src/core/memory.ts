@@ -31,6 +31,9 @@ export interface FailureEntry {
   at: string;
 }
 
+/** CoChat and CoCode must never read each other's memory (see scopedKey). */
+export type Product = 'cochat' | 'cocode';
+
 export interface ProjectMemory {
   key: string;
   techStack?: string;
@@ -55,6 +58,12 @@ function memoryDir(): string {
 
 function sanitizeKey(key: string): string {
   return key.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 80) || 'default';
+}
+
+/** Scope a web user id by product so CoChat and CoCode memory never mix.
+ *  CLI memory (keyed by project cwd) is unaffected — it has no product concept. */
+export function scopedKey(userId: string, product: Product): string {
+  return `${userId}:${product}`;
 }
 
 function memoryPath(key: string): string {

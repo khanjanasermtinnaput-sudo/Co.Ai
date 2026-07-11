@@ -2,12 +2,13 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { toast } from "sonner";
 import { uid } from "@/lib/utils";
-import { streamChat, type ChatHistoryItem } from "@/lib/api";
+import { streamChat, clearProductMemory, type ChatHistoryItem } from "@/lib/api";
 import { routeRequest } from "@/lib/router";
 import { composeLearningReply, isLearningProblem } from "@/lib/mock";
 import {
   conversationsEnabled,
   createConversation,
+  deleteAllConversationsRemote,
   deleteConversationRemote,
   fetchConversations,
   renameConversation,
@@ -47,6 +48,8 @@ interface ChatState {
   newConversation: () => string;
   selectConversation: (id: string | null) => void;
   deleteConversation: (id: string) => void;
+  /** "Delete All CoChat History" / "Delete Entire Workspace" — irreversible. */
+  deleteAllConversations: () => Promise<void>;
   renameConversation: (id: string, title: string) => void;
   loadRemoteConversations: () => Promise<void>;
   migrateGuestConversations: () => Promise<void>;
@@ -99,7 +102,7 @@ export const useChatStore = create<ChatState>()(
         };
         set((s) => ({ conversations: [conv, ...s.conversations], activeId: id }));
         if (conversationsEnabled()) {
-          createConversation(conv).catch(() => {
+          createConversation(conv, "cochat").catch(() => {
             toast.error("Sync failed — chat saved locally", { id: "sync-error", duration: 4000 });
           });
         }
@@ -109,6 +112,12 @@ export const useChatStore = create<ChatState>()(
       selectConversation: (id) => set({ activeId: id }),
 
       deleteConversation: (id) => {
+        const prevConversations = get().conversations;
+        const removedIdx = prevConversations.findIndex((c) => c.id === id);
+        if (removedIdx === -1) return;
+        const removed = prevConversations[removedIdx];
+        const prevActiveId = get().activeId;
+
         set((s) => {
           const remaining = s.conversations.filter((c) => c.id !== id);
           const nextActive =
@@ -117,10 +126,37 @@ export const useChatStore = create<ChatState>()(
               : s.activeId;
           return { conversations: remaining, activeId: nextActive };
         });
+        chatSyncChannel?.postMessage({ type: "delete", id } satisfies ChatSyncMessage);
         if (conversationsEnabled()) {
-          deleteConversationRemote(id).catch(() => {
-            toast.error("Sync failed — deleted locally", { id: "sync-error", duration: 4000 });
+          deleteConversationRemote(id, "cochat").catch(() => {
+            // The server delete failed — the row still exists there, so undo the
+            // optimistic removal instead of leaving local/remote state diverged.
+            set((s) => {
+              if (s.conversations.some((c) => c.id === id)) return s;
+              const restored = [...s.conversations];
+              restored.splice(Math.min(removedIdx, restored.length), 0, removed);
+              return { conversations: restored, activeId: prevActiveId };
+            });
+            toast.error("Delete failed — conversation restored", { id: "sync-error", duration: 4000 });
           });
+        }
+      },
+
+      deleteAllConversations: async () => {
+        const prevConversations = get().conversations;
+        const prevActiveId = get().activeId;
+        if (!prevConversations.length) return;
+
+        set({ conversations: [], activeId: null });
+        chatSyncChannel?.postMessage({ type: "delete-all" } satisfies ChatSyncMessage);
+
+        if (!conversationsEnabled()) return;
+        try {
+          await deleteAllConversationsRemote("cochat");
+          clearProductMemory("cochat").catch(() => {}); // best-effort, memory is not mission-critical
+        } catch {
+          set({ conversations: prevConversations, activeId: prevActiveId });
+          toast.error("Delete failed — chat history restored", { id: "sync-error", duration: 4000 });
         }
       },
 
@@ -131,14 +167,14 @@ export const useChatStore = create<ChatState>()(
           ),
         }));
         if (conversationsEnabled()) {
-          renameConversation(id, title).catch(() => {});
+          renameConversation(id, title, "cochat").catch(() => {});
         }
       },
 
       loadRemoteConversations: async () => {
         if (!conversationsEnabled()) return;
         try {
-          const remote = await fetchConversations();
+          const remote = await fetchConversations("cochat");
           if (!remote.length) return;
           set((s) => {
             const localIds = new Set(s.conversations.map((c) => c.id));
@@ -173,7 +209,7 @@ export const useChatStore = create<ChatState>()(
         const localConvos = get().conversations.filter((c) => c.messages.length > 0);
         for (const c of localConvos) {
           try {
-            await createConversation({ id: c.id, title: c.title, model: c.model });
+            await createConversation({ id: c.id, title: c.title, model: c.model }, "cochat");
             await saveMessages(c.id, c.messages);
           } catch {
             /* keep local copy; will retry on next save */
@@ -261,7 +297,7 @@ export const useChatStore = create<ChatState>()(
         }));
 
         if (conversationsEnabled() && autoTitle) {
-          renameConversation(activeId, autoTitle).catch(() => {});
+          renameConversation(activeId, autoTitle, "cochat").catch(() => {});
         }
 
         const finish = (finalContent?: string) =>
@@ -451,3 +487,27 @@ export const useChatStore = create<ChatState>()(
     },
   ),
 );
+
+// ── Cross-tab sync ────────────────────────────────────────────────────────────
+// Deleting a conversation in one tab must remove it from every other open tab's
+// sidebar immediately, without a refresh (Req 9). BroadcastChannel only reaches
+// OTHER same-origin tabs, so the sender never needs to filter out its own echo.
+type ChatSyncMessage = { type: "delete"; id: string } | { type: "delete-all" };
+const chatSyncChannel: BroadcastChannel | null =
+  typeof window !== "undefined" && "BroadcastChannel" in window
+    ? new BroadcastChannel("aof.chat.sync")
+    : null;
+
+chatSyncChannel?.addEventListener("message", (e: MessageEvent<ChatSyncMessage>) => {
+  if (e.data.type === "delete") {
+    const { id } = e.data;
+    useChatStore.setState((s) => {
+      if (!s.conversations.some((c) => c.id === id)) return s;
+      const remaining = s.conversations.filter((c) => c.id !== id);
+      const nextActive = s.activeId === id ? (remaining[0]?.id ?? null) : s.activeId;
+      return { conversations: remaining, activeId: nextActive };
+    });
+  } else {
+    useChatStore.setState({ conversations: [], activeId: null });
+  }
+});

@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef } from "react";
+import { forwardRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Pin, PinOff, MoreVertical, Clock, Trash2, FolderOpen } from "lucide-react";
@@ -10,6 +10,7 @@ import { getModelDisplayName } from "@/lib/model-branding";
 import { useProjectStore } from "@/store/project-store";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,6 +30,7 @@ export const ProjectCard = forwardRef<HTMLDivElement, { project: Project }>(func
   const type = TYPE_META[project.type];
   const status = STATUS_META[project.status];
   const TypeIcon = type.icon;
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const open = () => router.push(`/projects/${project.id}`);
 
@@ -79,7 +81,7 @@ export const ProjectCard = forwardRef<HTMLDivElement, { project: Project }>(func
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
-                onClick={() => remove(project.id)}
+                onClick={() => setConfirmDelete(true)}
                 className="text-destructive focus:text-destructive"
               >
                 <Trash2 /> Delete
@@ -88,6 +90,14 @@ export const ProjectCard = forwardRef<HTMLDivElement, { project: Project }>(func
           </DropdownMenu>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title={`Delete "${project.name}"?`}
+        description="This permanently deletes the project and cannot be undone."
+        onConfirm={() => remove(project.id)}
+      />
 
       <h3 className="mt-3 line-clamp-1 text-[15px] font-semibold text-foreground">
         {project.name}

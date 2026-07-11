@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { uid } from "@/lib/utils";
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase/client";
+import { clearProductMemory } from "@/lib/api";
 import type { CodeMode, Project, ProjectStatus, ProjectType } from "@/lib/types";
 
 function daysAgo(n: number): string {
@@ -126,6 +127,8 @@ interface ProjectState {
     patch: Partial<Pick<Project, "name" | "description" | "status" | "type">>,
   ) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
+  /** "Delete All CoCode Projects" / "Delete Entire Workspace" — irreversible. */
+  deleteAllProjects: () => Promise<void>;
 }
 
 export const useProjectStore = create<ProjectState>((set, get) => ({
@@ -271,6 +274,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const previous = get().projects;
     // Optimistic removal.
     set((s) => ({ projects: s.projects.filter((p) => p.id !== id) }));
+    projectSyncChannel?.postMessage({ type: "delete", id } satisfies ProjectSyncMessage);
 
     const supabase = getSupabase();
     if (isSupabaseConfigured() && supabase) {
@@ -278,4 +282,40 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       if (error) set({ projects: previous });
     }
   },
+
+  deleteAllProjects: async () => {
+    const previous = get().projects;
+    if (!previous.length) return;
+    // Optimistic removal.
+    set({ projects: [] });
+    projectSyncChannel?.postMessage({ type: "delete-all" } satisfies ProjectSyncMessage);
+
+    const supabase = getSupabase();
+    if (isSupabaseConfigured() && supabase) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { set({ projects: previous }); return; }
+      const { error } = await supabase.from("projects").delete().eq("user_id", user.id);
+      if (error) { set({ projects: previous }); return; }
+      clearProductMemory("cocode").catch(() => {}); // best-effort, memory is not mission-critical
+    }
+  },
 }));
+
+// ── Cross-tab sync ────────────────────────────────────────────────────────────
+// Deleting a project in one tab must remove it from every other open tab's
+// sidebar immediately, without a refresh (Req 9). BroadcastChannel only reaches
+// OTHER same-origin tabs, so the sender never needs to filter out its own echo.
+type ProjectSyncMessage = { type: "delete"; id: string } | { type: "delete-all" };
+const projectSyncChannel: BroadcastChannel | null =
+  typeof window !== "undefined" && "BroadcastChannel" in window
+    ? new BroadcastChannel("aof.code.sync")
+    : null;
+
+projectSyncChannel?.addEventListener("message", (e: MessageEvent<ProjectSyncMessage>) => {
+  if (e.data.type === "delete") {
+    const { id } = e.data;
+    useProjectStore.setState((s) => ({ projects: s.projects.filter((p) => p.id !== id) }));
+  } else {
+    useProjectStore.setState({ projects: [] });
+  }
+});

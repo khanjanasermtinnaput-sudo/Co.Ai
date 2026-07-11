@@ -47,6 +47,9 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useChatStore } from "@/store/chat-store";
+import { useProjectStore } from "@/store/project-store";
 import { ProviderStatusPanel } from "@/components/diagnostics/provider-status-panel";
 import {
   SystemDiagnosticsPanel,
@@ -127,6 +130,10 @@ function AccountTab() {
   const router = useRouter();
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
+  const deleteAllConversations = useChatStore((s) => s.deleteAllConversations);
+  const deleteAllProjects = useProjectStore((s) => s.deleteAllProjects);
+  const [confirmDeleteChats, setConfirmDeleteChats] = useState(false);
+  const [confirmDeleteProjects, setConfirmDeleteProjects] = useState(false);
 
   // Keep the form in sync with the signed-in user.
   useEffect(() => {
@@ -194,15 +201,58 @@ function AccountTab() {
       <Card className="border-destructive/30">
         <CardHeader>
           <CardTitle className="text-destructive">Danger zone</CardTitle>
-          <CardDescription>Irreversible account actions.</CardDescription>
+          <CardDescription>Irreversible actions — CoChat and CoCode are cleared independently.</CardDescription>
         </CardHeader>
-        <CardContent className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">Delete your account and all data.</p>
-          <Button variant="destructive" onClick={() => toast("Contact support to delete your account")}>
-            Delete account
-          </Button>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium">Delete all CoChat history</p>
+              <p className="text-sm text-muted-foreground">Every chat, message, and CoChat memory. Cannot be undone.</p>
+            </div>
+            <Button variant="destructive" onClick={() => setConfirmDeleteChats(true)}>
+              Delete all chats
+            </Button>
+          </div>
+          <Separator />
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium">Delete all CoCode projects</p>
+              <p className="text-sm text-muted-foreground">Every project and CoCode build memory. Cannot be undone.</p>
+            </div>
+            <Button variant="destructive" onClick={() => setConfirmDeleteProjects(true)}>
+              Delete all projects
+            </Button>
+          </div>
+          <Separator />
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm text-muted-foreground">Delete your account and all data.</p>
+            <Button variant="destructive" onClick={() => toast("Contact support to delete your account")}>
+              Delete account
+            </Button>
+          </div>
         </CardContent>
       </Card>
+
+      <ConfirmDialog
+        open={confirmDeleteChats}
+        onOpenChange={setConfirmDeleteChats}
+        title="Delete all CoChat history?"
+        description="This permanently deletes every CoChat conversation, message, and CoChat memory. CoCode is not affected. This cannot be undone."
+        confirmLabel="Delete all chats"
+        onConfirm={() => {
+          deleteAllConversations().catch(() => {});
+        }}
+      />
+      <ConfirmDialog
+        open={confirmDeleteProjects}
+        onOpenChange={setConfirmDeleteProjects}
+        title="Delete all CoCode projects?"
+        description="This permanently deletes every CoCode project and CoCode build memory. CoChat is not affected. This cannot be undone."
+        confirmLabel="Delete all projects"
+        onConfirm={() => {
+          deleteAllProjects().catch(() => {});
+        }}
+      />
     </div>
   );
 }

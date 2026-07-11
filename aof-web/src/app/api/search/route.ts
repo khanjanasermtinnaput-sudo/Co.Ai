@@ -7,6 +7,7 @@
 import { NextResponse } from "next/server";
 import { getAdminSupabase, getUserFromRequest, isAdminConfigured } from "@/lib/server/supabase-admin";
 import { checkRateLimit, applyRateLimitHeaders } from "@/lib/server/rate-limit";
+import { parseWorkspace } from "@/lib/server/workspace";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -51,6 +52,8 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const q = url.searchParams.get("q")?.trim() ?? "";
   const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "10", 10), MAX_RESULTS);
+  const workspace = parseWorkspace(url.searchParams.get("workspace"));
+  if (!workspace) return NextResponse.json({ error: "invalid-workspace" }, { status: 400 });
 
   if (q.length < 2) return NextResponse.json({ hits: [] });
 
@@ -67,13 +70,14 @@ export async function GET(req: Request) {
 
   const supabase = getAdminSupabase();
 
-  // FTS query via the convenience view, filtered to this user
+  // FTS query via the convenience view, filtered to this user + workspace
   const { data, error } = await supabase
     .from("conversation_search_v")
     .select(
       "message_id, conversation_id, conversation_title, conversation_updated_at, role, content, created_at",
     )
     .eq("user_id", user.id)
+    .eq("workspace", workspace)
     .textSearch("search_vector", tsquery, { type: "plain" })
     .order("conversation_updated_at", { ascending: false })
     .limit(limit);
@@ -86,6 +90,7 @@ export async function GET(req: Request) {
         "message_id, conversation_id, conversation_title, conversation_updated_at, role, content, created_at",
       )
       .eq("user_id", user.id)
+      .eq("workspace", workspace)
       .ilike("content", `%${q}%`)
       .order("conversation_updated_at", { ascending: false })
       .limit(limit);

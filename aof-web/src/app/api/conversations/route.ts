@@ -1,9 +1,12 @@
 // ── /api/conversations ────────────────────────────────────────────────────────
-// GET  → list the user's conversations (newest first, max 60)
-// POST → create a new conversation
+// GET    → list the user's conversations for a workspace (newest first, max 60)
+// POST   → create a new conversation in a workspace
+// DELETE → bulk delete: { ids: string[] } (selected) or { workspace, all: true }
+//          ("Delete All CoChat/CoCode History"). Messages cascade via FK (0006).
 
 import { NextResponse } from "next/server";
 import { getAdminSupabase, getUserFromRequest, isAdminConfigured } from "@/lib/server/supabase-admin";
+import { parseWorkspace } from "@/lib/server/workspace";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,10 +24,15 @@ export async function GET(req: Request) {
   const { user, error } = await requireUser(req);
   if (error) return error;
 
+  const url = new URL(req.url);
+  const workspace = parseWorkspace(url.searchParams.get("workspace"));
+  if (!workspace) return NextResponse.json({ error: "invalid-workspace" }, { status: 400 });
+
   const { data, error: dbErr } = await getAdminSupabase()
     .from("conversations")
     .select("id, title, model, created_at, updated_at")
     .eq("user_id", user.id)
+    .eq("workspace", workspace)
     .order("updated_at", { ascending: false })
     .limit(60);
 
@@ -36,8 +44,11 @@ export async function POST(req: Request) {
   const { user, error } = await requireUser(req);
   if (error) return error;
 
-  let body: { id?: unknown; title?: unknown; model?: unknown };
+  let body: { id?: unknown; title?: unknown; model?: unknown; workspace?: unknown };
   try { body = await req.json(); } catch { body = {}; }
+
+  const workspace = body.workspace === undefined ? "cochat" : parseWorkspace(body.workspace);
+  if (!workspace) return NextResponse.json({ error: "invalid-workspace" }, { status: 400 });
 
   const id = typeof body.id === "string" ? body.id : `conv_${Math.random().toString(36).slice(2,9)}`;
   const title = typeof body.title === "string" ? body.title.slice(0, 120) : "New chat";
@@ -46,8 +57,42 @@ export async function POST(req: Request) {
 
   const { error: dbErr } = await getAdminSupabase()
     .from("conversations")
-    .insert({ id, user_id: user.id, title, model, created_at: now, updated_at: now });
+    .insert({ id, user_id: user.id, title, model, workspace, created_at: now, updated_at: now });
 
   if (dbErr) return NextResponse.json({ error: "create-failed" }, { status: 500 });
   return NextResponse.json({ ok: true, id });
+}
+
+export async function DELETE(req: Request) {
+  const { user, error } = await requireUser(req);
+  if (error) return error;
+
+  let body: { ids?: unknown; workspace?: unknown; all?: unknown };
+  try { body = await req.json(); } catch { body = {}; }
+
+  if (body.all === true) {
+    const workspace = parseWorkspace(body.workspace);
+    if (!workspace) return NextResponse.json({ error: "invalid-workspace" }, { status: 400 });
+
+    const { error: dbErr } = await getAdminSupabase()
+      .from("conversations")
+      .delete()
+      .eq("user_id", user.id)
+      .eq("workspace", workspace);
+
+    if (dbErr) return NextResponse.json({ error: "delete-failed" }, { status: 500 });
+    return NextResponse.json({ ok: true });
+  }
+
+  const ids = Array.isArray(body.ids) ? body.ids.filter((id): id is string => typeof id === "string") : [];
+  if (!ids.length) return NextResponse.json({ error: "ids-or-all-required" }, { status: 400 });
+
+  const { error: dbErr } = await getAdminSupabase()
+    .from("conversations")
+    .delete()
+    .eq("user_id", user.id)
+    .in("id", ids);
+
+  if (dbErr) return NextResponse.json({ error: "delete-failed" }, { status: 500 });
+  return NextResponse.json({ ok: true });
 }

@@ -5,6 +5,7 @@
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase/client";
 import { isSignedIn } from "@/store/auth-store";
 import type { ChatMessageT, Conversation } from "@/lib/types";
+import type { Workspace } from "@/lib/server/workspace";
 
 /**
  * Server sync is available only when Supabase is configured AND a real user is
@@ -47,35 +48,57 @@ export interface RemoteConversation {
   updated_at: string;
 }
 
-/** Fetch all conversations for the signed-in user, newest first. */
-export async function fetchConversations(): Promise<RemoteConversation[]> {
-  const res = await authedFetch("/api/conversations");
+/** Fetch all conversations for the signed-in user in a workspace, newest first. */
+export async function fetchConversations(workspace: Workspace = "cochat"): Promise<RemoteConversation[]> {
+  const res = await authedFetch(`/api/conversations?workspace=${workspace}`);
   if (!res.ok) return [];
   const json = (await res.json()) as { conversations: RemoteConversation[] };
   return json.conversations ?? [];
 }
 
 /** Persist a new conversation record. */
-export async function createConversation(conv: Pick<Conversation, "id" | "title" | "model">): Promise<void> {
+export async function createConversation(
+  conv: Pick<Conversation, "id" | "title" | "model">,
+  workspace: Workspace = "cochat",
+): Promise<void> {
   await authedFetch("/api/conversations", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ id: conv.id, title: conv.title, model: conv.model }),
+    body: JSON.stringify({ id: conv.id, title: conv.title, model: conv.model, workspace }),
   });
 }
 
 /** Rename a conversation. */
-export async function renameConversation(id: string, title: string): Promise<void> {
+export async function renameConversation(id: string, title: string, workspace: Workspace = "cochat"): Promise<void> {
   await authedFetch(`/api/conversations/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ title }),
+    body: JSON.stringify({ title, workspace }),
   });
 }
 
 /** Delete a conversation and all its messages. */
-export async function deleteConversationRemote(id: string): Promise<void> {
-  await authedFetch(`/api/conversations/${id}`, { method: "DELETE" });
+export async function deleteConversationRemote(id: string, workspace: Workspace = "cochat"): Promise<void> {
+  await authedFetch(`/api/conversations/${id}?workspace=${workspace}`, { method: "DELETE" });
+}
+
+/** Delete a specific set of conversations (bulk "Delete Selected"). */
+export async function deleteConversationsRemote(ids: string[]): Promise<void> {
+  if (!ids.length) return;
+  await authedFetch("/api/conversations", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids }),
+  });
+}
+
+/** Delete every conversation in a workspace ("Delete All CoChat/CoCode History"). */
+export async function deleteAllConversationsRemote(workspace: Workspace): Promise<void> {
+  await authedFetch("/api/conversations", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ workspace, all: true }),
+  });
 }
 
 export interface SearchHit {
@@ -88,11 +111,11 @@ export interface SearchHit {
   createdAt: string;
 }
 
-/** Full-text search across all saved messages on the server. Returns [] when not available. */
-export async function searchMessages(q: string, limit = 10): Promise<SearchHit[]> {
+/** Full-text search across saved messages in a workspace. Returns [] when not available. */
+export async function searchMessages(q: string, limit = 10, workspace: Workspace = "cochat"): Promise<SearchHit[]> {
   if (!q.trim() || q.length < 2) return [];
   try {
-    const res = await authedFetch(`/api/search?q=${encodeURIComponent(q)}&limit=${limit}`);
+    const res = await authedFetch(`/api/search?q=${encodeURIComponent(q)}&limit=${limit}&workspace=${workspace}`);
     if (!res.ok) return [];
     const json = (await res.json()) as { hits: SearchHit[] };
     return json.hits ?? [];

@@ -772,3 +772,21 @@ export async function fetchHealth(signal?: AbortSignal): Promise<SystemHealth> {
   if (!res.ok) throw new Error(`health failed (${res.status})`);
   return (await res.json()) as SystemHealth;
 }
+
+// ── Product memory (tmap-v2) ──────────────────────────────────────────────────
+
+/**
+ * Clear a product's tmap-v2 project + image memory (CoCode build memory today;
+ * CoChat's bucket is cleared too for symmetry even though nothing writes to it
+ * yet). Used by "Delete Entire Workspace" / "Delete All History". Best-effort —
+ * the tmap-v2 backend may not be configured, and memory is not mission-critical.
+ */
+export async function clearProductMemory(product: "cochat" | "cocode"): Promise<void> {
+  const base = getApiBase();
+  if (base === null) return; // no tmap-v2 backend configured — nothing to clear
+  const headers = { "Content-Type": "application/json", ...(await backendAuthHeaders()) };
+  await Promise.allSettled([
+    fetch(`${base}/v1/memory?product=${product}`, { method: "DELETE", headers }),
+    fetch(`${base}/v1/image/memories?product=${product}`, { method: "DELETE", headers }),
+  ]);
+}

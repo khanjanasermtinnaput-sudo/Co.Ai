@@ -42,7 +42,7 @@ import { runRAA } from '../core/raa.js';
 import { runTitan } from '../core/titan.js';
 import { runDebugger } from '../core/debugger.js';
 import { runAnalyzer } from '../core/analyze.js';
-import { loadMemory, memoryToContext, recordSessionMemory, recordDecision, clearMemory } from '../core/memory.js';
+import { loadMemory, memoryToContext, recordSessionMemory, recordDecision, clearMemory, scopedKey, type Product } from '../core/memory.js';
 import { currentMode } from '../config.js';
 import type { Mode, ChatMessage } from '../types.js';
 import { runChiefAgent } from '../core/chief-agent.js';
@@ -171,6 +171,11 @@ const MAX_BRIEF   = 10_000;
 
 function tooLong(value: string, limit: number): boolean {
   return Buffer.byteLength(value, 'utf8') > limit;
+}
+
+/** Validate a CoChat/CoCode product discriminator from a query/body value. */
+function parseProduct(value: unknown): Product | null {
+  return value === 'cochat' || value === 'cocode' ? value : null;
 }
 
 // Tighter rate limit on auth endpoints (10/min per IP)
@@ -354,12 +359,18 @@ app.get('/v1/agents', requireAuth, (req: AuthedRequest, res) => {
 });
 
 // ── PROJECT MEMORY ────────────────────────────────────────────────────────────
+// Scoped per product (CoChat vs CoCode) so the two never read/clear each other's
+// memory (Req 5). CLI memory is unaffected — it's keyed by project cwd, not a user.
 app.get('/v1/memory', requireAuth, async (req: AuthedRequest, res) => {
-  res.json(await loadMemory(req.user!.id));
+  const product = parseProduct(req.query.product);
+  if (!product) return res.status(400).json({ error: 'product must be "cochat" or "cocode"' });
+  res.json(await loadMemory(scopedKey(req.user!.id, product)));
 });
 
 app.delete('/v1/memory', requireAuth, async (req: AuthedRequest, res) => {
-  await clearMemory(req.user!.id);
+  const product = parseProduct(req.query.product);
+  if (!product) return res.status(400).json({ error: 'product must be "cochat" or "cocode"' });
+  await clearMemory(scopedKey(req.user!.id, product));
   res.json({ ok: true });
 });
 
@@ -369,6 +380,8 @@ app.delete('/v1/memory', requireAuth, async (req: AuthedRequest, res) => {
 app.post('/v1/image/analyze', requireAuth, async (req: AuthedRequest, res) => {
   const data = String(req.body?.image ?? req.body?.data ?? '');
   const question = String(req.body?.question ?? req.body?.hint ?? '').trim();
+  const product = parseProduct(req.body?.product);
+  if (!product) return res.status(400).json({ error: 'product must be "cochat" or "cocode"' });
   if (!data) return res.status(400).json({ error: 'image (base64 or data URL) required' });
   // Validate MIME type from data URL prefix to block non-image uploads.
   const mimeMatch = data.match(/^data:([a-z]+\/[a-z0-9.+-]+);base64,/i);
@@ -392,7 +405,7 @@ app.post('/v1/image/analyze', requireAuth, async (req: AuthedRequest, res) => {
   try {
     // Step 1 (cheap, no tokens): process + hash, then check for a duplicate.
     const processed = processImage({ data });
-    const existing = await findImageByHash(u.id, processed.imageHash);
+    const existing = await findImageByHash(u.id, product, processed.imageHash);
     if (existing) {
       logger.info('image_cache_hit', { user: u.username, hash: processed.imageHash.slice(0, 12) });
       return res.json({ cached: true, memory: existing });
@@ -410,8 +423,8 @@ app.post('/v1/image/analyze', requireAuth, async (req: AuthedRequest, res) => {
       onStep: (s) => { steps.push(s); },
     });
 
-    const record = await storeImageMemory(toRecord(u.id, understanding));
-    purgeExpiredImageMemories(u.id).catch(() => {}); // opportunistic housekeeping
+    const record = await storeImageMemory(toRecord(u.id, product, understanding));
+    purgeExpiredImageMemories(u.id, product).catch(() => {}); // opportunistic housekeeping
     logger.info('image_analyzed', { user: u.username, hash: record.imageHash.slice(0, 12), scene: understanding.vision.scene });
 
     res.json({ cached: false, memory: record, understanding });
@@ -424,16 +437,20 @@ app.post('/v1/image/analyze', requireAuth, async (req: AuthedRequest, res) => {
 app.get('/v1/image/memories', requireAuth, async (req: AuthedRequest, res) => {
   const q = String(req.query.q ?? '').trim();
   const limit = Math.min(Number(req.query.limit) || 50, 200);
+  const product = parseProduct(req.query.product);
+  if (!product) return res.status(400).json({ error: 'product must be "cochat" or "cocode"' });
   if (q) {
-    const ranked = await searchImageMemories(req.user!.id, q, Math.min(limit, 10));
+    const ranked = await searchImageMemories(req.user!.id, product, q, Math.min(limit, 10));
     return res.json({ query: q, results: ranked });
   }
-  const memories = await listImageMemories(req.user!.id, limit);
+  const memories = await listImageMemories(req.user!.id, product, limit);
   res.json({ memories });
 });
 
 app.delete('/v1/image/memories', requireAuth, async (req: AuthedRequest, res) => {
-  await clearImageMemories(req.user!.id);
+  const product = parseProduct(req.query.product);
+  if (!product) return res.status(400).json({ error: 'product must be "cochat" or "cocode"' });
+  await clearImageMemories(req.user!.id, product);
   res.json({ ok: true });
 });
 
@@ -591,9 +608,10 @@ app.post('/v1/titan', requireAuth, requireSubscription('PRO', 'Titan'), async (r
   };
 
   // Project Memory: Titan stays consistent with past decisions across sessions.
+  // Titan is a CoCode-only workflow — scope memory to 'cocode' (Req 5).
   let memoryContext = '';
   try {
-    memoryContext = memoryToContext(await loadMemory(u.id));
+    memoryContext = memoryToContext(await loadMemory(scopedKey(u.id, 'cocode')));
     if (memoryContext) emit('titan', 'project memory loaded', 'status');
   } catch { /* memory is best-effort */ }
 
@@ -613,7 +631,7 @@ app.post('/v1/titan', requireAuth, requireSubscription('PRO', 'Titan'), async (r
     if (result.hasBlueprint && result.blueprint?.project) {
       try {
         const bp = result.blueprint;
-        await recordDecision(u.id, `Titan blueprint: ${bp.project} — plan ${bp.chosenPlan || '?'}, stack ${bp.techStack || '?'}`);
+        await recordDecision(scopedKey(u.id, 'cocode'), `Titan blueprint: ${bp.project} — plan ${bp.chosenPlan || '?'}, stack ${bp.techStack || '?'}`);
       } catch { /* memory is best-effort */ }
     }
   } catch (e) {
@@ -664,10 +682,11 @@ app.post('/v1/run', requireAuth, requireSubscription('LITE', 'Coagentix Code'), 
     send({ role: 'system', kind: 'status', text: 'ยังไม่มี API key — กำลังใช้ mock mode เพิ่ม key ได้ในหน้า Settings' });
   }
 
-  // Project memory: prepend what we know from previous sessions for this user
+  // Project memory: prepend what we know from previous sessions for this user.
+  // /v1/run is the CoCode build pipeline — scope memory to 'cocode' (Req 5).
   let memCtx = '';
   try {
-    const mem = await loadMemory(u.id);
+    const mem = await loadMemory(scopedKey(u.id, 'cocode'));
     memCtx = memoryToContext(mem);
     if (memCtx) {
       send({ role: 'system', kind: 'status', text: `memory: loaded ${mem.sessions.length} previous session(s)` });
@@ -709,7 +728,7 @@ app.post('/v1/run', requireAuth, requireSubscription('LITE', 'Coagentix Code'), 
           const decisions: string[] = [];
           if (bb.architect?.approach) decisions.push(bb.architect.approach);
           for (const r of bb.architect?.risks ?? []) decisions.push(`Avoid: ${r}`);
-          await recordSessionMemory(u.id, {
+          await recordSessionMemory(scopedKey(u.id, 'cocode'), {
             task: task.slice(0, 160),
             status: result.status,
             files: bb.files.map((f) => f.path).slice(0, 20),
@@ -834,6 +853,10 @@ app.post('/v1/orchestrate', requireAuth, requireSubscription('PRO', 'Multi-agent
   const message = String(req.body?.message ?? '').trim();
   const history: ChatMessage[] = Array.isArray(req.body?.history) ? req.body.history : [];
   const enableQualityGate = req.body?.qualityGate !== false;
+  // Not yet wired to a specific frontend surface — accept the caller's product,
+  // defaulting to 'cochat' (this is framed as universal *chat*), so memory stays
+  // scoped once something does call it (Req 5).
+  const product: Product = parseProduct(req.body?.product) ?? 'cochat';
   if (!message) return res.status(400).json({ error: 'message required' });
   if (tooLong(message, MAX_MESSAGE)) return res.status(413).json({ error: `message too long (max ${MAX_MESSAGE} bytes)` });
 
@@ -853,7 +876,7 @@ app.post('/v1/orchestrate', requireAuth, requireSubscription('PRO', 'Multi-agent
   // Load memory for context continuity
   let memCtx = '';
   try {
-    const mem = await loadMemory(u.id);
+    const mem = await loadMemory(scopedKey(u.id, product));
     memCtx = memoryToContext(mem);
     if (memCtx) send({ role: 'chief', kind: 'status', text: 'memory: loading context from previous sessions' });
   } catch { /* best-effort */ }
@@ -862,7 +885,7 @@ app.post('/v1/orchestrate', requireAuth, requireSubscription('PRO', 'Multi-agent
   // relevant to this message, so we can answer without re-reading them (step 10).
   let imgCtx = '';
   try {
-    const ranked = await searchImageMemories(u.id, message, 3);
+    const ranked = await searchImageMemories(u.id, product, message, 3);
     imgCtx = imageMemoriesToContext(ranked);
     if (imgCtx) send({ role: 'chief', kind: 'status', text: `image memory: ${ranked.length} relevant image(s)` });
   } catch { /* best-effort */ }
@@ -899,7 +922,7 @@ app.post('/v1/orchestrate', requireAuth, requireSubscription('PRO', 'Multi-agent
 
     // Record to memory for future sessions
     try {
-      await recordSessionMemory(u.id, {
+      await recordSessionMemory(scopedKey(u.id, product), {
         task: message.slice(0, 160),
         status: 'done',
         files: [],

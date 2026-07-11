@@ -15,10 +15,13 @@ import { mkdirSync, readFileSync, writeFileSync, existsSync, unlinkSync } from '
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { ImageUnderstanding } from './image-pipeline.js';
+import type { Product } from './memory.js';
 
 export interface ImageMemoryRecord {
   id: string;
   userId: string;
+  /** CoChat vs CoCode — image memory never crosses products (Req 5). */
+  product: Product;
   imageHash: string;
   mimeType: string;
   shortSummary: string;
@@ -38,13 +41,17 @@ const MAX_PER_USER = 200;
 // ── Chat-session cache (in-process, warm within a server instance) ─────────────
 const chatCache = new Map<string, ImageMemoryRecord[]>();
 
-function cachePut(rec: ImageMemoryRecord): void {
-  const list = chatCache.get(rec.userId) ?? [];
-  const next = [rec, ...list.filter((r) => r.imageHash !== rec.imageHash)].slice(0, MAX_PER_USER);
-  chatCache.set(rec.userId, next);
+function cacheKey(userId: string, product: Product): string {
+  return `${userId}:${product}`;
 }
-function cacheGet(userId: string): ImageMemoryRecord[] {
-  return (chatCache.get(userId) ?? []).filter((r) => !isExpired(r));
+function cachePut(rec: ImageMemoryRecord): void {
+  const k = cacheKey(rec.userId, rec.product);
+  const list = chatCache.get(k) ?? [];
+  const next = [rec, ...list.filter((r) => r.imageHash !== rec.imageHash)].slice(0, MAX_PER_USER);
+  chatCache.set(k, next);
+}
+function cacheGet(userId: string, product: Product): ImageMemoryRecord[] {
+  return (chatCache.get(cacheKey(userId, product)) ?? []).filter((r) => !isExpired(r));
 }
 
 // ── Supabase backend ───────────────────────────────────────────────────────────
@@ -68,6 +75,7 @@ function rowToRecord(r: Record<string, unknown>): ImageMemoryRecord {
   return {
     id: String(r.id),
     userId: String(r.user_id),
+    product: (r.product === 'cocode' ? 'cocode' : 'cochat'),
     imageHash: String(r.image_hash),
     mimeType: String(r.mime_type ?? ''),
     shortSummary: String(r.short_summary ?? ''),
@@ -83,7 +91,7 @@ function rowToRecord(r: Record<string, unknown>): ImageMemoryRecord {
 }
 function recordToRow(rec: ImageMemoryRecord): Record<string, unknown> {
   return {
-    id: rec.id, user_id: rec.userId, image_hash: rec.imageHash, mime_type: rec.mimeType,
+    id: rec.id, user_id: rec.userId, product: rec.product, image_hash: rec.imageHash, mime_type: rec.mimeType,
     short_summary: rec.shortSummary, detailed_summary: rec.detailedSummary,
     reusable_context: rec.reusableContext, ocr_text: rec.ocrText,
     entities: rec.entities, key_points: rec.keyPoints, scene: rec.scene,
@@ -99,11 +107,11 @@ function memoryDir(): string {
 function sanitize(key: string): string {
   return key.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 80) || 'default';
 }
-function filePath(userId: string): string {
-  return join(memoryDir(), 'images_' + sanitize(userId) + '.json');
+function filePath(userId: string, product: Product): string {
+  return join(memoryDir(), 'images_' + sanitize(userId) + '_' + product + '.json');
 }
-function loadFile(userId: string): ImageMemoryRecord[] {
-  const p = filePath(userId);
+function loadFile(userId: string, product: Product): ImageMemoryRecord[] {
+  const p = filePath(userId, product);
   if (!existsSync(p)) return [];
   try {
     const arr = JSON.parse(readFileSync(p, 'utf8'));
@@ -112,9 +120,9 @@ function loadFile(userId: string): ImageMemoryRecord[] {
     return [];
   }
 }
-function saveFile(userId: string, records: ImageMemoryRecord[]): void {
+function saveFile(userId: string, product: Product, records: ImageMemoryRecord[]): void {
   mkdirSync(memoryDir(), { recursive: true });
-  writeFileSync(filePath(userId), JSON.stringify(records.slice(0, MAX_PER_USER), null, 2), 'utf8');
+  writeFileSync(filePath(userId, product), JSON.stringify(records.slice(0, MAX_PER_USER), null, 2), 'utf8');
 }
 
 // ── Public API ──────────────────────────────────────────────────────────────────
@@ -124,11 +132,12 @@ function isExpired(rec: ImageMemoryRecord): boolean {
 }
 
 /** Build a memory record from a completed pipeline run. */
-export function toRecord(userId: string, u: ImageUnderstanding): ImageMemoryRecord {
+export function toRecord(userId: string, product: Product, u: ImageUnderstanding): ImageMemoryRecord {
   const now = Date.now();
   return {
     id: randomUUID(),
     userId,
+    product,
     imageHash: u.processed.imageHash,
     mimeType: u.processed.mimeType,
     shortSummary: u.reusable.shortSummary,
@@ -144,14 +153,14 @@ export function toRecord(userId: string, u: ImageUnderstanding): ImageMemoryReco
 }
 
 /** Look up a previously-analyzed image by content hash (duplicate detection). */
-export async function findImageByHash(userId: string, imageHash: string): Promise<ImageMemoryRecord | undefined> {
-  const cached = cacheGet(userId).find((r) => r.imageHash === imageHash);
+export async function findImageByHash(userId: string, product: Product, imageHash: string): Promise<ImageMemoryRecord | undefined> {
+  const cached = cacheGet(userId, product).find((r) => r.imageHash === imageHash);
   if (cached) return cached;
 
   if (useSupabase) {
     try {
       const res = await sb(
-        `image_memories?user_id=eq.${encodeURIComponent(userId)}&image_hash=eq.${encodeURIComponent(imageHash)}&select=*&limit=1`,
+        `image_memories?user_id=eq.${encodeURIComponent(userId)}&product=eq.${product}&image_hash=eq.${encodeURIComponent(imageHash)}&select=*&limit=1`,
       );
       if (res.ok) {
         const rows = (await res.json()) as Array<Record<string, unknown>>;
@@ -161,18 +170,18 @@ export async function findImageByHash(userId: string, imageHash: string): Promis
       }
     } catch { /* fall through to file */ }
   }
-  const rec = loadFile(userId).find((r) => r.imageHash === imageHash && !isExpired(r));
+  const rec = loadFile(userId, product).find((r) => r.imageHash === imageHash && !isExpired(r));
   if (rec) cachePut(rec);
   return rec;
 }
 
-/** Persist a record across all layers, deduped by (userId, imageHash). */
+/** Persist a record across all layers, deduped by (userId, product, imageHash). */
 export async function storeImageMemory(rec: ImageMemoryRecord): Promise<ImageMemoryRecord> {
   cachePut(rec);
 
   if (useSupabase) {
     try {
-      const res = await sb('image_memories?on_conflict=user_id,image_hash', {
+      const res = await sb('image_memories?on_conflict=user_id,product,image_hash', {
         method: 'POST',
         headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
         body: JSON.stringify(recordToRow(rec)),
@@ -180,26 +189,26 @@ export async function storeImageMemory(rec: ImageMemoryRecord): Promise<ImageMem
       if (res.ok) return rec;
     } catch { /* fall through to file */ }
   }
-  const all = loadFile(rec.userId).filter((r) => r.imageHash !== rec.imageHash && !isExpired(r));
-  saveFile(rec.userId, [rec, ...all]);
+  const all = loadFile(rec.userId, rec.product).filter((r) => r.imageHash !== rec.imageHash && !isExpired(r));
+  saveFile(rec.userId, rec.product, [rec, ...all]);
   return rec;
 }
 
-/** All non-expired records for a user (cache + persistent, deduped). */
-export async function listImageMemories(userId: string, limit = MAX_PER_USER): Promise<ImageMemoryRecord[]> {
+/** All non-expired records for a user+product (cache + persistent, deduped). */
+export async function listImageMemories(userId: string, product: Product, limit = MAX_PER_USER): Promise<ImageMemoryRecord[]> {
   let persistent: ImageMemoryRecord[] = [];
   if (useSupabase) {
     try {
       const res = await sb(
-        `image_memories?user_id=eq.${encodeURIComponent(userId)}&order=created_at.desc&limit=${MAX_PER_USER}&select=*`,
+        `image_memories?user_id=eq.${encodeURIComponent(userId)}&product=eq.${product}&order=created_at.desc&limit=${MAX_PER_USER}&select=*`,
       );
       if (res.ok) persistent = ((await res.json()) as Array<Record<string, unknown>>).map(rowToRecord);
     } catch { /* fall through to file */ }
   }
-  if (!persistent.length) persistent = loadFile(userId);
+  if (!persistent.length) persistent = loadFile(userId, product);
 
   const merged = new Map<string, ImageMemoryRecord>();
-  for (const r of [...cacheGet(userId), ...persistent]) {
+  for (const r of [...cacheGet(userId, product), ...persistent]) {
     if (isExpired(r)) continue;
     if (!merged.has(r.imageHash)) merged.set(r.imageHash, r);
   }
@@ -227,12 +236,12 @@ export interface RankedImageMemory {
 
 /** Rank a user's image memories by relevance to a query (token overlap). */
 export async function searchImageMemories(
-  userId: string, query: string, k = 3,
+  userId: string, product: Product, query: string, k = 3,
 ): Promise<RankedImageMemory[]> {
   const qTerms = new Set(tokenize(query));
   if (!qTerms.size) return [];
 
-  const records = await listImageMemories(userId);
+  const records = await listImageMemories(userId, product);
   const ranked: RankedImageMemory[] = [];
   for (const rec of records) {
     const hay = [rec.shortSummary, rec.detailedSummary, rec.ocrText, rec.scene,
@@ -263,28 +272,31 @@ export function imageMemoriesToContext(ranked: RankedImageMemory[]): string {
   return lines.join('\n');
 }
 
-/** Remove all image memories for a user (across layers). */
-export async function clearImageMemories(userId: string): Promise<void> {
-  chatCache.delete(userId);
+/** Remove all image memories for a user+product (across layers). */
+export async function clearImageMemories(userId: string, product: Product): Promise<void> {
+  chatCache.delete(cacheKey(userId, product));
   if (useSupabase) {
-    try { await sb(`image_memories?user_id=eq.${encodeURIComponent(userId)}`, { method: 'DELETE' }); }
-    catch { /* best-effort */ }
+    try {
+      await sb(`image_memories?user_id=eq.${encodeURIComponent(userId)}&product=eq.${product}`, { method: 'DELETE' });
+    } catch { /* best-effort */ }
   }
-  const p = filePath(userId);
+  const p = filePath(userId, product);
   if (existsSync(p)) unlinkSync(p);
 }
 
 /** Delete expired rows (TTL housekeeping). Safe to call opportunistically. */
-export async function purgeExpiredImageMemories(userId?: string): Promise<void> {
+export async function purgeExpiredImageMemories(userId?: string, product?: Product): Promise<void> {
   const nowIso = new Date().toISOString();
   if (useSupabase) {
     try {
-      const filter = userId ? `&user_id=eq.${encodeURIComponent(userId)}` : '';
+      let filter = '';
+      if (userId) filter += `&user_id=eq.${encodeURIComponent(userId)}`;
+      if (product) filter += `&product=eq.${product}`;
       await sb(`image_memories?expires_at=lt.${encodeURIComponent(nowIso)}${filter}`, { method: 'DELETE' });
     } catch { /* best-effort */ }
   }
-  if (userId) {
-    const kept = loadFile(userId).filter((r) => !isExpired(r));
-    if (existsSync(filePath(userId))) saveFile(userId, kept);
+  if (userId && product) {
+    const kept = loadFile(userId, product).filter((r) => !isExpired(r));
+    if (existsSync(filePath(userId, product))) saveFile(userId, product, kept);
   }
 }
