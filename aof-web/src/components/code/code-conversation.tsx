@@ -193,7 +193,7 @@ export function CodeConversation({ mode }: { mode: Exclude<CodeMode, "titan"> })
             )}
 
             {debugMode && (
-              <div className="mb-2 flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+              <div className="mb-2 flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
                 <Bug className="size-3.5 shrink-0" />
                 Debug mode — paste your error or stack trace and CoAI will diagnose the root cause
                 before proposing a fix.

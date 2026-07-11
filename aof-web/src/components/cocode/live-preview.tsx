@@ -133,7 +133,7 @@ export function LivePreview({ className, splitMode = false }: LivePreviewProps) 
   }, [html]);
 
   const LEVEL_STYLE: Record<LogLevel, string> = {
-    log: "text-slate-300",
+    log: "text-slate-600 dark:text-slate-300",
     info: "text-sky-400",
     warn: "text-amber-400",
     error: "text-red-400",

@@ -179,7 +179,7 @@ export function ArchitecturePanel({ className }: { className?: string }) {
 
       {view === "mermaid" && (
         <div className="min-h-0 flex-1 overflow-auto p-4">
-          <pre className="font-mono text-[12px] text-slate-300 whitespace-pre-wrap">
+          <pre className="font-mono text-[12px] text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
             {diagram.mermaid}
           </pre>
         </div>

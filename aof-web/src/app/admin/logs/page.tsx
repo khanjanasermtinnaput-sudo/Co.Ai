@@ -18,7 +18,7 @@ const SEVERITY_STYLES: Record<string, string> = {
   info:     "bg-blue-500/10 text-blue-400 border-blue-500/20",
   warning:  "bg-amber-500/10 text-amber-400 border-amber-500/20",
   error:    "bg-red-500/10 text-red-400 border-red-500/20",
-  critical: "bg-red-600/20 text-red-300 border-red-600/30",
+  critical: "bg-red-600/20 text-red-800 dark:text-red-300 border-red-600/30",
 };
 
 const SEVERITY_ICON: Record<string, React.ElementType> = {
@@ -115,7 +115,7 @@ export default function LogsPage() {
                 >
                   <Icon className={cn("size-3.5 shrink-0 mt-0.5", {
                     info: "text-blue-400", warning: "text-amber-400",
-                    error: "text-red-400", critical: "text-red-300",
+                    error: "text-red-400", critical: "text-red-700 dark:text-red-300",
                   }[log.severity] ?? "text-muted-foreground")} />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">

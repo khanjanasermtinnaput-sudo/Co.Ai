@@ -168,7 +168,7 @@ export function IncidentResponsePanel({ className }: IncidentResponsePanelProps)
                   <p className="font-medium text-red-400 flex items-center gap-1.5 mb-1.5">
                     <Zap className="size-3" /> Root Cause
                   </p>
-                  <p className="font-mono text-[11px] text-red-300/80">{incident.rootCause}</p>
+                  <p className="font-mono text-[11px] text-red-800/80 dark:text-red-300/80">{incident.rootCause}</p>
                 </div>
               )}
 

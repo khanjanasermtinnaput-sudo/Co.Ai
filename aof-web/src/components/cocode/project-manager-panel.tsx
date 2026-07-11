@@ -123,7 +123,7 @@ export function ProjectManagerPanel({ className }: ProjectManagerPanelProps) {
                   <AlertTriangle className="size-3" /> {blocked.length} blocker{blocked.length !== 1 ? "s" : ""} detected
                 </p>
                 {blocked.map((t) => (
-                  <p key={t.id} className="text-[11px] text-red-300/70 pl-4">· {t.risk}</p>
+                  <p key={t.id} className="text-[11px] text-red-800/70 dark:text-red-300/70 pl-4">· {t.risk}</p>
                 ))}
               </div>
             )}
@@ -214,7 +214,7 @@ export function ProjectManagerPanel({ className }: ProjectManagerPanelProps) {
               <p className="font-medium text-amber-400 mb-2 flex items-center gap-2">
                 <TrendingDown className="size-4" /> Risk Alerts
               </p>
-              <ul className="space-y-1 text-[11px] text-amber-300/80">
+              <ul className="space-y-1 text-[11px] text-amber-800/80 dark:text-amber-300/80">
                 <li>· Auth PR has 0 reviewers — at risk of blocking mobile release</li>
                 <li>· Test coverage dropped 3% this week</li>
               </ul>

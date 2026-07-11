@@ -29,7 +29,7 @@ const SYSTEM_LABEL: Record<SystemStatusLevel, string> = {
 
 const SYSTEM_STYLE: Record<SystemStatusLevel, string> = {
   OPERATIONAL: "border-success/40 bg-success/10 text-success",
-  DEGRADED: "border-amber-500/40 bg-amber-500/10 text-amber-300",
+  DEGRADED: "border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-300",
   DOWN: "border-destructive/40 bg-destructive/10 text-destructive",
   UNKNOWN: "border-border bg-muted/40 text-muted-foreground",
 };

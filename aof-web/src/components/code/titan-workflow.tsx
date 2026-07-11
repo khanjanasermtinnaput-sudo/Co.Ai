@@ -202,7 +202,7 @@ function ClarifyPhase() {
       />
 
       {lowConfidence && (
-        <div className="mb-4 flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3.5 py-2.5 text-sm text-amber-300">
+        <div className="mb-4 flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3.5 py-2.5 text-sm text-amber-800 dark:text-amber-300">
           <ShieldAlert className="size-4 shrink-0" />
           Confidence is {titan.confidence}% — below the 85% gate. Answer the remaining
           questions so Titan can plan responsibly.

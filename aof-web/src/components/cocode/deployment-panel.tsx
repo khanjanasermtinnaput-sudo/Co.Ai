@@ -17,10 +17,10 @@ import { flattenFiles } from "@/lib/cocode/virtual-fs";
 
 const TARGET_INFO: Record<DeployTarget, { name: string; color: string; emoji: string }> = {
   vercel: { name: "Vercel", color: "bg-black/40 border-white/20 text-white", emoji: "▲" },
-  netlify: { name: "Netlify", color: "bg-teal-500/20 border-teal-500/40 text-teal-300", emoji: "◆" },
-  railway: { name: "Railway", color: "bg-purple-500/20 border-purple-500/40 text-purple-300", emoji: "🚂" },
-  cloudflare: { name: "Cloudflare Pages", color: "bg-orange-500/20 border-orange-500/40 text-orange-300", emoji: "☁️" },
-  "github-pages": { name: "GitHub Pages", color: "bg-slate-500/20 border-slate-500/40 text-slate-300", emoji: "🐙" },
+  netlify: { name: "Netlify", color: "bg-teal-500/20 border-teal-500/40 text-teal-800 dark:text-teal-300", emoji: "◆" },
+  railway: { name: "Railway", color: "bg-purple-500/20 border-purple-500/40 text-purple-800 dark:text-purple-300", emoji: "🚂" },
+  cloudflare: { name: "Cloudflare Pages", color: "bg-orange-500/20 border-orange-500/40 text-orange-800 dark:text-orange-300", emoji: "☁️" },
+  "github-pages": { name: "GitHub Pages", color: "bg-slate-500/20 border-slate-500/40 text-slate-700 dark:text-slate-300", emoji: "🐙" },
 };
 
 export function DeploymentPanel({ className }: { className?: string }) {
@@ -103,7 +103,7 @@ export function DeploymentPanel({ className }: { className?: string }) {
         <span className="text-sm font-medium">Deploy</span>
         {status === "success" && deployUrl && (
           <a href={deployUrl} target="_blank" rel="noopener noreferrer"
-            className="ml-auto flex items-center gap-1 text-[11px] text-emerald-400 hover:text-emerald-300">
+            className="ml-auto flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300">
             <Globe className="size-3" /> {deployUrl.replace("https://", "")}
             <ExternalLink className="size-3" />
           </a>
@@ -193,7 +193,7 @@ export function DeploymentPanel({ className }: { className?: string }) {
               <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3">
                 <Globe className="size-4 text-emerald-400" />
                 <a href={deployUrl} target="_blank" rel="noopener noreferrer"
-                  className="flex-1 truncate text-[13px] text-emerald-300 hover:text-emerald-200">
+                  className="flex-1 truncate text-[13px] text-emerald-800 hover:text-emerald-900 dark:text-emerald-300 dark:hover:text-emerald-200">
                   {deployUrl}
                 </a>
                 <button type="button" onClick={() => void navigator.clipboard.writeText(deployUrl)}

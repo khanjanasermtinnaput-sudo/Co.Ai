@@ -27,7 +27,7 @@ function FileIcon({ name, className }: { name: string; className?: string }) {
     ext === "js" || ext === "jsx" ? "text-yellow-400" :
     ext === "css" || ext === "scss" ? "text-pink-400" :
     ext === "json" ? "text-amber-400" :
-    ext === "md" || ext === "mdx" ? "text-slate-300" :
+    ext === "md" || ext === "mdx" ? "text-slate-600 dark:text-slate-400" :
     ext === "py" ? "text-green-400" :
     "text-muted-foreground";
   return <File className={cn("size-3.5 shrink-0", color, className)} />;

@@ -130,7 +130,7 @@ export function DependencyPanel({ className }: { className?: string }) {
               <button key={i} type="button" onClick={() => openTab(u.file)}
                 className="flex w-full items-center gap-2 px-4 py-1.5 text-left hover:bg-white/5">
                 <Trash2 className="size-3 shrink-0 text-amber-400" />
-                <span className="text-[11px] text-amber-300">{u.specifier}</span>
+                <span className="text-[11px] text-amber-800 dark:text-amber-300">{u.specifier}</span>
                 <span className="ml-auto truncate text-[11px] text-muted-foreground/50">{u.file}:{u.line}</span>
               </button>
             ))}

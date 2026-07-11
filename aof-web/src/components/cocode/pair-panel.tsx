@@ -217,11 +217,11 @@ function SuggestionCard({
           </div>
           <div>
             <span className="text-muted-foreground/50">Solution: </span>
-            <span className="text-emerald-300">{suggestion.solution}</span>
+            <span className="text-emerald-800 dark:text-emerald-300">{suggestion.solution}</span>
           </div>
           <div>
             <span className="text-muted-foreground/50">Benefit: </span>
-            <span className="text-sky-300">{suggestion.estimatedBenefit}</span>
+            <span className="text-sky-800 dark:text-sky-300">{suggestion.estimatedBenefit}</span>
           </div>
           <div className="flex gap-2 pt-1">
             {suggestion.autoFixable && (

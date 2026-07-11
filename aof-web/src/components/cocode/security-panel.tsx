@@ -24,7 +24,7 @@ const SEV_ICON: Record<SecuritySeverity, React.ReactNode> = {
 };
 
 const SEV_BADGE: Record<SecuritySeverity, string> = {
-  critical: "bg-red-500/25 text-red-300 border border-red-500/40",
+  critical: "bg-red-500/25 text-red-700 dark:text-red-300 border border-red-500/40",
   high: "bg-red-400/15 text-red-400 border border-red-400/30",
   medium: "bg-amber-400/15 text-amber-400 border border-amber-400/30",
   low: "bg-sky-400/15 text-sky-400 border border-sky-400/30",
@@ -199,7 +199,7 @@ function FindingRow({
         <div className="space-y-2 bg-card/20 px-10 pb-3 text-[11px]">
           <div>
             <span className="text-muted-foreground/50">OWASP: </span>
-            <span className="text-amber-300">{finding.owasp}</span>
+            <span className="text-amber-800 dark:text-amber-300">{finding.owasp}</span>
             {finding.cwe && <span className="ml-2 text-muted-foreground/40">{finding.cwe}</span>}
           </div>
           <p>{finding.description}</p>

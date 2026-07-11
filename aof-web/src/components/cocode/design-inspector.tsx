@@ -358,8 +358,8 @@ function A11yPanel({ file }: { file: { content: string; path: string } }) {
         <div key={i} className={cn(
           "rounded-lg border px-3 py-2.5 text-[12px]",
           issue.severity === "error"
-            ? "border-red-500/30 bg-red-500/10 text-red-300"
-            : "border-amber-500/30 bg-amber-500/10 text-amber-300",
+            ? "border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300"
+            : "border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-300",
         )}>
           {issue.message}
         </div>

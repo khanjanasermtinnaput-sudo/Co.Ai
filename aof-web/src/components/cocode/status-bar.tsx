@@ -96,7 +96,7 @@ export function WorkspaceStatusBar({
           onClick={() => setRightPanel("diagnostics")}
           className={cn(
             "flex h-full items-center gap-1 px-2 transition-colors hover:bg-white/5",
-            tsErrorCount > 0 ? "text-red-400 hover:text-red-300" : "hover:text-foreground",
+            tsErrorCount > 0 ? "text-red-400 hover:text-red-700 dark:hover:text-red-300" : "hover:text-foreground",
           )}
         >
           <AlertCircle className="size-3" />

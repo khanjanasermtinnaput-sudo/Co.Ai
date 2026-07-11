@@ -161,7 +161,7 @@ export function IDETooltip({
               <div className="px-3 py-2">
                 <div className="flex items-start gap-1.5 rounded-lg bg-red-500/10 px-2.5 py-2">
                   <AlertTriangle className="mt-0.5 size-3 shrink-0 text-red-400" />
-                  <span className="text-[10px] leading-relaxed text-red-300/90">{meta.securityWarning}</span>
+                  <span className="text-[10px] leading-relaxed text-red-800/90 dark:text-red-300/90">{meta.securityWarning}</span>
                 </div>
               </div>
             )}
@@ -171,7 +171,7 @@ export function IDETooltip({
               <div className="px-3 py-2">
                 <div className="flex items-start gap-1.5 rounded-lg bg-amber-500/8 px-2.5 py-2">
                   <Gauge className="mt-0.5 size-3 shrink-0 text-amber-400" />
-                  <span className="text-[10px] leading-relaxed text-amber-300/90">{meta.performanceNote}</span>
+                  <span className="text-[10px] leading-relaxed text-amber-800/90 dark:text-amber-300/90">{meta.performanceNote}</span>
                 </div>
               </div>
             )}

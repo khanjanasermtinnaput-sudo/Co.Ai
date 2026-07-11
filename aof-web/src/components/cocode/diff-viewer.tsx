@@ -274,8 +274,8 @@ function HunkBlock({
             <pre
               className={cn(
                 "min-w-0 flex-1 overflow-x-auto whitespace-pre px-2",
-                line.kind === "added" && "text-emerald-200",
-                line.kind === "removed" && "text-red-200",
+                line.kind === "added" && "text-emerald-800 dark:text-emerald-200",
+                line.kind === "removed" && "text-red-800 dark:text-red-200",
                 line.kind === "context" && "text-muted-foreground",
               )}
             >
