@@ -4,7 +4,7 @@
 
 /* ============================================================================
    Aof design system
-   Dark-first. Orange-gold accent (#F59E0B). Near-black canvas. Glass surfaces.
+   Dark-first. Orange-gold accent (#F29A36). Warm charcoal canvas. Glass surfaces.
    ========================================================================== */
 
 @layer base {
@@ -18,7 +18,7 @@
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 9%;
 
-    --primary: 32 94% 44%; /* #D97706 — calmer amber, 50% less bright */
+    --primary: 32 88% 58%; /* #F29A36 — softer, lighter amber */
     --primary-foreground: 30 60% 8%;
 
     --secondary: 40 10% 94%;
@@ -37,7 +37,7 @@
 
     --border: 40 10% 88%;
     --input: 40 10% 86%;
-    --ring: 32 94% 44%;
+    --ring: 32 88% 58%;
 
     --sidebar: 40 20% 97%;
     --sidebar-foreground: 0 0% 20%;
@@ -47,25 +47,26 @@
   }
 
   .dark {
-    /* Dark theme (primary) — true-black canvas, warm orange-gold accent */
-    --background: 0 0% 0%; /* #000000 */
+    /* Dark theme (primary) — warm charcoal canvas (Claude-style gray, not
+       pure black), warm orange-gold accent */
+    --background: 30 3% 12%; /* #201f1d */
     --foreground: 40 12% 96%;
 
-    --card: 0 0% 7%; /* #111111 */
+    --card: 30 3% 16%; /* #2a2926 */
     --card-foreground: 40 10% 96%;
-    --popover: 0 0% 6%;
+    --popover: 30 3% 15%;
     --popover-foreground: 40 10% 96%;
 
-    --primary: 32 94% 44%; /* #D97706 — calmer amber, 50% less bright */
+    --primary: 32 88% 58%; /* #F29A36 — softer, lighter amber */
     --primary-foreground: 30 70% 6%;
 
-    --secondary: 0 0% 11%;
+    --secondary: 30 3% 20%;
     --secondary-foreground: 40 10% 92%;
 
-    --muted: 0 0% 11%;
-    --muted-foreground: 40 5% 60%;
+    --muted: 30 3% 20%;
+    --muted-foreground: 40 5% 62%;
 
-    --accent: 0 0% 13%;
+    --accent: 30 3% 23%;
     --accent-foreground: 40 10% 96%;
 
     --destructive: 0 72% 56%;
@@ -73,13 +74,13 @@
     --success: 152 56% 46%;
     --success-foreground: 0 0% 100%;
 
-    --border: 0 0% 14%;
-    --input: 0 0% 16%;
-    --ring: 32 94% 46%;
+    --border: 30 3% 26%;
+    --input: 30 3% 28%;
+    --ring: 32 88% 60%;
 
-    --sidebar: 0 0% 5%;
+    --sidebar: 30 3% 9%;
     --sidebar-foreground: 40 6% 70%;
-    --sidebar-border: 0 0% 12%;
+    --sidebar-border: 30 3% 20%;
   }
 }
 
@@ -165,9 +166,9 @@
   .text-gradient-gold {
     background: linear-gradient(
       92deg,
-      hsl(38 92% 50%) 0%,
-      hsl(32 94% 44%) 50%,
-      hsl(26 90% 38%) 100%
+      hsl(38 85% 64%) 0%,
+      hsl(32 88% 58%) 50%,
+      hsl(26 85% 52%) 100%
     );
     -webkit-background-clip: text;
     background-clip: text;
@@ -177,8 +178,8 @@
   :root:not(.dark) .text-gradient-gold {
     background: linear-gradient(
       92deg,
-      hsl(32 94% 44%) 0%,
-      hsl(26 90% 38%) 100%
+      hsl(32 88% 58%) 0%,
+      hsl(26 85% 52%) 100%
     );
     -webkit-background-clip: text;
     background-clip: text;

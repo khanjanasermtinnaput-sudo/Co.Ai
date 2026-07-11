@@ -82,7 +82,7 @@ const KB_ENTRIES: KBEntry[] = [
   },
   {
     id: "6", category: "ui", title: "Design Tokens",
-    summary: "Colors via HSL CSS variables in globals.css. Primary: #D97706 (amber). Dark-first. Use Tailwind semantic classes only.",
+    summary: "Colors via HSL CSS variables in globals.css. Primary: #F29A36 (amber). Dark-first. Use Tailwind semantic classes only.",
     sourceFile: "src/app/globals.css", lastUpdated: "3d ago", autoSynced: true,
     tags: ["design-system", "tokens", "tailwind"],
   },

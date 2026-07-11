@@ -299,7 +299,7 @@ function AppearanceTab() {
           <span className="size-9 rounded-full bg-primary shadow-glow" />
           <div>
             <p className="text-sm font-medium">Orange Gold</p>
-            <p className="text-xs text-muted-foreground">#F59E0B</p>
+            <p className="text-xs text-muted-foreground">#F29A36</p>
           </div>
           <Badge variant="muted" className="ml-auto">
             Active
