@@ -10,13 +10,10 @@ import { TaotaoAvatar } from "@/components/mascot";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Markdown } from "./markdown";
 import { AttachmentList } from "./attachment-list";
-import { RouteBadge } from "./route-badge";
 import { LearningAnswerView } from "./learning-answer";
 import { SourcesPanel } from "./sources-panel";
 import { ErrorPanel } from "@/components/diagnostics/error-panel";
-import { FailoverNotice } from "@/components/diagnostics/failover-notice";
-import { ActiveModelBadge } from "@/components/diagnostics/active-model-badge";
-import { ModelBadge } from "@/components/diagnostics/model-badge";
+import { BackendPanel } from "@/components/diagnostics/backend-panel";
 
 const AGENT_LABELS: Record<string, string> = {
   chief: "Chief Agent",
@@ -135,7 +132,7 @@ function ChatMessageImpl({
 
       {/* bubble */}
       <div className={cn("flex min-w-0 max-w-[min(680px,85%)] flex-col gap-1.5", isUser && "items-end")}>
-        {!isUser && message.failover && <FailoverNotice notice={message.failover} />}
+        {!isUser && <BackendPanel message={message} />}
 
         {!isUser && message.error ? (
           <>
@@ -151,9 +148,6 @@ function ChatMessageImpl({
           </>
         ) : (
           <>
-            {!isUser && message.model && <ModelBadge model={message.model} />}
-            {!isUser && message.activeModel && <ActiveModelBadge notice={message.activeModel} />}
-            {!isUser && message.route && <RouteBadge route={message.route} />}
             {!isUser && message.agentStatus && <AgentStatusBar status={message.agentStatus} />}
 
             {/* ── User message: editable ──────────────────────────────── */}
