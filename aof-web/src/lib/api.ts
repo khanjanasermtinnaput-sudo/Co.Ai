@@ -85,12 +85,15 @@ function authHeaders(): Record<string, string> {
 }
 
 /**
- * Authorization header for the tmap-v2 backend (/v1/*). Real users sign in with
- * Supabase/Google, so we send their Supabase access token — the backend bridges it
- * (see tmap-v2 server/auth.ts). Falls back to the legacy localStorage token
- * (username/PIN / CLI accounts) when there is no Supabase session.
+ * Authorization header carrying the caller's identity. Real users sign in with
+ * Supabase/Google, so we send their Supabase access token — used by both the
+ * same-origin chat route (/api/chat → getUserFromRequest) and the tmap-v2 backend
+ * (/v1/*, which bridges it — see tmap-v2 server/auth.ts). Falls back to the legacy
+ * localStorage token (username/PIN / CLI accounts) when there is no Supabase session.
+ * Without this header the server cannot see the signed-in user and treats them as an
+ * anonymous guest (subject to the guest_daily cap).
  */
-async function backendAuthHeaders(): Promise<Record<string, string>> {
+async function sessionAuthHeaders(): Promise<Record<string, string>> {
   try {
     const supabase = getSupabase();
     if (supabase) {
@@ -154,7 +157,7 @@ export async function postSSE(
 
   const res = await fetch(`${base}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...(await backendAuthHeaders()) },
+    headers: { "Content-Type": "application/json", ...(await sessionAuthHeaders()) },
     body: JSON.stringify(body),
     signal,
   });
@@ -293,7 +296,7 @@ export async function streamChat(
   try {
     const res = await fetch("/api/chat", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(await sessionAuthHeaders()) },
       body: JSON.stringify({
         message,
         model: req.model,
@@ -322,7 +325,7 @@ async function streamViaChat(
   try {
     const res = await fetch("/api/chat", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(await sessionAuthHeaders()) },
       body: JSON.stringify({ message, agent, effort }),
       signal: handlers.signal,
     });
@@ -427,7 +430,7 @@ export async function streamCodeChat(
   try {
     const res = await fetch("/api/chat", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(await sessionAuthHeaders()) },
       body: JSON.stringify({ message, agent: "code-chat", effort, history: history.slice(-20) }),
       signal: handlers.signal,
     });
@@ -493,7 +496,7 @@ export async function streamRequirements(
   try {
     const res = await fetch("/api/chat", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(await sessionAuthHeaders()) },
       body: JSON.stringify({ message, agent: "requirements", effort, history: hist }),
       signal: handlers.signal,
     });
@@ -684,7 +687,7 @@ export async function streamOrchestrate(
   try {
     const res = await fetch("/api/chat", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(await sessionAuthHeaders()) },
       body: JSON.stringify({ message, agent: "chat", history: history.slice(-20) }),
       signal: handlers.signal,
     });
@@ -746,7 +749,7 @@ export async function streamOrchestrateV2(
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(await sessionAuthHeaders()) },
         body: JSON.stringify({ message: task, agent: "chat" }),
         signal: handlers.signal,
       });
@@ -784,7 +787,7 @@ export async function fetchHealth(signal?: AbortSignal): Promise<SystemHealth> {
 export async function clearProductMemory(product: "cochat" | "cocode"): Promise<void> {
   const base = getApiBase();
   if (base === null) return; // no tmap-v2 backend configured — nothing to clear
-  const headers = { "Content-Type": "application/json", ...(await backendAuthHeaders()) };
+  const headers = { "Content-Type": "application/json", ...(await sessionAuthHeaders()) };
   await Promise.allSettled([
     fetch(`${base}/v1/memory?product=${product}`, { method: "DELETE", headers }),
     fetch(`${base}/v1/image/memories?product=${product}`, { method: "DELETE", headers }),
