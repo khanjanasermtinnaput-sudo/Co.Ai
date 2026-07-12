@@ -5,11 +5,12 @@
 // All previews receive the same HTML — changes update all at once.
 
 import { useMemo, useState } from "react";
-import { Monitor, Tablet, Smartphone, Sun, Moon, RotateCcw } from "lucide-react";
+import { Monitor, Tablet, Smartphone, Sun, Moon, RotateCcw, ServerCog } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useCocodeIDEStore } from "@/store/cocode-ide-store";
 import { flattenFiles } from "@/lib/cocode/virtual-fs";
+import { buildPreview } from "@/lib/cocode/preview-runtime";
 
 interface Viewport {
   id: string;
@@ -26,29 +27,6 @@ const VIEWPORTS: Viewport[] = [
   { id: "mobile", label: "Mobile", icon: Smartphone, width: 390, height: 844, scale: 0.55 },
 ];
 
-const RELAY = `<script>(function(){function s(l,a){try{parent.postMessage({src:"ccp",level:l,text:Array.from(a).map(function(x){try{return typeof x==="object"?JSON.stringify(x):String(x);}catch(e){return String(x);}}).join(" ")},"*");}catch(e){}}["log","warn","error"].forEach(function(m){var o=console[m];console[m]=function(){s(m,arguments);o&&o.apply(console,arguments);};});})();<\/script>`;
-
-function buildHtml(files: Array<{ path: string; content: string }>): string | null {
-  const fileMap = new Map(files.map((f) => [f.path, f.content]));
-  const html = files.find((f) => f.path === "index.html" || f.path.endsWith("/index.html"))?.content;
-  if (!html) return null;
-
-  let result = html
-    .replace(/<script\s+src=["']([^"']+)["'][^>]*><\/script>/gi, (_, src) => {
-      if (src.startsWith("http")) return _;
-      const content = fileMap.get(src) ?? fileMap.get(src.replace(/^\.\//, ""));
-      return content ? `<script>${content}<\/script>` : _;
-    })
-    .replace(/<link[^>]+rel=["']stylesheet["'][^>]+href=["']([^"']+)["'][^>]*>/gi, (_, href) => {
-      if (href.startsWith("http")) return _;
-      const content = fileMap.get(href) ?? fileMap.get(href.replace(/^\.\//, ""));
-      return content ? `<style>${content}</style>` : _;
-    });
-
-  if (result.includes("<head>")) return result.replace("<head>", `<head>${RELAY}`);
-  return RELAY + result;
-}
-
 export function MultiPreview({ className }: { className?: string }) {
   const fs = useCocodeIDEStore((s) => s.fs);
   const [darkMode, setDarkMode] = useState(false);
@@ -62,11 +40,11 @@ export function MultiPreview({ className }: { className?: string }) {
     [fs],
   );
 
-  const html = useMemo(() => {
-    if (!allFiles.length) return null;
-    try { return buildHtml(allFiles); } catch { return null; }
+  const preview = useMemo(() => {
+    try { return buildPreview(allFiles); } catch { return { kind: "empty" as const, html: null }; }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- nonce is a manual refresh trigger, not read in the callback
   }, [allFiles, nonce]);
+  const html = preview.html;
 
   const finalHtml = useMemo(() => {
     if (!html) return null;
@@ -89,13 +67,26 @@ export function MultiPreview({ className }: { className?: string }) {
 
   const visibleViewports = VIEWPORTS.filter((v) => activeViewports.has(v.id));
 
+  if (preview.kind === "nextjs") {
+    return (
+      <div className={cn("flex flex-col items-center justify-center gap-3 p-6 text-center", className)}>
+        <ServerCog className="size-10 text-muted-foreground/30" />
+        <p className="text-sm font-medium">Next.js needs a dev server</p>
+        <p className="max-w-xs text-[12px] text-muted-foreground/60">
+          Static HTML and React/Vite apps preview in-browser; Next.js needs <code>next dev</code>, which
+          this sandbox can&rsquo;t run. Use Deploy to see it live.
+        </p>
+      </div>
+    );
+  }
+
   if (!finalHtml) {
     return (
       <div className={cn("flex flex-col items-center justify-center gap-3 p-6 text-center", className)}>
         <Monitor className="size-10 text-muted-foreground/30" />
         <p className="text-sm font-medium">Multi-Device Preview</p>
         <p className="text-[12px] text-muted-foreground/60">
-          Load a project with <code>index.html</code> to preview across devices simultaneously.
+          Load a project with <code>index.html</code> or a React/Vite app to preview across devices simultaneously.
         </p>
       </div>
     );

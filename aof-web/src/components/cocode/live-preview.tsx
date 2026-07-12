@@ -8,60 +8,16 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
   Eye, Terminal, RotateCcw, ExternalLink, Maximize2,
-  Minimize2, SplitSquareHorizontal, Monitor,
+  Minimize2, SplitSquareHorizontal, Monitor, ServerCog,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useCocodeIDEStore } from "@/store/cocode-ide-store";
 import { flattenFiles } from "@/lib/cocode/virtual-fs";
-
-// Console relay injected into the preview iframe
-const RELAY = `<script>(function(){function s(l,a){try{parent.postMessage({src:"ccp",level:l,text:Array.from(a).map(function(x){try{return typeof x==="object"?JSON.stringify(x):String(x);}catch(e){return String(x);}}).join(" ")},"*");}catch(e){}}["log","info","warn","error"].forEach(function(m){var o=console[m];console[m]=function(){s(m,arguments);o&&o.apply(console,arguments);};});window.onerror=function(m,f,l){s("error",[m+(f?" ("+f+":"+l+")":"")]);};window.onunhandledrejection=function(e){s("error",["Unhandled: "+(e.reason?.message||e.reason)]);};})();<\/script>`;
+import { buildPreview, type PreviewResult } from "@/lib/cocode/preview-runtime";
 
 type LogLevel = "log" | "info" | "warn" | "error";
 interface ConsoleEntry { id: number; level: LogLevel; text: string }
-
-// ── HTML assembler ────────────────────────────────────────────────────────────
-
-function buildPreviewHtml(files: Array<{ path: string; content: string }>): string | null {
-  const fileMap = new Map(files.map((f) => [f.path, f.content]));
-
-  // Find HTML entry
-  const htmlFile = files.find((f) =>
-    f.path === "index.html" || f.path === "public/index.html" || f.path.endsWith("/index.html"),
-  );
-
-  if (!htmlFile) {
-    // Try to build from generated files if AI produced code blocks
-    const htmlContent = files.find((f) => f.path.endsWith(".html"))?.content;
-    if (!htmlContent) return null;
-    return injectRelay(inlineSources(htmlContent, fileMap));
-  }
-
-  return injectRelay(inlineSources(htmlFile.content, fileMap));
-}
-
-function inlineSources(html: string, files: Map<string, string>): string {
-  // Inline local <script src="..."> and <link rel="stylesheet" href="...">
-  let result = html;
-  result = result.replace(/<script\s+src=["']([^"']+)["'][^>]*><\/script>/gi, (_, src) => {
-    if (src.startsWith("http")) return _;
-    const content = files.get(src) ?? files.get(src.replace(/^\.\//, ""));
-    return content ? `<script>${content}<\/script>` : _;
-  });
-  result = result.replace(/<link[^>]+rel=["']stylesheet["'][^>]+href=["']([^"']+)["'][^>]*>/gi, (_, href) => {
-    if (href.startsWith("http")) return _;
-    const content = files.get(href) ?? files.get(href.replace(/^\.\//, ""));
-    return content ? `<style>${content}</style>` : _;
-  });
-  return result;
-}
-
-function injectRelay(html: string): string {
-  if (html.includes("<head>")) return html.replace("<head>", `<head>${RELAY}`);
-  if (/<html[^>]*>/i.test(html)) return html.replace(/<html[^>]*>/i, (m) => `${m}${RELAY}`);
-  return RELAY + html;
-}
 
 // ── Debounce helper ───────────────────────────────────────────────────────────
 
@@ -95,15 +51,15 @@ export function LivePreview({ className, splitMode = false }: LivePreviewProps) 
   // Debounce by 800ms so rapid typing doesn't thrash iframe
   const debouncedFiles = useDebouncedValue(allFiles, 800);
 
-  const html = useMemo(() => {
-    if (!debouncedFiles.length) return null;
+  const preview = useMemo<PreviewResult>(() => {
     try {
-      return buildPreviewHtml(debouncedFiles);
+      return buildPreview(debouncedFiles);
     } catch {
-      return null;
+      return { kind: "empty", html: null };
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- nonce is a manual refresh trigger, not read in the callback
   }, [debouncedFiles, nonce]);
+  const html = preview.html;
 
   // Console relay from iframe
   useEffect(() => {
@@ -139,6 +95,22 @@ export function LivePreview({ className, splitMode = false }: LivePreviewProps) 
     error: "text-red-400",
   };
 
+  if (preview.kind === "nextjs") {
+    return (
+      <div className={cn("flex flex-col items-center justify-center gap-3 p-6 text-center", className)}>
+        <ServerCog className="size-10 text-muted-foreground/30" />
+        <div>
+          <p className="text-sm font-medium">Next.js needs a dev server</p>
+          <p className="mt-1 max-w-xs text-[12px] text-muted-foreground/60">
+            This sandboxed preview can render static HTML and React/Vite-style apps in-browser,
+            but Next.js requires a running Node server (<code>next dev</code>) it can&rsquo;t start.
+            Use <span className="font-medium text-foreground/70">Deploy</span> to see it live.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   if (!html) {
     return (
       <div className={cn("flex flex-col items-center justify-center gap-3 p-6 text-center", className)}>
@@ -146,7 +118,8 @@ export function LivePreview({ className, splitMode = false }: LivePreviewProps) 
         <div>
           <p className="text-sm font-medium">Live Preview</p>
           <p className="mt-1 text-[12px] text-muted-foreground/60">
-            Load a project with an <code>index.html</code> to see a live preview. Changes update automatically.
+            Load a project with an <code>index.html</code> or a React/Vite app to see a live preview.
+            Changes update automatically.
           </p>
         </div>
       </div>

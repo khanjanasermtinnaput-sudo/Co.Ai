@@ -3,7 +3,7 @@
 // Supports Next.js, React+Vite, Express, Fastify, and generic templates.
 
 export type ScaffoldTemplate =
-  | "nextjs-app" | "nextjs-pages" | "react-vite" | "express-api"
+  | "nextjs-app" | "nextjs-pages" | "react-vite" | "static" | "express-api"
   | "fastify-api" | "t3-stack" | "monorepo" | "library";
 
 export interface ScaffoldOptions {
@@ -49,6 +49,13 @@ export const TEMPLATES: TemplateDefinition[] = [
     description: "React 19 with Vite, TypeScript, and fast HMR",
     defaultExtras: ["tailwind"],
     availableExtras: ["tailwind", "eslint", "zustand", "react-query", "vitest"],
+  },
+  {
+    id: "static",
+    label: "Static HTML/CSS/JS",
+    description: "Plain index.html + CSS + JS — no build step, previews instantly",
+    defaultExtras: [],
+    availableExtras: [],
   },
   {
     id: "express-api",
@@ -130,6 +137,8 @@ function packageJson(opts: ScaffoldOptions): ScaffoldFile {
     scripts["build"] = "tsc";
     scripts["test"] = "vitest";
     scripts["prepublishOnly"] = "npm run build";
+  } else if (template === "static") {
+    scripts["dev"] = "npx serve .";
   }
 
   if (typescript) {
@@ -349,6 +358,26 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     };
   }
 
+  if (template === "static") {
+    return {
+      path: "index.html",
+      content: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${projectName}</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <h1>${projectName}</h1>
+  <script src="script.js"></script>
+</body>
+</html>
+`,
+    };
+  }
+
   if (template === "express-api" || template === "fastify-api") {
     const isExpress = template === "express-api";
     return {
@@ -402,12 +431,58 @@ fastify.listen({ port: PORT, host: "0.0.0.0" });
 export function generateScaffold(opts: ScaffoldOptions): ScaffoldFile[] {
   const files: ScaffoldFile[] = [
     packageJson(opts),
-    tsconfig(opts.template),
+    ...(opts.template === "static" ? [] : [tsconfig(opts.template)]),
     readmeFile(opts),
     gitignore(),
     envExample(opts.template, opts.extras),
     mainEntryFile(opts),
   ];
+
+  if (opts.template === "react-vite") {
+    const ext = opts.typescript ? "tsx" : "jsx";
+    files.push({
+      path: "index.html",
+      content: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${opts.projectName}</title>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.${ext}"></script>
+</body>
+</html>
+`,
+    });
+    files.push({
+      path: `src/main.${ext}`,
+      content: `import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+import App from "./App";
+import "./index.css";
+
+createRoot(document.getElementById("root")${opts.typescript ? "!" : ""}).render(
+  <StrictMode>
+    <App />
+  </StrictMode>,
+);
+`,
+    });
+    files.push({ path: "src/index.css", content: `:root {\n  color-scheme: light dark;\n}\n` });
+  }
+
+  if (opts.template === "static") {
+    files.push({
+      path: "style.css",
+      content: `:root { color-scheme: light dark; }\nbody { font-family: system-ui, sans-serif; margin: 2rem; }\n`,
+    });
+    files.push({
+      path: "script.js",
+      content: `console.log("${opts.projectName} loaded");\n`,
+    });
+  }
 
   if (opts.template === "nextjs-app") {
     files.push({
@@ -437,7 +512,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     });
   }
 
-  if (opts.includeTests) {
+  if (opts.includeTests && opts.template !== "static") {
     files.push({
       path: `src/__tests__/index.test.${opts.typescript ? "ts" : "js"}`,
       content: `import { describe, it, expect } from "vitest";\n\ndescribe("${opts.projectName}", () => {\n  it("should work", () => {\n    expect(true).toBe(true);\n  });\n});\n`,

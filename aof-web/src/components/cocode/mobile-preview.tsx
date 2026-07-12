@@ -6,10 +6,11 @@
 // Supports orientation toggle, dark mode, and zoomed/actual-size view.
 
 import { useState, useMemo } from "react";
-import { Smartphone, RotateCcw, Moon, Sun, Maximize2, Minimize2 } from "lucide-react";
+import { Smartphone, RotateCcw, Moon, Sun, Maximize2, Minimize2, ServerCog } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCocodeIDEStore } from "@/store/cocode-ide-store";
 import { flattenFiles } from "@/lib/cocode/virtual-fs";
+import { buildPreview } from "@/lib/cocode/preview-runtime";
 import { Button } from "@/components/ui/button";
 
 interface DeviceSpec {
@@ -29,39 +30,6 @@ const DEVICES: DeviceSpec[] = [
   { id: "galaxy-s24", name: "Galaxy S24", width: 360, height: 780, pixelRatio: 3, os: "android", borderRadius: 44 },
 ];
 
-function buildPreviewHTML(files: Array<{ path: string; content: string }>, dark: boolean): string {
-  const htmlFile = files.find((f) => f.path.endsWith("index.html"));
-  const cssFiles = files.filter((f) => f.path.endsWith(".css"));
-  const jsFiles = files.filter((f) => f.path.endsWith(".js") && !f.path.includes("node_modules"));
-
-  if (htmlFile) {
-    return htmlFile.content;
-  }
-
-  const styles = cssFiles.map((f) => `<style>${f.content}</style>`).join("\n");
-  const scripts = jsFiles.map((f) => `<script>${f.content}</script>`).join("\n");
-
-  const bg = dark ? "#0b0b0f" : "#ffffff";
-  const fg = dark ? "#e2e8f0" : "#1a202c";
-
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: ${bg}; color: ${fg}; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
-  </style>
-  ${styles}
-</head>
-<body>
-  ${files.filter((f) => f.path.endsWith(".html") && !f.path.endsWith("index.html")).map((f) => f.content).join("\n") || "<p style='padding:1rem;font-size:14px'>No HTML content found. Upload files to preview.</p>"}
-  ${scripts}
-</body>
-</html>`;
-}
-
 export function MobilePreview({ className }: { className?: string }) {
   const fs = useCocodeIDEStore((s) => s.fs);
   const [selectedDevice, setSelectedDevice] = useState<string>("iphone-15-pro");
@@ -75,7 +43,15 @@ export function MobilePreview({ className }: { className?: string }) {
   const previewHeight = landscape ? device.width : device.height;
 
   const allFiles = useMemo(() => flattenFiles(fs).map((f) => ({ path: f.path, content: f.content })), [fs]);
-  const html = useMemo(() => buildPreviewHTML(allFiles, dark), [allFiles, dark]);
+  const preview = useMemo(() => {
+    try { return buildPreview(allFiles); } catch { return { kind: "empty" as const, html: null }; }
+  }, [allFiles]);
+  const html = useMemo(() => {
+    if (!preview.html) return null;
+    return dark && preview.html.includes("<html")
+      ? preview.html.replace(/<html([^>]*)>/, `<html$1 class="dark">`)
+      : preview.html;
+  }, [preview.html, dark]);
   const srcDoc = html;
 
   // Scale to fit the panel (max ~320px wide)
@@ -86,6 +62,31 @@ export function MobilePreview({ className }: { className?: string }) {
   const displayH = Math.round(previewHeight * scale);
 
   const notchHeight = device.os === "ios" ? Math.round(44 * scale) : Math.round(28 * scale);
+
+  if (preview.kind === "nextjs") {
+    return (
+      <div className={cn("flex h-full flex-col items-center justify-center gap-3 p-6 text-center", className)}>
+        <ServerCog className="size-10 text-muted-foreground/30" />
+        <p className="text-sm font-medium">Next.js needs a dev server</p>
+        <p className="max-w-xs text-[12px] text-muted-foreground/60">
+          Static HTML and React/Vite apps preview in-browser; Next.js needs <code>next dev</code>, which
+          this sandbox can&rsquo;t run.
+        </p>
+      </div>
+    );
+  }
+
+  if (!srcDoc) {
+    return (
+      <div className={cn("flex h-full flex-col items-center justify-center gap-3 p-6 text-center", className)}>
+        <Smartphone className="size-10 text-muted-foreground/30" />
+        <p className="text-sm font-medium">Mobile Preview</p>
+        <p className="max-w-xs text-[12px] text-muted-foreground/60">
+          Load a project with <code>index.html</code> or a React/Vite app to preview it on a device frame.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className={cn("flex h-full flex-col", className)}>
