@@ -10,6 +10,7 @@ import {
   effortSystemAddon,
   effortTemperature,
   normalizeEffort,
+  tierAllowsSearch,
 } from "../lib/effort";
 import type { EffortLevel } from "../lib/types";
 
@@ -71,6 +72,13 @@ test("workflow / deepThink / clarifyFirst gate at the right levels", () => {
   assert.deepEqual(flags("high"), [true, false, false]);
   assert.deepEqual(flags("ultra"), [true, true, false]);
   assert.deepEqual(flags("extreme"), [true, true, true]);
+});
+
+test("tierAllowsSearch: Mikros never grounds with search, every other tier does", () => {
+  assert.equal(tierAllowsSearch("lite"), false);
+  assert.equal(tierAllowsSearch("normal"), true);
+  assert.equal(tierAllowsSearch("pro"), true);
+  assert.equal(tierAllowsSearch("titan"), true);
 });
 
 test("system addon: only extreme + conversational asks the user to clarify first", () => {

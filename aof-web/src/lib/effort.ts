@@ -7,7 +7,7 @@
 //   Titan          → none (its enforced phase workflow replaces the dial)
 
 import type { ChatModel, CodeMode, EffortLevel } from "./types";
-import { modelTierFromId } from "./model-branding";
+import { modelTierFromId, type ModelTier } from "./model-branding";
 
 export const EFFORT_LABELS: Record<EffortLevel, string> = {
   low: "Low",
@@ -98,6 +98,15 @@ export const EFFORT_POLICY: Record<EffortLevel, EffortPolicy> = {
 
 export function effortPolicy(effort: EffortLevel): EffortPolicy {
   return EFFORT_POLICY[effort] ?? EFFORT_POLICY.normal;
+}
+
+/** Whether a plain-CoChat turn on this tier may run Universal Search grounding
+ *  (a retrieval pass over live web results). Mikros (`lite`) never grounds with
+ *  search — Co.AI Master Prompt Part 3: "Mikros must never execute... expensive
+ *  retrieval workflows." Every other tier is unaffected; this only scopes the
+ *  plain-chat path (no `agent`), never CoCode's code-chat or any other agent. */
+export function tierAllowsSearch(tier: ModelTier): boolean {
+  return tier !== "lite";
 }
 
 /** Size a token budget for `effort` from an agent's base allowance. */

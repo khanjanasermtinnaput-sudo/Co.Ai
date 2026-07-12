@@ -34,7 +34,7 @@ import {
   type ProviderMeta,
 } from "@/lib/server/ai-providers";
 import { bestModelFor, matchScore, ROLE_LABEL, routeOrder, type TaskCategory } from "@/lib/server/model-registry";
-import { logAofError, logAofInfo, runStartupCheckOnce } from "@/lib/server/ai-log";
+import { logAofError, logAofInfo, logAofStage, runStartupCheckOnce } from "@/lib/server/ai-log";
 import { checkRateLimit, applyRateLimitHeaders } from "@/lib/server/rate-limit";
 import { getUserFromRequest, tierForUser } from "@/lib/server/supabase-admin";
 import { loadUserKeyOverrides } from "@/lib/server/keys-store";
@@ -45,8 +45,9 @@ import {
   effortSystemAddon,
   effortTemperature,
   normalizeEffort,
+  tierAllowsSearch,
 } from "@/lib/effort";
-import { modelTierFromId, type ModelTier } from "@/lib/model-branding";
+import { getModelBaseName, modelTierFromId, type ModelTier } from "@/lib/model-branding";
 import { stagesFor } from "@/lib/server/model-workflow";
 import { runInteriorStages } from "@/lib/server/workflow-runner";
 import {
@@ -120,6 +121,12 @@ interface ChatBody {
  *  only these are asked to clarify first at extreme effort. */
 function isConversationalAgent(agent: Agent | undefined): boolean {
   return !agent || agent === "chat" || agent === "requirements" || agent === "code-chat";
+}
+
+/** Coarse language tag for the Input-stage log (Master Prompt Part 3 "Detect
+ *  language"). A heuristic, not a claim of NLP-grade detection. */
+function detectRequestLanguage(message: string): "th" | "en" {
+  return /[ก-๙]/.test(message) ? "th" : "en";
 }
 
 // Runtime validation for the untrusted request body. Permissive by design
@@ -364,6 +371,22 @@ async function handleChat(req: Request): Promise<Response> {
   const interiorStages = workflowStages.slice(0, -1);
   const finalStageSpec = workflowStages[workflowStages.length - 1];
 
+  // ── Runtime transparency (Master Prompt Part 3 "Logging") ────────────────────
+  // requestId/turnStart cover the WHOLE turn, including any interior stages run
+  // below — not just the final streamed call — so durationMs reflects real
+  // end-to-end latency, and stages reflects the actual pipeline about to run
+  // (from stagesFor(), the single source of truth for stage sequencing).
+  const turnRequestId = newRequestId();
+  const turnStart = Date.now();
+  logAofStage("Input", {
+    requestId: turnRequestId,
+    modelTier: tier ? getModelBaseName(tier) : (body.agent ?? "agent"),
+    language: detectRequestLanguage(message),
+    requestType: body.agent ?? "chat",
+    messageLength: message.length,
+    stages: workflowStages.length,
+  });
+
   // ── Effort dial → real knobs ─────────────────────────────────────────────────
   // The user's chosen effort (low → extreme) actually resizes the token budget,
   // caps the temperature, and appends a reasoning-depth instruction to the system
@@ -383,8 +406,16 @@ async function handleChat(req: Request): Promise<Response> {
   // decided from route + freshness/lookup heuristics. Results become a system-prompt
   // addendum and an in-band "sources" frame the UI renders as a citation block.
   // Search failures degrade silently to model knowledge.
+  //
+  // Mikros exception (Master Prompt Part 3): Mikros must never execute a retrieval
+  // workflow, so a plain-chat turn (no agent) on the `lite` tier skips search
+  // entirely. Kanon and every agent-driven path (incl. CoCode code-chat) are
+  // unaffected — this only narrows the one path that used to run unconditionally.
   let sourcesFrame = "";
-  const decision = decideSearch(message, body.route?.target);
+  const isMikrosPlainChat = !body.agent && tier === "lite";
+  const decision = isMikrosPlainChat
+    ? { search: false as const, reason: "Mikros: search disabled" }
+    : decideSearch(message, body.route?.target);
   if (decision.search) {
     try {
       const outcome = await runSearch(message, { signal: req.signal, limit: 5 });
@@ -414,6 +445,7 @@ async function handleChat(req: Request): Promise<Response> {
         .map((p) => p.envVar)
         .join(" or ")} (or save a key in Settings → API Keys) so Co.AI can reach a provider.`;
     logAofError(error);
+    logAofStage("Output", { requestId: turnRequestId, success: false, durationMs: Date.now() - turnStart });
     return errorResponse(error);
   }
 
@@ -492,6 +524,15 @@ async function handleChat(req: Request): Promise<Response> {
           `Failover: ${pendingFailover.from} → ${pendingFailover.to} (${pendingFailover.reason})`,
         );
       }
+      // Token usage isn't threaded through to this layer — reporting a made-up
+      // figure would violate "never fabricate a measurement", so it's omitted.
+      logAofStage("Output", {
+        requestId: turnRequestId,
+        provider: p.label,
+        model,
+        success: true,
+        durationMs: Date.now() - turnStart,
+      });
       return new Response(result.stream, { headers: TEXT_HEADERS });
     }
 
@@ -513,5 +554,6 @@ async function handleChat(req: Request): Promise<Response> {
   }
 
   // Every configured provider failed.
+  logAofStage("Output", { requestId: turnRequestId, success: false, durationMs: Date.now() - turnStart });
   return errorResponse(lastError!);
 }

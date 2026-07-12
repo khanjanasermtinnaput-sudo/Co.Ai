@@ -29,6 +29,23 @@ export function logAofInfo(message: string): void {
   console.info(`[AOF] ${formatUtc(new Date().toISOString())} ${message}`);
 }
 
+/** Structured Input → Processing → Output lifecycle log (Co.AI Master Prompt
+ *  Part 3 "Logging" / "Runtime Transparency"): every important runtime decision
+ *  for a chat turn — model tier, stage count, provider, duration, success —
+ *  greppable by requestId. Only real, observed values are ever logged; a field
+ *  is simply omitted rather than fabricated (e.g. token usage isn't threaded
+ *  through to this layer today, so it's never logged as a stage field). */
+export function logAofStage(
+  stage: "Input" | "Processing" | "Output",
+  fields: Record<string, string | number | boolean | undefined>,
+): void {
+  const parts = Object.entries(fields)
+    .filter(([, v]) => v !== undefined)
+    .map(([k, v]) => `${k}=${v}`)
+    .join(" ");
+  console.info(`[AOF STAGE] ${formatUtc(new Date().toISOString())} ${stage} ${parts}`);
+}
+
 // ── Startup check ─────────────────────────────────────────────────────────────
 // Logged once per server process the first time an AI route is hit, mirroring the
 // AOF startup banner: which keys loaded, database status, overall system status.
