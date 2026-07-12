@@ -52,3 +52,12 @@ Structured `Input → Processing → Output` server-side lifecycle logging lives
 frames (`errors.ts`) that drive the UI's live stage-progress indicator. Only log real, observed
 values — never fabricate a metric (e.g. token usage) that isn't actually available at that
 layer.
+
+**Simple Task Detector** (`src/lib/server/simple-task-detector.ts`): a deterministic,
+<10ms, zero-provider-call classifier that picks Mikros's response SHAPE (`simple` /
+`medium` / `light-coding`) from the message text — orthogonal to `effort.ts`, which owns
+response DEPTH. It is explicitly not a workflow stage; don't wire it into `stagesFor()`.
+Scoped identically to `tierAllowsSearch()` (plain-chat `lite` only). Gotcha: Thai script is
+not a JS regex "word" character, so `\b` is unreliable adjacent to it — Thai and English
+detection patterns are kept as separate regexes (English uses `\b`, Thai relies on substring
+containment only). Logged via `logAofStage("Processing", ...)`.
