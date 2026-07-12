@@ -8,8 +8,10 @@
 import {
   classifyProviderError,
   encodeSourcesFrame,
+  encodeStageFrame,
   makeFailoverNotice,
   makeModelNotice,
+  makeStageNotice,
   missingKeyError,
   newRequestId,
   ERROR_CATALOG,
@@ -37,13 +39,16 @@ import { checkRateLimit, applyRateLimitHeaders } from "@/lib/server/rate-limit";
 import { getUserFromRequest, tierForUser } from "@/lib/server/supabase-admin";
 import { loadUserKeyOverrides } from "@/lib/server/keys-store";
 import { planFor } from "@/lib/plans";
-import type { EffortLevel, RouteDecision } from "@/lib/types";
+import type { ChatModel, EffortLevel, RouteDecision } from "@/lib/types";
 import {
   effortMaxTokens,
   effortSystemAddon,
   effortTemperature,
   normalizeEffort,
 } from "@/lib/effort";
+import { modelTierFromId, type ModelTier } from "@/lib/model-branding";
+import { stagesFor } from "@/lib/server/model-workflow";
+import { runInteriorStages } from "@/lib/server/workflow-runner";
 import {
   RAA_SYSTEM,
   AOF_CODE_CHAT_SYSTEM,
@@ -342,13 +347,34 @@ async function handleChat(req: Request): Promise<Response> {
     ? agentConfig(body.agent, body.route)
     : chatModelConfig(body.model, body.route);
 
+  const effort: EffortLevel = normalizeEffort(body.effort);
+
+  // ── Model Workflow → which stages this tier/effort combo runs ────────────────
+  // Model (Mikros/Kanon/Ypertatos) owns stage SEQUENCE; effort.ts (below) owns
+  // DEPTH — token budget and temperature — for whichever stage is executing.
+  // Only plain CoChat (no agent) and CoCode's code-chat agent are eligible for
+  // real staging this round — every other agent is a one-shot generator and
+  // keeps `tier` undefined, which resolves to the same single-stage stub as
+  // Mikros (see stagesFor), so its request is byte-identical to today's.
+  const tierEligible = !body.agent || body.agent === "code-chat";
+  const tier: ModelTier | undefined = tierEligible
+    ? modelTierFromId((body.model === "normal" ? "normal" : "lite") as ChatModel)
+    : undefined;
+  const workflowStages = stagesFor(tier, effort);
+  const interiorStages = workflowStages.slice(0, -1);
+  const finalStageSpec = workflowStages[workflowStages.length - 1];
+
   // ── Effort dial → real knobs ─────────────────────────────────────────────────
   // The user's chosen effort (low → extreme) actually resizes the token budget,
   // caps the temperature, and appends a reasoning-depth instruction to the system
   // prompt. At extreme, conversational agents are told to clarify before acting.
-  const effort: EffortLevel = normalizeEffort(body.effort);
-  const maxTokens = effortMaxTokens(baseMaxTokens, effort);
-  const temperature = effortTemperature(baseTemperature, effort);
+  // When interior stages exist, the final stage's own budget/temperature apply
+  // instead of the agent's base — otherwise these are identical to today's values.
+  const maxTokens = effortMaxTokens(interiorStages.length > 0 ? finalStageSpec.baseMaxTokens : baseMaxTokens, effort);
+  const temperature = effortTemperature(
+    interiorStages.length > 0 ? finalStageSpec.temperature : baseTemperature,
+    effort,
+  );
   const effortAddon = effortSystemAddon(effort, { conversational: isConversationalAgent(body.agent) });
   let system = effortAddon ? `${baseSystem}\n\n${effortAddon}` : baseSystem;
 
@@ -391,14 +417,45 @@ async function handleChat(req: Request): Promise<Response> {
     return errorResponse(error);
   }
 
-  // ── Try each configured provider in priority order, announcing any failover. ──
-  let pendingFailover: ReturnType<typeof makeFailoverNotice> | undefined;
-  let lastError: AofProviderError | undefined;
-
   // Anthropic and OpenRouter keep their existing env-override + fallback-chain
   // model selection untouched; only the four newer providers pick a model from
   // the registry based on the task (no ANTHROPIC_MODEL/OPENROUTER_MODEL surprise).
   const REGISTRY_ROUTES_MODEL = new Set<ProviderMeta["id"]>(["gemini", "deepseek", "qwen", "llama"]);
+
+  // ── Model Workflow → run any interior stages before the final streamed call ──
+  // Each interior stage is a full, non-streamed provider round trip on the
+  // primary provider only (no failover chain — see plan tradeoffs); a thrown
+  // error here propagates to POST()'s top-level catch, which already converts
+  // it into a structured AofProviderError. `system` is reassigned to the
+  // final stage's ready-to-use prompt; `stagePrefix` carries the encoded
+  // StageNotice frames the client renders as live stage-progress status.
+  let stagePrefix = "";
+  if (interiorStages.length > 0) {
+    const outcome = await runInteriorStages({
+      stages: interiorStages,
+      finalStage: finalStageSpec,
+      totalStages: workflowStages.length,
+      provider: providers[0],
+      taskModel: REGISTRY_ROUTES_MODEL.has(providers[0].id) ? bestModelFor(providers[0].id, task) : undefined,
+      overrides,
+      baseSystem: system,
+      message,
+      history,
+      effort,
+      signal: req.signal,
+      onStage: (n) => {
+        stagePrefix += encodeStageFrame(n);
+      },
+    });
+    system = outcome.system;
+    stagePrefix += encodeStageFrame(
+      makeStageNotice(finalStageSpec.stage, finalStageSpec.label, workflowStages.length, workflowStages.length, "running"),
+    );
+  }
+
+  // ── Try each configured provider in priority order, announcing any failover. ──
+  let pendingFailover: ReturnType<typeof makeFailoverNotice> | undefined;
+  let lastError: AofProviderError | undefined;
 
   for (let i = 0; i < providers.length; i++) {
     const p: ProviderMeta = providers[i];
@@ -420,7 +477,7 @@ async function handleChat(req: Request): Promise<Response> {
     });
     const notice = makeModelNotice(p.label, model, ROLE_LABEL[task]);
     const prefixFrame =
-      sourcesFrame + (pendingFailover ? failoverFrame(pendingFailover) : "") + modelFrame(notice);
+      stagePrefix + sourcesFrame + (pendingFailover ? failoverFrame(pendingFailover) : "") + modelFrame(notice);
 
     const result = await primeAndStream({ ctx, gen, prefixFrame });
 

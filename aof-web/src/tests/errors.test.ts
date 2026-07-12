@@ -8,9 +8,12 @@ import {
   redact,
   isAofProviderError,
   isFailoverNotice,
+  isStageNotice,
   makeFailoverNotice,
+  makeStageNotice,
   encodeErrorFrame,
   encodeFailoverFrame,
+  encodeStageFrame,
   decodeFrames,
   formatErrorBlock,
   formatUtc,
@@ -243,4 +246,50 @@ test("failover frame then content, char-by-char, decodes cleanly", () => {
   const r = streamDecode(chunks);
   assert.equal(r.text, "Switched and answering now.");
   assert.equal(r.failovers.length, 1);
+});
+
+// ── Stage notice (Model Workflow) ───────────────────────────────────────────
+
+test("makeStageNotice / isStageNotice round-trip", () => {
+  const n = makeStageNotice("deep-think", "Deep Think", 3, 4, "running");
+  assert.ok(isStageNotice(n));
+  assert.equal(n.stage, "deep-think");
+  assert.equal(n.index, 3);
+  assert.equal(n.total, 4);
+  assert.equal(n.status, "running");
+});
+
+test("decodeFrames extracts a stage frame and strips it from text", () => {
+  const n = makeStageNotice("context-builder", "Context Builder", 1, 3, "done");
+  const r = decodeFrames(encodeStageFrame(n) + "now generating");
+  assert.equal(r.text, "now generating");
+  assert.equal(r.stages.length, 1);
+  assert.equal(r.stages[0].stage, "context-builder");
+  assert.equal(r.stages[0].status, "done");
+});
+
+test("a stage frame split across many chunks is still decoded, never leaked as text", () => {
+  const n = makeStageNotice("review", "Review", 4, 4, "running");
+  const full = "here is some output" + encodeStageFrame(n);
+  const chunks: string[] = [];
+  for (let i = 0; i < full.length; i += 5) chunks.push(full.slice(i, i + 5));
+
+  let buffer = "";
+  let text = "";
+  const stages: ReturnType<typeof decodeFrames>["stages"] = [];
+  for (const chunk of chunks) {
+    buffer += chunk;
+    const d = decodeFrames(buffer);
+    buffer = d.remainder;
+    text += d.text;
+    stages.push(...d.stages);
+  }
+  const fin = decodeFrames(buffer);
+  text += fin.text;
+  stages.push(...fin.stages);
+
+  assert.equal(text, "here is some output");
+  assert.equal(stages.length, 1);
+  assert.equal(stages[0].stage, "review");
+  assert.doesNotMatch(text, /CGNTX_ST/);
 });
