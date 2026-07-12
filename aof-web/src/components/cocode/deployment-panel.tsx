@@ -1,13 +1,16 @@
 "use client";
 
 // ── Deployment Engine (Phase 31) ──────────────────────────────────────────────
-// One-click deploy to Vercel, Netlify, Railway, Cloudflare, or GitHub Pages.
-// Auto-detects framework and generates optimal build config.
+// Two things this panel can actually do without a backend build service:
+//   1. Export the project as a ZIP — works for any project, always.
+//   2. Publish to GitHub Pages — real commit + real Pages API call, real URL.
+// Vercel/Netlify/Railway/Cloudflare need a provider token we don't have wired
+// up, so instead of faking a deploy we say so and point at the ZIP export.
 
 import { useState, useMemo } from "react";
 import {
   Rocket, CheckCircle2, XCircle, Loader2, ExternalLink,
-  Settings, RefreshCw, Copy, Globe,
+  Settings, Copy, Globe, Download, Github, Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -23,16 +26,23 @@ const TARGET_INFO: Record<DeployTarget, { name: string; color: string; emoji: st
   "github-pages": { name: "GitHub Pages", color: "bg-slate-500/20 border-slate-500/40 text-slate-300", emoji: "🐙" },
 };
 
+function slugFor(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/^-+|-+$/g, "") || "project";
+}
+
 export function DeploymentPanel({ className }: { className?: string }) {
   const fs = useCocodeIDEStore((s) => s.fs);
+  const projectName = useCocodeIDEStore((s) => s.projectName);
   const projectMap = useCocodeIDEStore((s) => s.projectMap);
   const github = useCocodeIDEStore((s) => s.github);
+  const commitFiles = useCocodeIDEStore((s) => s.commitFiles);
 
   const [config, setConfig] = useState<DeployConfig | null>(null);
   const [logs, setLogs] = useState<DeployLog[]>([]);
   const [status, setStatus] = useState<"idle" | "detecting" | "deploying" | "success" | "failed">("idle");
   const [deployUrl, setDeployUrl] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const allFiles = useMemo(() => flattenFiles(fs).map((f) => ({ path: f.path, content: f.content })), [fs]);
 
@@ -44,54 +54,69 @@ export function DeploymentPanel({ className }: { className?: string }) {
   }
 
   function addLog(level: DeployLog["level"], message: string) {
-    setLogs((l) => [...l, { id: `log_${Date.now()}`, timestamp: Date.now(), level, message }]);
+    setLogs((l) => [...l, { id: `log_${Date.now()}_${l.length}`, timestamp: Date.now(), level, message }]);
   }
 
-  async function deploy() {
-    if (!config) return;
+  async function exportZip() {
+    setExporting(true);
+    try {
+      const JSZip = (await import("jszip")).default;
+      const zip = new JSZip();
+      for (const f of allFiles) zip.file(f.path, f.content);
+      const blob = await zip.generateAsync({ type: "blob" });
+      const slug = slugFor(projectName);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${slug}.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function publishToGitHubPages() {
+    if (!github.connected || !github.repo) return;
     setStatus("deploying");
     setLogs([]);
+    setDeployUrl(null);
+    const { fullName, branch } = github.repo;
 
-    addLog("info", `Starting deployment to ${TARGET_INFO[config.target].name}…`);
-    addLog("info", `Build command: ${config.buildCommand || "(none)"}`);
-    addLog("info", `Output dir: ${config.outputDir}`);
-    addLog("info", `Node version: ${config.nodeVersion}`);
+    try {
+      addLog("info", `Committing ${allFiles.length} file(s) to ${fullName}@${branch}…`);
+      await commitFiles("Publish via CoCode Deploy", allFiles.map((f) => f.path));
+      addLog("success", "Commit pushed.");
 
-    // Simulate deploy pipeline
-    const steps = [
-      { delay: 600, msg: "Installing dependencies…", level: "info" as const },
-      { delay: 1200, msg: "Running build…", level: "info" as const },
-      { delay: 800, msg: "Uploading artifacts…", level: "info" as const },
-      { delay: 600, msg: "Propagating to edge network…", level: "info" as const },
-    ];
+      addLog("info", "Enabling GitHub Pages…");
+      const enableRes = await fetch(`/api/github?path=${encodeURIComponent(`/repos/${fullName}/pages`)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source: { branch, path: "/" } }),
+      });
+      if (!enableRes.ok && enableRes.status !== 409) {
+        const err = await enableRes.json().catch(() => ({}));
+        throw new Error((err as { message?: string }).message ?? `GitHub Pages API returned ${enableRes.status}`);
+      }
+      if (enableRes.status === 409) addLog("info", "GitHub Pages was already enabled for this repo.");
 
-    for (const step of steps) {
-      await new Promise((r) => setTimeout(r, step.delay));
-      addLog(step.level, step.msg);
+      addLog("info", "Fetching Pages status…");
+      const statusRes = await fetch(`/api/github?path=${encodeURIComponent(`/repos/${fullName}/pages`)}`);
+      const pages = await statusRes.json() as { html_url?: string; status?: string };
+
+      if (pages.html_url) {
+        addLog("success", `✓ Published. GitHub Pages status: ${pages.status ?? "unknown"}.`);
+        addLog("info", "New builds can take a minute or two to go live — this is the real repo Pages URL.");
+        setDeployUrl(pages.html_url);
+        setStatus("success");
+      } else {
+        addLog("warn", "Pages was enabled but hasn't reported a URL yet — check back in a minute.");
+        setStatus("success");
+      }
+    } catch (e) {
+      addLog("error", e instanceof Error ? e.message : String(e));
+      setStatus("failed");
     }
-
-    // Check if we have real GitHub tokens for actual deployment
-    if (github.connected && github.repo && config.target === "github-pages") {
-      addLog("info", "Deploying via GitHub Pages API…");
-      // Would call GitHub Pages API here with real token
-    }
-
-    await new Promise((r) => setTimeout(r, 800));
-    const projectSlug = (github.repo?.fullName.split("/")[1] ?? "project").toLowerCase().replace(/[^a-z0-9-]/g, "-");
-    const fakeUrl = config.target === "vercel"
-      ? `https://${projectSlug}.vercel.app`
-      : config.target === "netlify"
-      ? `https://${projectSlug}.netlify.app`
-      : config.target === "railway"
-      ? `https://${projectSlug}.up.railway.app`
-      : config.target === "cloudflare"
-      ? `https://${projectSlug}.pages.dev`
-      : `https://${github.repo?.fullName.split("/")[0] ?? "user"}.github.io/${projectSlug}`;
-
-    addLog("success", `✓ Deployment complete!`);
-    addLog("success", `🌐 Live at: ${fakeUrl}`);
-    setDeployUrl(fakeUrl);
-    setStatus("success");
   }
 
   const INFO = config ? TARGET_INFO[config.target] : null;
@@ -104,20 +129,37 @@ export function DeploymentPanel({ className }: { className?: string }) {
         {status === "success" && deployUrl && (
           <a href={deployUrl} target="_blank" rel="noopener noreferrer"
             className="ml-auto flex items-center gap-1 text-[11px] text-emerald-400 hover:text-emerald-300">
-            <Globe className="size-3" /> {deployUrl.replace("https://", "")}
+            <Globe className="size-3" /> {deployUrl.replace(/^https?:\/\//, "")}
             <ExternalLink className="size-3" />
           </a>
         )}
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-4 space-y-4">
+        {/* Export — always available, always real */}
+        <div className="rounded-xl border border-border/50 bg-card/30 p-3">
+          <div className="flex items-center gap-2">
+            <Download className="size-4 text-muted-foreground" />
+            <div className="flex-1">
+              <p className="text-[13px] font-medium">Export as ZIP</p>
+              <p className="text-[11px] text-muted-foreground/60">
+                Download the project source to build and deploy it anywhere yourself.
+              </p>
+            </div>
+            <Button size="sm" variant="secondary" onClick={() => void exportZip()} disabled={exporting || !allFiles.length}>
+              {exporting ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
+              Export
+            </Button>
+          </div>
+        </div>
+
         {!config ? (
           <div className="flex flex-col items-center gap-4 py-8 text-center">
             <Rocket className="size-12 text-muted-foreground/30" />
             <div>
-              <p className="font-medium">One-Click Deployment</p>
+              <p className="font-medium">Publish Live</p>
               <p className="mt-1 text-[12px] text-muted-foreground/60">
-                Auto-detects your framework and deploys to the best platform.
+                Auto-detects your framework to suggest a hosting target.
               </p>
             </div>
             <Button onClick={detectConfig} disabled={!allFiles.length}>
@@ -152,14 +194,28 @@ export function DeploymentPanel({ className }: { className?: string }) {
               </div>
             )}
 
-            {/* Deploy button */}
-            <Button className="w-full" onClick={() => void deploy()} disabled={status === "deploying"}>
-              {status === "deploying"
-                ? <><Loader2 className="size-3.5 animate-spin" /> Deploying…</>
-                : status === "success"
-                ? <><RefreshCw className="size-3.5" /> Re-deploy</>
-                : <><Rocket className="size-3.5" /> Deploy to {INFO?.name}</>}
-            </Button>
+            {config.target === "github-pages" ? (
+              !github.connected || !github.repo ? (
+                <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-[12px] text-amber-300">
+                  Connect GitHub and load a repo (see the GitHub panel) to publish to GitHub Pages.
+                </div>
+              ) : (
+                <Button className="w-full" onClick={() => void publishToGitHubPages()} disabled={status === "deploying"}>
+                  {status === "deploying"
+                    ? <><Loader2 className="size-3.5 animate-spin" /> Publishing…</>
+                    : <><Github className="size-3.5" /> Publish to GitHub Pages</>}
+                </Button>
+              )
+            ) : (
+              <div className="rounded-xl border border-border/50 bg-card/30 p-3 text-[12px] text-muted-foreground/70">
+                <div className="mb-1 flex items-center gap-1.5 font-medium text-foreground/80">
+                  <Clock className="size-3.5" /> Not configured
+                </div>
+                {INFO?.name} deploys need a provider access token this workspace doesn&rsquo;t have configured yet.
+                Use <span className="font-medium text-foreground/70">Export as ZIP</span> above and deploy it with
+                the {INFO?.name} CLI or dashboard, or switch the target to GitHub Pages if this is a static project.
+              </div>
+            )}
 
             {/* Log stream */}
             {logs.length > 0 && (
