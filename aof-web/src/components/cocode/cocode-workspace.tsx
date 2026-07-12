@@ -5,7 +5,7 @@
 // Layout: Explorer | Editor | Adaptive Right Panel
 // Developer Mode: hides advanced systems by default
 
-import { useEffect, useState, useRef, lazy, Suspense, useCallback } from "react";
+import { useEffect, useState, useRef, useMemo, lazy, Suspense, useCallback } from "react";
 import { createPortal } from "react-dom";
 import {
   PanelLeftClose, PanelLeftOpen, GitBranch,
@@ -16,9 +16,12 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useCocodeIDEStore } from "@/store/cocode-ide-store";
 import { useUIStore } from "@/store/ui-store";
+import { useCodeStore } from "@/store/code-store";
 import { WorkflowIndicator } from "./workflow-indicator";
 import { extractDiffs } from "@/lib/cocode/diff";
 import { getAdaptivePanels, PANEL_DEFS, type PanelDef } from "@/lib/cocode/adaptive-panels";
+import { analyzeFiles } from "@/lib/cocode/diagnostics";
+import { flattenFiles } from "@/lib/cocode/virtual-fs";
 import { CommandPalette } from "./command-palette";
 import { WorkspaceStatusBar } from "./status-bar";
 import { useSmartContextMenu, SmartContextMenu } from "./smart-context-menu";
@@ -120,12 +123,14 @@ function WorkspaceChatInput({ onSend }: { onSend?: (msg: string) => void }) {
   const workflow = useCocodeIDEStore((s) => s.workflow);
   const github = useCocodeIDEStore((s) => s.github);
   const diff = useCocodeIDEStore((s) => s.diff);
+  const setAiStreaming = useUIStore((s) => s.setAiStreaming);
 
   async function send(text?: string) {
     const msg = (text ?? message).trim();
     if (!msg || streaming) return;
     classifyRequest(msg);
     setStreaming(true);
+    setAiStreaming(true);
     setResponse("");
     if (!text) setMessage("");
 
@@ -164,6 +169,7 @@ function WorkspaceChatInput({ onSend }: { onSend?: (msg: string) => void }) {
       if (diffs.length) setDiff(diffs[0]);
     } finally {
       setStreaming(false);
+      setAiStreaming(false);
     }
   }
 
@@ -363,6 +369,24 @@ export function CoCodeWorkspace() {
   const importFiles    = useCocodeIDEStore((s) => s.importFiles);
   const activeTab      = useCocodeIDEStore((s) => s.activeTab);
   const hasFiles        = useCocodeIDEStore((s) => s.fs.children.length > 0);
+  const fs              = useCocodeIDEStore((s) => s.fs);
+
+  const aiStreaming = useUIStore((s) => s.aiStreaming);
+  const codeBuilding = useCodeStore((s) => s.building);
+  const codeBuildError = useCodeStore((s) => s.buildError);
+  const codePhase = useCodeStore((s) => s.phase);
+  const buildStatus = codeBuilding ? "building" : codeBuildError ? "error" : codePhase === "done" ? "success" : "idle";
+
+  // Debounce so typing doesn't re-run the diagnostics scan on every keystroke.
+  const [debouncedFs, setDebouncedFs] = useState(fs);
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedFs(fs), 800);
+    return () => clearTimeout(t);
+  }, [fs]);
+  const tsErrorCount = useMemo(() => {
+    const files = flattenFiles(debouncedFs).map((f) => ({ path: f.path, content: f.content }));
+    return analyzeFiles(files).filter((d) => d.severity === "error").length;
+  }, [debouncedFs]);
 
   // Build (conversational + Titan) is a full-view mode inside the workspace,
   // not a side panel — the conversation UI needs full width. New/empty
@@ -723,7 +747,11 @@ export function CoCodeWorkspace() {
       </div>
 
       {/* ── Status Bar (Part 8) ──────────────────────────────────────────────── */}
-      <WorkspaceStatusBar />
+      <WorkspaceStatusBar
+        tsErrorCount={tsErrorCount}
+        buildStatus={buildStatus}
+        aiStatus={aiStreaming ? "streaming" : "idle"}
+      />
         </>
       )}
     </div>

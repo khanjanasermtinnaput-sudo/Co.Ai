@@ -29,6 +29,10 @@ interface UIState {
   /** Status bar cursor position. */
   cursorPosition: { line: number; col: number };
   setCursorPosition: (pos: { line: number; col: number }) => void;
+
+  /** Whether the CoCode AI chat is currently streaming a reply. Drives the status bar's AI indicator. */
+  aiStreaming: boolean;
+  setAiStreaming: (v: boolean) => void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -52,6 +56,9 @@ export const useUIStore = create<UIState>()(
 
       cursorPosition: { line: 1, col: 1 },
       setCursorPosition: (pos) => set({ cursorPosition: pos }),
+
+      aiStreaming: false,
+      setAiStreaming: (v) => set({ aiStreaming: v }),
     }),
     {
       name: "aof.ui",
