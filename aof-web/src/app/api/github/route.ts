@@ -90,17 +90,25 @@ export async function PATCH(req: Request): Promise<Response> {
     );
   }
   const state = crypto.randomUUID();
-  const redirectUri = `${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/api/github/callback`;
+  // Falls back to the request's own origin so this still works when
+  // NEXT_PUBLIC_SITE_URL isn't set — an empty-string prefix would produce a
+  // relative redirect_uri, which GitHub rejects as invalid.
+  const origin = process.env.NEXT_PUBLIC_SITE_URL || new URL(req.url).origin;
+  const redirectUri = `${origin}/api/github/callback`;
   const oauthUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=repo,read:user&state=${state}`;
   return Response.json({ url: oauthUrl, state });
 }
 
-// Disconnect — clear cookie
+// Disconnect — actually clear the httpOnly cookie server-side. (The client can't
+// do this itself via document.cookie; JS can't overwrite an httpOnly cookie.)
 export async function OPTIONS(): Promise<Response> {
-  const res = Response.json({ ok: true });
-  const r = new Response(JSON.stringify({ ok: true }), {
-    headers: { "Content-Type": "application/json" },
+  const jar = cookies();
+  jar.set("gh_token", "", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: 0,
+    path: "/",
   });
-  (r as Response & { cookies?: { set: (n: string, v: string, o: object) => void } });
-  return r;
+  return Response.json({ ok: true });
 }

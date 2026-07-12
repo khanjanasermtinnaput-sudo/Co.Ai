@@ -337,7 +337,8 @@ export const useCocodeIDEStore = create<CocodeIDEState>()(
       },
 
       disconnectGitHub: () => {
-        document.cookie = "gh_token=; Max-Age=0; path=/";
+        // gh_token is httpOnly — only the server can actually clear it.
+        void fetch("/api/github", { method: "OPTIONS" }).catch(() => {});
         set({ github: { connected: false, user: null, repo: null, loading: false, error: null } });
       },
 
