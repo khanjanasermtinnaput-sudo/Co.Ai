@@ -196,7 +196,7 @@ export function DeploymentPanel({ className }: { className?: string }) {
 
             {config.target === "github-pages" ? (
               !github.connected || !github.repo ? (
-                <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-[12px] text-amber-300">
+                <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-[12px] text-amber-400">
                   Connect GitHub and load a repo (see the GitHub panel) to publish to GitHub Pages.
                 </div>
               ) : (
