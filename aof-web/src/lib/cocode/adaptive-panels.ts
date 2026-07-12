@@ -3,7 +3,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
   SplitSquareHorizontal, Eye, Laptop, Github, History, Wrench,
-  FlaskConical, Palette, Package2, BookOpen, AlertCircle, Bot,
+  FlaskConical, Package2, BookOpen, AlertCircle, Bot,
   Rocket, KeyRound, Gauge, ShieldCheck, Globe, Database, Smartphone,
   Star, Network, GitMerge, Users, Search, Languages, ScrollText,
   Activity, Accessibility, BarChart3, Wand2,
@@ -32,7 +32,6 @@ export const PANEL_DEFS: Record<string, PanelDef> = {
   checkpoints:   { id: "checkpoints",  label: "History",       icon: History,               description: "Checkpoint history — undo/redo snapshots" },
   explorer:      { id: "explorer",     label: "Refactor",      icon: Wrench,                description: "AI-powered rename, extract, and refactoring tools" },
   tests:         { id: "tests",        label: "Tests",         icon: FlaskConical,          description: "Run and manage your test suite" },
-  design:        { id: "design",       label: "Design",        icon: Palette,               description: "Inspect colors, spacing, typography, and layout" },
   deps:          { id: "deps",         label: "Deps",          icon: Package2,              description: "View and manage npm/package dependencies" },
   docs:          { id: "docs",         label: "Docs",          icon: BookOpen,              description: "AI-generated documentation for your code" },
   diagnostics:   { id: "diagnostics",  label: "Issues",        icon: AlertCircle,           description: "TypeScript errors, lint warnings, and type checks" },
@@ -112,10 +111,10 @@ export function detectFileContext(filePath: string | null): FileContext {
 const CORE: string[] = ["diff", "github", "deploy"];
 
 const CONTEXT_PANELS: Record<FileContext, string[]> = {
-  style:     ["preview",  "design",      "mobile",   "multi-preview"],
+  style:     ["preview",  "mobile",      "multi-preview"],
   api:       ["api",      "db",          "env",      "perf"],
   test:      ["tests",    "diagnostics", "coverage", "testgen"],
-  component: ["preview",  "design",      "tests",    "docs"],
+  component: ["preview",  "tests",       "docs"],
   config:    ["env",      "deps",        "docs",     "diagnostics"],
   markdown:  ["preview",  "docs",        "github"],
   default:   ["preview",  "docs",        "diagnostics"],

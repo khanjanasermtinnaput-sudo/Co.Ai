@@ -36,7 +36,6 @@ const CheckpointPanel = lazy(() => import("./checkpoint-panel").then((m) => ({ d
 const GitHubPanel     = lazy(() => import("./github-panel").then((m) => ({ default: m.GitHubPanel })));
 const RefactorMenu    = lazy(() => import("./refactor-menu").then((m) => ({ default: m.RefactorMenu })));
 const TestingAgent    = lazy(() => import("./testing-agent").then((m) => ({ default: m.TestingAgent })));
-const DesignInspector = lazy(() => import("./design-inspector").then((m) => ({ default: m.DesignInspector })));
 const MultiPreview    = lazy(() => import("./multi-preview").then((m) => ({ default: m.MultiPreview })));
 const DependencyPanel = lazy(() => import("./dependency-panel").then((m) => ({ default: m.DependencyPanel })));
 const DocsGenerator   = lazy(() => import("./docs-generator").then((m) => ({ default: m.DocsGenerator })));
@@ -216,7 +215,6 @@ function ActivePanel({ panel }: { panel: IDEPanel }) {
     checkpoints:        <CheckpointPanel />,
     explorer:           <RefactorMenu className="overflow-y-auto" />,
     tests:              <TestingAgent />,
-    design:             <DesignInspector className="h-full" />,
     deps:               <DependencyPanel className="h-full" />,
     docs:               <DocsGenerator className="h-full" />,
     diagnostics:        <DiagnosticsPanel className="h-full" />,

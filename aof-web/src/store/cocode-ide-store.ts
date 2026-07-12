@@ -88,7 +88,7 @@ export interface EditorTab {
 
 export type IDEPanel =
   | "explorer" | "diff" | "preview" | "graph" | "checkpoints" | "github"
-  | "design" | "multi-preview" | "deps" | "docs" | "diagnostics" | "pair"
+  | "multi-preview" | "deps" | "docs" | "diagnostics" | "pair"
   | "deploy" | "cicd" | "collab" | "env" | "perf" | "security" | "api" | "db" | "mobile" | "review"
   | "tests" | "testgen" | "search" | "translate" | "changelog" | "arch" | "runtime" | "a11y" | "i18n" | "coverage" | "scaffold"
   // Phase 71–80
