@@ -9,11 +9,13 @@ import {
   Files,
   Github,
   Hammer,
+  Hash,
   ListChecks,
   RotateCcw,
   ScanSearch,
   Terminal,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useCodeStore } from "@/store/code-store";
 import { useCocodeIDEStore } from "@/store/cocode-ide-store";
 import { extractGeneratedFiles } from "@/lib/export";
@@ -145,8 +147,14 @@ export function CodeConversation({ mode }: { mode: Exclude<CodeMode, "titan"> })
                                 <Github className="size-3.5" /> Push to GitHub
                               </Button>
                               {buildUsage && (
-                                <span className="flex items-center gap-1 text-[10px] text-muted-foreground/40 select-none">
-                                  🔢 {buildUsage.inputTokens} in · {buildUsage.outputTokens} out
+                                <span
+                                  className={cn(
+                                    "inline-flex items-center gap-1 rounded-full border border-border",
+                                    "bg-secondary/40 px-2 py-0.5 text-[10px] font-medium text-muted-foreground",
+                                  )}
+                                >
+                                  <Hash className="size-3" />
+                                  {buildUsage.inputTokens} in · {buildUsage.outputTokens} out
                                 </span>
                               )}
                             </div>
