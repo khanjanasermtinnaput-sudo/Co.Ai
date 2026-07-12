@@ -9,7 +9,7 @@ import type {
   LearningAnswer,
   RouteDecision,
 } from "./types";
-import type { AofProviderError, FailoverNotice, ModelNotice, SourcesNotice, UsageNotice } from "./errors";
+import type { AofProviderError, FailoverNotice, ModelNotice, SourcesNotice, StageNotice, UsageNotice } from "./errors";
 import { makeUsageNotice } from "./errors";
 import { GENCODE_HINT } from "./raa";
 import { estimateTokensFor } from "@/store/usage-store";
@@ -34,6 +34,10 @@ export interface StreamHandlers {
   onSources?: (notice: SourcesNotice) => void;
   /** Called once real (or, in demo mode, estimated) token usage is known. */
   onUsage?: (notice: UsageNotice) => void;
+  /** Called on progress through a multi-stage Model Workflow request (Kanon's
+   *  Context Builder → Processing → Deep Think → Review) — never fired by the
+   *  offline mock engine, which is single-pass and effort-agnostic. */
+  onStage?: (notice: StageNotice) => void;
 }
 
 /** Stream an arbitrary string token-by-token with human-ish pacing. */

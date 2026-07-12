@@ -231,6 +231,7 @@ async function readAofStream(
       for (const mn of decoded.models) handlers.onModel?.(mn);
       for (const src of decoded.sources) handlers.onSources?.(src);
       for (const u of decoded.usage) handlers.onUsage?.(u);
+      for (const st of decoded.stages) handlers.onStage?.(st);
       if (decoded.errors.length) {
         for (const e of decoded.errors) handlers.onError?.(e);
         errored = true;
@@ -254,6 +255,7 @@ async function readAofStream(
     for (const mn of decoded.models) handlers.onModel?.(mn);
     for (const src of decoded.sources) handlers.onSources?.(src);
     for (const u of decoded.usage) handlers.onUsage?.(u);
+    for (const st of decoded.stages) handlers.onStage?.(st);
     if (decoded.errors.length) {
       for (const e of decoded.errors) handlers.onError?.(e);
       errored = true;
@@ -424,6 +426,12 @@ export async function streamCodeChat(
   history: ChatHistoryItem[],
   handlers: StreamHandlers,
   effort: EffortLevel = "normal",
+  /** CoCode's active mode, collapsed onto the CoChat model dial ("1.0" → "normal";
+   *  everything else → "lite") so the server can tell whether real Model
+   *  Workflow staging applies — see model-workflow.ts's stagesFor(). Optional
+   *  only for callers that predate this addition; omitting it keeps today's
+   *  single-call behavior (server treats a missing model as Mikros). */
+  model?: ChatModel,
 ): Promise<void> {
   if (isDemoMode()) {
     await mockCodeChat(message, handlers, history);
@@ -433,7 +441,7 @@ export async function streamCodeChat(
     const res = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...(await sessionAuthHeaders()) },
-      body: JSON.stringify({ message, agent: "code-chat", effort, history: history.slice(-20) }),
+      body: JSON.stringify({ message, agent: "code-chat", effort, model, history: history.slice(-20) }),
       signal: handlers.signal,
     });
     await readAofStream(res, handlers);

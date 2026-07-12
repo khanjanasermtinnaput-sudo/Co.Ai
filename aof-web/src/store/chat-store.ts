@@ -413,6 +413,16 @@ export const useChatStore = create<ChatState>()(
               onModel: (activeModel) => patchAssistant({ activeModel }),
               onSources: (sources) => patchAssistant({ sources }),
               onUsage: (usage) => patchAssistant({ usage }),
+              // Live stage progress for Model Workflow requests (Kanon's Context
+              // Builder → Processing → Deep Think → Review). Cleared the moment the
+              // final stage starts running — real tokens are about to stream in.
+              onStage: (st) =>
+                patchAssistant({
+                  agentStatus:
+                    st.index === st.total && st.status === "running"
+                      ? undefined
+                      : `${st.label}: ${st.status === "running" ? "working…" : "done"}`,
+                }),
             },
           );
         } finally {

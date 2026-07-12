@@ -433,6 +433,45 @@ export function makeUsageNotice(inputTokens: number, outputTokens: number): Usag
   return { kind: "coagentix-usage", inputTokens, outputTokens };
 }
 
+// ── Workflow stage notice (Model Workflow — per-tier pipeline stages) ─────────
+// Announces progress through a multi-stage request (e.g. Kanon's Context
+// Builder → Processing → Deep Think → Review) so the UI can show live status
+// before the final stage's tokens start streaming. `stage` is kept as a plain
+// string here (not the WorkflowStage union) so this module has no dependency
+// on model-workflow.ts — layering stays one-directional.
+
+export interface StageNotice {
+  readonly kind: "coagentix-stage";
+  stage: string;
+  label: string;
+  /** 1-based position of this stage in the request's full sequence. */
+  index: number;
+  total: number;
+  status: "running" | "done";
+  timestamp: string;
+}
+
+export function isStageNotice(v: unknown): v is StageNotice {
+  return (
+    typeof v === "object" &&
+    v !== null &&
+    (v as { kind?: unknown }).kind === "coagentix-stage" &&
+    Number.isFinite((v as { index?: unknown }).index) &&
+    Number.isFinite((v as { total?: unknown }).total) &&
+    ((v as { status?: unknown }).status === "running" || (v as { status?: unknown }).status === "done")
+  );
+}
+
+export function makeStageNotice(
+  stage: string,
+  label: string,
+  index: number,
+  total: number,
+  status: "running" | "done",
+): StageNotice {
+  return { kind: "coagentix-stage", stage, label, index, total, status, timestamp: new Date().toISOString() };
+}
+
 // ── Wire protocol ─────────────────────────────────────────────────────────────
 // The chat route streams plain text. To carry an error or failover notice inside
 // that same text channel (mid-stream), we wrap a JSON payload between sentinels
@@ -452,6 +491,8 @@ const SRC_OPEN = NUL + "CGNTX_SRC" + NUL;
 const SRC_CLOSE = NUL + "/CGNTX_SRC" + NUL;
 const US_OPEN = NUL + "CGNTX_US" + NUL;
 const US_CLOSE = NUL + "/CGNTX_US" + NUL;
+const ST_OPEN = NUL + "CGNTX_ST" + NUL;
+const ST_CLOSE = NUL + "/CGNTX_ST" + NUL;
 
 export function encodeErrorFrame(error: AofProviderError): string {
   return ERR_OPEN + JSON.stringify(error) + ERR_CLOSE;
@@ -468,6 +509,9 @@ export function encodeSourcesFrame(notice: SourcesNotice): string {
 export function encodeUsageFrame(notice: UsageNotice): string {
   return US_OPEN + JSON.stringify(notice) + US_CLOSE;
 }
+export function encodeStageFrame(notice: StageNotice): string {
+  return ST_OPEN + JSON.stringify(notice) + ST_CLOSE;
+}
 
 export interface DecodedFrames {
   /** Plain text with all control frames removed. */
@@ -477,6 +521,7 @@ export interface DecodedFrames {
   models: ModelNotice[];
   sources: SourcesNotice[];
   usage: UsageNotice[];
+  stages: StageNotice[];
   /** An incomplete trailing frame the caller should prepend to the next chunk. */
   remainder: string;
 }
@@ -487,13 +532,14 @@ export interface DecodedFrames {
  * trailing frame, or a partial sentinel split across a chunk boundary) that the
  * caller should prepend to the next chunk.
  */
-type FrameKind = "err" | "fo" | "mn" | "src" | "us";
+type FrameKind = "err" | "fo" | "mn" | "src" | "us" | "st";
 const FRAME_SENTINELS: Record<FrameKind, { open: string; close: string }> = {
   err: { open: ERR_OPEN, close: ERR_CLOSE },
   fo: { open: FO_OPEN, close: FO_CLOSE },
   mn: { open: MN_OPEN, close: MN_CLOSE },
   src: { open: SRC_OPEN, close: SRC_CLOSE },
   us: { open: US_OPEN, close: US_CLOSE },
+  st: { open: ST_OPEN, close: ST_CLOSE },
 };
 
 export function decodeFrames(buffer: string): DecodedFrames {
@@ -502,6 +548,7 @@ export function decodeFrames(buffer: string): DecodedFrames {
   const models: ModelNotice[] = [];
   const sources: SourcesNotice[] = [];
   const usage: UsageNotice[] = [];
+  const stages: StageNotice[] = [];
   let text = "";
   let i = 0;
 
@@ -517,7 +564,7 @@ export function decodeFrames(buffer: string): DecodedFrames {
       const tail = partialSentinelTail(buffer);
       const cut = Math.max(i, buffer.length - tail.length);
       text += buffer.slice(i, cut);
-      return { text, errors, failovers, models, sources, usage, remainder: buffer.slice(cut) };
+      return { text, errors, failovers, models, sources, usage, stages, remainder: buffer.slice(cut) };
     }
 
     text += buffer.slice(i, hit.idx);
@@ -526,7 +573,7 @@ export function decodeFrames(buffer: string): DecodedFrames {
     const closeIdx = buffer.indexOf(close, hit.idx + open.length);
     if (closeIdx < 0) {
       // Frame not yet complete — keep everything from `hit.idx` for the next pass.
-      return { text, errors, failovers, models, sources, usage, remainder: buffer.slice(hit.idx) };
+      return { text, errors, failovers, models, sources, usage, stages, remainder: buffer.slice(hit.idx) };
     }
     const json = buffer.slice(hit.idx + open.length, closeIdx);
     try {
@@ -536,19 +583,20 @@ export function decodeFrames(buffer: string): DecodedFrames {
       else if (hit.kind === "mn" && isModelNotice(parsed)) models.push(parsed);
       else if (hit.kind === "src" && isSourcesNotice(parsed)) sources.push(parsed);
       else if (hit.kind === "us" && isUsageNotice(parsed)) usage.push(parsed);
+      else if (hit.kind === "st" && isStageNotice(parsed)) stages.push(parsed);
     } catch {
       /* drop a corrupt frame rather than render its bytes */
     }
     i = closeIdx + close.length;
   }
 
-  return { text, errors, failovers, models, sources, usage, remainder: "" };
+  return { text, errors, failovers, models, sources, usage, stages, remainder: "" };
 }
 
 /** The longest proper prefix of a sentinel-open marker at the end of the buffer. */
 function partialSentinelTail(buffer: string): string {
   let best = "";
-  for (const marker of [ERR_OPEN, FO_OPEN, MN_OPEN, SRC_OPEN, US_OPEN]) {
+  for (const marker of [ERR_OPEN, FO_OPEN, MN_OPEN, SRC_OPEN, US_OPEN, ST_OPEN]) {
     const max = Math.min(marker.length - 1, buffer.length);
     for (let len = max; len > best.length; len--) {
       if (buffer.endsWith(marker.slice(0, len))) {

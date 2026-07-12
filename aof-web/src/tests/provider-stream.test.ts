@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   primeAndStream,
+  drainToText,
   toAofError,
   isAbort,
   openrouterTextStream,
@@ -92,6 +93,26 @@ test("user abort while priming → aborted, no error surfaced", async () => {
   assert.equal(r.aborted, true);
   assert.equal(r.ok, false);
   assert.equal(r.error, undefined);
+});
+
+// ── drainToText ──────────────────────────────────────────────────────────────
+
+test("drainToText collects every chunk into one string plus the terminal usage", async () => {
+  const r = await drainToText(helloWorld());
+  assert.equal(r.text, "hello world");
+  assert.equal(r.usage, undefined); // helloWorld() doesn't return a UsageNotice
+});
+
+test("drainToText surfaces a mid-generation throw instead of returning partial text", async () => {
+  await assert.rejects(
+    drainToText(yieldThenThrow()),
+    (e: unknown) => (e as { message?: string }).message === "upstream exploded",
+  );
+});
+
+test("drainToText resolves to an empty string for a generator that yields nothing", async () => {
+  const r = await drainToText(yieldsNothing());
+  assert.equal(r.text, "");
 });
 
 // ── toAofError / isAbort ────────────────────────────────────────────────────

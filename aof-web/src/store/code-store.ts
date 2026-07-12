@@ -28,9 +28,16 @@ import { useAuthStore } from "@/store/auth-store";
 import { useCocodeIDEStore } from "@/store/cocode-ide-store";
 import { extractGeneratedFiles, buildProjectHtml, canBuildHtml } from "@/lib/export";
 import { uid } from "@/lib/utils";
-import { formatErrorBlock, type AofProviderError, type FailoverNotice, type UsageNotice } from "@/lib/errors";
+import {
+  formatErrorBlock,
+  type AofProviderError,
+  type FailoverNotice,
+  type StageNotice,
+  type UsageNotice,
+} from "@/lib/errors";
 import type {
   ChatMessageT,
+  ChatModel,
   ClarifyQuestion,
   CodeMode,
   CodePhase,
@@ -295,13 +302,25 @@ export const useCodeStore = create<CodeState>()(
         // ── NORMAL_CHAT: casual reply, no RAA, no brief update ────────────────
         // Honour the shared Web Search preference so CoCode answers can be
         // grounded in live docs/web results too (spec §3 — every mode).
+        // Model Workflow staging only applies to Kanon ("1.0") — every other
+        // mode collapses to "lite" here, matching stagesFor()'s single-stage
+        // stub for Mikros/Ypertatos/Titan (no staging change for those modes).
+        const onStage = (st: StageNotice) =>
+          patch({
+            agentStatus:
+              st.index === st.total && st.status === "running"
+                ? undefined
+                : `${st.label}: ${st.status === "running" ? "working…" : "done"}`,
+          });
+        const stagingModel: ChatModel = get().mode === "1.0" ? "normal" : "lite";
         await streamCodeChat(content, history, {
           onToken: append,
           signal: controller.signal,
           onError,
           onFailover,
           onUsage,
-        }, get().effort);
+          onStage,
+        }, get().effort, stagingModel);
       } else {
         // ── DISCOVERY: RAA gathers requirements, brief may be emitted ─────────
         // Mark the project active so all subsequent turns stay in DISCOVERY
