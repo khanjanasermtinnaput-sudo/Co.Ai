@@ -8,12 +8,13 @@
 import { useState, useRef } from "react";
 import {
   FlaskConical, Play, Square, CheckCircle2, XCircle,
-  Loader2, RefreshCw, ChevronDown, ChevronRight,
+  Loader2, RefreshCw, ChevronDown, ChevronRight, Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useCocodeIDEStore } from "@/store/cocode-ide-store";
 import { extractDiffs } from "@/lib/cocode/diff";
+import { SimpleTooltip } from "./ide-tooltip";
 
 interface TestCase {
   id: string;
@@ -146,6 +147,15 @@ export function TestingAgent() {
       <div className="flex items-center gap-2 border-b border-border/70 px-4 py-2.5">
         <FlaskConical className="size-4 text-muted-foreground" />
         <span className="text-sm font-medium">Testing Agent</span>
+        <SimpleTooltip
+          label="AI estimate, not executed"
+          description="This agent doesn't have a real test runner. Pass/fail is the AI's best-effort read of the code, not an actual test execution — run the generated tests yourself to confirm."
+          side="bottom"
+        >
+          <span className="flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-400">
+            <Sparkles className="size-2.5" /> AI estimate
+          </span>
+        </SimpleTooltip>
         {runs.length > 0 && (
           <div className="ml-2 flex items-center gap-2 text-xs">
             <span className="text-emerald-400">{totalPass} pass</span>
@@ -164,7 +174,7 @@ export function TestingAgent() {
               disabled={!activeFile}
             >
               <Play className="size-3.5" />
-              {runs.length ? "Re-run" : "Generate & Run"}
+              {runs.length ? "Re-estimate" : "Generate Tests"}
             </Button>
           )}
           {runs.length > 0 && !streaming && (
@@ -179,7 +189,7 @@ export function TestingAgent() {
         <div className="flex flex-1 items-center justify-center p-6 text-center text-[12px] text-muted-foreground/60">
           <div>
             <FlaskConical className="mx-auto mb-2 size-8 opacity-30" />
-            Open a file to generate and run tests
+            Open a file to generate tests
           </div>
         </div>
       ) : runs.length === 0 && !streaming ? (
@@ -188,11 +198,12 @@ export function TestingAgent() {
           <div>
             <p className="text-sm font-medium">Automated Testing</p>
             <p className="mt-1 text-[12px] text-muted-foreground/60">
-              Generates unit tests for <code>{activeFile.name}</code>, runs them, fixes failures, and repeats until all pass.
+              Generates unit tests for <code>{activeFile.name}</code> and has the AI estimate pass/fail by reading
+              the code — it doesn&rsquo;t execute anything. Run the generated tests yourself for real results.
             </p>
           </div>
           <Button onClick={() => void generateAndRun()}>
-            <Play className="size-3.5" /> Generate & Run Tests
+            <Play className="size-3.5" /> Generate Tests
           </Button>
         </div>
       ) : (
@@ -206,7 +217,7 @@ export function TestingAgent() {
             <div className="border-t border-border/50 bg-[#0b0b0b] p-3">
               <div className="mb-1 flex items-center gap-1.5 text-[11px] text-muted-foreground/60">
                 <Loader2 className="size-3 animate-spin" />
-                <span>Iteration {iteration}/{MAX_ITERATIONS} — {iteration === 1 ? "Generating tests…" : "Fixing failures…"}</span>
+                <span>Iteration {iteration}/{MAX_ITERATIONS} — {iteration === 1 ? "Generating tests + AI estimate…" : "Fixing + re-estimating…"}</span>
               </div>
               <pre className="max-h-48 overflow-y-auto whitespace-pre-wrap font-mono text-[11px] text-slate-400">
                 {log.slice(-2000)}
@@ -270,7 +281,9 @@ function RunBlock({ run }: { run: TestRun }) {
 
 function buildGeneratePrompt(path: string, content: string): string {
   return `You are a testing agent. Generate comprehensive unit tests for this file.
-Output the tests as a code block, then simulate running them and output results as:
+Output the tests as a code block. You cannot execute code — do not claim the tests
+were run. Instead, carefully trace through each test by hand against the source and
+report your best-effort estimate of the outcome, as:
 TEST: <test name>
 STATUS: pass | fail
 ERROR: <error message if fail>
@@ -280,24 +293,25 @@ File: ${path}
 ${content.slice(0, 4000)}
 \`\`\`
 
-Generate tests covering: happy path, edge cases, error conditions. Then show results.`;
+Generate tests covering: happy path, edge cases, error conditions. Then report your estimate.`;
 }
 
 function buildFixPrompt(path: string, content: string, previousLog: string): string {
-  return `You are a testing agent. The following tests failed. Fix the source code.
-Output a unified git diff for the fix, then re-run and show results.
+  return `You are a testing agent. The following tests were estimated to fail. Fix the source code.
+Output a unified git diff for the fix. You cannot execute code — trace through the
+tests by hand against the fixed source and report your best-effort re-estimate.
 
 File: ${path}
 \`\`\`
 ${content.slice(0, 3000)}
 \`\`\`
 
-Failed test output:
+Previously estimated failures:
 \`\`\`
 ${previousLog.slice(-2000)}
 \`\`\`
 
-Generate a unified diff to fix the failures. Then simulate re-running.`;
+Generate a unified diff to fix the failures. Then report your re-estimate.`;
 }
 
 // ── Parse simulated test results from AI output ───────────────────────────────
