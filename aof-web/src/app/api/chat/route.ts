@@ -50,6 +50,7 @@ import {
 import { getModelBaseName, modelTierFromId, type ModelTier } from "@/lib/model-branding";
 import { stagesFor } from "@/lib/server/model-workflow";
 import { runInteriorStages } from "@/lib/server/workflow-runner";
+import { detectSimpleTask, simpleTaskSystemAddon } from "@/lib/server/simple-task-detector";
 import {
   RAA_SYSTEM,
   AOF_CODE_CHAT_SYSTEM,
@@ -370,6 +371,9 @@ async function handleChat(req: Request): Promise<Response> {
   const workflowStages = stagesFor(tier, effort);
   const interiorStages = workflowStages.slice(0, -1);
   const finalStageSpec = workflowStages[workflowStages.length - 1];
+  // Shared by Universal Search gating and the Simple Task Detector below — both
+  // are Mikros-only behaviors scoped to the plain-chat path (no `agent`).
+  const isMikrosPlainChat = !body.agent && tier === "lite";
 
   // ── Runtime transparency (Master Prompt Part 3 "Logging") ────────────────────
   // requestId/turnStart cover the WHOLE turn, including any interior stages run
@@ -401,6 +405,26 @@ async function handleChat(req: Request): Promise<Response> {
   const effortAddon = effortSystemAddon(effort, { conversational: isConversationalAgent(body.agent) });
   let system = effortAddon ? `${baseSystem}\n\n${effortAddon}` : baseSystem;
 
+  // ── Simple Task Detector — Mikros response-style classifier ──────────────────
+  // Deterministic, <10ms, zero provider calls — NOT a workflow stage (Master
+  // Prompt "Simple Task Detector" spec). effort.ts (above) owns response DEPTH;
+  // this only owns response SHAPE (terse / explanatory / code-focused). Scoped
+  // to the plain-chat Mikros path only — Kanon and every agent-driven path are
+  // unaffected, exactly like tierAllowsSearch() below.
+  if (isMikrosPlainChat) {
+    const detectStart = performance.now();
+    const taskDetection = detectSimpleTask(message);
+    const detectMs = performance.now() - detectStart;
+    system = `${system}\n\n${simpleTaskSystemAddon(taskDetection.category)}`;
+    logAofStage("Processing", {
+      requestId: turnRequestId,
+      taskCategory: taskDetection.category,
+      taskReason: taskDetection.reason,
+      mode: "mikros-processing",
+      detectMs: Math.round(detectMs * 1000) / 1000,
+    });
+  }
+
   // ── Universal Search ─────────────────────────────────────────────────────────
   // Ground the answer in live web results when the query needs fresh information,
   // decided from route + freshness/lookup heuristics. Results become a system-prompt
@@ -412,7 +436,6 @@ async function handleChat(req: Request): Promise<Response> {
   // entirely. Kanon and every agent-driven path (incl. CoCode code-chat) are
   // unaffected — this only narrows the one path that used to run unconditionally.
   let sourcesFrame = "";
-  const isMikrosPlainChat = !body.agent && tier === "lite";
   const decision = isMikrosPlainChat
     ? { search: false as const, reason: "Mikros: search disabled" }
     : decideSearch(message, body.route?.target);
