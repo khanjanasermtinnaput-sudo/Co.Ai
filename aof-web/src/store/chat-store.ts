@@ -412,6 +412,7 @@ export const useChatStore = create<ChatState>()(
               onFailover: (failover) => patchAssistant({ failover }),
               onModel: (activeModel) => patchAssistant({ activeModel }),
               onSources: (sources) => patchAssistant({ sources }),
+              onUsage: (usage) => patchAssistant({ usage }),
             },
           );
         } finally {

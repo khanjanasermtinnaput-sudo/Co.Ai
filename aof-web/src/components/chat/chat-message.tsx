@@ -289,6 +289,13 @@ function ChatMessageImpl({
                     ~{tokens > 999 ? `${(tokens / 1000).toFixed(1)}k` : tokens} tokens
                   </span>
                 )}
+
+                {/* Real provider token usage */}
+                {!isUser && message.usage && (
+                  <span className="ml-1 text-[10px] text-muted-foreground/40 select-none">
+                    🔢 {message.usage.inputTokens} in · {message.usage.outputTokens} out
+                  </span>
+                )}
               </div>
             )}
           </>

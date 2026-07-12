@@ -49,6 +49,7 @@ export function CodeConversation({ mode }: { mode: Exclude<CodeMode, "titan"> })
   const chatting = useCodeStore((s) => s.chatting);
   const building = useCodeStore((s) => s.building);
   const buildLog = useCodeStore((s) => s.buildLog);
+  const buildUsage = useCodeStore((s) => s.buildUsage);
   const buildError = useCodeStore((s) => s.buildError);
   const send = useCodeStore((s) => s.sendMessage);
   const stopChat = useCodeStore((s) => s.stopChat);
@@ -143,6 +144,11 @@ export function CodeConversation({ mode }: { mode: Exclude<CodeMode, "titan"> })
                               >
                                 <Github className="size-3.5" /> Push to GitHub
                               </Button>
+                              {buildUsage && (
+                                <span className="flex items-center gap-1 text-[10px] text-muted-foreground/40 select-none">
+                                  🔢 {buildUsage.inputTokens} in · {buildUsage.outputTokens} out
+                                </span>
+                              )}
                             </div>
                           )
                         )}

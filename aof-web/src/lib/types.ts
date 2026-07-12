@@ -1,6 +1,6 @@
 // ── Domain types shared across the Co.AI frontend ────────────────────────────
 
-import type { AofProviderError, FailoverNotice, ModelNotice, SourcesNotice } from "./errors";
+import type { AofProviderError, FailoverNotice, ModelNotice, SourcesNotice, UsageNotice } from "./errors";
 
 /** Top-level products surfaced in the sidebar. Titan is intentionally absent —
  *  it is a mode *inside* CoCode, never a product on the homepage. */
@@ -84,6 +84,8 @@ export interface ChatMessageT {
   qualityScore?: number;
   /** detected task categories */
   categories?: string[];
+  /** real (or, in demo mode, estimated) token usage for this (assistant) reply */
+  usage?: UsageNotice;
 }
 
 export interface Conversation {

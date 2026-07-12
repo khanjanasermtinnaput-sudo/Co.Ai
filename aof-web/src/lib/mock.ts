@@ -9,8 +9,10 @@ import type {
   LearningAnswer,
   RouteDecision,
 } from "./types";
-import type { AofProviderError, FailoverNotice, ModelNotice, SourcesNotice } from "./errors";
+import type { AofProviderError, FailoverNotice, ModelNotice, SourcesNotice, UsageNotice } from "./errors";
+import { makeUsageNotice } from "./errors";
 import { GENCODE_HINT } from "./raa";
+import { estimateTokensFor } from "@/store/usage-store";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -30,6 +32,8 @@ export interface StreamHandlers {
   onModel?: (notice: ModelNotice) => void;
   /** Called when the reply was grounded on live web-search sources. */
   onSources?: (notice: SourcesNotice) => void;
+  /** Called once real (or, in demo mode, estimated) token usage is known. */
+  onUsage?: (notice: UsageNotice) => void;
 }
 
 /** Stream an arbitrary string token-by-token with human-ish pacing. */
@@ -50,6 +54,13 @@ function pick<T>(arr: T[]): T {
 /** Reply in the same language the user wrote in: Thai input → Thai reply. */
 function isThai(text: string): boolean {
   return /[฀-๿]/.test(text);
+}
+
+/** Demo mode has no real provider, so usage is estimated the same way the
+ *  UI's other token estimate is (text.length / 4) — still non-zero and
+ *  proportional, so the usage badge behaves consistently offline. */
+function emitMockUsage(h: StreamHandlers, input: string, output: string): void {
+  h.onUsage?.(makeUsageNotice(estimateTokensFor(input), estimateTokensFor(output)));
 }
 
 // ── Math & Learning detection ─────────────────────────────────────────────────
@@ -268,10 +279,9 @@ export interface ChatReplyOptions {
 /** Stream a mock chat reply, honoring route and attachments. */
 export async function mockChat(message: string, opts: ChatReplyOptions, h: StreamHandlers) {
   await sleep(220 + Math.random() * 240);
-  await streamText(
-    composeChatReply(message, opts.route, opts.attachments ?? []),
-    h,
-  );
+  const reply = composeChatReply(message, opts.route, opts.attachments ?? []);
+  await streamText(reply, h);
+  emitMockUsage(h, message, reply);
 }
 
 /** Stream a mock CoCode build log + summary (Lite / 1.0 / Pro). */
@@ -313,6 +323,7 @@ export async function mockCodeRun(
     await streamText(l, h);
     await sleep(160);
   }
+  emitMockUsage(h, task, lines.join(""));
 }
 
 // ── Mock CoCode NORMAL_CHAT replies ───────────────────────────────────────────
@@ -390,6 +401,7 @@ export async function mockCodeChat(
   }
 
   await streamText(text, h);
+  emitMockUsage(h, message, text);
   return text;
 }
 
@@ -444,12 +456,14 @@ export async function mockRequirements(
     }
 
     await streamText(text, h);
+    emitMockUsage(h, message, text);
     return text;
   }
 
   // Enough signal → synthesise a structured brief.
   const text = buildMockBrief(message, history, th);
   await streamText(text, h);
+  emitMockUsage(h, message, text);
   return text;
 }
 
@@ -463,6 +477,7 @@ export async function mockPlan(task: string, h: StreamHandlers): Promise<string>
     ? `## แผนการสร้าง — _${task.slice(0, 70)}_\n\n1. **โครงสร้างโปรเจกต์** — วางโฟลเดอร์ \`src/\` และไฟล์ตั้งต้น\n2. **โมเดลข้อมูล** — กำหนดชนิดข้อมูลหลักและ state\n3. **ฟีเจอร์หลัก** — สร้างทีละฟีเจอร์แบบ vertical slice\n4. **จัดการ error & ขอบเขต** — validation และสถานะ loading/error\n5. **เก็บงาน** — รีวิว, เอกสาร, และเตรียม deploy\n\n_นี่คือแผน ยังไม่สร้างโค้ด — กด **Generate Code** เมื่อพร้อม_`
     : `## Build plan — _${task.slice(0, 70)}_\n\n1. **Project structure** — lay out \`src/\` and entry files.\n2. **Data model** — define the core types and state.\n3. **Core features** — build one vertical slice at a time.\n4. **Error handling & edges** — validation and loading/error states.\n5. **Wrap up** — review, docs, and deploy prep.\n\n_This is the plan — no code yet. Hit **Generate Code** when ready._`;
   await streamText(text, h);
+  emitMockUsage(h, task, text);
   return text;
 }
 
@@ -474,6 +489,7 @@ export async function mockAnalyze(brief: string, h: StreamHandlers): Promise<str
     ? `## วิเคราะห์โปรเจกต์\n\n**ความเป็นไปได้** — ทำได้จริงในระดับ MVP ถ้าล็อกขอบเขตให้แคบก่อน\n\n**ความเสี่ยง**\n- ขอบเขตบานปลายก่อนปล่อย v1\n- ฟีเจอร์ที่ซับซ้อนที่สุดอาจดันไทม์ไลน์\n- การจัดการ auth/ข้อมูลถ้าวางทีหลังจะแก้ยาก\n\n**ข้อแนะนำ**\n- เริ่มจาก vertical slice ที่เดโมได้\n- เลือก stack ที่ส่งมอบเร็วและดูแลต่อได้\n- ใส่ validation และ error handling ตั้งแต่ต้น`
     : `## Project analysis\n\n**Feasibility** — Realistic at MVP scope if you lock a thin slice first.\n\n**Risks**\n- Scope creep before v1 ships\n- The hardest feature can blow the timeline\n- Auth/data is costly to retrofit if deferred\n\n**Recommendations**\n- Start with a demoable vertical slice\n- Pick a stack you can ship fast and maintain\n- Bake in validation and error handling from day one`;
   await streamText(text, h);
+  emitMockUsage(h, brief, text);
   return text;
 }
 
@@ -486,6 +502,7 @@ export async function mockDebug(error: string, h: StreamHandlers): Promise<strin
     ? `## ผลวิเคราะห์ข้อผิดพลาด\n\n**Root cause** — \`${snippet}\` มักเกิดจากค่าที่เป็น undefined/null ถูกใช้งานก่อนถูกกำหนด หรือ promise ที่ไม่ได้ดักจับ\n\n**วิเคราะห์**\n- ไล่จากบรรทัดที่ error ชี้ ไปยังต้นทางของค่า\n- ตรวจว่าค่าถูกกำหนดครบทุกเส้นทางหรือไม่\n\n**วิธีแก้**\n- เพิ่มการตรวจค่า (guard) ก่อนใช้งาน และครอบ async ด้วย try/catch\n- คืน error ที่สื่อความหมายแทนปล่อยให้ crash\n\n_ในเวิร์กสเปซจริง Co.AI จะแนบ **patch** เป็นไฟล์ที่แก้ให้พร้อมนำไปใช้_`
     : `## Debug analysis\n\n**Root cause** — \`${snippet}\` usually means a value is undefined/null when used, or a promise was left unhandled.\n\n**Analysis**\n- Trace from the line the error points to back to where the value originates.\n- Check the value is set on every code path.\n\n**Solution**\n- Add a guard before use and wrap async calls in try/catch.\n- Return a meaningful error instead of letting it crash.\n\n_In a live workspace Co.AI attaches a ready-to-apply **patch** with the corrected files._`;
   await streamText(text, h);
+  emitMockUsage(h, error, text);
   return text;
 }
 

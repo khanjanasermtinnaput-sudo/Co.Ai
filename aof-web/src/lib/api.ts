@@ -230,6 +230,7 @@ async function readAofStream(
       for (const fo of decoded.failovers) handlers.onFailover?.(fo);
       for (const mn of decoded.models) handlers.onModel?.(mn);
       for (const src of decoded.sources) handlers.onSources?.(src);
+      for (const u of decoded.usage) handlers.onUsage?.(u);
       if (decoded.errors.length) {
         for (const e of decoded.errors) handlers.onError?.(e);
         errored = true;
@@ -252,6 +253,7 @@ async function readAofStream(
     for (const fo of decoded.failovers) handlers.onFailover?.(fo);
     for (const mn of decoded.models) handlers.onModel?.(mn);
     for (const src of decoded.sources) handlers.onSources?.(src);
+    for (const u of decoded.usage) handlers.onUsage?.(u);
     if (decoded.errors.length) {
       for (const e of decoded.errors) handlers.onError?.(e);
       errored = true;

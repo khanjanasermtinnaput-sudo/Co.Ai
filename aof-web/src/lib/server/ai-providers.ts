@@ -18,9 +18,12 @@ import {
   encodeErrorFrame,
   encodeFailoverFrame,
   encodeModelFrame,
+  encodeUsageFrame,
+  makeUsageNotice,
   type AofProviderError,
   type FailoverNotice,
   type ModelNotice,
+  type UsageNotice,
 } from "@/lib/errors";
 import type { ProviderHealth, ProviderStatusLevel } from "@/lib/health";
 
@@ -260,7 +263,7 @@ const ANTHROPIC_TRANSIENT_STATUSES = new Set([503, 529]);
 const ANTHROPIC_MAX_ATTEMPTS = 3;
 const ANTHROPIC_BACKOFF_MS = [300, 800];
 
-export async function* anthropicTextStream(input: AdapterInput): AsyncGenerator<string> {
+export async function* anthropicTextStream(input: AdapterInput): AsyncGenerator<string, UsageNotice | undefined> {
   const meta = PROVIDER_REGISTRY.anthropic;
   const model = input.taskModel || modelFor(meta);
   const messages: Anthropic.MessageParam[] = [
@@ -284,6 +287,9 @@ export async function* anthropicTextStream(input: AdapterInput): AsyncGenerator<
     }, firstTokenDeadlineMs());
     const clearDeadline = () => clearTimeout(timer);
 
+    let inputTokens = 0;
+    let outputTokens = 0;
+
     try {
       const stream = anthropic.messages.stream(
         { model, max_tokens: input.maxTokens, temperature: input.temperature, system: input.system, messages },
@@ -291,7 +297,11 @@ export async function* anthropicTextStream(input: AdapterInput): AsyncGenerator<
       );
 
       for await (const event of stream) {
-        if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+        if (event.type === "message_start") {
+          inputTokens = event.message.usage.input_tokens;
+        } else if (event.type === "message_delta") {
+          outputTokens = event.usage.output_tokens;
+        } else if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
           if (!started) {
             started = true;
             clearDeadline();
@@ -300,7 +310,7 @@ export async function* anthropicTextStream(input: AdapterInput): AsyncGenerator<
           yield event.delta.text;
         }
       }
-      return;
+      return makeUsageNotice(inputTokens, outputTokens);
     } catch (thrown) {
       if (started) throw thrown; // can't retry after emitting tokens
 
@@ -375,6 +385,7 @@ async function openrouterConnect(
     temperature: input.temperature,
     max_tokens: input.maxTokens,
     stream: true,
+    stream_options: { include_usage: true },
   });
 
   let lastTransient: ProviderHttpError | undefined;
@@ -408,7 +419,7 @@ async function openrouterConnect(
   throw lastTransient ?? new ProviderHttpError(502, "", undefined, "Provider unavailable");
 }
 
-export async function* openrouterTextStream(input: AdapterInput): AsyncGenerator<string> {
+export async function* openrouterTextStream(input: AdapterInput): AsyncGenerator<string, UsageNotice | undefined> {
   const meta = PROVIDER_REGISTRY.openrouter;
   const messages = [
     { role: "system", content: input.system },
@@ -443,6 +454,8 @@ export async function* openrouterTextStream(input: AdapterInput): AsyncGenerator
     };
 
     let started = false;
+    let inputTokens = 0;
+    let outputTokens = 0;
     try {
       const res = await openrouterConnect(meta, model, messages, { ...input, signal: ctrl.signal }, perModelAttempts);
       const reader = res.body!.getReader();
@@ -461,7 +474,7 @@ export async function* openrouterTextStream(input: AdapterInput): AsyncGenerator
           if (data === "[DONE]") {
             clearDeadline();
             input.signal.removeEventListener("abort", onUserAbort);
-            return;
+            return makeUsageNotice(inputTokens, outputTokens);
           }
           let delta = "";
           try {
@@ -470,6 +483,12 @@ export async function* openrouterTextStream(input: AdapterInput): AsyncGenerator
             if (json?.error) {
               const msg = typeof json.error === "string" ? json.error : json.error?.message;
               throw new ProviderHttpError(json.error?.code ?? 502, data, json.error?.type, msg);
+            }
+            // The terminal usage frame (stream_options.include_usage) carries an
+            // empty `choices` array alongside the token totals.
+            if (json?.usage) {
+              inputTokens = json.usage.prompt_tokens ?? inputTokens;
+              outputTokens = json.usage.completion_tokens ?? outputTokens;
             }
             delta = json?.choices?.[0]?.delta?.content ?? "";
           } catch (e) {
@@ -488,7 +507,7 @@ export async function* openrouterTextStream(input: AdapterInput): AsyncGenerator
       // Stream ended cleanly.
       if (started) {
         input.signal.removeEventListener("abort", onUserAbort);
-        return; // fully streamed this model
+        return makeUsageNotice(inputTokens, outputTokens); // fully streamed this model
       }
       lastError = new ProviderHttpError(502, "", "empty", `No content from ${model}`);
     } catch (thrown) {
@@ -561,6 +580,7 @@ async function openAiCompatConnect(
     temperature: input.temperature,
     max_tokens: input.maxTokens,
     stream: true,
+    stream_options: { include_usage: true },
   });
 
   let lastTransient: ProviderHttpError | undefined;
@@ -588,7 +608,10 @@ async function openAiCompatConnect(
   throw lastTransient ?? new ProviderHttpError(502, "", undefined, "Provider unavailable");
 }
 
-async function* openAiCompatTextStream(cfg: OpenAiCompatConfig, input: AdapterInput): AsyncGenerator<string> {
+async function* openAiCompatTextStream(
+  cfg: OpenAiCompatConfig,
+  input: AdapterInput,
+): AsyncGenerator<string, UsageNotice | undefined> {
   const meta = PROVIDER_REGISTRY[cfg.providerId];
   const apiKey = apiKeyFor(meta, input.overrides)!;
   const model = input.taskModel || modelFor(meta);
@@ -609,6 +632,8 @@ async function* openAiCompatTextStream(cfg: OpenAiCompatConfig, input: AdapterIn
   const clearDeadline = () => clearTimeout(timer);
 
   let started = false;
+  let inputTokens = 0;
+  let outputTokens = 0;
   try {
     const res = await openAiCompatConnect(cfg, apiKey, model, messages, { ...input, signal: ctrl.signal });
     const reader = res.body!.getReader();
@@ -627,7 +652,7 @@ async function* openAiCompatTextStream(cfg: OpenAiCompatConfig, input: AdapterIn
         if (data === "[DONE]") {
           clearDeadline();
           input.signal.removeEventListener("abort", onUserAbort);
-          return;
+          return makeUsageNotice(inputTokens, outputTokens);
         }
         let delta = "";
         try {
@@ -635,6 +660,10 @@ async function* openAiCompatTextStream(cfg: OpenAiCompatConfig, input: AdapterIn
           if (json?.error) {
             const msg = typeof json.error === "string" ? json.error : json.error?.message;
             throw new ProviderHttpError(json.error?.code ?? 502, data, json.error?.type, msg);
+          }
+          if (json?.usage) {
+            inputTokens = json.usage.prompt_tokens ?? inputTokens;
+            outputTokens = json.usage.completion_tokens ?? outputTokens;
           }
           delta = json?.choices?.[0]?.delta?.content ?? "";
         } catch (e) {
@@ -650,6 +679,7 @@ async function* openAiCompatTextStream(cfg: OpenAiCompatConfig, input: AdapterIn
         }
       }
     }
+    return makeUsageNotice(inputTokens, outputTokens);
   } catch (thrown) {
     if (isAbort(thrown) && !input.signal.aborted && timedOut) {
       throw new ProviderHttpError(504, "", "timeout", `${meta.label} did not respond in time`);
@@ -670,7 +700,7 @@ export const qwenTextStream = (input: AdapterInput) =>
 export const llamaTextStream = (input: AdapterInput) =>
   openAiCompatTextStream({ baseUrl: OPENAI_COMPAT.llama, providerId: "llama" }, input);
 
-const ADAPTERS: Record<ProviderId, (input: AdapterInput) => AsyncGenerator<string>> = {
+const ADAPTERS: Record<ProviderId, (input: AdapterInput) => AsyncGenerator<string, UsageNotice | undefined>> = {
   anthropic: anthropicTextStream,
   openrouter: openrouterTextStream,
   gemini: geminiTextStream,
@@ -679,7 +709,9 @@ const ADAPTERS: Record<ProviderId, (input: AdapterInput) => AsyncGenerator<strin
   llama: llamaTextStream,
 };
 
-export function adapterFor(id: ProviderId): (input: AdapterInput) => AsyncGenerator<string> {
+export function adapterFor(
+  id: ProviderId,
+): (input: AdapterInput) => AsyncGenerator<string, UsageNotice | undefined> {
   return ADAPTERS[id];
 }
 
@@ -702,7 +734,7 @@ export interface PrimeResult {
 
 export async function primeAndStream(opts: {
   ctx: ErrCtx;
-  gen: AsyncGenerator<string>;
+  gen: AsyncGenerator<string, UsageNotice | undefined>;
   /** Optional control frame to emit before the first token (e.g. failover). */
   prefixFrame?: string;
 }): Promise<PrimeResult> {
@@ -711,7 +743,7 @@ export async function primeAndStream(opts: {
   // ── Priming phase: find the first non-empty chunk (or a clean failure). ──────
   let firstChunk: string | null = null;
   while (firstChunk === null) {
-    let next: IteratorResult<string>;
+    let next: IteratorResult<string, UsageNotice | undefined>;
     try {
       next = await gen.next();
     } catch (thrown) {
@@ -737,7 +769,7 @@ export async function primeAndStream(opts: {
         if (prefixFrame) controller.enqueue(encoder.encode(prefixFrame));
         controller.enqueue(encoder.encode(firstChunk as string));
         while (true) {
-          let next: IteratorResult<string>;
+          let next: IteratorResult<string, UsageNotice | undefined>;
           try {
             next = await gen.next();
           } catch (thrown) {
@@ -748,7 +780,11 @@ export async function primeAndStream(opts: {
             }
             break;
           }
-          if (next.done) break;
+          if (next.done) {
+            // Real token counts from the provider, appended once the stream ends cleanly.
+            if (next.value) controller.enqueue(encoder.encode(encodeUsageFrame(next.value)));
+            break;
+          }
           if (next.value) controller.enqueue(encoder.encode(next.value));
         }
       } finally {
