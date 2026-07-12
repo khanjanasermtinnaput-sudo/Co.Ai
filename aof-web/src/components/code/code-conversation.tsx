@@ -7,9 +7,9 @@ import {
   Bug,
   FileCode2,
   Files,
+  Coins,
   Github,
   Hammer,
-  Hash,
   ListChecks,
   RotateCcw,
   ScanSearch,
@@ -153,8 +153,8 @@ export function CodeConversation({ mode }: { mode: Exclude<CodeMode, "titan"> })
                                     "bg-secondary/40 px-2 py-0.5 text-[10px] font-medium text-muted-foreground",
                                   )}
                                 >
-                                  <Hash className="size-3" />
-                                  {buildUsage.inputTokens} in · {buildUsage.outputTokens} out
+                                  <Coins className="size-3" />
+                                  ~{buildUsage.inputTokens + buildUsage.outputTokens} tokens
                                 </span>
                               )}
                             </div>

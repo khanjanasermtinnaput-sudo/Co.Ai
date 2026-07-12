@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Copy, Check, RefreshCw, ThumbsUp, ThumbsDown, Pencil, X, Coins, Hash } from "lucide-react";
+import { Copy, Check, RefreshCw, ThumbsUp, ThumbsDown, Pencil, X, Coins } from "lucide-react";
 import { useState, useRef, useEffect, memo } from "react";
 import { cn } from "@/lib/utils";
 import { estimateTokens } from "@/lib/export";
@@ -277,8 +277,8 @@ function ChatMessageImpl({
                   </ActionButton>
                 )}
 
-                {/* Token count estimate */}
-                {tokens !== null && tokens > 10 && (
+                {/* Token count estimate — fallback when the provider didn't report real usage */}
+                {tokens !== null && tokens > 10 && !message.usage && (
                   <span
                     className={cn(
                       "ml-1 inline-flex items-center gap-1 rounded-full border border-border",
@@ -290,7 +290,7 @@ function ChatMessageImpl({
                   </span>
                 )}
 
-                {/* Real provider token usage */}
+                {/* Real provider token usage — total in + out */}
                 {!isUser && message.usage && (
                   <span
                     className={cn(
@@ -298,8 +298,8 @@ function ChatMessageImpl({
                       "bg-secondary/40 px-2 py-0.5 text-[10px] font-medium text-muted-foreground",
                     )}
                   >
-                    <Hash className="size-3" />
-                    {message.usage.inputTokens} in · {message.usage.outputTokens} out
+                    <Coins className="size-3" />
+                    ~{message.usage.inputTokens + message.usage.outputTokens} tokens
                   </span>
                 )}
               </div>
