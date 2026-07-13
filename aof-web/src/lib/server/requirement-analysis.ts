@@ -145,15 +145,18 @@ export function buildRaaMessage(input: {
 }
 
 // ── Parsing — tolerant, line-walk (mirrors raa.ts's parseBrief), NEVER throws ─
+// These small helpers are exported (not just used internally) so execution-plan.ts's
+// TMAP parser can reuse the exact same line-walk idiom — including parseRisks's
+// `key: value | key: value` format — rather than maintaining a second copy.
 
-const HEADER_RE = /^\s*[A-Za-z฀-๿][A-Za-z฀-๿\s-]*:/;
+export const HEADER_RE = /^\s*[A-Za-z฀-๿][A-Za-z฀-๿\s-]*:/;
 
-function hasHeader(lines: string[], key: string): boolean {
+export function hasHeader(lines: string[], key: string): boolean {
   const target = key.toLowerCase() + ":";
   return lines.some((l) => l.trimStart().toLowerCase().startsWith(target));
 }
 
-function listUnder(lines: string[], key: string): string[] {
+export function listUnder(lines: string[], key: string): string[] {
   const start = lines.findIndex((l) => l.trimStart().toLowerCase().startsWith(`${key.toLowerCase()}:`));
   if (start === -1) return [];
   const items: string[] = [];
@@ -165,7 +168,7 @@ function listUnder(lines: string[], key: string): string[] {
   return items;
 }
 
-function lineValue(lines: string[], key: string): string {
+export function lineValue(lines: string[], key: string): string {
   const re = new RegExp(`^\\s*${key}:\\s*(.+)$`, "i");
   for (const l of lines) {
     const m = l.match(re);
@@ -174,7 +177,7 @@ function lineValue(lines: string[], key: string): string {
   return "";
 }
 
-function parsePercent(raw: string): number | null {
+export function parsePercent(raw: string): number | null {
   if (!raw) return null;
   const m = raw.match(/(\d+(?:\.\d+)?)/);
   if (!m) return null;
@@ -184,7 +187,7 @@ function parsePercent(raw: string): number | null {
 }
 
 const VALID_LEVEL = new Set(["High", "Medium", "Low"]);
-function level(raw: string | undefined): "High" | "Medium" | "Low" {
+export function level(raw: string | undefined): "High" | "Medium" | "Low" {
   const norm = (raw ?? "").trim();
   const capitalized = norm.charAt(0).toUpperCase() + norm.slice(1).toLowerCase();
   return VALID_LEVEL.has(capitalized) ? (capitalized as "High" | "Medium" | "Low") : "Medium";
@@ -198,7 +201,7 @@ function parseRequirementIdList(lines: string[], key: string, prefix: string): {
   });
 }
 
-function parseRisks(lines: string[]): RequirementRisk[] {
+export function parseRisks(lines: string[]): RequirementRisk[] {
   return listUnder(lines, "Risks").map((raw) => {
     const parts = raw.split("|").map((p) => p.trim());
     const description = parts[0] ?? raw;
