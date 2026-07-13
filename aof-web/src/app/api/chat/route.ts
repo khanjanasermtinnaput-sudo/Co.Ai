@@ -39,19 +39,36 @@ import { checkRateLimit, applyRateLimitHeaders } from "@/lib/server/rate-limit";
 import { getUserFromRequest, tierForUser } from "@/lib/server/supabase-admin";
 import { loadUserKeyOverrides } from "@/lib/server/keys-store";
 import { planFor } from "@/lib/plans";
-import type { ChatModel, EffortLevel, RouteDecision } from "@/lib/types";
+import type { EffortLevel, RepoMetadata, RouteDecision, WorkflowModelId } from "@/lib/types";
 import {
   effortMaxTokens,
+  effortPolicy,
   effortSystemAddon,
   effortTemperature,
   normalizeEffort,
   tierAllowsSearch,
 } from "@/lib/effort";
 import { getModelBaseName, modelTierFromId, type ModelTier } from "@/lib/model-branding";
-import { buildWorkflowSystem, stagesFor, workflowMaxTokens, KANON_TEMPERATURE } from "@/lib/server/model-workflow";
+import {
+  buildWorkflowSystem,
+  stagesFor,
+  workflowMaxTokens,
+  KANON_TEMPERATURE,
+  YPERTATOS_TEMPERATURE,
+} from "@/lib/server/model-workflow";
 import { buildWorkflowContext } from "@/lib/server/workflow-context";
 import { phaseStream } from "@/lib/server/phase-stream";
 import { detectSimpleTask, simpleTaskSystemAddon } from "@/lib/server/simple-task-detector";
+import { classifyTask, type TaskDecision } from "@/lib/server/task-classifier";
+import {
+  REQUIREMENT_ANALYSIS_SYSTEM,
+  RAA_TEMPERATURE,
+  buildRaaMessage,
+  parseRequirementSpec,
+  requirementSpecSystemAddon,
+  raaUnavailableAddon,
+} from "@/lib/server/requirement-analysis";
+import { runBufferedCall } from "@/lib/server/buffered-call";
 import {
   RAA_SYSTEM,
   AOF_CODE_CHAT_SYSTEM,
@@ -98,11 +115,6 @@ interface ChatHistoryItem {
   content: string;
 }
 
-/** CoChat model the user picked in the header selector. Maps to a branding
- *  name in model-branding.ts: "lite" = Mikros (fast), "normal" = Kanon (reasoning).
- *  Only consulted on the plain chat path (no `agent`); CoCode is unaffected. */
-type ChatModelId = "lite" | "normal";
-
 interface ChatBody {
   message?: string;
   route?: RouteDecision;
@@ -111,12 +123,17 @@ interface ChatBody {
    *  CoCode NORMAL_CHAT; "code-gen"/"plan"/"analyze"/"debug" = serverless build
    *  pipeline (used when the tmap-v2 backend is not configured). */
   agent?: Agent;
-  /** CoChat manual model selection: "lite" (Mikros) | "normal" (Kanon). */
-  model?: ChatModelId;
+  /** Manual model selection: "lite" (Mikros) | "normal" (Kanon) | "pro"
+   *  (Ypertatos). "pro" only actually stages — see the tier narrow below —
+   *  when `agent === "code-chat"`; CoChat's header selector never sends it. */
+  model?: WorkflowModelId;
   /** Reasoning-effort dial (low → extreme). Sizes token budget, temperature and
    *  the depth of the reasoning system prompt; extreme also makes conversational
    *  agents clarify before acting. Defaults to "normal" when absent/invalid. */
   effort?: string;
+  /** CoCode's open workspace, when non-empty — the Ypertatos Task Classifier's
+   *  complexity signal (task-classifier.ts). Ignored for any tier but "pro". */
+  repo?: RepoMetadata;
 }
 
 /** Agents that hold a conversation with the user (vs. one-shot generators) —
@@ -144,8 +161,9 @@ const ChatBodySchema = z
       .max(200)
       .optional(),
     agent: z.string().optional(),
-    model: z.string().optional(),
+    model: z.enum(["lite", "normal", "pro"]).optional(),
     effort: z.string().optional(),
+    repo: z.object({ fileCount: z.number(), languages: z.array(z.string()).max(50) }).optional(),
   })
   .passthrough();
 
@@ -153,7 +171,7 @@ const ChatBodySchema = z
  *  lightweight; Kanon reasons internally first then answers in a structured way —
  *  all in one LLM call so latency and token use stay low (no second round-trip). */
 function chatModelConfig(
-  model: ChatModelId | undefined,
+  model: WorkflowModelId | undefined,
   route: RouteDecision | undefined,
 ): { system: string; temperature: number; maxTokens: number } {
   const base = buildSystem(route);
@@ -171,7 +189,7 @@ function chatModelConfig(
 
 /** Provider-priority chain for a CoChat turn. Kanon prefers reasoning-capable
  *  models; Mikros the fast general-chat chain. Search intent still wins. */
-function chatTaskCategory(model: ChatModelId | undefined, route: RouteDecision | undefined): TaskCategory {
+function chatTaskCategory(model: WorkflowModelId | undefined, route: RouteDecision | undefined): TaskCategory {
   if (route?.target === "search") return "research";
   return model === "normal" ? "reasoning" : "chat";
 }
@@ -358,6 +376,15 @@ async function handleChat(req: Request): Promise<Response> {
 
   const effort: EffortLevel = normalizeEffort(body.effort);
 
+  // requestId/turnStart cover the WHOLE turn, including any interior stages run
+  // below — not just the final streamed call — so durationMs reflects real
+  // end-to-end latency. Hoisted above the tier/classifier resolution (both are
+  // dependency-free) so the classifier's own log line shares this same id, and
+  // so the Input log's `stages:` field reflects the classifier-resolved count
+  // rather than a pre-classification guess.
+  const turnRequestId = newRequestId();
+  const turnStart = Date.now();
+
   // ── Model Workflow → which stages this tier/effort combo runs ────────────────
   // Model (Mikros/Kanon/Ypertatos) owns stage SEQUENCE; effort.ts (below) owns
   // DEPTH — token budget and temperature — for whichever stage is executing.
@@ -366,47 +393,74 @@ async function handleChat(req: Request): Promise<Response> {
   // keeps `tier` undefined, which resolves to the same single-stage stub as
   // Mikros (see stagesFor), so its request is byte-identical to today's.
   const tierEligible = !body.agent || body.agent === "code-chat";
-  const tier: ModelTier | undefined = tierEligible
-    ? modelTierFromId((body.model === "normal" ? "normal" : "lite") as ChatModel)
-    : undefined;
-  const workflowStages = stagesFor(tier, effort);
-  // Co.AI Master Prompt Part 4: Kanon makes exactly ONE provider call, whatever
-  // its stage count — `isStaged` just means "more than one stage", i.e. Kanon
-  // at any effort. `providerPhases` excludes local stages (Context Builder),
-  // which never reach the model — they're not provider "calls" at all.
-  const isStaged = workflowStages.length > 1;
-  const providerPhases = workflowStages.filter((s) => s.execution === "phase");
+  const requestedTier: ModelTier | undefined = tierEligible ? modelTierFromId(body.model ?? "lite") : undefined;
+  // Ypertatos ("pro") is reachable ONLY through CoCode's code-chat agent this
+  // round — never CoChat's header selector. tierEligible already guarantees
+  // that when it's true and body.agent isn't "code-chat", body.agent is
+  // undefined (plain CoChat), so this only ever collapses that one path.
+  const tier: ModelTier | undefined =
+    requestedTier === "pro" && body.agent !== "code-chat" ? "lite" : requestedTier;
+
+  // ── Ypertatos Task Classifier (Master Prompt Part 5.2) ───────────────────────
+  // Mandatory, exactly once, before stagesFor() — deterministic, zero LLM calls,
+  // <15ms (measured in classifyTask() itself). Decides "lightweight" vs
+  // "engineering" for stagesFor()'s pro branch. A classifier failure (or tier
+  // !== "pro") leaves `decision` undefined, which stagesFor() treats as
+  // "lightweight" — the same Kanon-shaped table Ypertatos falls back to, per
+  // 5.2's "fall back to Kanon-style workflow" failure policy.
+  let decision: TaskDecision | undefined;
+  if (tier === "pro") {
+    try {
+      decision = classifyTask({ message, history, tier, effort, repo: body.repo });
+    } catch {
+      decision = undefined;
+    }
+    logAofStage("Processing", {
+      requestId: turnRequestId,
+      stage: "task-classifier",
+      mode: "local",
+      taskCategory: decision?.category,
+      complexity: decision?.complexity,
+      engineeringRequired: decision?.engineeringRequired,
+      workflow: decision?.workflow,
+      confidence: decision?.confidence,
+      reason: decision?.reasoning,
+      signals: decision?.signals.join("|"),
+      durationMs: decision?.durationMs,
+    });
+  }
+
+  let workflowStages = stagesFor(tier, effort, { workflow: decision?.workflow });
+  // Co.AI Master Prompt Part 4/5.3: Kanon makes exactly ONE provider call, and
+  // Ypertatos makes at most TWO (buffered RAA + streamed answer), whatever
+  // their stage count — `isStaged` just means "more than one stage".
+  // `providerPhases` excludes non-"phase" stages (Context Builder, Requirement
+  // Analysis), which never reach the model as a phase of the streamed call.
+  let isStaged = workflowStages.length > 1;
+  let providerPhases = workflowStages.filter((s) => s.execution === "phase");
   // Shared by Universal Search gating and the Simple Task Detector below — both
   // are Mikros-only behaviors scoped to the plain-chat path (no `agent`).
   const isMikrosPlainChat = !body.agent && tier === "lite";
 
   // ── Runtime transparency (Master Prompt Part 3 "Logging") ────────────────────
-  // requestId/turnStart cover the WHOLE turn, including any interior stages run
-  // below — not just the final streamed call — so durationMs reflects real
-  // end-to-end latency, and stages reflects the actual pipeline about to run
-  // (from stagesFor(), the single source of truth for stage sequencing).
-  const turnRequestId = newRequestId();
-  const turnStart = Date.now();
   logAofStage("Input", {
     requestId: turnRequestId,
     modelTier: tier ? getModelBaseName(tier) : (body.agent ?? "agent"),
+    effort,
     language: detectRequestLanguage(message),
     requestType: body.agent ?? "chat",
     messageLength: message.length,
+    historyTurns: history.length,
+    repoFiles: body.repo?.fileCount,
     stages: workflowStages.length,
   });
 
-  // ── Effort dial → real knobs ─────────────────────────────────────────────────
-  // The user's chosen effort (low → extreme) actually resizes the token budget,
-  // caps the temperature, and appends a reasoning-depth instruction to the system
-  // prompt. At extreme, conversational agents are told to clarify before acting.
-  // Kanon's ONE provider call pays for its own draft/critique overhead on top of
-  // the effort-scaled answer budget (workflowMaxTokens — see model-workflow.ts
-  // for why this is deliberately NOT routed through effortMaxTokens() as a
-  // combined total), and uses the single shared KANON_TEMPERATURE — otherwise
-  // these are identical to today's values.
-  const maxTokens = isStaged ? workflowMaxTokens(workflowStages, effort) : effortMaxTokens(baseMaxTokens, effort);
-  const temperature = isStaged ? effortTemperature(KANON_TEMPERATURE, effort) : effortTemperature(baseTemperature, effort);
+  // ── Effort dial → system prompt addon ────────────────────────────────────────
+  // The user's chosen effort (low → extreme) appends a reasoning-depth
+  // instruction to the system prompt; at extreme, conversational agents are
+  // told to clarify before acting. Token budget/temperature are computed later
+  // (after any Ypertatos Requirement Analysis has had a chance to downgrade
+  // the stage table) so they always reflect the FINAL workflowStages.
   const effortAddon = effortSystemAddon(effort, { conversational: isConversationalAgent(body.agent) });
   let system = effortAddon ? `${baseSystem}\n\n${effortAddon}` : baseSystem;
 
@@ -441,17 +495,17 @@ async function handleChat(req: Request): Promise<Response> {
   // entirely. Kanon and every agent-driven path (incl. CoCode code-chat) are
   // unaffected — this only narrows the one path that used to run unconditionally.
   let sourcesFrame = "";
-  const decision = isMikrosPlainChat
+  const searchDecision = isMikrosPlainChat
     ? { search: false as const, reason: "Mikros: search disabled" }
     : decideSearch(message, body.route?.target);
-  if (decision.search) {
+  if (searchDecision.search) {
     try {
       const outcome = await runSearch(message, { signal: req.signal, limit: 5 });
       if (outcome) {
         const built = buildSearchContext(outcome);
         system = `${system}\n\n${built.systemAddon}`;
         sourcesFrame = encodeSourcesFrame(built.notice);
-        logAofInfo(`Search: ${outcome.provider} → ${outcome.hits.length} results (${decision.reason})`);
+        logAofInfo(`Search: ${outcome.provider} → ${outcome.hits.length} results (${searchDecision.reason})`);
       }
     } catch {
       // Search is best-effort — never block the answer on it.
@@ -462,7 +516,10 @@ async function handleChat(req: Request): Promise<Response> {
   const task = body.agent
     ? taskCategoryFor(body.agent, body.route)
     : chatTaskCategory(body.model, body.route);
-  const providers = configuredProvidersForOrder(routeOrder(task), overrides);
+  // `let`: a successful Ypertatos Requirement Analysis call below reorders
+  // this so the provider that actually answered RAA is tried first for the
+  // streamed call too — same brain for both, no re-discovering a dead provider.
+  let providers = configuredProvidersForOrder(routeOrder(task), overrides);
 
   if (providers.length === 0) {
     // Nothing configured anywhere (env or per-user) → tell the user immediately.
@@ -482,15 +539,27 @@ async function handleChat(req: Request): Promise<Response> {
   // the registry based on the task (no ANTHROPIC_MODEL/OPENROUTER_MODEL surprise).
   const REGISTRY_ROUTES_MODEL = new Set<ProviderMeta["id"]>(["gemini", "deepseek", "qwen", "llama"]);
 
-  // ── Model Workflow → local Context Builder, then the one-call phase protocol ──
+  // ── Model Workflow → local Context Builder, then (Ypertatos engineering only)
+  // the buffered Requirement Analysis call, then the streamed phase protocol ──
   // Context Builder (Master Prompt Part 4.2) runs entirely server-side — no
   // provider call, no network — and REPLACES `history` with its own selection
-  // (see workflow-context.ts). `stagePrefix` carries its running/done
-  // StageNotice frames; every remaining stage (Processing/Deep Think/Review)
-  // is a phase inside the ONE provider call phaseStream() parses below, so
-  // there is nothing left here to execute before the request goes out.
+  // (see workflow-context.ts). `stagePrefix` carries running/done StageNotice
+  // frames; every remaining "phase" stage (Processing/Deep Think/Reflection/
+  // Review) is a phase inside the ONE streamed provider call phaseStream()
+  // parses below — nothing left to execute for those before the request goes
+  // out. Requirement Analysis (Part 5.3) is the one exception: it is its own
+  // complete, non-streamed call, made here, BEFORE the streamed call.
   let stagePrefix = "";
   let effectiveHistory = history;
+  // Real, observed outcomes of the buffered Requirement Analysis call (if any
+  // ran) — surfaced on the final Output log. Every field stays `undefined`
+  // (and is omitted by logAofStage) unless RAA actually executed.
+  let raaProviderCalled = false;
+  let raaDegraded = false;
+  let raaAttempts: number | undefined;
+  let raaPromptTokens: number | undefined;
+  let raaCompletionTokens: number | undefined;
+  let raaReadyForPlanning: boolean | undefined;
   if (isStaged) {
     const localIdx = workflowStages.findIndex((s) => s.execution === "local");
     if (localIdx >= 0) {
@@ -512,8 +581,124 @@ async function handleChat(req: Request): Promise<Response> {
         degraded: built.stats.degraded,
       });
     }
+
+    const raaIdx = workflowStages.findIndex((s) => s.execution === "buffered");
+    if (raaIdx >= 0 && decision) {
+      const raaSpec = workflowStages[raaIdx];
+      const totalBefore = workflowStages.length;
+      stagePrefix += encodeStageFrame(makeStageNotice(raaSpec.stage, raaSpec.label, raaIdx + 1, totalBefore, "running"));
+
+      const raa = await runBufferedCall({
+        providers,
+        system: REQUIREMENT_ANALYSIS_SYSTEM,
+        message: buildRaaMessage({ message, history: effectiveHistory, repo: body.repo, decision }),
+        history: effectiveHistory,
+        maxTokens: effortMaxTokens(raaSpec.baseMaxTokens, effort),
+        temperature: effortTemperature(RAA_TEMPERATURE, effort),
+        signal: req.signal,
+        overrides,
+        taskModelFor: (p) =>
+          REGISTRY_ROUTES_MODEL.has(p.id) ? process.env[p.modelEnv]?.trim() || bestModelFor(p.id, task) : undefined,
+      });
+
+      if (!raa.ok && raa.aborted) {
+        // User pressed Stop during RAA — return an empty 200 stream, exactly
+        // like the streamed loop's own abort handling below.
+        return new Response(new ReadableStream({ start: (c) => c.close() }), { headers: TEXT_HEADERS });
+      }
+
+      raaProviderCalled = true;
+      raaAttempts = raa.attempts;
+
+      if (raa.ok) {
+        const reqSpec = parseRequirementSpec(raa.text);
+        system = `${system}\n\n${requirementSpecSystemAddon(reqSpec, { clarifyFirst: effortPolicy(effort).clarifyFirst })}`;
+        raaPromptTokens = raa.usage?.inputTokens;
+        raaCompletionTokens = raa.usage?.outputTokens;
+        raaReadyForPlanning = reqSpec.readyForPlanning;
+        // Same brain for both calls, and no wasted re-failover of a provider
+        // RAA already ruled out.
+        providers = [raa.provider, ...providers.filter((p) => p.id !== raa.provider.id)];
+        stagePrefix += encodeStageFrame(makeStageNotice(raaSpec.stage, raaSpec.label, raaIdx + 1, totalBefore, "done"));
+        logAofStage("Processing", {
+          requestId: turnRequestId,
+          stage: "requirement-analysis",
+          mode: "buffered",
+          executed: true,
+          provider: raa.provider.label,
+          model: raa.model,
+          attempts: raa.attempts,
+          durationMs: raa.durationMs,
+          functionalRequirements: reqSpec.functional.length,
+          nonFunctionalRequirements: reqSpec.nonFunctional.length,
+          constraints: reqSpec.constraints.length,
+          assumptions: reqSpec.assumptions.length,
+          missingInformation: reqSpec.missingInformation.length,
+          ambiguities: reqSpec.ambiguities.length,
+          risks: reqSpec.risks.length,
+          acceptanceCriteria: reqSpec.acceptanceCriteria.length,
+          completenessScore: reqSpec.completenessScore ?? undefined,
+          confidenceScore: reqSpec.confidenceScore ?? undefined,
+          readyForPlanning: reqSpec.readyForPlanning,
+          readyForPlanningSource: reqSpec.readyForPlanningSource,
+          partial: reqSpec.partial,
+          promptTokens: raa.usage?.inputTokens,
+          completionTokens: raa.usage?.outputTokens,
+        });
+      } else {
+        // Master Prompt 5.3: "never terminate the workflow unexpectedly" — a
+        // failed RAA call degrades to the lightweight (Kanon-shaped) table
+        // rather than failing the turn. `reflection` would have nothing to
+        // check without a RequirementSpec, which is exactly the placeholder
+        // stage 5.1 forbids, so it — and the buffered stage itself — must go.
+        raaDegraded = true;
+        logAofError(raa.error);
+        logAofStage("Processing", {
+          requestId: turnRequestId,
+          stage: "requirement-analysis",
+          mode: "buffered",
+          executed: false,
+          degraded: true,
+          errorCode: raa.error.code,
+          attempts: raa.attempts,
+          durationMs: raa.durationMs,
+          downgradedTo: "lightweight",
+        });
+        system = `${system}\n\n${raaUnavailableAddon()}`;
+        workflowStages = stagesFor(tier, effort, { workflow: "lightweight" });
+        isStaged = workflowStages.length > 1;
+        providerPhases = workflowStages.filter((s) => s.execution === "phase");
+        // No "done" frame for a stage the recomputed pipeline no longer has —
+        // the "running" frame above already told the client it was attempted.
+      }
+    }
+
     system = buildWorkflowSystem(workflowStages, { baseSystem: system });
   }
+
+  // ── Effort dial → token budget & temperature, from the FINAL workflowStages ──
+  // Computed here (not earlier) so a Requirement Analysis downgrade above is
+  // already reflected. Kanon's/Ypertatos's ONE streamed call pays for its own
+  // draft/critique overhead on top of the effort-scaled answer budget
+  // (workflowMaxTokens — see model-workflow.ts for why this is deliberately
+  // NOT routed through effortMaxTokens() as a combined total).
+  const maxTokens = isStaged ? workflowMaxTokens(workflowStages, effort) : effortMaxTokens(baseMaxTokens, effort);
+  const temperature = isStaged
+    ? effortTemperature(tier === "pro" ? YPERTATOS_TEMPERATURE : KANON_TEMPERATURE, effort)
+    : effortTemperature(baseTemperature, effort);
+
+  // True only when RAA actually ran AND succeeded — a failed RAA already
+  // replaced workflowStages with the lightweight table above, so this stays
+  // an honest signal of what the streamed call is actually grounded in.
+  const usedRequirementAnalysis = workflowStages.some((s) => s.stage === "requirement-analysis");
+  const workflowMode: string | undefined =
+    tier === "pro"
+      ? usedRequirementAnalysis
+        ? "ypertatos-engineering"
+        : "ypertatos-lightweight"
+      : isStaged
+        ? "kanon-single-call"
+        : undefined;
 
   // ── Try each configured provider in priority order, announcing any failover. ──
   let pendingFailover: ReturnType<typeof makeFailoverNotice> | undefined;
@@ -567,7 +752,13 @@ async function handleChat(req: Request): Promise<Response> {
               durationMs: Date.now() - turnStart,
               promptTokens: s.usage?.inputTokens,
               completionTokens: s.usage?.outputTokens,
-              mode: "kanon-single-call",
+              mode: workflowMode,
+              providerCalls: raaProviderCalled ? 2 : 1,
+              raaPromptTokens,
+              raaCompletionTokens,
+              raaDegraded: raaDegraded || undefined,
+              readyForPlanning: raaReadyForPlanning,
+              retries: raaAttempts !== undefined ? raaAttempts - 1 : undefined,
               fallback: s.fallback,
             });
           },
@@ -625,6 +816,12 @@ async function handleChat(req: Request): Promise<Response> {
   }
 
   // Every configured provider failed.
-  logAofStage("Output", { requestId: turnRequestId, success: false, durationMs: Date.now() - turnStart });
+  logAofStage("Output", {
+    requestId: turnRequestId,
+    success: false,
+    durationMs: Date.now() - turnStart,
+    mode: workflowMode,
+    providerCalls: raaProviderCalled ? 2 : 1,
+  });
   return errorResponse(lastError!);
 }

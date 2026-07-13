@@ -38,8 +38,8 @@ workflow runs — extend `stagesFor()`.
 
 **Kanon invariant** (Master Prompt Part 4): Kanon makes **exactly ONE provider call per turn**,
 at every effort level — Low (Processing→Review), Medium/`normal` (+Context Builder), High (+Deep
-Think). Context Builder is `local: true` in `stagesFor()`'s specs and executes with zero provider
-calls in `src/lib/server/workflow-context.ts` (sibling of the Simple Task Detector below) — it
+Think). Context Builder is `execution: "local"` in `stagesFor()`'s specs and executes with zero
+provider calls in `src/lib/server/workflow-context.ts` (sibling of the Simple Task Detector below) — it
 REPLACES the history sent to the provider with a relevance-scored selection, so it can only save
 tokens, never add them (the invariant a prior LLM-based version violated). Processing/Deep
 Think/Review are NOT separate calls: they're phases inside that one generation, opened by
@@ -82,3 +82,45 @@ containment only). Logged via `logAofStage("Processing", ...)`. `workflow-contex
 tokenizer hits the same gotcha from the other direction — Thai has no word spaces at all, so
 whitespace/`\b` splitting collapses lexical overlap to ~0; it tokenizes Thai runs as character
 trigrams instead (keeping vowels/tone marks, since stripping them merges distinct words).
+
+**Ypertatos invariant** (Master Prompt Part 5.1–5.3): Ypertatos (`pro`) makes **at most TWO
+provider calls per turn** — a buffered Requirement Analysis call, then the streamed answer —
+never more, and only on the `agent === "code-chat"` path (CoCode). CoChat's header selector
+and the one-shot build agents (`code-gen`/`plan`/`analyze`/`debug`) can never reach `pro`; see
+the `tier` narrow in `src/app/api/chat/route.ts` right after `tierEligible`.
+
+The **Ypertatos Task Classifier** (`src/lib/server/task-classifier.ts`) is Part 5.2's mandatory,
+deterministic, zero-LLM, <15ms gate — sibling of the Simple Task Detector above, but a
+*separate* module (different taxonomy, different question: "does this turn need the
+engineering workflow?", not "which product surface?"). It decides `stagesFor()`'s `"pro"`
+branch between `"lightweight"` (delegates straight to `kanonWorkflow()`) and `"engineering"`
+(adds the buffered `requirement-analysis` stage plus `reflection` at ultra/extreme). Low
+confidence always escalates to `"engineering"` — Part 5.2's "never underestimate an
+engineering task" — and a classifier failure defaults to `"lightweight"`, i.e. Kanon's exact
+table, satisfying Part 5.2's own "fall back to Kanon-style workflow" failure policy for free.
+
+The buffered Requirement Analysis call (`src/lib/server/requirement-analysis.ts` +
+`src/lib/server/buffered-call.ts`) is **not** the same thing as CoCode's Requirements Architect
+in `src/lib/raa.ts` (`RAA_SYSTEM`, `agent: "requirements"`) — that is a browser-safe
+conversational persona that gathers a `ProjectBrief` across a DISCOVERY chat; Ypertatos's RAA
+is server-only, single-shot, and produces a machine-parsed `RequirementSpec` folded into the
+streamed answer's system prompt (`requirementSpecSystemAddon()`) — never shown to the user,
+never generates code itself. They can never co-occur in one request: `tierEligible` already
+excludes `agent: "requirements"` from all Ypertatos staging. `buffered-call.ts`'s
+`runBufferedCall()` is the **only** buffered (non-streamed) provider call in the app —
+deliberately not re-exported from `ai-providers.ts`, and imported from exactly one place (the
+Ypertatos engineering branch in `route.ts`, guarded by `execution === "buffered"`); Kanon and
+Mikros must never import it, and a dedicated test in `model-workflow.test.ts` asserts no tier
+but `pro`-engineering can ever produce a `"buffered"` stage.
+
+A failed RAA call degrades to the lightweight table rather than failing the turn (5.3: "never
+terminate the workflow unexpectedly") — `reflection` would have nothing to check against
+without a `RequirementSpec`, which is exactly the placeholder stage Part 5.1 forbids, so it and
+the buffered stage both drop out on that path. `RequirementSpec`'s `completenessScore`/
+`confidenceScore` are `number | null` — `null` when the model didn't emit one, **never** a
+computed substitute — and `readyForPlanning`, when the model omitted the line, is *derived*
+from `missingInformation.length` and labelled `readyForPlanningSource: "derived"` so the log
+never claims a measurement that didn't happen. Parts 5.4+ (TMAP, the Workflow Runner, the
+engineering agents, Validator) are **not yet specified** — `YPERTATOS_RESERVED_STAGES` in
+`model-workflow.ts` keeps their stage names reserved and a test asserts `stagesFor()` never
+returns them; don't invent that machinery ahead of the spec landing.
