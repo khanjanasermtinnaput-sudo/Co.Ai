@@ -42,7 +42,6 @@ import { planFor } from "@/lib/plans";
 import type { EffortLevel, RepoMetadata, RouteDecision, WorkflowModelId } from "@/lib/types";
 import {
   effortMaxTokens,
-  effortPolicy,
   effortSystemAddon,
   effortTemperature,
   normalizeEffort,
@@ -56,19 +55,11 @@ import {
   KANON_TEMPERATURE,
   YPERTATOS_TEMPERATURE,
 } from "@/lib/server/model-workflow";
-import { buildWorkflowContext } from "@/lib/server/workflow-context";
 import { phaseStream } from "@/lib/server/phase-stream";
 import { detectSimpleTask, simpleTaskSystemAddon } from "@/lib/server/simple-task-detector";
 import { classifyTask, type TaskDecision } from "@/lib/server/task-classifier";
-import {
-  REQUIREMENT_ANALYSIS_SYSTEM,
-  RAA_TEMPERATURE,
-  buildRaaMessage,
-  parseRequirementSpec,
-  requirementSpecSystemAddon,
-  raaUnavailableAddon,
-} from "@/lib/server/requirement-analysis";
-import { runBufferedCall } from "@/lib/server/buffered-call";
+import { runPreStreamStages } from "@/lib/server/prestream-dispatch";
+import { makeTurnBudget } from "@/lib/server/turn-budget";
 import {
   RAA_SYSTEM,
   AOF_CODE_CHAT_SYSTEM,
@@ -384,6 +375,10 @@ async function handleChat(req: Request): Promise<Response> {
   // rather than a pre-classification guess.
   const turnRequestId = newRequestId();
   const turnStart = Date.now();
+  // Shared wall-clock ledger for prestream-dispatch.ts — RAA/TMAP get fixed
+  // deadlines off the top; orchestration gets whatever's left, capped, and
+  // is designed to degrade rather than blow route.ts's maxDuration=60.
+  const budget = makeTurnBudget(turnStart);
 
   // ── Model Workflow → which stages this tier/effort combo runs ────────────────
   // Model (Mikros/Kanon/Ypertatos) owns stage SEQUENCE; effort.ts (below) owns
@@ -540,141 +535,132 @@ async function handleChat(req: Request): Promise<Response> {
   const REGISTRY_ROUTES_MODEL = new Set<ProviderMeta["id"]>(["gemini", "deepseek", "qwen", "llama"]);
 
   // ── Model Workflow → local Context Builder, then (Ypertatos engineering only)
-  // the buffered Requirement Analysis call, then the streamed phase protocol ──
-  // Context Builder (Master Prompt Part 4.2) runs entirely server-side — no
-  // provider call, no network — and REPLACES `history` with its own selection
-  // (see workflow-context.ts). `stagePrefix` carries running/done StageNotice
-  // frames; every remaining "phase" stage (Processing/Deep Think/Reflection/
-  // Review) is a phase inside the ONE streamed provider call phaseStream()
-  // parses below — nothing left to execute for those before the request goes
-  // out. Requirement Analysis (Part 5.3) is the one exception: it is its own
-  // complete, non-streamed call, made here, BEFORE the streamed call.
-  let stagePrefix = "";
-  let effectiveHistory = history;
-  // Real, observed outcomes of the buffered Requirement Analysis call (if any
-  // ran) — surfaced on the final Output log. Every field stays `undefined`
-  // (and is omitted by logAofStage) unless RAA actually executed.
-  let raaProviderCalled = false;
-  let raaDegraded = false;
-  let raaAttempts: number | undefined;
-  let raaPromptTokens: number | undefined;
-  let raaCompletionTokens: number | undefined;
-  let raaReadyForPlanning: boolean | undefined;
-  if (isStaged) {
-    const localIdx = workflowStages.findIndex((s) => s.execution === "local");
-    if (localIdx >= 0) {
-      const local = workflowStages[localIdx];
-      const cbStart = performance.now();
-      stagePrefix += encodeStageFrame(makeStageNotice(local.stage, local.label, localIdx + 1, workflowStages.length, "running"));
-      const built = buildWorkflowContext({ message, history });
-      effectiveHistory = built.history;
-      if (built.digest) system = `${system}\n\n${built.digest}`;
-      stagePrefix += encodeStageFrame(makeStageNotice(local.stage, local.label, localIdx + 1, workflowStages.length, "done"));
-      logAofStage("Processing", {
-        requestId: turnRequestId,
-        stage: local.stage,
-        mode: "local",
-        durationMs: Math.round((performance.now() - cbStart) * 1000) / 1000,
-        inputMessages: built.stats.inputMessages,
-        selectedMessages: built.stats.selectedMessages,
-        charsSaved: built.stats.charsSaved,
-        degraded: built.stats.degraded,
-      });
-    }
+  // the buffered Requirement Analysis + TMAP calls, optional Agent
+  // Orchestration, then the streamed phase protocol ──────────────────────────
+  // Every non-"phase" stage actually in workflowStages is executed here, in
+  // order, by prestream-dispatch.ts. That module exists because a pair of
+  // `findIndex(s => s.execution === "...")` lookups (the old shape of this
+  // block) only ever runs the FIRST stage of each kind — harmless while at
+  // most one "local" and one "buffered" stage could exist, but Parts 5.4/5.5
+  // give pro-engineering TWO buffered stages (requirement-analysis, then
+  // planner) and an optional third orchestrated stage that this call may
+  // insert into the table itself, after a real, parsed, >1-task, acyclic
+  // TMAP plan confirms it should run.
+  const preStream = await runPreStreamStages({
+    stages: workflowStages,
+    tier,
+    effort,
+    decision,
+    message,
+    history,
+    repo: body.repo,
+    system,
+    providers,
+    overrides,
+    signal: req.signal,
+    budget,
+    taskModelFor: (p) =>
+      REGISTRY_ROUTES_MODEL.has(p.id) ? process.env[p.modelEnv]?.trim() || bestModelFor(p.id, task) : undefined,
+  });
 
-    const raaIdx = workflowStages.findIndex((s) => s.execution === "buffered");
-    if (raaIdx >= 0 && decision) {
-      const raaSpec = workflowStages[raaIdx];
-      const totalBefore = workflowStages.length;
-      stagePrefix += encodeStageFrame(makeStageNotice(raaSpec.stage, raaSpec.label, raaIdx + 1, totalBefore, "running"));
-
-      const raa = await runBufferedCall({
-        providers,
-        system: REQUIREMENT_ANALYSIS_SYSTEM,
-        message: buildRaaMessage({ message, history: effectiveHistory, repo: body.repo, decision }),
-        history: effectiveHistory,
-        maxTokens: effortMaxTokens(raaSpec.baseMaxTokens, effort),
-        temperature: effortTemperature(RAA_TEMPERATURE, effort),
-        signal: req.signal,
-        overrides,
-        taskModelFor: (p) =>
-          REGISTRY_ROUTES_MODEL.has(p.id) ? process.env[p.modelEnv]?.trim() || bestModelFor(p.id, task) : undefined,
-      });
-
-      if (!raa.ok && raa.aborted) {
-        // User pressed Stop during RAA — return an empty 200 stream, exactly
-        // like the streamed loop's own abort handling below.
-        return new Response(new ReadableStream({ start: (c) => c.close() }), { headers: TEXT_HEADERS });
-      }
-
-      raaProviderCalled = true;
-      raaAttempts = raa.attempts;
-
-      if (raa.ok) {
-        const reqSpec = parseRequirementSpec(raa.text);
-        system = `${system}\n\n${requirementSpecSystemAddon(reqSpec, { clarifyFirst: effortPolicy(effort).clarifyFirst })}`;
-        raaPromptTokens = raa.usage?.inputTokens;
-        raaCompletionTokens = raa.usage?.outputTokens;
-        raaReadyForPlanning = reqSpec.readyForPlanning;
-        // Same brain for both calls, and no wasted re-failover of a provider
-        // RAA already ruled out.
-        providers = [raa.provider, ...providers.filter((p) => p.id !== raa.provider.id)];
-        stagePrefix += encodeStageFrame(makeStageNotice(raaSpec.stage, raaSpec.label, raaIdx + 1, totalBefore, "done"));
-        logAofStage("Processing", {
-          requestId: turnRequestId,
-          stage: "requirement-analysis",
-          mode: "buffered",
-          executed: true,
-          provider: raa.provider.label,
-          model: raa.model,
-          attempts: raa.attempts,
-          durationMs: raa.durationMs,
-          functionalRequirements: reqSpec.functional.length,
-          nonFunctionalRequirements: reqSpec.nonFunctional.length,
-          constraints: reqSpec.constraints.length,
-          assumptions: reqSpec.assumptions.length,
-          missingInformation: reqSpec.missingInformation.length,
-          ambiguities: reqSpec.ambiguities.length,
-          risks: reqSpec.risks.length,
-          acceptanceCriteria: reqSpec.acceptanceCriteria.length,
-          completenessScore: reqSpec.completenessScore ?? undefined,
-          confidenceScore: reqSpec.confidenceScore ?? undefined,
-          readyForPlanning: reqSpec.readyForPlanning,
-          readyForPlanningSource: reqSpec.readyForPlanningSource,
-          partial: reqSpec.partial,
-          promptTokens: raa.usage?.inputTokens,
-          completionTokens: raa.usage?.outputTokens,
-        });
-      } else {
-        // Master Prompt 5.3: "never terminate the workflow unexpectedly" — a
-        // failed RAA call degrades to the lightweight (Kanon-shaped) table
-        // rather than failing the turn. `reflection` would have nothing to
-        // check without a RequirementSpec, which is exactly the placeholder
-        // stage 5.1 forbids, so it — and the buffered stage itself — must go.
-        raaDegraded = true;
-        logAofError(raa.error);
-        logAofStage("Processing", {
-          requestId: turnRequestId,
-          stage: "requirement-analysis",
-          mode: "buffered",
-          executed: false,
-          degraded: true,
-          errorCode: raa.error.code,
-          attempts: raa.attempts,
-          durationMs: raa.durationMs,
-          downgradedTo: "lightweight",
-        });
-        system = `${system}\n\n${raaUnavailableAddon()}`;
-        workflowStages = stagesFor(tier, effort, { workflow: "lightweight" });
-        isStaged = workflowStages.length > 1;
-        providerPhases = workflowStages.filter((s) => s.execution === "phase");
-        // No "done" frame for a stage the recomputed pipeline no longer has —
-        // the "running" frame above already told the client it was attempted.
-      }
-    }
-
-    system = buildWorkflowSystem(workflowStages, { baseSystem: system });
+  if (preStream.aborted) {
+    // User pressed Stop during a buffered/orchestrated stage — return an
+    // empty 200 stream, exactly like the streamed loop's own abort handling.
+    return new Response(new ReadableStream({ start: (c) => c.close() }), { headers: TEXT_HEADERS });
   }
+
+  workflowStages = preStream.stages;
+  system = preStream.system;
+  let effectiveHistory = preStream.history;
+  providers = preStream.providers;
+  const stagePrefix = preStream.stagePrefix;
+  isStaged = workflowStages.length > 1;
+  providerPhases = workflowStages.filter((s) => s.execution === "phase");
+
+  if (preStream.telemetry.contextBuilder) {
+    const cb = preStream.telemetry.contextBuilder;
+    logAofStage("Processing", {
+      requestId: turnRequestId,
+      stage: "context-builder",
+      mode: "local",
+      durationMs: cb.durationMs,
+      inputMessages: cb.inputMessages,
+      selectedMessages: cb.selectedMessages,
+      charsSaved: cb.charsSaved,
+      degraded: cb.degraded,
+    });
+  }
+
+  if (preStream.telemetry.raa) {
+    const raa = preStream.telemetry.raa;
+    if (raa.error) logAofError(raa.error);
+    logAofStage("Processing", {
+      requestId: turnRequestId,
+      stage: "requirement-analysis",
+      mode: "buffered",
+      executed: raa.executed,
+      degraded: raa.degraded || undefined,
+      attempts: raa.attempts,
+      durationMs: raa.durationMs,
+      promptTokens: raa.promptTokens,
+      completionTokens: raa.completionTokens,
+      readyForPlanning: raa.readyForPlanning,
+      readyForPlanningSource: raa.readyForPlanningSource,
+      partial: raa.partial,
+      errorCode: raa.errorCode,
+      downgradedTo: raa.degraded ? "lightweight" : undefined,
+    });
+  }
+
+  if (preStream.telemetry.tmap) {
+    const tmap = preStream.telemetry.tmap;
+    if (tmap.error) logAofError(tmap.error);
+    logAofStage("Processing", {
+      requestId: turnRequestId,
+      stage: "planner",
+      mode: "buffered",
+      executed: tmap.executed,
+      degraded: tmap.degraded || undefined,
+      attempts: tmap.attempts,
+      durationMs: tmap.durationMs,
+      tasks: tmap.tasks,
+      integrity: tmap.integrity,
+      partial: tmap.partial,
+      warnings: tmap.warnings,
+      planConfidence: tmap.planConfidence ?? undefined,
+      promptTokens: tmap.promptTokens,
+      completionTokens: tmap.completionTokens,
+      errorCode: tmap.errorCode,
+    });
+  }
+
+  if (preStream.telemetry.orchestration) {
+    const orch = preStream.telemetry.orchestration;
+    logAofStage("Processing", {
+      requestId: turnRequestId,
+      stage: "multi-agent",
+      mode: "orchestrated",
+      executed: true,
+      waves: orch.waves,
+      maxParallelObserved: orch.maxParallelObserved,
+      completed: orch.completed,
+      failed: orch.failed,
+      skipped: orch.skipped,
+      timedOut: orch.timedOut,
+      partial: orch.partial,
+      durationMs: orch.durationMs,
+    });
+  } else if (preStream.telemetry.orchestrationSkipped) {
+    logAofStage("Processing", {
+      requestId: turnRequestId,
+      stage: "multi-agent",
+      mode: "orchestrated",
+      executed: false,
+      skipped: preStream.telemetry.orchestrationSkipped,
+    });
+  }
+
+  system = buildWorkflowSystem(workflowStages, { baseSystem: system });
 
   // ── Effort dial → token budget & temperature, from the FINAL workflowStages ──
   // Computed here (not earlier) so a Requirement Analysis downgrade above is
@@ -690,11 +676,16 @@ async function handleChat(req: Request): Promise<Response> {
   // True only when RAA actually ran AND succeeded — a failed RAA already
   // replaced workflowStages with the lightweight table above, so this stays
   // an honest signal of what the streamed call is actually grounded in.
+  // "orchestrated" is derived from the FINAL table too, so it can only ever
+  // be true if the multi-agent stage really was inserted and run.
   const usedRequirementAnalysis = workflowStages.some((s) => s.stage === "requirement-analysis");
+  const usedOrchestration = workflowStages.some((s) => s.execution === "orchestrated");
   const workflowMode: string | undefined =
     tier === "pro"
       ? usedRequirementAnalysis
-        ? "ypertatos-engineering"
+        ? usedOrchestration
+          ? "ypertatos-engineering-orchestrated"
+          : "ypertatos-engineering"
         : "ypertatos-lightweight"
       : isStaged
         ? "kanon-single-call"
@@ -753,12 +744,26 @@ async function handleChat(req: Request): Promise<Response> {
               promptTokens: s.usage?.inputTokens,
               completionTokens: s.usage?.outputTokens,
               mode: workflowMode,
-              providerCalls: raaProviderCalled ? 2 : 1,
-              raaPromptTokens,
-              raaCompletionTokens,
-              raaDegraded: raaDegraded || undefined,
-              readyForPlanning: raaReadyForPlanning,
-              retries: raaAttempts !== undefined ? raaAttempts - 1 : undefined,
+              // Counted, not guessed: this streamed call plus every real
+              // buffered/agent call prestream-dispatch.ts actually made
+              // (RAA, TMAP, and each real agent attempt orchestration ran).
+              providerCalls: 1 + preStream.telemetry.preStreamProviderCalls,
+              raaPromptTokens: preStream.telemetry.raa?.promptTokens,
+              raaCompletionTokens: preStream.telemetry.raa?.completionTokens,
+              raaDegraded: preStream.telemetry.raa?.degraded || undefined,
+              readyForPlanning: preStream.telemetry.raa?.readyForPlanning,
+              retries:
+                preStream.telemetry.raa?.attempts !== undefined ? preStream.telemetry.raa.attempts - 1 : undefined,
+              tmapTasks: preStream.telemetry.tmap?.tasks,
+              planIntegrity: preStream.telemetry.tmap?.integrity,
+              orchestrationCompleted: preStream.telemetry.orchestration?.completed,
+              orchestrationFailed: preStream.telemetry.orchestration?.failed,
+              orchestrationSkippedTasks: preStream.telemetry.orchestration?.skipped,
+              orchestrationTimedOut: preStream.telemetry.orchestration?.timedOut,
+              orchestrationPartial: preStream.telemetry.orchestration?.partial,
+              orchestrationMs: preStream.telemetry.orchestration?.durationMs,
+              maxParallelObserved: preStream.telemetry.orchestration?.maxParallelObserved,
+              orchestrationSkippedReason: preStream.telemetry.orchestrationSkipped,
               fallback: s.fallback,
             });
           },
@@ -821,7 +826,7 @@ async function handleChat(req: Request): Promise<Response> {
     success: false,
     durationMs: Date.now() - turnStart,
     mode: workflowMode,
-    providerCalls: raaProviderCalled ? 2 : 1,
+    providerCalls: 1 + preStream.telemetry.preStreamProviderCalls,
   });
   return errorResponse(lastError!);
 }

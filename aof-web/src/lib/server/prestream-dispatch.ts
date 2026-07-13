@@ -33,6 +33,7 @@ import {
   encodeStageFrame,
   makeStageNotice,
   type AofErrorCode,
+  type AofProviderError,
 } from "@/lib/errors";
 import type { EffortLevel, RepoMetadata } from "@/lib/types";
 import type { ModelTier } from "@/lib/model-branding";
@@ -107,6 +108,10 @@ export interface PreStreamTelemetry {
     readyForPlanningSource?: "model" | "derived";
     partial?: boolean;
     errorCode?: AofErrorCode;
+    /** Full error object, present only on failure — so the caller can still
+     *  call logAofError() for the detailed diagnostic line, exactly as
+     *  route.ts did before this module existed. */
+    error?: AofProviderError;
   };
   tmap?: {
     executed: boolean;
@@ -121,6 +126,7 @@ export interface PreStreamTelemetry {
     promptTokens?: number;
     completionTokens?: number;
     errorCode?: AofErrorCode;
+    error?: AofProviderError;
   };
   /** Present only when orchestration actually ran. */
   orchestration?: OrchestrationRun;
@@ -276,6 +282,7 @@ export async function runPreStreamStages(opts: RunPreStreamStagesOpts): Promise<
         attempts: raa.attempts,
         durationMs: raa.durationMs,
         errorCode: raa.error.code,
+        error: raa.error,
       };
       telemetry.orchestrationSkipped = "raa-failed";
       stages = stagesForFn(opts.tier, opts.effort, { workflow: "lightweight" satisfies YpertatosWorkflowKind });
@@ -366,6 +373,7 @@ export async function runPreStreamStages(opts: RunPreStreamStagesOpts): Promise<
         warnings: 0,
         planConfidence: null,
         errorCode: tmap.error.code,
+        error: tmap.error,
       };
       telemetry.orchestrationSkipped = "tmap-failed";
     }
