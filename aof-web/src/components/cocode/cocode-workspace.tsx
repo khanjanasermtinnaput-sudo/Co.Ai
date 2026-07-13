@@ -17,7 +17,6 @@ import { Button } from "@/components/ui/button";
 import { useCocodeIDEStore } from "@/store/cocode-ide-store";
 import { useUIStore } from "@/store/ui-store";
 import { useCodeStore } from "@/store/code-store";
-import { WorkflowIndicator } from "./workflow-indicator";
 import { extractDiffs } from "@/lib/cocode/diff";
 import { getAdaptivePanels, PANEL_DEFS, type PanelDef } from "@/lib/cocode/adaptive-panels";
 import { analyzeFiles } from "@/lib/cocode/diagnostics";
@@ -119,8 +118,6 @@ function WorkspaceChatInput({ onSend }: { onSend?: (msg: string) => void }) {
   const allFiles = useCocodeIDEStore((s) => s.allFiles);
   const activeTab = useCocodeIDEStore((s) => s.activeTab);
   const setDiff = useCocodeIDEStore((s) => s.setDiff);
-  const classifyRequest = useCocodeIDEStore((s) => s.classifyRequest);
-  const workflow = useCocodeIDEStore((s) => s.workflow);
   const github = useCocodeIDEStore((s) => s.github);
   const diff = useCocodeIDEStore((s) => s.diff);
   const setAiStreaming = useUIStore((s) => s.setAiStreaming);
@@ -128,7 +125,6 @@ function WorkspaceChatInput({ onSend }: { onSend?: (msg: string) => void }) {
   async function send(text?: string) {
     const msg = (text ?? message).trim();
     if (!msg || streaming) return;
-    classifyRequest(msg);
     setStreaming(true);
     setAiStreaming(true);
     setResponse("");
@@ -182,7 +178,6 @@ function WorkspaceChatInput({ onSend }: { onSend?: (msg: string) => void }) {
 
   return (
     <div className="flex flex-col gap-2 border-t border-border/60 bg-background/60 px-4 py-3 backdrop-blur-xl">
-      {workflow && <WorkflowIndicator />}
       {response && (
         <div className="max-h-48 overflow-y-auto rounded-xl border border-border/40 bg-card/40 p-3 text-[13px]">
           <pre className="whitespace-pre-wrap font-sans text-foreground/80">{response}</pre>

@@ -5,7 +5,6 @@
 // • GitHub connection (Phase 4)
 // • Diff engine state (Phase 7)
 // • Apply engine (Phase 8)
-// • Adaptive workflow (Phase 11)
 // • Knowledge graph (Phase 18)
 // • Checkpoints (Phase 20)
 
@@ -40,13 +39,7 @@ import {
   type KnowledgeGraph,
   type KGNode,
 } from "@/lib/cocode/knowledge-graph";
-import {
-  classifyWorkflow,
-  createWorkflowSteps,
-  type WorkflowDecision,
-  type WorkflowStep,
-  type RefactorKind,
-} from "@/lib/cocode/adaptive-workflow";
+import { type RefactorKind } from "@/lib/cocode/refactor-operations";
 import {
   createCheckpoint,
   pushCheckpoint,
@@ -171,12 +164,6 @@ interface CocodeIDEState {
   applying: boolean;
   lastApplyError: string | null;
   applyDiff: (prompt: string) => Promise<boolean>;
-
-  // ── Adaptive workflow (Phase 11) ─────────────────────────────────────────
-  workflow: WorkflowDecision | null;
-  workflowSteps: WorkflowStep[];
-  classifyRequest: (request: string) => WorkflowDecision;
-  updateStepStatus: (stepId: string, status: WorkflowStep["status"], output?: string) => void;
 
   // ── Knowledge graph (Phase 18) ───────────────────────────────────────────
   graph: KnowledgeGraph | null;
@@ -648,33 +635,6 @@ export const useCocodeIDEStore = create<CocodeIDEState>()(
           set({ applying: false, lastApplyError: String(e) });
           return false;
         }
-      },
-
-      // ── Adaptive workflow ─────────────────────────────────────────────────────
-      workflow: null,
-      workflowSteps: [],
-
-      classifyRequest: (request) => {
-        const { fs } = get();
-        const fileCount = flattenFiles(fs).length;
-        const decision = classifyWorkflow(request, fileCount > 0, fileCount);
-        const steps = createWorkflowSteps(decision);
-        set({ workflow: decision, workflowSteps: steps });
-        return decision;
-      },
-
-      updateStepStatus: (stepId, status, output) => {
-        set((s) => ({
-          workflowSteps: s.workflowSteps.map((step) =>
-            step.id !== stepId ? step : {
-              ...step,
-              status,
-              output,
-              ...(status === "running" ? { startedAt: Date.now() } : {}),
-              ...(status === "done" || status === "failed" ? { completedAt: Date.now() } : {}),
-            },
-          ),
-        }));
       },
 
       // ── Knowledge graph ───────────────────────────────────────────────────────

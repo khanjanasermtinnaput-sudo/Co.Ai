@@ -10,7 +10,7 @@ import { Wrench, Loader2, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useCocodeIDEStore } from "@/store/cocode-ide-store";
-import { REFACTOR_OPERATIONS, type RefactorKind } from "@/lib/cocode/adaptive-workflow";
+import { REFACTOR_OPERATIONS, type RefactorKind } from "@/lib/cocode/refactor-operations";
 
 export function RefactorMenu({ className }: { className?: string }) {
   const activeFile = useCocodeIDEStore((s) => s.activeFile());
