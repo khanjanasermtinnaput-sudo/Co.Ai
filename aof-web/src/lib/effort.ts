@@ -17,6 +17,16 @@ export const EFFORT_LABELS: Record<EffortLevel, string> = {
   extreme: "Extreme",
 };
 
+/** Display label for `level` on `id`'s effort dial. Identical to EFFORT_LABELS
+ *  everywhere except Kanon's "normal" level, which Co.AI Master Prompt Part 4.2
+ *  names "Medium" — a UI-only rename; the underlying EffortLevel stays
+ *  "normal" so persisted client state and Ypertatos's ultra/extreme scale are
+ *  untouched. */
+export function effortLabel(id: ChatModel | CodeMode, level: EffortLevel): string {
+  if (level === "normal" && modelTierFromId(id) === "normal") return "Medium";
+  return EFFORT_LABELS[level];
+}
+
 export function effortLevelsFor(id: ChatModel | CodeMode): EffortLevel[] {
   const tier = modelTierFromId(id);
   if (tier === "titan") return [];

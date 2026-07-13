@@ -48,8 +48,9 @@ import {
   tierAllowsSearch,
 } from "@/lib/effort";
 import { getModelBaseName, modelTierFromId, type ModelTier } from "@/lib/model-branding";
-import { stagesFor } from "@/lib/server/model-workflow";
-import { runInteriorStages } from "@/lib/server/workflow-runner";
+import { buildWorkflowSystem, stagesFor, workflowMaxTokens, KANON_TEMPERATURE } from "@/lib/server/model-workflow";
+import { buildWorkflowContext } from "@/lib/server/workflow-context";
+import { phaseStream } from "@/lib/server/phase-stream";
 import { detectSimpleTask, simpleTaskSystemAddon } from "@/lib/server/simple-task-detector";
 import {
   RAA_SYSTEM,
@@ -369,8 +370,12 @@ async function handleChat(req: Request): Promise<Response> {
     ? modelTierFromId((body.model === "normal" ? "normal" : "lite") as ChatModel)
     : undefined;
   const workflowStages = stagesFor(tier, effort);
-  const interiorStages = workflowStages.slice(0, -1);
-  const finalStageSpec = workflowStages[workflowStages.length - 1];
+  // Co.AI Master Prompt Part 4: Kanon makes exactly ONE provider call, whatever
+  // its stage count — `isStaged` just means "more than one stage", i.e. Kanon
+  // at any effort. `providerPhases` excludes local stages (Context Builder),
+  // which never reach the model — they're not provider "calls" at all.
+  const isStaged = workflowStages.length > 1;
+  const providerPhases = workflowStages.filter((s) => !s.local);
   // Shared by Universal Search gating and the Simple Task Detector below — both
   // are Mikros-only behaviors scoped to the plain-chat path (no `agent`).
   const isMikrosPlainChat = !body.agent && tier === "lite";
@@ -395,13 +400,13 @@ async function handleChat(req: Request): Promise<Response> {
   // The user's chosen effort (low → extreme) actually resizes the token budget,
   // caps the temperature, and appends a reasoning-depth instruction to the system
   // prompt. At extreme, conversational agents are told to clarify before acting.
-  // When interior stages exist, the final stage's own budget/temperature apply
-  // instead of the agent's base — otherwise these are identical to today's values.
-  const maxTokens = effortMaxTokens(interiorStages.length > 0 ? finalStageSpec.baseMaxTokens : baseMaxTokens, effort);
-  const temperature = effortTemperature(
-    interiorStages.length > 0 ? finalStageSpec.temperature : baseTemperature,
-    effort,
-  );
+  // Kanon's ONE provider call pays for its own draft/critique overhead on top of
+  // the effort-scaled answer budget (workflowMaxTokens — see model-workflow.ts
+  // for why this is deliberately NOT routed through effortMaxTokens() as a
+  // combined total), and uses the single shared KANON_TEMPERATURE — otherwise
+  // these are identical to today's values.
+  const maxTokens = isStaged ? workflowMaxTokens(workflowStages, effort) : effortMaxTokens(baseMaxTokens, effort);
+  const temperature = isStaged ? effortTemperature(KANON_TEMPERATURE, effort) : effortTemperature(baseTemperature, effort);
   const effortAddon = effortSystemAddon(effort, { conversational: isConversationalAgent(body.agent) });
   let system = effortAddon ? `${baseSystem}\n\n${effortAddon}` : baseSystem;
 
@@ -477,35 +482,37 @@ async function handleChat(req: Request): Promise<Response> {
   // the registry based on the task (no ANTHROPIC_MODEL/OPENROUTER_MODEL surprise).
   const REGISTRY_ROUTES_MODEL = new Set<ProviderMeta["id"]>(["gemini", "deepseek", "qwen", "llama"]);
 
-  // ── Model Workflow → run any interior stages before the final streamed call ──
-  // Each interior stage is a full, non-streamed provider round trip on the
-  // primary provider only (no failover chain — see plan tradeoffs); a thrown
-  // error here propagates to POST()'s top-level catch, which already converts
-  // it into a structured AofProviderError. `system` is reassigned to the
-  // final stage's ready-to-use prompt; `stagePrefix` carries the encoded
-  // StageNotice frames the client renders as live stage-progress status.
+  // ── Model Workflow → local Context Builder, then the one-call phase protocol ──
+  // Context Builder (Master Prompt Part 4.2) runs entirely server-side — no
+  // provider call, no network — and REPLACES `history` with its own selection
+  // (see workflow-context.ts). `stagePrefix` carries its running/done
+  // StageNotice frames; every remaining stage (Processing/Deep Think/Review)
+  // is a phase inside the ONE provider call phaseStream() parses below, so
+  // there is nothing left here to execute before the request goes out.
   let stagePrefix = "";
-  if (interiorStages.length > 0) {
-    const outcome = await runInteriorStages({
-      stages: interiorStages,
-      finalStage: finalStageSpec,
-      totalStages: workflowStages.length,
-      provider: providers[0],
-      taskModel: REGISTRY_ROUTES_MODEL.has(providers[0].id) ? bestModelFor(providers[0].id, task) : undefined,
-      overrides,
-      baseSystem: system,
-      message,
-      history,
-      effort,
-      signal: req.signal,
-      onStage: (n) => {
-        stagePrefix += encodeStageFrame(n);
-      },
-    });
-    system = outcome.system;
-    stagePrefix += encodeStageFrame(
-      makeStageNotice(finalStageSpec.stage, finalStageSpec.label, workflowStages.length, workflowStages.length, "running"),
-    );
+  let effectiveHistory = history;
+  if (isStaged) {
+    const localIdx = workflowStages.findIndex((s) => s.local);
+    if (localIdx >= 0) {
+      const local = workflowStages[localIdx];
+      const cbStart = performance.now();
+      stagePrefix += encodeStageFrame(makeStageNotice(local.stage, local.label, localIdx + 1, workflowStages.length, "running"));
+      const built = buildWorkflowContext({ message, history });
+      effectiveHistory = built.history;
+      if (built.digest) system = `${system}\n\n${built.digest}`;
+      stagePrefix += encodeStageFrame(makeStageNotice(local.stage, local.label, localIdx + 1, workflowStages.length, "done"));
+      logAofStage("Processing", {
+        requestId: turnRequestId,
+        stage: local.stage,
+        mode: "local",
+        durationMs: Math.round((performance.now() - cbStart) * 1000) / 1000,
+        inputMessages: built.stats.inputMessages,
+        selectedMessages: built.stats.selectedMessages,
+        charsSaved: built.stats.charsSaved,
+        degraded: built.stats.degraded,
+      });
+    }
+    system = buildWorkflowSystem(workflowStages, { baseSystem: system });
   }
 
   // ── Try each configured provider in priority order, announcing any failover. ──
@@ -520,9 +527,9 @@ async function handleChat(req: Request): Promise<Response> {
     const requestId = newRequestId();
     const ctx = { provider: p, model, requestId };
 
-    const gen = adapterFor(p.id)({
+    const rawGen = adapterFor(p.id)({
       system,
-      history,
+      history: effectiveHistory,
       message,
       maxTokens,
       temperature,
@@ -530,6 +537,42 @@ async function handleChat(req: Request): Promise<Response> {
       overrides,
       taskModel,
     });
+    // Kanon: wrap the ONE provider call so its internal DRAFT/DEEPTHINK/FINAL
+    // phases (see model-workflow.ts, phase-stream.ts) are parsed back out into
+    // real, observable stages — draft/critique text is suppressed here and
+    // never reaches primeAndStream; only the FINAL phase streams to the user.
+    // Trying `p` fresh on each failover loop iteration means a phaseStream
+    // failure before its first chunk fails over exactly like the plain path.
+    const gen = isStaged
+      ? phaseStream(rawGen, {
+          phases: providerPhases,
+          stageOffset: workflowStages.length - providerPhases.length + 1,
+          totalStages: workflowStages.length,
+          errorCtx: { providerLabel: p.label, model, requestId },
+          onComplete: (s) => {
+            for (const rec of s.phases) {
+              logAofStage("Processing", {
+                requestId: turnRequestId,
+                stage: rec.stage,
+                executed: rec.executed,
+                chars: rec.chars,
+                durationMs: rec.durationMs,
+              });
+            }
+            logAofStage("Output", {
+              requestId: turnRequestId,
+              provider: p.label,
+              model,
+              success: true,
+              durationMs: Date.now() - turnStart,
+              promptTokens: s.usage?.inputTokens,
+              completionTokens: s.usage?.outputTokens,
+              mode: "kanon-single-call",
+              fallback: s.fallback,
+            });
+          },
+        })
+      : rawGen;
     const notice = makeModelNotice(p.label, model, ROLE_LABEL[task]);
     const prefixFrame =
       stagePrefix + sourcesFrame + (pendingFailover ? failoverFrame(pendingFailover) : "") + modelFrame(notice);
@@ -547,15 +590,20 @@ async function handleChat(req: Request): Promise<Response> {
           `Failover: ${pendingFailover.from} → ${pendingFailover.to} (${pendingFailover.reason})`,
         );
       }
-      // Token usage isn't threaded through to this layer — reporting a made-up
-      // figure would violate "never fabricate a measurement", so it's omitted.
-      logAofStage("Output", {
-        requestId: turnRequestId,
-        provider: p.label,
-        model,
-        success: true,
-        durationMs: Date.now() - turnStart,
-      });
+      if (!isStaged) {
+        // Token usage isn't threaded through to this layer for the non-staged
+        // path — reporting a made-up figure would violate "never fabricate a
+        // measurement", so it's omitted. Kanon logs real usage from
+        // phaseStream's onComplete once the generation actually finishes,
+        // which can be after this Response is already returned to the client.
+        logAofStage("Output", {
+          requestId: turnRequestId,
+          provider: p.label,
+          model,
+          success: true,
+          durationMs: Date.now() - turnStart,
+        });
+      }
       return new Response(result.stream, { headers: TEXT_HEADERS });
     }
 
