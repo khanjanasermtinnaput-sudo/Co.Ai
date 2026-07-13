@@ -68,41 +68,48 @@ export interface EffortPolicy {
   /** sampling ceiling — higher effort reasons more deterministically. Applied as
    *  a cap (min with the agent's own temperature) so tuned agents never get noisier. */
   temperature: number;
-  /** high+ run the RAA→TMAP pipeline as a baseline (CoCode) */
-  workflow: boolean;
-  /** ultra+ think in more depth / multi-pass */
-  deepThink: boolean;
-  /** extreme asks clarifying questions and collaborates before doing the work */
+  /** extreme asks clarifying questions and collaborates before doing the work.
+   *  Consumed by effortSystemAddon() below, and — for Ypertatos's engineering
+   *  workflow — by requirementSpecSystemAddon()'s clarify-only vs
+   *  lead-with-questions-then-provisional-answer gate (requirement-analysis.ts). */
   clarifyFirst: boolean;
   /** one-line summary for tooltips / status */
   summary: string;
 }
 
+// `workflow`/`deepThink` booleans were removed from this policy: whether an
+// engineering workflow runs is decided by the Ypertatos Task Classifier from
+// the TASK (Master Prompt Part 5.1: "effort does NOT change intelligence"),
+// never by the effort dial — keeping a competing boolean here would be a
+// second source of truth for that decision. Deep-think is a stage `stagesFor()`
+// already schedules per-tier/effort (model-workflow.ts); a same-named policy
+// flag that didn't always agree with it (e.g. Kanon High runs deep-think with
+// deepThink===false) would just mean two things share one name.
 export const EFFORT_POLICY: Record<EffortLevel, EffortPolicy> = {
   low: {
     tokenScale: 0.6, minTokens: 256, maxTokens: 700, temperature: 0.7,
-    workflow: false, deepThink: false, clarifyFirst: false,
+    clarifyFirst: false,
     summary: "Fast, direct answers with the smallest token footprint.",
   },
   normal: {
     tokenScale: 1.0, minTokens: 512, maxTokens: 1400, temperature: 0.6,
-    workflow: false, deepThink: false, clarifyFirst: false,
+    clarifyFirst: false,
     summary: "Balanced answers for everyday questions.",
   },
   high: {
     tokenScale: 1.6, minTokens: 1200, maxTokens: 3000, temperature: 0.5,
-    workflow: true, deepThink: false, clarifyFirst: false,
-    summary: "Considered reasoning that can write real code — RAA+TMAP baseline.",
+    clarifyFirst: false,
+    summary: "Considered reasoning that can write real code.",
   },
   ultra: {
     tokenScale: 2.6, minTokens: 2500, maxTokens: 5000, temperature: 0.45,
-    workflow: true, deepThink: true, clarifyFirst: false,
-    summary: "Deep, multi-step reasoning for complex work — full RAA+TMAP.",
+    clarifyFirst: false,
+    summary: "Deep, multi-step reasoning for complex work.",
   },
   extreme: {
     tokenScale: 3.5, minTokens: 4000, maxTokens: 8000, temperature: 0.4,
-    workflow: true, deepThink: true, clarifyFirst: true,
-    summary: "Maximum rigor: clarifies with you first, then runs the full RAA+TMAP plan.",
+    clarifyFirst: true,
+    summary: "Maximum rigor: clarifies with you first when the request is underspecified.",
   },
 };
 
@@ -169,7 +176,7 @@ export function effortSystemAddon(
         "EFFORT — EXTREME: Apply maximum rigor. Plan meticulously, weigh alternatives, and cover " +
           "edge cases, risks and follow-ups.",
       );
-      if (opts.conversational) {
+      if (opts.conversational && effortPolicy(effort).clarifyFirst) {
         lines.push(
           "Before committing to a solution, ask the user 1–3 focused clarifying questions (offer " +
             "concrete options where useful) and wait for their answers. Collaborate first — do not " +
