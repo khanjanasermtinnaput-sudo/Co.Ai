@@ -42,8 +42,11 @@ test("exhausted() flips true once preStreamRemainingMs drops below minMs", () =>
 });
 
 test("the stream reserve is never encroached — pre-stream pool is exactly total - reserve", () => {
-  const budget = makeTurnBudget(Date.now(), { totalMs: 50_000, streamReserveMs: 30_000 });
-  assert.equal(budget.preStreamRemainingMs(), 20_000);
+  // startedAt is captured slightly in the past, not "now", so a real
+  // millisecond of wall-clock time elapsing between construction and the
+  // assertion below can never flip this from an exact-equality flake.
+  const budget = makeTurnBudget(Date.now() - 1000, { totalMs: 50_000, streamReserveMs: 30_000 });
+  assert.equal(budget.preStreamRemainingMs(), 19_000);
 });
 
 test("snapshot() reports the same numbers the individual methods do", () => {
