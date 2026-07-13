@@ -26,8 +26,23 @@
 // runs Requirement Analysis as its OWN buffered (non-streamed) call —
 // `execution: "buffered"` — before the streamed call above. It is the only
 // stage execution mode that means a second HTTP request; see buffered-call.ts
-// and requirement-analysis.ts. Titan reserves its stage names below but is
-// not wired to execution yet.
+// and requirement-analysis.ts.
+//
+// Co.AI Master Prompt Part 5.4/5.5: engineering additionally runs TMAP's
+// planning call (also "buffered" — a second, distinct buffered stage, not a
+// re-run of the first) and, only when TMAP's plan genuinely has more than
+// one task, an "orchestrated" stage that fans out to N real agent calls
+// (execution-plan.ts, orchestrator.ts). A 1-task plan, a plan with a
+// dependency cycle, a failed TMAP call, or an exhausted turn budget all mean
+// the orchestrated stage is never inserted at all — see StagesOpts.orchestrate.
+//
+// Part 5.6's engineering agents (architect/frontend/backend/database/
+// security/testing/documentation/reviewer/validator/general) are NOT
+// WorkflowStage values — they are AgentId values (agent-registry.ts), a
+// different concept: which specialist executes ONE task inside the single
+// "multi-agent" stage, not a stage of the turn itself. Keeping them out of
+// this union is what keeps YPERTATOS_RESERVED_STAGES from being a second,
+// conflicting source of truth for the same names.
 
 import type { EffortLevel } from "@/lib/types";
 import type { ModelTier } from "@/lib/model-branding";
@@ -41,40 +56,30 @@ export type WorkflowStage =
   | "review"
   // Part 5.3 — Ypertatos's buffered Requirement Analysis stage.
   | "requirement-analysis"
-  // Reserved for Ypertatos Part 5.4+ — documented, never returned by stagesFor() this round.
+  // Part 5.4 — TMAP's buffered planning stage.
   | "planner"
-  | "architect"
-  | "frontend"
-  | "backend"
-  | "database"
-  | "security"
-  | "validator"
-  | "reviewer"
-  | "consensus"
-  | "multi-agent";
+  // Part 5.5 — the orchestrated multi-agent execution stage.
+  | "multi-agent"
+  // Reserved for future Ypertatos work — documented, never returned by stagesFor().
+  | "consensus";
 
-export const YPERTATOS_RESERVED_STAGES: WorkflowStage[] = [
-  "planner",
-  "architect",
-  "frontend",
-  "backend",
-  "database",
-  "security",
-  "validator",
-  "reviewer",
-  "consensus",
-  "multi-agent",
-];
+export const YPERTATOS_RESERVED_STAGES: WorkflowStage[] = ["consensus"];
 
 /** How a stage executes:
- *   - "local"    — server-side, zero provider calls, zero tokens (workflow-context.ts).
- *   - "buffered" — its own complete, NON-streamed provider call (buffered-call.ts).
- *                  At most one may appear in a workflow, and only for tier "pro"
- *                  (Ypertatos's Requirement Analysis — Master Prompt Part 5.3).
- *   - "phase"    — a marker-delimited phase INSIDE the single streamed generation.
+ *   - "local"       — server-side, zero provider calls, zero tokens (workflow-context.ts).
+ *   - "buffered"     — its own complete, NON-streamed provider call (buffered-call.ts).
+ *                      Ypertatos engineering has exactly two: Requirement
+ *                      Analysis (Part 5.3) then TMAP planning (Part 5.4), in
+ *                      that order, and both are always present together —
+ *                      only "pro" ever produces a "buffered" stage.
+ *   - "orchestrated" — N real buffered agent calls, run by orchestrator.ts
+ *                      against the plan TMAP produced. At most one may
+ *                      appear, and only when StagesOpts.orchestrate is true —
+ *                      see ypertatosEngineering() below for when that's set.
+ *   - "phase"        — a marker-delimited phase INSIDE the single streamed generation.
  *  Non-"phase" stages are always a prefix of the stage list — phase-stream.ts's
  *  stageOffset arithmetic depends on this. */
-export type StageExecution = "local" | "buffered" | "phase";
+export type StageExecution = "local" | "buffered" | "orchestrated" | "phase";
 
 export interface WorkflowStageSpec {
   stage: WorkflowStage;
@@ -88,7 +93,11 @@ export interface WorkflowStageSpec {
   /** Output-token allowance for this stage's own call. For a "phase" stage
    *  this is spent inside the shared generation (the final stage's share is
    *  still scaled/clamped by effortMaxTokens() — see workflowMaxTokens());
-   *  for the "buffered" stage this is its own call's budget entirely. */
+   *  for a "buffered" stage this is its own call's budget entirely. Always 0
+   *  for "local" and "orchestrated" stages — the former spends no tokens at
+   *  all, and the latter's real cost lives per-agent in agent-registry.ts's
+   *  AgentDef.baseMaxTokens (a single number here would misstate a stage
+   *  that can be anywhere from 0 to MAX_TASKS real agent calls). */
   baseMaxTokens: number;
   /** Instruction rendered under this stage's marker by buildWorkflowSystem().
    *  Empty for non-"phase" stages, which are never rendered as a phase. */
@@ -188,19 +197,25 @@ function kanonWorkflow(effort: EffortLevel): WorkflowStageSpec[] {
   return [contextBuilderStage, processingStage, reviewStage]; // "normal" (Medium), and a defensive fallback
 }
 
-// ── Ypertatos — Requirement Analysis (buffered) + a streamed phase protocol ──
-// Master Prompt Part 5.1/5.3. Two workflow kinds:
+// ── Ypertatos — Requirement Analysis + TMAP (both buffered), optional
+//    orchestration, then a streamed phase protocol ────────────────────────────
+// Master Prompt Part 5.1/5.3/5.4/5.5. Two workflow kinds:
 //   "lightweight" — no engineering work required; delegates to Kanon's exact
 //                    table (ultra/extreme collapse onto High) so Ypertatos is
 //                    never structurally weaker than Kanon at equal effort, and
 //                    stays a single provider call.
-//   "engineering" — Requirement Analysis runs FIRST as its own buffered call
-//                    (requirement-analysis.ts), then the streamed answer runs
-//                    as a second call, phased exactly like Kanon's. `reflection`
-//                    (ultra/extreme only) checks the drafted solution against
-//                    RAA's Acceptance Criteria/Constraints/Risks — a stage that
-//                    only makes sense once a RequirementSpec exists to check
-//                    against, which is why it never appears in "lightweight".
+//   "engineering" — Requirement Analysis runs first as its own buffered call
+//                    (requirement-analysis.ts), then TMAP plans the work as a
+//                    second buffered call (execution-plan.ts). Only when that
+//                    plan genuinely has more than one task, has no dependency
+//                    cycle, and the turn budget allows it (StagesOpts.orchestrate)
+//                    does a third stage — "multi-agent" — fan out to N real
+//                    agent calls (orchestrator.ts) before the streamed answer.
+//                    `reflection` (ultra/extreme only) checks the drafted
+//                    solution against RAA's Acceptance Criteria/Constraints/
+//                    Risks — a stage that only makes sense once a
+//                    RequirementSpec exists to check against, which is why it
+//                    never appears in "lightweight".
 
 const requirementAnalysisStage: WorkflowStageSpec = {
   stage: "requirement-analysis",
@@ -209,6 +224,24 @@ const requirementAnalysisStage: WorkflowStageSpec = {
   final: false,
   baseMaxTokens: 900, // RAA_BASE_MAX_TOKENS in requirement-analysis.ts — kept in sync there
   instruction: "", // buffered stages carry no phase marker
+};
+
+const plannerStage: WorkflowStageSpec = {
+  stage: "planner",
+  label: "Planning (TMAP)",
+  execution: "buffered",
+  final: false,
+  baseMaxTokens: 1100, // TMAP_BASE_MAX_TOKENS in execution-plan.ts — kept in sync there
+  instruction: "",
+};
+
+const orchestrationStage: WorkflowStageSpec = {
+  stage: "multi-agent",
+  label: "Agent Orchestration",
+  execution: "orchestrated",
+  final: false,
+  baseMaxTokens: 0, // real cost is per-agent — see the field's doc comment above
+  instruction: "",
 };
 
 const reflectionStage: WorkflowStageSpec = {
@@ -230,7 +263,7 @@ function ypertatosLightweight(effort: EffortLevel): WorkflowStageSpec[] {
   return kanonWorkflow(effort === "ultra" || effort === "extreme" ? "high" : effort);
 }
 
-function ypertatosEngineering(effort: EffortLevel): WorkflowStageSpec[] {
+function ypertatosEngineering(effort: EffortLevel, opts?: StagesOpts): WorkflowStageSpec[] {
   const streamed =
     effort === "high"
       ? [processingStage, deepThinkStage, reviewStage]
@@ -238,10 +271,17 @@ function ypertatosEngineering(effort: EffortLevel): WorkflowStageSpec[] {
         ? [processingStage, deepThinkStage, reflectionStage, reviewStage]
         : [processingStage, reviewStage]; // low, normal
   const withContext = effort === "low" ? streamed : [contextBuilderStage, ...streamed];
-  // requirement-analysis is inserted right after context-builder (if any) and
-  // before every streamed phase — it must stay a prefix alongside "local".
+  // The buffered prefix — requirement-analysis then planner, always together
+  // and in that order — is inserted right after context-builder (if any) and
+  // before every streamed phase; it must stay a prefix alongside "local".
+  // The orchestrated stage joins that same prefix, last, only when the
+  // caller has confirmed (via a real, parsed, >1-task, acyclic TMAP plan and
+  // remaining turn budget) that it should run — never spliced in on spec.
   const cbIdx = withContext[0] === contextBuilderStage ? 1 : 0;
-  return [...withContext.slice(0, cbIdx), requirementAnalysisStage, ...withContext.slice(cbIdx)];
+  const buffered = opts?.orchestrate
+    ? [requirementAnalysisStage, plannerStage, orchestrationStage]
+    : [requirementAnalysisStage, plannerStage];
+  return [...withContext.slice(0, cbIdx), ...buffered, ...withContext.slice(cbIdx)];
 }
 
 export type YpertatosWorkflowKind = "lightweight" | "engineering";
@@ -251,6 +291,12 @@ export interface StagesOpts {
    *  Absent ⇒ "lightweight" — the safe default that can never introduce a
    *  second provider call. Supplied by the Task Classifier (task-classifier.ts). */
   workflow?: YpertatosWorkflowKind;
+  /** Whether this turn has a REAL, multi-task, acyclic Execution Plan to
+   *  orchestrate. Only consulted for "pro" + "engineering". Supplied by
+   *  prestream-dispatch.ts AFTER TMAP has actually returned and been parsed
+   *  — never guessed ahead of time, never set speculatively. Absent or false
+   *  ⇒ the "multi-agent" stage does not exist for this turn at all. */
+  orchestrate?: boolean;
 }
 
 /** `tier` is `undefined` for every request not eligible for staging this round
@@ -264,17 +310,20 @@ export function stagesFor(
 ): WorkflowStageSpec[] {
   if (tier === "normal") return kanonWorkflow(effort);
   if (tier === "pro") {
-    return opts?.workflow === "engineering" ? ypertatosEngineering(effort) : ypertatosLightweight(effort);
+    return opts?.workflow === "engineering" ? ypertatosEngineering(effort, opts) : ypertatosLightweight(effort);
   }
   return [MIKROS_PROCESSING_STAGE];
 }
 
 /** Token budget for the ONE STREAMED provider call a staged workflow makes:
  *  the final (effort-scaled) answer budget plus the raw overhead of every
- *  other "phase" stage. Deliberately excludes "local" stages (zero tokens)
- *  AND "buffered" stages (requirement-analysis — a separate HTTP call with
- *  its own budget, sized independently via effortMaxTokens() at its call
- *  site in route.ts). Also deliberately does NOT route the combined total
+ *  other "phase" stage. Deliberately excludes "local" stages (zero tokens),
+ *  "buffered" stages (requirement-analysis, planner — each a separate HTTP
+ *  call with its own budget, sized independently at its call site), AND the
+ *  "orchestrated" stage (its N agent calls are budgeted per-agent in
+ *  agent-registry.ts, never as one number here) — a test in
+ *  model-workflow.test.ts locks that this streamed budget is byte-identical
+ *  whether or not orchestration ran. Also deliberately does NOT route the combined total
  *  back through effortMaxTokens() — EFFORT_POLICY's per-level ceiling (e.g.
  *  low.maxTokens = 700) is the shared depth SoT for Mikros and every CoCode
  *  agent, and would starve a staged answer to pay for its own draft/critique
@@ -296,9 +345,10 @@ export function workflowMaxTokens(specs: WorkflowStageSpec[], effort: EffortLeve
  *  sequencing SoT — e.g. the DEEPTHINK block only appears when the deep-think
  *  spec is present). Non-"phase" stages are never rendered — "local" work
  *  already happened before this system prompt was built (workflow-context.ts),
- *  and "buffered" work (requirement-analysis) already happened as its own
- *  separate call whose distilled output was already folded into `baseSystem`
- *  by the caller (see requirementSpecSystemAddon() in requirement-analysis.ts).
+ *  and "buffered"/"orchestrated" work (requirement-analysis, planner,
+ *  multi-agent) already happened as separate calls whose distilled output
+ *  was already folded into `baseSystem` by the caller (see
+ *  requirementSpecSystemAddon()/executionPlanSystemAddon()/integrateArtifacts()).
  *  For a single-provider-phase workflow (Mikros, or any non-Kanon/Ypertatos
  *  tier) the protocol is unnecessary overhead, so this returns `baseSystem`
  *  unchanged. */

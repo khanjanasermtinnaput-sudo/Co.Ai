@@ -9,7 +9,14 @@
 //
 // Co.AI Master Prompt Part 5.1/5.3: Ypertatos ("pro") additionally locks in
 // the lightweight/engineering split and the structural guarantee that no
-// tier but pro-engineering can ever produce a second (buffered) provider call.
+// tier but pro-engineering can ever produce a buffered provider call.
+//
+// Co.AI Master Prompt Part 5.4/5.5: pro-engineering always carries exactly
+// TWO buffered stages (requirement-analysis, then planner) — never one, never
+// three — and the orchestrated "multi-agent" stage exists ONLY when the
+// caller explicitly confirms it via StagesOpts.orchestrate (never guessed,
+// never speculative). These tests sweep that third dimension alongside tier/
+// effort/workflow.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -28,6 +35,8 @@ import type { ModelTier } from "../lib/model-branding";
 const ACTIVE_STAGES: WorkflowStage[] = [
   "context-builder",
   "requirement-analysis",
+  "planner",
+  "multi-agent",
   "processing",
   "deep-think",
   "reflection",
@@ -37,15 +46,25 @@ const NON_KANON_TIERS: (ModelTier | undefined)[] = ["lite", "titan", undefined];
 const ALL_TIERS: (ModelTier | undefined)[] = ["lite", "normal", "pro", "titan", undefined];
 const YPERTATOS_WORKFLOWS: YpertatosWorkflowKind[] = ["lightweight", "engineering"];
 
-/** All (tier, effort, opts) triples worth sweeping — "pro" is expanded across
- *  both workflow kinds; every other tier ignores `opts` so it's swept once. */
-function* allCombos(): Generator<[ModelTier | undefined, (typeof EFFORT_LEVELS)[number], YpertatosWorkflowKind | undefined]> {
+/** All (tier, effort, workflow, orchestrate) quadruples worth sweeping —
+ *  "pro"+"engineering" is expanded across both orchestrate values; every
+ *  other combo ignores `orchestrate` so it's swept once with it undefined. */
+function* allCombos(): Generator<
+  [ModelTier | undefined, (typeof EFFORT_LEVELS)[number], YpertatosWorkflowKind | undefined, boolean | undefined]
+> {
   for (const tier of ALL_TIERS) {
     for (const effort of EFFORT_LEVELS) {
       if (tier === "pro") {
-        for (const workflow of YPERTATOS_WORKFLOWS) yield [tier, effort, workflow];
+        for (const workflow of YPERTATOS_WORKFLOWS) {
+          if (workflow === "engineering") {
+            yield [tier, effort, workflow, false];
+            yield [tier, effort, workflow, true];
+          } else {
+            yield [tier, effort, workflow, undefined];
+          }
+        }
       } else {
-        yield [tier, effort, undefined];
+        yield [tier, effort, undefined, undefined];
       }
     }
   }
@@ -66,7 +85,7 @@ test("Kanon low/normal/high match the exact worked-example sequences", () => {
   );
 });
 
-test("the 10 exact Ypertatos tables (5 efforts x 2 workflow kinds)", () => {
+test("the 15 exact Ypertatos tables (5 efforts x {lightweight, engineering, engineering+orchestrate})", () => {
   const lightweight: Record<string, WorkflowStage[]> = {
     low: ["processing", "review"],
     normal: ["context-builder", "processing", "review"],
@@ -75,12 +94,21 @@ test("the 10 exact Ypertatos tables (5 efforts x 2 workflow kinds)", () => {
     extreme: ["context-builder", "processing", "deep-think", "review"],
   };
   const engineering: Record<string, WorkflowStage[]> = {
-    low: ["requirement-analysis", "processing", "review"],
-    normal: ["context-builder", "requirement-analysis", "processing", "review"],
-    high: ["context-builder", "requirement-analysis", "processing", "deep-think", "review"],
-    ultra: ["context-builder", "requirement-analysis", "processing", "deep-think", "reflection", "review"],
-    extreme: ["context-builder", "requirement-analysis", "processing", "deep-think", "reflection", "review"],
+    low: ["requirement-analysis", "planner", "processing", "review"],
+    normal: ["context-builder", "requirement-analysis", "planner", "processing", "review"],
+    high: ["context-builder", "requirement-analysis", "planner", "processing", "deep-think", "review"],
+    ultra: ["context-builder", "requirement-analysis", "planner", "processing", "deep-think", "reflection", "review"],
+    extreme: ["context-builder", "requirement-analysis", "planner", "processing", "deep-think", "reflection", "review"],
   };
+  const orchestrated: Record<string, WorkflowStage[]> = Object.fromEntries(
+    Object.entries(engineering).map(([effort, stages]) => {
+      // multi-agent is inserted right after planner — the last of the
+      // buffered prefix, before the first streamed phase.
+      const plannerIdx = stages.indexOf("planner");
+      return [effort, [...stages.slice(0, plannerIdx + 1), "multi-agent", ...stages.slice(plannerIdx + 1)]];
+    }),
+  );
+
   for (const effort of EFFORT_LEVELS) {
     assert.deepEqual(
       stagesFor("pro", effort, { workflow: "lightweight" }).map((s) => s.stage),
@@ -92,24 +120,45 @@ test("the 10 exact Ypertatos tables (5 efforts x 2 workflow kinds)", () => {
       engineering[effort],
       `engineering@${effort}`,
     );
+    assert.deepEqual(
+      stagesFor("pro", effort, { workflow: "engineering", orchestrate: true }).map((s) => s.stage),
+      orchestrated[effort],
+      `engineering+orchestrate@${effort}`,
+    );
+    // orchestrate:false is byte-identical to omitting it entirely.
+    assert.deepEqual(
+      stagesFor("pro", effort, { workflow: "engineering", orchestrate: false }).map((s) => s.stage),
+      engineering[effort],
+      `engineering+orchestrate:false@${effort}`,
+    );
   }
   // Absent opts defaults to lightweight — the safe default that can never
   // introduce a second provider call.
   for (const effort of EFFORT_LEVELS) {
     assert.deepEqual(stagesFor("pro", effort).map((s) => s.stage), lightweight[effort]);
   }
-  // Stage-count monotonicity within engineering: 3 -> 4 -> 5 -> 6 -> 6.
+  // Stage-count monotonicity within engineering: 4 -> 5 -> 6 -> 7 -> 7, and
+  // orchestrate adds exactly 1 more at every level: 5 -> 6 -> 7 -> 8 -> 8.
   const counts = EFFORT_LEVELS.map((e) => engineering[e].length);
-  assert.deepEqual(counts, [3, 4, 5, 6, 6]);
+  assert.deepEqual(counts, [4, 5, 6, 7, 7]);
+  const orchestratedCounts = EFFORT_LEVELS.map((e) => orchestrated[e].length);
+  assert.deepEqual(orchestratedCounts, [5, 6, 7, 8, 8]);
+  for (let i = 0; i < EFFORT_LEVELS.length; i++) {
+    assert.equal(orchestratedCounts[i], counts[i] + 1);
+  }
 });
 
-test("every tier x effort x workflow combo has exactly one final stage, and it's always last, and it's always execution:phase", () => {
-  for (const [tier, effort, workflow] of allCombos()) {
-    const stages = stagesFor(tier, effort, { workflow });
+test("every tier x effort x workflow x orchestrate combo has exactly one final stage, and it's always last, and it's always execution:phase", () => {
+  for (const [tier, effort, workflow, orchestrate] of allCombos()) {
+    const stages = stagesFor(tier, effort, { workflow, orchestrate });
     const finals = stages.filter((s) => s.final);
-    assert.equal(finals.length, 1, `${tier}@${effort}/${workflow} has exactly one final stage`);
-    assert.equal(stages[stages.length - 1].final, true, `${tier}@${effort}/${workflow} final stage is last`);
-    assert.equal(stages[stages.length - 1].execution, "phase", `${tier}@${effort}/${workflow} final stage is a phase`);
+    assert.equal(finals.length, 1, `${tier}@${effort}/${workflow}/${orchestrate} has exactly one final stage`);
+    assert.equal(stages[stages.length - 1].final, true, `${tier}@${effort}/${workflow}/${orchestrate} final stage is last`);
+    assert.equal(
+      stages[stages.length - 1].execution,
+      "phase",
+      `${tier}@${effort}/${workflow}/${orchestrate} final stage is a phase`,
+    );
   }
 });
 
@@ -138,29 +187,38 @@ test("Kanon's defensive fallback (ultra/extreme, unreachable via clampEffort) st
 });
 
 test("YPERTATOS_RESERVED_STAGES shares no names with the active stages, and is never returned", () => {
+  assert.deepEqual(YPERTATOS_RESERVED_STAGES, ["consensus"]);
   for (const reserved of YPERTATOS_RESERVED_STAGES) {
     assert.ok(!ACTIVE_STAGES.includes(reserved), `${reserved} must not collide with an active stage name`);
   }
-  for (const [tier, effort, workflow] of allCombos()) {
-    const returned = stagesFor(tier, effort, { workflow }).map((s) => s.stage);
+  for (const [tier, effort, workflow, orchestrate] of allCombos()) {
+    const returned = stagesFor(tier, effort, { workflow, orchestrate }).map((s) => s.stage);
     for (const reserved of YPERTATOS_RESERVED_STAGES) {
-      assert.ok(!returned.includes(reserved), `${tier}@${effort}/${workflow} must never return reserved stage ${reserved}`);
+      assert.ok(
+        !returned.includes(reserved),
+        `${tier}@${effort}/${workflow}/${orchestrate} must never return reserved stage ${reserved}`,
+      );
     }
   }
 });
 
-test("execution is `local` only for context-builder and `buffered` only for requirement-analysis", () => {
-  for (const [tier, effort, workflow] of allCombos()) {
-    for (const stage of stagesFor(tier, effort, { workflow })) {
+test("execution is `local` only for context-builder, `buffered` only for requirement-analysis/planner, `orchestrated` only for multi-agent", () => {
+  for (const [tier, effort, workflow, orchestrate] of allCombos()) {
+    for (const stage of stagesFor(tier, effort, { workflow, orchestrate })) {
       assert.equal(
         stage.execution === "local",
         stage.stage === "context-builder",
-        `${tier}@${effort}/${workflow}/${stage.stage}.execution==="local"`,
+        `${tier}@${effort}/${workflow}/${orchestrate}/${stage.stage}.execution==="local"`,
       );
       assert.equal(
         stage.execution === "buffered",
-        stage.stage === "requirement-analysis",
-        `${tier}@${effort}/${workflow}/${stage.stage}.execution==="buffered"`,
+        stage.stage === "requirement-analysis" || stage.stage === "planner",
+        `${tier}@${effort}/${workflow}/${orchestrate}/${stage.stage}.execution==="buffered"`,
+      );
+      assert.equal(
+        stage.execution === "orchestrated",
+        stage.stage === "multi-agent",
+        `${tier}@${effort}/${workflow}/${orchestrate}/${stage.stage}.execution==="orchestrated"`,
       );
     }
   }
@@ -168,22 +226,32 @@ test("execution is `local` only for context-builder and `buffered` only for requ
 });
 
 test("non-phase stages are always a prefix of the stage list (phase-stream.ts's stageOffset assumption)", () => {
-  for (const [tier, effort, workflow] of allCombos()) {
-    const stages = stagesFor(tier, effort, { workflow });
+  for (const [tier, effort, workflow, orchestrate] of allCombos()) {
+    const stages = stagesFor(tier, effort, { workflow, orchestrate });
     const firstPhase = stages.findIndex((s) => s.execution === "phase");
     const lastNonPhase = stages.map((s) => s.execution !== "phase").lastIndexOf(true);
-    assert.ok(lastNonPhase < firstPhase || firstPhase === 0, `${tier}@${effort}/${workflow} non-phases-before-phases`);
+    assert.ok(
+      lastNonPhase < firstPhase || firstPhase === 0,
+      `${tier}@${effort}/${workflow}/${orchestrate} non-phases-before-phases`,
+    );
   }
 });
 
-test("Kanon-regression guard: no tier but pro-engineering ever returns a buffered stage", () => {
-  for (const [tier, effort, workflow] of allCombos()) {
-    const stages = stagesFor(tier, effort, { workflow });
+test("pro-engineering always has exactly 2 buffered stages; every other combo has 0; orchestrated appears exactly once iff pro+engineering+orchestrate", () => {
+  for (const [tier, effort, workflow, orchestrate] of allCombos()) {
+    const stages = stagesFor(tier, effort, { workflow, orchestrate });
     const buffered = stages.filter((s) => s.execution === "buffered");
+    const orchestratedStages = stages.filter((s) => s.execution === "orchestrated");
     if (tier === "pro" && workflow === "engineering") {
-      assert.equal(buffered.length, 1, `${tier}@${effort}/${workflow} must have exactly one buffered stage`);
+      assert.equal(buffered.length, 2, `${tier}@${effort}/${workflow}/${orchestrate} must have exactly 2 buffered stages`);
+      assert.deepEqual(buffered.map((s) => s.stage), ["requirement-analysis", "planner"]);
     } else {
-      assert.equal(buffered.length, 0, `${tier}@${effort}/${workflow} must never have a buffered stage`);
+      assert.equal(buffered.length, 0, `${tier}@${effort}/${workflow}/${orchestrate} must never have a buffered stage`);
+    }
+    if (tier === "pro" && workflow === "engineering" && orchestrate) {
+      assert.equal(orchestratedStages.length, 1, `${tier}@${effort}/${workflow}/${orchestrate} must have exactly 1 orchestrated stage`);
+    } else {
+      assert.equal(orchestratedStages.length, 0, `${tier}@${effort}/${workflow}/${orchestrate} must never have an orchestrated stage`);
     }
   }
 });
@@ -201,29 +269,47 @@ test("workflowMaxTokens is monotonic across Kanon's effort levels and pays overh
   assert.ok(highOverheadOnly > lowTotal);
 });
 
-test("workflowMaxTokens excludes the buffered requirement-analysis stage from the streamed budget", () => {
+test("workflowMaxTokens excludes the buffered requirement-analysis/planner stages AND the orchestrated stage from the streamed budget", () => {
   // low/normal/high: engineering's streamed phases (processing[/deep-think]/review)
-  // are byte-identical to lightweight's — RAA's 900 tokens must not shift the
-  // streamed budget by even one token.
+  // are byte-identical to lightweight's — RAA's + TMAP's tokens must not shift
+  // the streamed budget by even one token, with or without orchestration.
   for (const effort of ["low", "normal", "high"] as const) {
     const lightweightBudget = workflowMaxTokens(stagesFor("pro", effort, { workflow: "lightweight" }), effort);
     const engineeringBudget = workflowMaxTokens(stagesFor("pro", effort, { workflow: "engineering" }), effort);
+    const orchestratedBudget = workflowMaxTokens(
+      stagesFor("pro", effort, { workflow: "engineering", orchestrate: true }),
+      effort,
+    );
     assert.equal(
       engineeringBudget,
       lightweightBudget,
-      `${effort}: RAA's 900 tokens must not be added to the streamed call's budget`,
+      `${effort}: RAA's + TMAP's tokens must not be added to the streamed call's budget`,
+    );
+    assert.equal(
+      orchestratedBudget,
+      lightweightBudget,
+      `${effort}: orchestration's N agent calls must not be added to the streamed call's budget either`,
     );
   }
   // ultra/extreme: engineering adds the `reflection` PHASE (a real streamed
   // stage, +500 baseMaxTokens) on top of lightweight — the diff must be
-  // exactly reflection's overhead, never RAA's excluded 900.
+  // exactly reflection's overhead, never RAA's/TMAP's/orchestration's excluded cost.
   for (const effort of ["ultra", "extreme"] as const) {
     const lightweightBudget = workflowMaxTokens(stagesFor("pro", effort, { workflow: "lightweight" }), effort);
     const engineeringBudget = workflowMaxTokens(stagesFor("pro", effort, { workflow: "engineering" }), effort);
+    const orchestratedBudget = workflowMaxTokens(
+      stagesFor("pro", effort, { workflow: "engineering", orchestrate: true }),
+      effort,
+    );
     assert.equal(
       engineeringBudget - lightweightBudget,
       500,
-      `${effort}: the only budget delta should be reflection's own overhead, not RAA's`,
+      `${effort}: the only budget delta should be reflection's own overhead`,
+    );
+    assert.equal(
+      orchestratedBudget,
+      engineeringBudget,
+      `${effort}: orchestration must not change the streamed budget versus plain engineering`,
     );
   }
 });
@@ -250,13 +336,18 @@ test("buildWorkflowSystem renders DEEPTHINK only for High+, REFLECT only for Ult
   assert.ok(!engHigh.includes(PHASE_MARKER.reflection!));
   assert.ok(engUltra.includes(PHASE_MARKER.reflection!));
 
-  // requirement-analysis is buffered — it must never be rendered as a phase,
-  // whatever effort/workflow combination is asked for.
-  for (const [tier, effort, workflow] of [
-    ["pro", "low", "engineering"],
-    ["pro", "extreme", "engineering"],
+  // requirement-analysis/planner are buffered and multi-agent is orchestrated
+  // — none of the three may ever be rendered as a phase, whatever effort/
+  // workflow/orchestrate combination is asked for.
+  for (const [tier, effort, workflow, orchestrate] of [
+    ["pro", "low", "engineering", false],
+    ["pro", "extreme", "engineering", false],
+    ["pro", "low", "engineering", true],
+    ["pro", "extreme", "engineering", true],
   ] as const) {
-    const system = buildWorkflowSystem(stagesFor(tier, effort, { workflow }), { baseSystem: base });
+    const system = buildWorkflowSystem(stagesFor(tier, effort, { workflow, orchestrate }), { baseSystem: base });
     assert.ok(!system.includes("requirement-analysis"));
+    assert.ok(!system.includes("planner"));
+    assert.ok(!system.includes("multi-agent"));
   }
 });
