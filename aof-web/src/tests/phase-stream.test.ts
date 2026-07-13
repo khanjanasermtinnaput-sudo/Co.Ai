@@ -15,7 +15,7 @@ import type { WorkflowStageSpec } from "../lib/server/model-workflow";
 const processing: WorkflowStageSpec = {
   stage: "processing",
   label: "Processing",
-  local: false,
+  execution: "phase",
   final: false,
   baseMaxTokens: 600,
   instruction: "",
@@ -23,7 +23,7 @@ const processing: WorkflowStageSpec = {
 const deepThink: WorkflowStageSpec = {
   stage: "deep-think",
   label: "Deep Think",
-  local: false,
+  execution: "phase",
   final: false,
   baseMaxTokens: 500,
   instruction: "",
@@ -31,7 +31,7 @@ const deepThink: WorkflowStageSpec = {
 const review: WorkflowStageSpec = {
   stage: "review",
   label: "Review",
-  local: false,
+  execution: "phase",
   final: true,
   baseMaxTokens: 1200,
   instruction: "",

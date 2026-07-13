@@ -375,7 +375,7 @@ async function handleChat(req: Request): Promise<Response> {
   // at any effort. `providerPhases` excludes local stages (Context Builder),
   // which never reach the model — they're not provider "calls" at all.
   const isStaged = workflowStages.length > 1;
-  const providerPhases = workflowStages.filter((s) => !s.local);
+  const providerPhases = workflowStages.filter((s) => s.execution === "phase");
   // Shared by Universal Search gating and the Simple Task Detector below — both
   // are Mikros-only behaviors scoped to the plain-chat path (no `agent`).
   const isMikrosPlainChat = !body.agent && tier === "lite";
@@ -492,7 +492,7 @@ async function handleChat(req: Request): Promise<Response> {
   let stagePrefix = "";
   let effectiveHistory = history;
   if (isStaged) {
-    const localIdx = workflowStages.findIndex((s) => s.local);
+    const localIdx = workflowStages.findIndex((s) => s.execution === "local");
     if (localIdx >= 0) {
       const local = workflowStages[localIdx];
       const cbStart = performance.now();
