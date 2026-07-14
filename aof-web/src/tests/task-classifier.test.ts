@@ -173,8 +173,7 @@ test("classifyTask is deterministic (same input twice → identical decision mod
 test("never throws on empty string, huge emoji payload, or malformed history", () => {
   assert.doesNotThrow(() => classifyTask(input("")));
   assert.doesNotThrow(() => classifyTask(input("🎉".repeat(100_000 / 4))));
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const malformed = { message: "hello", history: null, tier: "pro", effort: "normal" } as any;
+  const malformed = { message: "hello", history: null, tier: "pro", effort: "normal" } as unknown as TaskClassifierInput;
   assert.doesNotThrow(() => classifyTask(malformed));
   const decision = classifyTask(malformed);
   // The internal try/catch degrades to the safest routing rather than propagating.
