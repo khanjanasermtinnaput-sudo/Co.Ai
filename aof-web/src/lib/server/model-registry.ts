@@ -47,6 +47,14 @@ export const MODEL_REGISTRY: ModelDef[] = [
 
   // ── OpenRouter — passthrough gateway, model chosen per request (see ai-providers.ts) ──
   { provider: "openrouter", model: "google/gemma-4-31b-it:free", capabilities: ["chat", "coding", "reasoning"], contextWindow: 32_000, costTier: "free" },
+
+  // ── Local models (Provider Load Balancer, Master Prompt 6.5) ────────────────
+  // Self-hosted — genuinely free (no metered API), unlike every "free" cloud
+  // tier above which is really "free within a vendor-imposed quota". Modest,
+  // neutral capability claims: unlike a cloud vendor, actual strength depends
+  // entirely on which model the operator pulled, not on this catalogue.
+  { provider: "ollama", model: "llama3.1", capabilities: ["chat", "coding", "reasoning"], contextWindow: 128_000, costTier: "free" },
+  { provider: "vllm", model: "default", capabilities: ["chat", "coding", "reasoning"], contextWindow: 32_000, costTier: "free" },
 ];
 
 /** All models registered for one provider, in registry order. */
@@ -74,11 +82,15 @@ const TASK_CAPABILITY: Record<TaskCategory, Capability> = {
 // every chain as the universal last-resort gateway (it can reach many models with
 // one key, including free ones) — see Step 5 of the integration spec.
 
+// Local models (ollama/vllm) sit after every cloud vendor with a known
+// capability profile, but before the OpenRouter catch-all — a configured
+// local model is a real, free, zero-network-hop option worth trying before
+// falling through to a third-party gateway.
 export const ROUTE_PRIORITY: Record<TaskCategory, ProviderId[]> = {
-  chat: ["gemini", "anthropic", "deepseek", "qwen", "llama", "openrouter"],
-  coding: ["anthropic", "deepseek", "qwen", "gemini", "openrouter"],
-  research: ["gemini", "anthropic", "deepseek", "openrouter"],
-  reasoning: ["gemini", "anthropic", "deepseek", "openrouter"],
+  chat: ["gemini", "anthropic", "deepseek", "qwen", "llama", "ollama", "vllm", "openrouter"],
+  coding: ["anthropic", "deepseek", "qwen", "gemini", "ollama", "vllm", "openrouter"],
+  research: ["gemini", "anthropic", "deepseek", "ollama", "vllm", "openrouter"],
+  reasoning: ["gemini", "anthropic", "deepseek", "ollama", "vllm", "openrouter"],
 };
 
 /** Provider order for a task, deduplicated and always ending with openrouter

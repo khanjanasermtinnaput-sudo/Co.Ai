@@ -9,6 +9,7 @@ import { allProviders, isConfigured, pingProvider } from "@/lib/server/ai-provid
 import { logAofError, runStartupCheckOnce } from "@/lib/server/ai-log";
 import { getUserFromRequest, isAdminConfigured } from "@/lib/server/supabase-admin";
 import { loadUserKeyOverrides } from "@/lib/server/keys-store";
+import { getSystemMemorySnapshot } from "@/lib/server/system-memory";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -54,7 +55,11 @@ export async function GET(req: Request): Promise<Response> {
     checkedAt: new Date().toISOString(),
   };
 
-  return Response.json(health, {
-    headers: { "Cache-Control": "no-store" },
-  });
+  // System Memory (Master Prompt 6.2) — a read-only snapshot of runtime
+  // configuration, additive to the wire response so existing consumers of
+  // SystemHealth are unaffected.
+  return Response.json(
+    { ...health, system: getSystemMemorySnapshot(overrides) },
+    { headers: { "Cache-Control": "no-store" } },
+  );
 }

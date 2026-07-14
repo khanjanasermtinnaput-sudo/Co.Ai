@@ -153,6 +153,20 @@ const AGENT_REGISTRY: AgentDescriptor[] = [
     costTier: 0.5,
     capabilities: { vision: 0.95 },
   },
+  // ── Tool Execution Engine (Master Prompt 6.3) ─────────────────────────────────
+  // The first (and, today, only) `kind: 'tool'` candidate the scorer can pick —
+  // activating the NodeKind='tool' slot this registry declared but never
+  // populated. No `role`/`healthKey`: it doesn't go through DARS at all (see
+  // score.ts's `agent.healthKey ? ... : <neutral default>` guards), and its
+  // costTier is near-zero since it spends no LLM tokens. Dispatched in
+  // v2/run.ts's runAgent via v2/tools/index.ts's globalToolRegistry, wrapping
+  // the existing sandbox (core/sandbox.ts) rather than a new execution path.
+  {
+    id: 'code-exec',
+    kind: 'tool',
+    costTier: 0.05,
+    capabilities: { test: 0.7, validate: 0.65, code: 0.3 },
+  },
 ];
 
 // ── Ypertatos Normal/High domain agents ─────────────────────────────────────

@@ -3,24 +3,28 @@
 // keys for, pick the healthiest, most role-appropriate one — and try OpenRouter
 // routes as additional backups.
 
-import { PROVIDERS, type CredentialBag } from '../config.js';
+import { PROVIDERS, resolveBaseURL, type CredentialBag } from '../config.js';
 import type { Role, ResolvedProvider } from '../types.js';
 import { HealthStore } from './health.js';
 
 const OPENROUTER_BASE = 'https://openrouter.ai/api/v1';
 
 // Role × provider fit (0..1). Seeded from general strengths; can later be made
-// data-driven from Agent Memory / eval telemetry (TDD §6.6).
+// data-driven from Agent Memory / eval telemetry (TDD §6.6). ollama/vllm are
+// deliberately modest+neutral across every role: unlike a cloud vendor, their
+// actual capability depends entirely on which model the operator pulled, not
+// on this catalogue — so this is a floor estimate, not a claim of strength.
 const ROLE_CAPABILITY: Record<Role, Record<string, number>> = {
-  planner:   { gemini: 0.90, qwen: 0.80, llama: 0.72, deepseek: 0.70 },
-  coder:     { deepseek: 0.92, qwen: 0.85, gemini: 0.72, llama: 0.62 },
-  reviewer:  { qwen: 0.86, gemini: 0.82, deepseek: 0.76, llama: 0.70 },
-  validator: { llama: 0.82, deepseek: 0.80, gemini: 0.76, qwen: 0.74 },
+  planner:   { gemini: 0.90, anthropic: 0.88, qwen: 0.80, llama: 0.72, deepseek: 0.70, ollama: 0.60, vllm: 0.60 },
+  coder:     { deepseek: 0.92, anthropic: 0.90, qwen: 0.85, gemini: 0.72, llama: 0.62, ollama: 0.60, vllm: 0.60 },
+  reviewer:  { anthropic: 0.89, qwen: 0.86, gemini: 0.82, deepseek: 0.76, llama: 0.70, ollama: 0.60, vllm: 0.60 },
+  validator: { anthropic: 0.85, llama: 0.82, deepseek: 0.80, gemini: 0.76, qwen: 0.74, ollama: 0.60, vllm: 0.60 },
 };
 
-// Rough relative cost, 0 cheap .. 1 expensive.
+// Rough relative cost, 0 cheap .. 1 expensive. Local models are genuinely
+// free (no metered API) — 0 is a real cost figure here, not a placeholder.
 const PROVIDER_COST: Record<string, number> = {
-  llama: 0.10, deepseek: 0.30, qwen: 0.40, gemini: 0.50,
+  llama: 0.10, deepseek: 0.30, qwen: 0.40, gemini: 0.50, anthropic: 0.55, ollama: 0, vllm: 0,
 };
 
 export interface DarsCandidate {
@@ -45,17 +49,20 @@ export function listProviderCandidates(role: Role, creds: CredentialBag): DarsCa
         vendorKey: pk,
         healthKey: pk,
         provider: {
-          role, providerName: def.name, baseURL: def.baseURL, apiKey: direct.trim(),
-          model: creds.models?.[pk] || def.defaultModel, mode: 'direct',
+          role, providerName: def.name, baseURL: resolveBaseURL(def), apiKey: direct.trim(),
+          model: creds.models?.[pk] || def.defaultModel, mode: 'direct', protocol: def.protocol,
         },
       });
     }
   }
 
-  // 2) OpenRouter — one key covers every vendor (added as backups).
+  // 2) OpenRouter — one key covers every vendor (added as backups). Local
+  // models (ollama/vllm) are excluded: OpenRouter cannot reach an operator's
+  // own localhost/private network, so there is no real route to offer.
   if (creds.openrouter?.trim()) {
     for (const pk of byCap) {
       const def = PROVIDERS[pk];
+      if (def.noOpenRouter) continue;
       out.push({
         vendorKey: pk,
         healthKey: `openrouter:${pk}`,

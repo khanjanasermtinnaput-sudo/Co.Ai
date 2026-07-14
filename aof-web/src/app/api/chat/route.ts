@@ -24,7 +24,6 @@ import { buildSearchContext } from "@/lib/server/search/context-builder";
 import {
   adapterFor,
   allProviders,
-  configuredProvidersForOrder,
   failoverFrame,
   isConfigured,
   modelFor,
@@ -33,7 +32,9 @@ import {
   type KeyOverrides,
   type ProviderMeta,
 } from "@/lib/server/ai-providers";
-import { bestModelFor, matchScore, ROLE_LABEL, routeOrder, type TaskCategory } from "@/lib/server/model-registry";
+import { bestModelFor, matchScore, ROLE_LABEL, type TaskCategory } from "@/lib/server/model-registry";
+import { classifyFailureKind, configuredProvidersByScore, globalProviderHealth } from "@/lib/server/provider-router";
+import { loadUserPreferenceMemories, userPreferenceSystemAddon } from "@/lib/server/memory-context";
 import { logAofError, logAofInfo, logAofStage, runStartupCheckOnce } from "@/lib/server/ai-log";
 import { checkRateLimit, applyRateLimitHeaders } from "@/lib/server/rate-limit";
 import { getUserFromRequest, tierForUser } from "@/lib/server/supabase-admin";
@@ -507,6 +508,15 @@ async function handleChat(req: Request): Promise<Response> {
     }
   }
 
+  // ── User Memory (Master Prompt 6.2) ──────────────────────────────────────────
+  // Long-term per-user preferences. loadUserPreferenceMemories is itself
+  // best-effort (returns [] on any failure — missing key, unmigrated table,
+  // network hiccup), so this can never block the turn.
+  if (user?.id) {
+    const memoryAddon = userPreferenceSystemAddon(await loadUserPreferenceMemories(user.id));
+    if (memoryAddon) system = `${system}\n\n${memoryAddon}`;
+  }
+
   // ── Task-aware provider order (model-registry.ts), filtered to what's configured. ──
   const task = body.agent
     ? taskCategoryFor(body.agent, body.route)
@@ -514,7 +524,7 @@ async function handleChat(req: Request): Promise<Response> {
   // `let`: a successful Ypertatos Requirement Analysis call below reorders
   // this so the provider that actually answered RAA is tried first for the
   // streamed call too — same brain for both, no re-discovering a dead provider.
-  let providers = configuredProvidersForOrder(routeOrder(task), overrides);
+  let providers = configuredProvidersByScore(task, overrides);
 
   if (providers.length === 0) {
     // Nothing configured anywhere (env or per-user) → tell the user immediately.
@@ -702,6 +712,11 @@ async function handleChat(req: Request): Promise<Response> {
     const model = taskModel || modelFor(p);
     const requestId = newRequestId();
     const ctx = { provider: p, model, requestId };
+    // Real, observed first-token latency — feeds the Provider Router's live
+    // health score (provider-router.ts) the same way tmap-v2's DARS records
+    // call outcomes, so the *next* request's ordering reflects how this
+    // provider is actually performing right now, not a fixed priority.
+    const attemptStart = Date.now();
 
     const rawGen = adapterFor(p.id)({
       system,
@@ -781,6 +796,7 @@ async function handleChat(req: Request): Promise<Response> {
     }
 
     if (result.ok && result.stream) {
+      globalProviderHealth.recordSuccess(p.id, Date.now() - attemptStart);
       if (pendingFailover) {
         logAofInfo(
           `Failover: ${pendingFailover.from} → ${pendingFailover.to} (${pendingFailover.reason})`,
@@ -806,6 +822,7 @@ async function handleChat(req: Request): Promise<Response> {
     // This provider failed before producing a token.
     lastError = result.error!;
     logAofError(lastError);
+    globalProviderHealth.recordFailure(p.id, classifyFailureKind(lastError.code));
 
     const next = providers[i + 1];
     if (next && ERROR_CATALOG[lastError.code].failoverWorthy) {

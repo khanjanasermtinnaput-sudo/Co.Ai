@@ -29,7 +29,7 @@ import type { ProviderHealth, ProviderStatusLevel } from "@/lib/health";
 
 // ── Registry ──────────────────────────────────────────────────────────────────
 
-export type ProviderId = "anthropic" | "openrouter" | "gemini" | "deepseek" | "qwen" | "llama";
+export type ProviderId = "anthropic" | "openrouter" | "gemini" | "deepseek" | "qwen" | "llama" | "ollama" | "vllm";
 
 export interface ProviderMeta {
   id: ProviderId;
@@ -95,6 +95,31 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
     modelEnv: "LLAMA_MODEL",
     defaultModel: "llama-3.3-70b-versatile",
     priority: 5,
+  },
+  // ── Local models (Provider Load Balancer, Master Prompt 6.5) ────────────────
+  // Self-hosted, OpenAI-compatible servers — no cloud vendor, no per-token
+  // cost (see model-registry.ts's "free" costTier for both). Ollama's own docs
+  // use a placeholder API key ("ollama") since its OpenAI-compat endpoint
+  // doesn't validate the Authorization header; that convention is what
+  // "configured" means here (presence, not a real secret). Lowest priority in
+  // the static registry order — model-registry.ts's live capability/cost
+  // scoring (provider-router.ts) is what actually promotes them when
+  // configured, same as every other provider here.
+  ollama: {
+    id: "ollama",
+    label: "Ollama (local)",
+    envVar: "OLLAMA_API_KEY",
+    modelEnv: "OLLAMA_MODEL",
+    defaultModel: "llama3.1",
+    priority: 7,
+  },
+  vllm: {
+    id: "vllm",
+    label: "vLLM (local)",
+    envVar: "VLLM_API_KEY",
+    modelEnv: "VLLM_MODEL",
+    defaultModel: "default", // vLLM serves one model per instance; override via VLLM_MODEL
+    priority: 8,
   },
 };
 
@@ -554,7 +579,7 @@ function parseUpstreamError(body: string): { type?: string; message?: string } {
 
 interface OpenAiCompatConfig {
   baseUrl: string;
-  providerId: "gemini" | "deepseek" | "qwen" | "llama";
+  providerId: "gemini" | "deepseek" | "qwen" | "llama" | "ollama" | "vllm";
 }
 
 const OPENAI_COMPAT: Record<OpenAiCompatConfig["providerId"], string> = {
@@ -562,6 +587,17 @@ const OPENAI_COMPAT: Record<OpenAiCompatConfig["providerId"], string> = {
   deepseek: "https://api.deepseek.com/v1",
   qwen: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
   llama: "https://api.groq.com/openai/v1",
+  // Operator-configured, unlike the fixed cloud URLs above — resolved once at
+  // module load (consistent with everything else in this static map; the
+  // multi-instance case with live latency-based picking lives in tmap-v2's
+  // providers/instance-pool.ts, this app's single-instance-per-provider
+  // architecture doesn't have a per-call resolution seam to hook into without
+  // a larger restructure of OPENAI_COMPAT itself). The env var, when set, is
+  // used exactly as given (expected to already include the /v1 suffix,
+  // matching tmap-v2's OLLAMA_BASE_URL/VLLM_BASE_URL convention) — /v1 is
+  // only appended to the hardcoded default.
+  ollama: process.env.OLLAMA_BASE_URL?.trim().replace(/\/$/, "") || "http://localhost:11434/v1",
+  vllm: process.env.VLLM_BASE_URL?.trim().replace(/\/$/, "") || "http://localhost:8000/v1",
 };
 
 const COMPAT_MAX_ATTEMPTS = 3;
@@ -699,6 +735,10 @@ export const qwenTextStream = (input: AdapterInput) =>
   openAiCompatTextStream({ baseUrl: OPENAI_COMPAT.qwen, providerId: "qwen" }, input);
 export const llamaTextStream = (input: AdapterInput) =>
   openAiCompatTextStream({ baseUrl: OPENAI_COMPAT.llama, providerId: "llama" }, input);
+export const ollamaTextStream = (input: AdapterInput) =>
+  openAiCompatTextStream({ baseUrl: OPENAI_COMPAT.ollama, providerId: "ollama" }, input);
+export const vllmTextStream = (input: AdapterInput) =>
+  openAiCompatTextStream({ baseUrl: OPENAI_COMPAT.vllm, providerId: "vllm" }, input);
 
 const ADAPTERS: Record<ProviderId, (input: AdapterInput) => AsyncGenerator<string, UsageNotice | undefined>> = {
   anthropic: anthropicTextStream,
@@ -707,6 +747,8 @@ const ADAPTERS: Record<ProviderId, (input: AdapterInput) => AsyncGenerator<strin
   deepseek: deepseekTextStream,
   qwen: qwenTextStream,
   llama: llamaTextStream,
+  ollama: ollamaTextStream,
+  vllm: vllmTextStream,
 };
 
 export function adapterFor(

@@ -1,19 +1,53 @@
 import 'dotenv/config';
 import type { Role, ResolvedProvider, Mode } from './types.js';
+import { globalInstancePool, parseInstanceUrls } from './providers/instance-pool.js';
 
 interface ProviderDef {
   name: string;
   envKey: string;          // env var holding the direct API key
   legacyEnvKey?: string;   // older env var name, checked if envKey is unset
-  baseURL: string;         // OpenAI-compatible base URL
+  baseURL: string;         // OpenAI-compatible base URL (unless protocol overrides it)
   defaultModel: string;
   modelEnv: string;        // env var to override model name
   openrouterModel: string; // model id when routed through OpenRouter
+  // Native wire protocol when called directly (not via OpenRouter). Omitted =
+  // OpenAI-compatible /chat/completions, same as every other entry here. Set
+  // for vendors whose direct API genuinely isn't OpenAI-shaped (see types.ts
+  // ResolvedProvider.protocol and providers/client.ts's dispatch on it).
+  protocol?: 'openai' | 'anthropic';
+  // Local/self-hosted models (Ollama, vLLM) run at an operator-chosen address,
+  // unlike cloud vendors' fixed baseURL — set this to the env var that
+  // overrides it. May hold a comma-separated list of multiple instances (see
+  // providers/instance-pool.ts), which resolveBaseURL below picks among.
+  baseURLEnv?: string;
+  // Local models have no OpenRouter route (OpenRouter cannot reach an
+  // operator's own localhost/private network) — excluded from that loop.
+  noOpenRouter?: boolean;
 }
 
-// Provider catalogue. All use the OpenAI-compatible /chat/completions shape,
-// so one client speaks to every vendor (see TDD §3.3 — Role decoupled from Model).
+/** Resolve a provider's base URL, picking a load-balanced instance when
+ *  `baseURLEnv` names an env var holding more than one (comma-separated). */
+export function resolveBaseURL(def: ProviderDef): string {
+  if (!def.baseURLEnv) return def.baseURL;
+  const instances = parseInstanceUrls(process.env[def.baseURLEnv], def.baseURL);
+  return globalInstancePool.pick(instances);
+}
+
+// Provider catalogue. Most vendors use the OpenAI-compatible /chat/completions
+// shape, so one client speaks to them (see TDD §3.3 — Role decoupled from Model).
+// Anthropic is the one exception (native Messages API) — see `protocol` above.
 export const PROVIDERS: Record<string, ProviderDef> = {
+  anthropic: {
+    name: 'Anthropic',
+    envKey: 'ANTHROPIC_API_KEY',
+    baseURL: 'https://api.anthropic.com',
+    defaultModel: 'claude-haiku-4-5-20251001',
+    modelEnv: 'ANTHROPIC_MODEL',
+    // Real, paid OpenRouter route (Anthropic has no free-tier model there —
+    // unlike the open-weight vendors below, so this is not tagged ':free').
+    openrouterModel: 'anthropic/claude-3.5-haiku',
+    protocol: 'anthropic',
+  },
   gemini: {
     name: 'Gemini',
     envKey: 'GEMINI_API_KEY',
@@ -57,6 +91,31 @@ export const PROVIDERS: Record<string, ProviderDef> = {
     // Free tier of the same Llama model (validator role).
     openrouterModel: 'meta-llama/llama-3.3-70b-instruct:free',
   },
+  // ── Local models (Provider Load Balancer, Master Prompt 6.5) ────────────────
+  // Self-hosted, OpenAI-compatible servers — no cloud vendor, no per-token
+  // cost. Ollama's own docs use a placeholder API key ("ollama") since its
+  // OpenAI-compat endpoint doesn't validate the Authorization header; that
+  // convention is what "configured" means here (presence, not a real secret).
+  ollama: {
+    name: 'Ollama',
+    envKey: 'OLLAMA_API_KEY',
+    baseURL: 'http://localhost:11434/v1',
+    baseURLEnv: 'OLLAMA_BASE_URL', // may be a comma-separated list of instances
+    defaultModel: 'llama3.1',
+    modelEnv: 'OLLAMA_MODEL',
+    openrouterModel: '', // unreachable — noOpenRouter excludes it from that loop
+    noOpenRouter: true,
+  },
+  vllm: {
+    name: 'vLLM',
+    envKey: 'VLLM_API_KEY',
+    baseURL: 'http://localhost:8000/v1',
+    baseURLEnv: 'VLLM_BASE_URL',
+    defaultModel: 'default', // vLLM serves one model per instance; override via VLLM_MODEL
+    modelEnv: 'VLLM_MODEL',
+    openrouterModel: '',
+    noOpenRouter: true,
+  },
 };
 
 // Default role -> provider mapping (overridable; this is config, not hardcode).
@@ -92,9 +151,9 @@ export function resolveRole(role: Role): ResolvedProvider {
   const key = directKey(def);
   if (key) {
     return {
-      role, providerName: def.name, baseURL: def.baseURL, apiKey: key,
+      role, providerName: def.name, baseURL: resolveBaseURL(def), apiKey: key,
       model: process.env[def.modelEnv]?.trim() || def.defaultModel,
-      mode: 'direct',
+      mode: 'direct', protocol: def.protocol,
     };
   }
 
@@ -114,9 +173,9 @@ export function resolveRole(role: Role): ResolvedProvider {
     const k = directKey(od);
     if (k) {
       return {
-        role, providerName: `${def.name} -> ${od.name} (fallback)`, baseURL: od.baseURL,
+        role, providerName: `${def.name} -> ${od.name} (fallback)`, baseURL: resolveBaseURL(od),
         apiKey: k, model: process.env[od.modelEnv]?.trim() || od.defaultModel,
-        mode: 'fallback',
+        mode: 'fallback', protocol: od.protocol,
       };
     }
   }
@@ -184,10 +243,13 @@ export function mockAllowed(): boolean {
 //    not from process.env) ─────────────────────────────────────────────────────
 export interface CredentialBag {
   openrouter?: string;
+  anthropic?: string;
   gemini?: string;
   deepseek?: string;
   qwen?: string;
   llama?: string;
+  ollama?: string;
+  vllm?: string;
   models?: Partial<Record<string, string>>; // providerKey -> model override
 }
 
@@ -203,7 +265,10 @@ export function resolveRoleWith(role: Role, creds: CredentialBag): ResolvedProvi
 
   const direct = bagKey(providerKey, creds);
   if (direct) {
-    return { role, providerName: def.name, baseURL: def.baseURL, apiKey: direct, model, mode: 'direct' };
+    return {
+      role, providerName: def.name, baseURL: resolveBaseURL(def), apiKey: direct, model,
+      mode: 'direct', protocol: def.protocol,
+    };
   }
   if (creds.openrouter?.trim()) {
     return {
@@ -216,8 +281,9 @@ export function resolveRoleWith(role: Role, creds: CredentialBag): ResolvedProvi
     if (k) {
       const od = PROVIDERS[otherKey];
       return {
-        role, providerName: `${def.name} -> ${od.name} (fallback)`, baseURL: od.baseURL,
-        apiKey: k, model: creds.models?.[otherKey] || od.defaultModel, mode: 'fallback',
+        role, providerName: `${def.name} -> ${od.name} (fallback)`, baseURL: resolveBaseURL(od),
+        apiKey: k, model: creds.models?.[otherKey] || od.defaultModel,
+        mode: 'fallback', protocol: od.protocol,
       };
     }
   }
@@ -234,7 +300,10 @@ export function resolveAllWith(creds: CredentialBag): Record<Role, ResolvedProvi
 }
 
 export function bagHasAnyKey(creds: CredentialBag): boolean {
-  return Boolean(creds.openrouter || creds.gemini || creds.deepseek || creds.qwen || creds.llama);
+  return Boolean(
+    creds.openrouter || creds.anthropic || creds.gemini || creds.deepseek ||
+    creds.qwen || creds.llama || creds.ollama || creds.vllm,
+  );
 }
 
 // ── Vision provider resolution (image OCR + analysis) ─────────────────────────

@@ -1,8 +1,20 @@
 // DARS — per-provider health store + circuit breaker (TDD §4.3).
 // MVP: in-memory Map (persists across requests on a warm Vercel instance).
 // At scale this interface is backed by Redis so health is shared across instances.
+//
+// This is a distinct breaker from server/failover.ts's generic named-dependency
+// circuit breaker (Redis/database/disaster-recovery, exposed at admin route
+// /v1/failover/circuits) — that one applies one fixed threshold/cooldown to any
+// named dependency, while providers need failure-kind-specific cooldowns (a bad
+// key is not the same as a rate limit). They are NOT merged: recovery policy
+// stays provider-aware here. What IS shared is observability — every DARS
+// health update also reports into server/failover.ts's health-score registry
+// (see reportToFailoverRegistry below) so operators see AI-provider health on
+// the same admin dashboard as every other dependency, instead of it being
+// invisible outside DARS's own routing decisions.
 
 import type { FailureKind } from './classify.js';
+import { recordHealthScore } from '../server/failover.js';
 
 type Circuit = 'closed' | 'open' | 'half_open';
 
@@ -62,6 +74,7 @@ export class HealthStore {
     h.ewmaLatencyMs = 0.7 * h.ewmaLatencyMs + 0.3 * latencyMs;
     h.successRate = 0.8 * h.successRate + 0.2 * 1;
     h.updatedAt = Date.now();
+    reportToFailoverRegistry(key, h);
   }
 
   recordFailure(key: string, kind: FailureKind, retryAfterMs?: number): void {
@@ -96,6 +109,7 @@ export class HealthStore {
       h.circuit = 'open';
       h.cooldownUntil = Date.now() + BASE_COOLDOWN_MS * 2 ** factor;
     }
+    reportToFailoverRegistry(key, h);
   }
 
   snapshot(): ProviderHealth[] {
@@ -105,3 +119,11 @@ export class HealthStore {
 
 // Module-level singleton — shared across requests on a warm instance.
 export const globalHealth = new HealthStore();
+
+/** Mirror this provider's health into server/failover.ts's generic health-score
+ *  registry (0-100, successRate scaled) so /v1/failover/circuits shows AI
+ *  providers alongside every other monitored dependency. Purely additive
+ *  observability — does not feed back into DARS's own routing decisions. */
+function reportToFailoverRegistry(key: string, h: ProviderHealth): void {
+  recordHealthScore(`provider:${key}`, Math.round(h.successRate * 100));
+}

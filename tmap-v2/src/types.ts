@@ -126,6 +126,13 @@ export interface ResolvedProvider {
   apiKey: string;
   model: string;
   mode: 'direct' | 'openrouter' | 'fallback' | 'mock';
+  // Wire protocol for providers/client.ts to speak. Omitted (default) = the
+  // shared OpenAI-compatible /chat/completions shape every existing vendor uses.
+  // 'anthropic' = Anthropic's native Messages API (/v1/messages), which is NOT
+  // OpenAI-compatible — different auth header and request/response shape.
+  // OpenRouter-routed candidates never set this: OpenRouter itself always
+  // exposes an OpenAI-compatible endpoint, even for Anthropic-hosted models.
+  protocol?: 'openai' | 'anthropic';
 }
 
 export interface PlanStep {

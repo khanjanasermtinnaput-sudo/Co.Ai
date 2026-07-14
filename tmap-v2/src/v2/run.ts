@@ -33,10 +33,11 @@ import { EventBus, type WorkflowEvent } from './events.js';
 import { decideExecution } from './orchestrator-v2.js';
 import { rankMemories, memoriesToContextV2, contextFitFrom, updateUsageFrequency } from './memory-v2.js';
 import { loadMemory, saveMemory } from '../core/memory.js';
-import { buildContextV2, assembleRuntimeContext } from '../core/context-engine.js';
+import { buildContextV2, assembleRuntimeContext, renderConversationHistory } from '../core/context-engine.js';
 import { Logger } from './logger.js';
 import { globalRunQueue } from './queue.js';
 import { globalRoutingTelemetry, type RoutingRoute } from './routing-telemetry.js';
+import { runCodeExecTool } from './tool-agent.js';
 
 export type V2Emit = (event: object) => void;
 
@@ -45,6 +46,11 @@ export interface RunV2Opts {
   userId: string;
   emit?: V2Emit;
   health?: HealthStore;
+  /** Prior turns of this conversation, oldest first — the source for the
+   *  Runtime Context Package's "conversation" layer (Master Prompt 6.1),
+   *  which previously had no caller ever supplying it. Optional: a
+   *  single-shot task (the CLI's default use) simply omits it. */
+  history?: ChatMessage[];
 }
 
 export interface RunV2Result {
@@ -126,7 +132,13 @@ async function runV2Inner(task: string, opts: RunV2Opts): Promise<RunV2Result> {
   } catch {
     /* repository context is best-effort */
   }
-  const runtimeContext = assembleRuntimeContext({ currentRequest: task, repository: repoContext, memory: memContext });
+  const conversationContext = opts.history?.length ? renderConversationHistory(opts.history) : '';
+  const runtimeContext = assembleRuntimeContext({
+    currentRequest: task,
+    conversation: conversationContext,
+    repository: repoContext,
+    memory: memContext,
+  });
   logger.logSystem('context engine: runtime context assembled', {
     totalChars: runtimeContext.totalChars,
     maxChars: runtimeContext.maxChars,
@@ -161,6 +173,13 @@ async function runV2Inner(task: string, opts: RunV2Opts): Promise<RunV2Result> {
         const spec = await generateImagePrompt(callFor('planner'), subtask.description);
         return `**Image prompt**\n${spec.fullPrompt}\n\n**Negative prompt:** ${spec.negativePrompt}`;
       }
+      case 'code-exec':
+        return runCodeExecTool({
+          nodeId: subtask.id,
+          sourceText: depText || subtask.description,
+          emit,
+          signal,
+        });
       default: {
         const messages: ChatMessage[] = [
           { role: 'system', content: `You are agent "${agentId}". Complete the subtask precisely and concisely.` },

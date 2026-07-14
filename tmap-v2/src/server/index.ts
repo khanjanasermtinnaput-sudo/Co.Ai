@@ -792,6 +792,10 @@ if (v2RoutingEnabled) {
     const task = String(req.body?.task ?? '').trim();
     if (!task) return res.status(400).json({ error: 'task required' });
     if (tooLong(task, MAX_TASK)) return res.status(413).json({ error: `task too long (max ${MAX_TASK} bytes)` });
+    // Optional prior turns — same shape/parsing convention as /v1/chat's history
+    // field. Feeds the Runtime Context Package's "conversation" layer (see
+    // v2/run.ts), which no caller previously had a way to populate.
+    const history: ChatMessage[] = Array.isArray(req.body?.history) ? req.body.history : [];
 
     const u = req.user!;
     const creds: CredentialBag = {};
@@ -829,7 +833,7 @@ if (v2RoutingEnabled) {
 
     logger.info('v2_run_start', { user: u.username, taskLen: task.length });
     try {
-      const result = await runV2(task, { creds, userId: u.id, emit: send });
+      const result = await runV2(task, { creds, userId: u.id, emit: send, history });
       // Record actual consumption against the user's quota and log estimated vs actual.
       await recordUsage(u.id, { tokens: result.totalTokens, costUsd: result.totalCostUsd });
       addTokens(result.totalTokens, result.totalCostUsd);

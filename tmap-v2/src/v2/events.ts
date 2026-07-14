@@ -12,7 +12,13 @@ export type WorkflowEvent =
   | { type: 'node_complete'; nodeId: string }
   | { type: 'node_fail'; nodeId: string; error: string }
   | { type: 'memory_updated'; key: string }
-  | { type: 'replan_triggered'; reason: string; nodeId?: string };
+  | { type: 'replan_triggered'; reason: string; nodeId?: string }
+  // Tool Execution Engine (Master Prompt 6.3). node_start/node_complete/node_fail
+  // above already cover a tool node's generic lifecycle (executor.ts emits them
+  // for every ExecNode regardless of kind) — this is the one genuinely new
+  // signal tool nodes introduce: a permission check failing BEFORE the node
+  // even attempts to run, which agent nodes have no equivalent of.
+  | { type: 'permission_denied'; nodeId: string; toolId: string; permission: string };
 
 export type WorkflowEventType = WorkflowEvent['type'];
 

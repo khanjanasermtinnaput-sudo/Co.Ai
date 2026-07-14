@@ -13,6 +13,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, extname, dirname, basename } from 'node:path';
 import { gatherProjectContext, type ProjectContext } from './context.js';
 import { buildIndex, rank, type RetrievalIndex } from './retrieval.js';
+import type { ChatMessage } from '../types.js';
 
 export interface FileNode {
   path: string;   // project-relative, posix separators
@@ -388,6 +389,29 @@ export interface RuntimeContextInput {
   repository?: string;
   memory?: string;
   maxChars?: number;
+}
+
+/** Turns to keep when rendering conversation history into the "conversation"
+ *  layer (most-recent-last, matching how a transcript reads). Bounded so one
+ *  very long-running session can't itself blow the runtime context budget
+ *  before assembleRuntimeContext gets a chance to allocate it. */
+const DEFAULT_CONVERSATION_TURNS = 10;
+
+/** Render prior turns into the plain-text block assembleRuntimeContext's
+ *  `conversation` input expects — the Runtime Context Package layer that was
+ *  previously accepted but never sourced by any caller (see v2/run.ts,
+ *  which now passes a caller-supplied history through this). System messages
+ *  are dropped: they're instructions to the model, not part of the dialogue a
+ *  reader would recognize as "the conversation so far". */
+export function renderConversationHistory(
+  history: ChatMessage[],
+  maxTurns: number = DEFAULT_CONVERSATION_TURNS,
+): string {
+  return history
+    .filter((m) => m.role === 'user' || m.role === 'assistant')
+    .slice(-maxTurns)
+    .map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
+    .join('\n\n');
 }
 
 const DEFAULT_MAX_CONTEXT_CHARS = 60_000;

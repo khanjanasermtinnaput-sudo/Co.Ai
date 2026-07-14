@@ -14,14 +14,14 @@ import { bestModelFor, routeOrder } from "@/lib/server/model-registry.js";
 
 // ── Registry shape ──────────────────────────────────────────────────────────
 
-test("all six providers are registered", () => {
+test("all eight providers are registered", () => {
   const ids = Object.keys(PROVIDER_REGISTRY).sort();
-  assert.deepEqual(ids, ["anthropic", "deepseek", "gemini", "llama", "openrouter", "qwen"]);
+  assert.deepEqual(ids, ["anthropic", "deepseek", "gemini", "llama", "ollama", "openrouter", "qwen", "vllm"]);
 });
 
 test("adapterFor returns a distinct generator function per provider", () => {
   const fns = new Set(Object.keys(PROVIDER_REGISTRY).map((id) => adapterFor(id as never)));
-  assert.equal(fns.size, 6);
+  assert.equal(fns.size, 8);
 });
 
 // ── Key overrides (per-user keys beat env) ──────────────────────────────────
@@ -53,12 +53,18 @@ test("configuredProvidersForOrder only returns providers with a key, in the give
 
 // ── Model registry routing ───────────────────────────────────────────────────
 
-test("chat task prioritizes Gemini, then Claude, then DeepSeek/Qwen/Llama, then OpenRouter", () => {
-  assert.deepEqual(routeOrder("chat"), ["gemini", "anthropic", "deepseek", "qwen", "llama", "openrouter"]);
+test("chat task prioritizes Gemini, then Claude, then DeepSeek/Qwen/Llama, then local models, then OpenRouter", () => {
+  assert.deepEqual(
+    routeOrder("chat"),
+    ["gemini", "anthropic", "deepseek", "qwen", "llama", "ollama", "vllm", "openrouter"],
+  );
 });
 
-test("coding task prioritizes Claude, then DeepSeek, then Qwen Coder, then Gemini", () => {
-  assert.deepEqual(routeOrder("coding"), ["anthropic", "deepseek", "qwen", "gemini", "openrouter"]);
+test("coding task prioritizes Claude, then DeepSeek, then Qwen Coder, then Gemini, then local models", () => {
+  assert.deepEqual(
+    routeOrder("coding"),
+    ["anthropic", "deepseek", "qwen", "gemini", "ollama", "vllm", "openrouter"],
+  );
   assert.equal(bestModelFor("qwen", "coding"), "qwen-coder");
 });
 
