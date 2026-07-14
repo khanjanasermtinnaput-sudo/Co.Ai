@@ -27,11 +27,13 @@ import {
   type RaaConfig,
 } from './raa.js';
 import { executeGraph } from './executor.js';
+import { saveCheckpoint } from './checkpoint.js';
 import { TraceRecorder, type ExecutionTrace } from './trace.js';
 import { EventBus, type WorkflowEvent } from './events.js';
 import { decideExecution } from './orchestrator-v2.js';
 import { rankMemories, memoriesToContextV2, contextFitFrom, updateUsageFrequency } from './memory-v2.js';
 import { loadMemory, saveMemory } from '../core/memory.js';
+import { buildContextV2, assembleRuntimeContext } from '../core/context-engine.js';
 import { Logger } from './logger.js';
 import { globalRunQueue } from './queue.js';
 import { globalRoutingTelemetry, type RoutingRoute } from './routing-telemetry.js';
@@ -113,6 +115,26 @@ async function runV2Inner(task: string, opts: RunV2Opts): Promise<RunV2Result> {
     /* memory is best-effort */
   }
 
+  // ── Context Engine: Runtime Context Package (Master Prompt Part 6.1) ──
+  // Mikros/Kanon (this route) previously had zero repository awareness even
+  // though the Ypertatos file-writing pipeline already scans it — folds that
+  // in here, ranked and budgeted alongside memory, with the required
+  // "context size / compression ratio / discarded sources" logging.
+  let repoContext = '';
+  try {
+    repoContext = buildContextV2(process.cwd(), task).summary;
+  } catch {
+    /* repository context is best-effort */
+  }
+  const runtimeContext = assembleRuntimeContext({ currentRequest: task, repository: repoContext, memory: memContext });
+  logger.logSystem('context engine: runtime context assembled', {
+    totalChars: runtimeContext.totalChars,
+    maxChars: runtimeContext.maxChars,
+    compressionRatio: runtimeContext.compressionRatio,
+    discardedSources: runtimeContext.discardedSources,
+    layers: runtimeContext.layers,
+  });
+
   // ── Each subtask node runs as its scored agent ──
   // Specialist agents (research/writing/math/vision) dispatch to their real
   // domain implementations so their behavior (confidence flags, tone detection,
@@ -124,7 +146,7 @@ async function runV2Inner(task: string, opts: RunV2Opts): Promise<RunV2Result> {
     const depText = Object.entries(input)
       .map(([k, v]) => `# from ${k}\n${String(v)}`)
       .join('\n\n');
-    const specialistContext = [memContext && `Project memory:\n${memContext}`, depText]
+    const specialistContext = [runtimeContext.text, depText]
       .filter(Boolean)
       .join('\n\n') || undefined;
 
@@ -222,6 +244,9 @@ async function runV2Inner(task: string, opts: RunV2Opts): Promise<RunV2Result> {
         maxParallel: decision.maxParallel,
         maxReplans: decision.maxReplans,
         replan: makeReplan(cfg, ep.subtasks),
+        // Best-effort durable checkpoint after every node settles, so a
+        // process restart can resume from here instead of from scratch.
+        onProgress: (g) => { saveCheckpoint(g).catch(() => {}); },
       });
 
       // ── Assemble output from sink nodes (no dependents), else all completed ──

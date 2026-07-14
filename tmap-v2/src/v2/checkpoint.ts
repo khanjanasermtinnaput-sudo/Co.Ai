@@ -13,6 +13,7 @@
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import type { ExecGraph, NodeStatus } from './dag.js';
+import type { AgentWorkingMemory } from './awm.js';
 
 export interface NodeCheckpoint {
   id: string;
@@ -23,6 +24,9 @@ export interface NodeCheckpoint {
   dependencies: string[];
   error?: string;
   output?: unknown;
+  /** Ephemeral Agent Working Memory (awm.ts) — carried along so a resumed run
+   *  picks up a node's progress notes / partial result, not just its final output. */
+  awm?: AgentWorkingMemory;
 }
 
 export interface CheckpointState {
@@ -45,6 +49,7 @@ export function serializeGraph(g: ExecGraph): CheckpointState {
       dependencies: [...n.dependencies],
       error: n.error,
       output: n.output,
+      awm: n.awm,
     })),
   };
 }
@@ -62,6 +67,7 @@ export function applyCheckpoint(g: ExecGraph, state: CheckpointState): void {
     node.fallbackAgentIds = [...snap.fallbackAgentIds];
     node.error = snap.error;
     node.output = snap.output;
+    node.awm = snap.awm;
   }
 }
 

@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import {
   readProjectTree, buildDependencyGraph, detectProjectType,
   selectRelevantFiles, detectConventions, buildContextV2, projectKey,
+  assembleRuntimeContext,
 } from '../core/context-engine.js';
 import { gatherProjectContext } from '../core/context.js';
 
@@ -105,4 +106,77 @@ test('projectKey is stable and filesystem-safe', () => {
   assert.equal(a, b);
   assert.notEqual(a, c);
   assert.match(a, /^[a-zA-Z0-9_-]+$/);
+});
+
+// ── assembleRuntimeContext (Runtime Context Package, Master Prompt Part 6.1) ─
+
+test('assembleRuntimeContext: current request is never truncated even under a tiny budget', () => {
+  const pkg = assembleRuntimeContext({
+    currentRequest: 'fix the login bug',
+    repository: 'x'.repeat(1000),
+    maxChars: 10,
+  });
+  assert.ok(pkg.text.includes('fix the login bug'));
+  assert.equal(pkg.layers.find((l) => l.name === 'current-request')!.included, true);
+});
+
+test('assembleRuntimeContext: lower-priority layers are dropped once the budget is exhausted', () => {
+  const pkg = assembleRuntimeContext({
+    currentRequest: 'a'.repeat(50),
+    repository: 'b'.repeat(50),
+    memory: 'c'.repeat(50),
+    maxChars: 60,
+  });
+  const repo = pkg.layers.find((l) => l.name === 'repository')!;
+  const memory = pkg.layers.find((l) => l.name === 'memory')!;
+  assert.equal(repo.included, true);
+  assert.equal(memory.included, false);
+  assert.ok(pkg.discardedSources.includes('Project Memory'));
+  assert.ok(pkg.totalChars <= 60 + 50); // current-request (50) is exempt from the budget, repo/memory share the rest
+});
+
+test('assembleRuntimeContext: truncates a lower-priority layer to fit remaining budget rather than dropping it', () => {
+  const pkg = assembleRuntimeContext({
+    currentRequest: 'short request',
+    repository: 'r'.repeat(100),
+    maxChars: 'short request'.length + 40,
+  });
+  const repo = pkg.layers.find((l) => l.name === 'repository')!;
+  assert.equal(repo.included, true);
+  assert.equal(repo.includedChars, 40);
+  assert.ok(!pkg.discardedSources.includes('Repository Context'));
+});
+
+test('assembleRuntimeContext: drops a duplicate long line already contributed by a higher-priority layer', () => {
+  const sharedLine = 'this exact instruction line repeats across two layers verbatim';
+  const pkg = assembleRuntimeContext({
+    currentRequest: sharedLine,
+    conversation: `some earlier turn\n${sharedLine}\nsome other unique line`,
+  });
+  const conversationBlock = pkg.text.split('## Recent Conversation')[1] ?? '';
+  assert.equal((conversationBlock.match(new RegExp(sharedLine, 'g')) ?? []).length, 0);
+  assert.ok(conversationBlock.includes('some other unique line'));
+});
+
+test('assembleRuntimeContext: does not dedup short code-shaped lines across layers (would corrupt meaning)', () => {
+  const pkg = assembleRuntimeContext({
+    currentRequest: 'refactor these files',
+    repository: 'function a() {\n}\n\nfunction b() {\n}',
+  });
+  const repoBlock = pkg.text.split('## Repository Context')[1] ?? '';
+  assert.equal((repoBlock.match(/^\}$/gm) ?? []).length, 2, 'both closing braces should survive — they are too short/common to treat as duplicated instructions');
+});
+
+test('assembleRuntimeContext: empty optional layers are marked not-included with zero raw size', () => {
+  const pkg = assembleRuntimeContext({ currentRequest: 'just the task' });
+  for (const layer of pkg.layers) {
+    if (layer.name === 'current-request') continue;
+    assert.equal(layer.included, false);
+    assert.equal(layer.rawChars, 0);
+  }
+});
+
+test('assembleRuntimeContext: compressionRatio is 1 when nothing is cut', () => {
+  const pkg = assembleRuntimeContext({ currentRequest: 'small task', repository: 'small repo summary' });
+  assert.equal(pkg.compressionRatio, 1);
 });

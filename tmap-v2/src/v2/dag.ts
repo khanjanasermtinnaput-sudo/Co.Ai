@@ -6,6 +6,7 @@
 // resume from a failed node without recomputing `done` nodes.
 
 import type { NodeKind } from './registry.js';
+import type { AgentWorkingMemory, AwmHandle } from './awm.js';
 
 export type NodeStatus =
   | 'pending'
@@ -29,14 +30,20 @@ export interface ExecNode<I = unknown, O = unknown> {
   retry: RetryPolicy;
   timeoutMs: number;
   /** Executes the node. Receives merged outputs of its dependencies. The
-   *  agentId may have been re-bound to a fallback before this is called. */
-  run: (input: I, signal: AbortSignal, agentId: string) => Promise<O>;
+   *  agentId may have been re-bound to a fallback before this is called.
+   *  `awm` is this node's own isolated Agent Working Memory handle — optional
+   *  in the type so existing 3-arg implementations remain valid (JS callback
+   *  convention: a function may ignore trailing arguments). */
+  run: (input: I, signal: AbortSignal, agentId: string, awm?: AwmHandle) => Promise<O>;
 
   // ── runtime state ──
   status: NodeStatus;
   attempts: number;
   output?: O;
   error?: string;
+  /** Ephemeral per-node working memory (awm.ts). Persisted/restored alongside
+   *  the rest of this node's runtime state by checkpoint.ts. */
+  awm?: AgentWorkingMemory;
 }
 
 export interface ExecGraph {

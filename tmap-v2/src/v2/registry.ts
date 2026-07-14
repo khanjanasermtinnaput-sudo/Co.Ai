@@ -155,14 +155,77 @@ const AGENT_REGISTRY: AgentDescriptor[] = [
   },
 ];
 
-/** All registered agents. Callers must NOT pre-filter by keyword — pass the
- *  whole list to the scorer and let scores decide. */
+// ── Ypertatos Normal/High domain agents ─────────────────────────────────────
+// Engineering-domain-scoped Coder variants. Deliberately kept OUT of
+// AGENT_REGISTRY/listAgents(): the capability vocabulary (CAPABILITIES above)
+// has no per-domain dimension, so if these were scored alongside the generic
+// agents they'd sometimes outrank 'coder'/'writing'/etc. on ordinary,
+// non-Ypertatos requests (a domain agent's `code`/`write` weight can tie or
+// beat the generic one) — which silently changes RAA's routing for every
+// caller, not just Ypertatos. These are assigned directly by domain
+// (core/engineering-classifier.ts → v2/domain-graph.ts), never through
+// rankAgents(); getAgent() still resolves them (for role/health lookups) via
+// its own registry, kept separate from the scored one.
+const DOMAIN_AGENT_REGISTRY: AgentDescriptor[] = [
+  {
+    id: 'backend-agent',
+    kind: 'agent',
+    role: 'coder',
+    healthKey: 'deepseek',
+    costTier: 0.3,
+    capabilities: { code: 0.9, security: 0.5, refactor: 0.6 },
+  },
+  {
+    id: 'frontend-agent',
+    kind: 'agent',
+    role: 'coder',
+    healthKey: 'deepseek',
+    costTier: 0.3,
+    capabilities: { code: 0.9, refactor: 0.6 },
+  },
+  {
+    id: 'database-agent',
+    kind: 'agent',
+    role: 'coder',
+    healthKey: 'deepseek',
+    costTier: 0.3,
+    capabilities: { code: 0.85, validate: 0.4 },
+  },
+  {
+    id: 'testing-agent',
+    kind: 'agent',
+    role: 'coder',
+    healthKey: 'deepseek',
+    costTier: 0.25,
+    capabilities: { test: 0.95, code: 0.6, validate: 0.5 },
+  },
+  {
+    id: 'documentation-agent',
+    kind: 'agent',
+    role: 'coder',
+    healthKey: 'gemini',
+    costTier: 0.2,
+    capabilities: { write: 0.9, code: 0.3 },
+  },
+  {
+    id: 'infrastructure-agent',
+    kind: 'agent',
+    role: 'coder',
+    healthKey: 'deepseek',
+    costTier: 0.3,
+    capabilities: { code: 0.7, security: 0.4, refactor: 0.4 },
+  },
+];
+
+/** All GENERAL-PURPOSE, score-eligible agents. Callers must NOT pre-filter by
+ *  keyword — pass the whole list to the scorer and let scores decide. Domain
+ *  agents (DOMAIN_AGENT_REGISTRY) are intentionally excluded — see above. */
 export function listAgents(): AgentDescriptor[] {
   return AGENT_REGISTRY;
 }
 
 export function getAgent(id: string): AgentDescriptor | undefined {
-  return AGENT_REGISTRY.find((a) => a.id === id);
+  return AGENT_REGISTRY.find((a) => a.id === id) ?? DOMAIN_AGENT_REGISTRY.find((a) => a.id === id);
 }
 
 /** Register / override an agent at runtime (e.g. from telemetry or a plugin). */

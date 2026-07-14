@@ -34,7 +34,8 @@ import { evaluateOutput } from '../core/eval-framework.js';
 import type { Blackboard, CodeFile } from '../types.js';
 import { bagHasAnyKey, mockAllowed, resolveAllWith, ROLE_PROVIDER, type CredentialBag } from '../config.js';
 import { createBlackboard } from '../core/blackboard.js';
-import { runTMAP } from '../core/orchestrator.js';
+import { runTMAP, type RunOpts } from '../core/orchestrator.js';
+import { runYpertatos, normalizeYpertatosEffort } from '../core/ypertatos.js';
 import { runV2 } from '../v2/run.js';
 import { globalRoutingTelemetry } from '../v2/routing-telemetry.js';
 import { estimateCost, estimateTokens } from '../core/cost-budget.js';
@@ -644,6 +645,12 @@ app.post('/v1/titan', requireAuth, requireSubscription('PRO', 'Titan'), async (r
 app.post('/v1/run', requireAuth, requireSubscription('LITE', 'Coagentix Code'), async (req: AuthedRequest, res) => {
   const task = String(req.body?.task ?? '').trim();
   const mode = (['lite', 'normal', 'pro'].includes(req.body?.mode) ? req.body.mode : currentMode()) as Mode;
+  // Ypertatos effort dial — aof-web already sends this for 'pro' builds
+  // (see aof-web/src/lib/api.ts streamCodeRun); only consulted when mode==='pro'.
+  const effort = normalizeYpertatosEffort(req.body?.effort);
+  // Optional: resume a previously checkpointed Ypertatos Normal/High run
+  // (v2/checkpoint.ts) instead of starting the domain graph from scratch.
+  const resumeRequestId = typeof req.body?.resumeRequestId === 'string' ? req.body.resumeRequestId : undefined;
   const context = String(req.body?.context ?? '').trim();
   const planOnly = req.body?.planOnly === true; // "Create Plan": plan, don't generate
   if (!task) return res.status(400).json({ error: 'task required' });
@@ -705,7 +712,9 @@ app.post('/v1/run', requireAuth, requireSubscription('LITE', 'Coagentix Code'), 
   logger.info('tmap_start', { sessionId: sessionRec.id, mode, user: u.username, taskLen: task.length });
 
   try {
-    await runTMAP(bb, (role, text, kind = 'status') => send({ role, text, kind }), {
+    const emit = (role: string, text: string, kind: 'status' | 'output' | 'error' = 'status') =>
+      send({ role, text, kind });
+    const runOpts: RunOpts = {
       creds,
       planOnly,
       onSessionStart: async () => { /* already created */ },
@@ -749,7 +758,15 @@ app.post('/v1/run', requireAuth, requireSubscription('LITE', 'Coagentix Code'), 
         incAgentCall(log.role, log.provider);
         logger.debug('agent_call', { role: log.role, provider: log.provider, model: log.model, durationMs: log.durationMs, tokens: log.inputTokens + log.outputTokens });
       },
-    });
+    };
+
+    // Ypertatos ('pro') builds route through the effort-aware dispatcher;
+    // Mikros/Kanon (lite/normal) call runTMAP exactly as before — unchanged.
+    if (mode === 'pro') {
+      await runYpertatos(bb, emit, runOpts, effort, resumeRequestId);
+    } else {
+      await runTMAP(bb, emit, runOpts);
+    }
     send({ role: 'system', kind: 'done', text: 'done', files: bb.files, iterations: bb.iterations, sessionId: sessionRec.id });
   } catch (e) {
     incError();

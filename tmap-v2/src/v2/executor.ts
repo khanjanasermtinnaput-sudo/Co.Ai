@@ -13,6 +13,7 @@
 import { ExecGraph, ExecNode, readyNodes, topoOrder, gatherInputs } from './dag.js';
 import { TraceRecorder } from './trace.js';
 import { EventBus } from './events.js';
+import { awmHandleFor } from './awm.js';
 
 export interface ExecOptions {
   maxParallel: number;
@@ -62,7 +63,7 @@ async function runNode(node: ExecNode, g: ExecGraph, trace: TraceRecorder): Prom
     const timer = setTimeout(() => ac.abort(), node.timeoutMs);
     const t0 = Date.now();
     try {
-      const output = await node.run(input, ac.signal, node.agentId);
+      const output = await node.run(input, ac.signal, node.agentId, awmHandleFor(node));
       node.output = output;
       trace.node({
         nodeId: node.id,

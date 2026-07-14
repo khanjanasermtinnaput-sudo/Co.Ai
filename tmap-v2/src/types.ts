@@ -248,6 +248,42 @@ export interface Blackboard {
   p4Reflections?: Phase4ReflectionNote[];
   p4Eval?: Phase4EvalSummary;
   p4SelfCritiqueNotes?: string[];
+  // Ypertatos Extreme only (Master Prompt Part 5.11): Self Reflection Engine's
+  // read-only inspection report, produced after Validator and before Review.
+  selfReflection?: EngineeringReflectionReport;
+}
+
+// Self Reflection Engine (Ypertatos Extreme, Master Prompt Part 5.11) — a
+// read-only structural inspection report. See core/self-reflection.ts.
+export type ReflectionCategory =
+  | 'requirement-coverage'
+  | 'architecture'
+  | 'security'
+  | 'performance'
+  | 'maintainability'
+  | 'scalability'
+  | 'reliability'
+  | 'readability'
+  | 'documentation'
+  | 'testing';
+
+export type ReflectionSeverity = 'info' | 'warning' | 'critical';
+
+export interface ReflectionFinding {
+  category: ReflectionCategory;
+  file: string;
+  line?: number;
+  severity: ReflectionSeverity;
+  message: string;
+}
+
+export interface EngineeringReflectionReport {
+  findings: ReflectionFinding[];
+  categoriesCovered: ReflectionCategory[];
+  criticalCount: number;
+  warningCount: number;
+  infoCount: number;
+  summary: string;
 }
 
 // Record of one agent call after DARS resolution (TDD §5.3 / §8 agent_logs).

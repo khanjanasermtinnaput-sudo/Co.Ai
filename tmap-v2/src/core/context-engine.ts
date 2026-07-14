@@ -352,6 +352,122 @@ function buildSummaryV2(rootDir: string, ctx: ProjectContextV2): string {
   return lines.join('\n');
 }
 
+// ── Runtime Context Package — Master Prompt v1.0 Part 6.1 ────────────────────
+//
+// Everything above builds ONE layer (repository context). This assembles the
+// full cross-source package the spec describes: current request, recent
+// conversation, repository context, and memory, ranked in priority order and
+// budgeted so the total never exceeds a configured character ceiling. This is
+// additive — buildContextV2()'s signature and behaviour are unchanged, so
+// existing callers (core/orchestrator.ts) are unaffected. Callers that also
+// have conversation/memory text (e.g. v2/run.ts) can route through this to
+// get the same ranking/budgeting/logging every tier is meant to share.
+
+export type RuntimeContextLayerName = 'current-request' | 'conversation' | 'repository' | 'memory';
+
+export interface RuntimeContextLayer {
+  name: RuntimeContextLayerName;
+  rawChars: number;
+  includedChars: number;
+  included: boolean;
+}
+
+export interface RuntimeContextPackage {
+  text: string;
+  layers: RuntimeContextLayer[];
+  totalChars: number;
+  maxChars: number;
+  /** includedChars / rawChars across all layers — 1 means nothing was cut. */
+  compressionRatio: number;
+  discardedSources: string[];
+}
+
+export interface RuntimeContextInput {
+  currentRequest: string;
+  conversation?: string;
+  repository?: string;
+  memory?: string;
+  maxChars?: number;
+}
+
+const DEFAULT_MAX_CONTEXT_CHARS = 60_000;
+// Dedup only removes lines long/distinctive enough to be a real repeated
+// instruction or message — short lines (`}`, `return x;`) are extremely common
+// across unrelated code excerpts and stripping them would corrupt a snippet's
+// meaning rather than compress genuine repetition.
+const DEDUP_MIN_LINE_LENGTH = 20;
+
+/**
+ * Assembles the Runtime Context Package: ranks current request > recent
+ * conversation > repository > memory (spec Layers 1/2/5/6), truncates each to
+ * whatever budget remains after higher-priority layers, drops a layer
+ * entirely once the budget is exhausted, and de-duplicates lines a
+ * higher-priority layer already contributed. The current request is never
+ * truncated — everything else yields to it.
+ */
+export function assembleRuntimeContext(input: RuntimeContextInput): RuntimeContextPackage {
+  const maxChars = input.maxChars ?? DEFAULT_MAX_CONTEXT_CHARS;
+  const candidates: { name: RuntimeContextLayerName; label: string; raw: string }[] = [
+    { name: 'current-request', label: 'Current Request', raw: input.currentRequest ?? '' },
+    { name: 'conversation', label: 'Recent Conversation', raw: input.conversation ?? '' },
+    { name: 'repository', label: 'Repository Context', raw: input.repository ?? '' },
+    { name: 'memory', label: 'Project Memory', raw: input.memory ?? '' },
+  ];
+
+  const seenLines = new Set<string>();
+  const layers: RuntimeContextLayer[] = [];
+  const blocks: string[] = [];
+  const discardedSources: string[] = [];
+  let remaining = maxChars;
+
+  for (const c of candidates) {
+    const rawChars = c.raw.length;
+    if (!rawChars) {
+      layers.push({ name: c.name, rawChars: 0, includedChars: 0, included: false });
+      continue;
+    }
+
+    const deduped = c.raw
+      .split('\n')
+      .filter((line) => {
+        const key = line.trim();
+        if (key.length < DEDUP_MIN_LINE_LENGTH) return true;
+        if (seenLines.has(key)) return false;
+        seenLines.add(key);
+        return true;
+      })
+      .join('\n');
+
+    const isCurrentRequest = c.name === 'current-request';
+    const budget = isCurrentRequest ? deduped.length : Math.max(0, remaining);
+    const truncated = deduped.slice(0, budget);
+
+    if (!truncated) {
+      discardedSources.push(c.label);
+      layers.push({ name: c.name, rawChars, includedChars: 0, included: false });
+      continue;
+    }
+
+    // Current Request is exempt from ITS OWN budget check (never truncated),
+    // but still counts against what's left for lower-priority layers.
+    remaining -= truncated.length;
+    layers.push({ name: c.name, rawChars, includedChars: truncated.length, included: true });
+    blocks.push(`## ${c.label}\n${truncated}`);
+  }
+
+  const totalRaw = layers.reduce((s, l) => s + l.rawChars, 0);
+  const totalIncluded = layers.reduce((s, l) => s + l.includedChars, 0);
+
+  return {
+    text: blocks.join('\n\n'),
+    layers,
+    totalChars: totalIncluded,
+    maxChars,
+    compressionRatio: totalRaw > 0 ? totalIncluded / totalRaw : 1,
+    discardedSources,
+  };
+}
+
 /** Hash a project root path into a short stable key (for memory storage). */
 export function projectKey(rootDir: string): string {
   let h = 0;
