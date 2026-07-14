@@ -12,6 +12,26 @@ export type ChatModel = "lite" | "normal";
 /** CoCode modes. `titan` only appears inside the Code workspace. */
 export type CodeMode = "lite" | "1.0" | "pro" | "titan";
 
+/** The tier a request may ask the server to STAGE (model-workflow.ts's
+ *  stagesFor()). Superset of ChatModel: CoCode's code-chat path may also
+ *  request "pro" (Ypertatos) — reachable ONLY from there, never from
+ *  CoChat's header selector, which stays typed ChatModel. "titan" is
+ *  excluded — it has its own workflow and never reaches /api/chat's staging
+ *  path. ChatModel is structurally assignable to this, so CoChat's existing
+ *  call sites need no change. */
+export type WorkflowModelId = "lite" | "normal" | "pro";
+
+/** CoCode's open workspace, as seen by the Ypertatos Task Classifier
+ *  (task-classifier.ts) — its "attached files / repo metadata" input. Defined
+ *  here (not in lib/server/) since api.ts (client-safe) also needs the shape
+ *  to send it in the request body; task-classifier.ts re-exports this same
+ *  type rather than redefining it. */
+export interface RepoMetadata {
+  fileCount: number;
+  /** distinct file extensions present, lowercased, no dot. */
+  languages: string[];
+}
+
 /** Reasoning-effort dial shown in the model menus.
  *  Low / Normal / High belong to Mikros & Kanon; Ultra / Extreme are
  *  Ypertatos-only. Titan has no dial — it is gated by its own workflow. */

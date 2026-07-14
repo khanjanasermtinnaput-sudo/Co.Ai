@@ -37,7 +37,6 @@ import {
 } from "@/lib/errors";
 import type {
   ChatMessageT,
-  ChatModel,
   ClarifyQuestion,
   CodeMode,
   CodePhase,
@@ -46,6 +45,7 @@ import type {
   TitanPhaseKey,
   TitanPlanOption,
   TitanRisk,
+  WorkflowModelId,
 } from "@/lib/types";
 import { clampEffort } from "@/lib/effort";
 
@@ -302,9 +302,9 @@ export const useCodeStore = create<CodeState>()(
         // ── NORMAL_CHAT: casual reply, no RAA, no brief update ────────────────
         // Honour the shared Web Search preference so CoCode answers can be
         // grounded in live docs/web results too (spec §3 — every mode).
-        // Model Workflow staging only applies to Kanon ("1.0") — every other
-        // mode collapses to "lite" here, matching stagesFor()'s single-stage
-        // stub for Mikros/Ypertatos/Titan (no staging change for those modes).
+        // Model Workflow staging applies to Kanon ("1.0") and Ypertatos
+        // ("pro") — Titan collapses to "lite" here, matching stagesFor()'s
+        // single-stage stub (no staging change for that mode).
         const onStage = (st: StageNotice) =>
           patch({
             agentStatus:
@@ -312,7 +312,25 @@ export const useCodeStore = create<CodeState>()(
                 ? undefined
                 : `${st.label}: ${st.status === "running" ? "working…" : "done"}`,
           });
-        const stagingModel: ChatModel = get().mode === "1.0" ? "normal" : "lite";
+        const stagingModel: WorkflowModelId =
+          get().mode === "1.0" ? "normal" : get().mode === "pro" ? "pro" : "lite";
+        // Real, observed workspace metadata — the Ypertatos Task Classifier's
+        // complexity signal (task-classifier.ts). Omitted entirely when the
+        // workspace is empty (never guessed). Ignored server-side for any
+        // tier but "pro".
+        const workspaceFiles = useCocodeIDEStore.getState().allFiles();
+        const repo = workspaceFiles.length
+          ? {
+              fileCount: workspaceFiles.length,
+              languages: [
+                ...new Set(
+                  workspaceFiles
+                    .map((f) => f.path.split(".").pop()?.toLowerCase() ?? "")
+                    .filter(Boolean),
+                ),
+              ],
+            }
+          : undefined;
         await streamCodeChat(content, history, {
           onToken: append,
           signal: controller.signal,
@@ -320,7 +338,7 @@ export const useCodeStore = create<CodeState>()(
           onFailover,
           onUsage,
           onStage,
-        }, get().effort, stagingModel);
+        }, get().effort, stagingModel, repo);
       } else {
         // ── DISCOVERY: RAA gathers requirements, brief may be emitted ─────────
         // Mark the project active so all subsequent turns stay in DISCOVERY

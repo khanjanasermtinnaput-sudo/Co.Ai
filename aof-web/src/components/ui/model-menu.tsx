@@ -11,7 +11,7 @@ import * as React from "react";
 import type { LucideIcon } from "lucide-react";
 import { Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { EFFORT_LABELS, defaultEffortFor, effortLevelsFor } from "@/lib/effort";
+import { defaultEffortFor, effortLabel, effortLevelsFor } from "@/lib/effort";
 import type { ChatModel, CodeMode, EffortLevel } from "@/lib/types";
 
 // The `!` utilities override DropdownMenuContent's own glass/popover styling so
@@ -151,7 +151,7 @@ export function EffortSlider({
       <div className="flex items-baseline justify-between px-0.5">
         <span className="text-xs font-semibold text-neutral-900 dark:text-neutral-100">Effort</span>
         <span className="text-[11px] font-semibold text-neutral-900 dark:text-neutral-100">
-          {EFFORT_LABELS[selected]}
+          {effortLabel(model, selected)}
         </span>
       </div>
 
@@ -163,7 +163,7 @@ export function EffortSlider({
         aria-valuemin={0}
         aria-valuemax={max}
         aria-valuenow={index}
-        aria-valuetext={EFFORT_LABELS[selected]}
+        aria-valuetext={effortLabel(model, selected)}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
@@ -224,7 +224,7 @@ export function EffortSlider({
                   : "text-neutral-400 hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-300",
               )}
             >
-              {EFFORT_LABELS[lvl]}
+              {effortLabel(model, lvl)}
             </button>
           );
         })}

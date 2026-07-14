@@ -796,27 +796,6 @@ export async function primeAndStream(opts: {
   return { ok: true, stream };
 }
 
-/** Drain a provider generator into a single string instead of streaming it —
- *  for non-final workflow stages (see workflow-runner.ts) that must finish
- *  completely before the next stage's prompt can be built. Unlike
- *  primeAndStream, this never touches a client-facing stream; callers must
- *  budget wall-clock themselves (e.g. race it against a deadline). */
-export async function drainToText(
-  gen: AsyncGenerator<string, UsageNotice | undefined>,
-): Promise<{ text: string; usage?: UsageNotice }> {
-  let text = "";
-  let usage: UsageNotice | undefined;
-  while (true) {
-    const next = await gen.next();
-    if (next.done) {
-      usage = next.value;
-      break;
-    }
-    text += next.value;
-  }
-  return { text, usage };
-}
-
 /** Frame that announces a failover, prepended to the successful provider's stream. */
 export function failoverFrame(notice: FailoverNotice): string {
   return encodeFailoverFrame(notice);

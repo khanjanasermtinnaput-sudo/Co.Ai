@@ -7,7 +7,7 @@
 //   Titan          → none (its enforced phase workflow replaces the dial)
 
 import type { ChatModel, CodeMode, EffortLevel } from "./types";
-import { modelTierFromId } from "./model-branding";
+import { modelTierFromId, type ModelTier } from "./model-branding";
 
 export const EFFORT_LABELS: Record<EffortLevel, string> = {
   low: "Low",
@@ -16,6 +16,16 @@ export const EFFORT_LABELS: Record<EffortLevel, string> = {
   ultra: "Ultra",
   extreme: "Extreme",
 };
+
+/** Display label for `level` on `id`'s effort dial. Identical to EFFORT_LABELS
+ *  everywhere except Kanon's "normal" level, which Co.AI Master Prompt Part 4.2
+ *  names "Medium" — a UI-only rename; the underlying EffortLevel stays
+ *  "normal" so persisted client state and Ypertatos's ultra/extreme scale are
+ *  untouched. */
+export function effortLabel(id: ChatModel | CodeMode, level: EffortLevel): string {
+  if (level === "normal" && modelTierFromId(id) === "normal") return "Medium";
+  return EFFORT_LABELS[level];
+}
 
 export function effortLevelsFor(id: ChatModel | CodeMode): EffortLevel[] {
   const tier = modelTierFromId(id);
@@ -58,46 +68,62 @@ export interface EffortPolicy {
   /** sampling ceiling — higher effort reasons more deterministically. Applied as
    *  a cap (min with the agent's own temperature) so tuned agents never get noisier. */
   temperature: number;
-  /** high+ run the RAA→TMAP pipeline as a baseline (CoCode) */
-  workflow: boolean;
-  /** ultra+ think in more depth / multi-pass */
-  deepThink: boolean;
-  /** extreme asks clarifying questions and collaborates before doing the work */
+  /** extreme asks clarifying questions and collaborates before doing the work.
+   *  Consumed by effortSystemAddon() below, and — for Ypertatos's engineering
+   *  workflow — by requirementSpecSystemAddon()'s clarify-only vs
+   *  lead-with-questions-then-provisional-answer gate (requirement-analysis.ts). */
   clarifyFirst: boolean;
   /** one-line summary for tooltips / status */
   summary: string;
 }
 
+// `workflow`/`deepThink` booleans were removed from this policy: whether an
+// engineering workflow runs is decided by the Ypertatos Task Classifier from
+// the TASK (Master Prompt Part 5.1: "effort does NOT change intelligence"),
+// never by the effort dial — keeping a competing boolean here would be a
+// second source of truth for that decision. Deep-think is a stage `stagesFor()`
+// already schedules per-tier/effort (model-workflow.ts); a same-named policy
+// flag that didn't always agree with it (e.g. Kanon High runs deep-think with
+// deepThink===false) would just mean two things share one name.
 export const EFFORT_POLICY: Record<EffortLevel, EffortPolicy> = {
   low: {
     tokenScale: 0.6, minTokens: 256, maxTokens: 700, temperature: 0.7,
-    workflow: false, deepThink: false, clarifyFirst: false,
+    clarifyFirst: false,
     summary: "Fast, direct answers with the smallest token footprint.",
   },
   normal: {
     tokenScale: 1.0, minTokens: 512, maxTokens: 1400, temperature: 0.6,
-    workflow: false, deepThink: false, clarifyFirst: false,
+    clarifyFirst: false,
     summary: "Balanced answers for everyday questions.",
   },
   high: {
     tokenScale: 1.6, minTokens: 1200, maxTokens: 3000, temperature: 0.5,
-    workflow: true, deepThink: false, clarifyFirst: false,
-    summary: "Considered reasoning that can write real code — RAA+TMAP baseline.",
+    clarifyFirst: false,
+    summary: "Considered reasoning that can write real code.",
   },
   ultra: {
     tokenScale: 2.6, minTokens: 2500, maxTokens: 5000, temperature: 0.45,
-    workflow: true, deepThink: true, clarifyFirst: false,
-    summary: "Deep, multi-step reasoning for complex work — full RAA+TMAP.",
+    clarifyFirst: false,
+    summary: "Deep, multi-step reasoning for complex work.",
   },
   extreme: {
     tokenScale: 3.5, minTokens: 4000, maxTokens: 8000, temperature: 0.4,
-    workflow: true, deepThink: true, clarifyFirst: true,
-    summary: "Maximum rigor: clarifies with you first, then runs the full RAA+TMAP plan.",
+    clarifyFirst: true,
+    summary: "Maximum rigor: clarifies with you first when the request is underspecified.",
   },
 };
 
 export function effortPolicy(effort: EffortLevel): EffortPolicy {
   return EFFORT_POLICY[effort] ?? EFFORT_POLICY.normal;
+}
+
+/** Whether a plain-CoChat turn on this tier may run Universal Search grounding
+ *  (a retrieval pass over live web results). Mikros (`lite`) never grounds with
+ *  search — Co.AI Master Prompt Part 3: "Mikros must never execute... expensive
+ *  retrieval workflows." Every other tier is unaffected; this only scopes the
+ *  plain-chat path (no `agent`), never CoCode's code-chat or any other agent. */
+export function tierAllowsSearch(tier: ModelTier): boolean {
+  return tier !== "lite";
 }
 
 /** Size a token budget for `effort` from an agent's base allowance. */
@@ -150,7 +176,7 @@ export function effortSystemAddon(
         "EFFORT — EXTREME: Apply maximum rigor. Plan meticulously, weigh alternatives, and cover " +
           "edge cases, risks and follow-ups.",
       );
-      if (opts.conversational) {
+      if (opts.conversational && effortPolicy(effort).clarifyFirst) {
         lines.push(
           "Before committing to a solution, ask the user 1–3 focused clarifying questions (offer " +
             "concrete options where useful) and wait for their answers. Collaborate first — do not " +

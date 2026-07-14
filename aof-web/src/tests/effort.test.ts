@@ -10,6 +10,7 @@ import {
   effortSystemAddon,
   effortTemperature,
   normalizeEffort,
+  tierAllowsSearch,
 } from "../lib/effort";
 import type { EffortLevel } from "../lib/types";
 
@@ -61,16 +62,20 @@ test("temperature can only be pulled down by effort, never raised", () => {
   for (let i = 1; i < temps.length; i++) assert.ok(temps[i] <= temps[i - 1]);
 });
 
-test("workflow / deepThink / clarifyFirst gate at the right levels", () => {
-  const flags = (l: EffortLevel) => {
-    const p = effortPolicy(l);
-    return [p.workflow, p.deepThink, p.clarifyFirst];
-  };
-  assert.deepEqual(flags("low"), [false, false, false]);
-  assert.deepEqual(flags("normal"), [false, false, false]);
-  assert.deepEqual(flags("high"), [true, false, false]);
-  assert.deepEqual(flags("ultra"), [true, true, false]);
-  assert.deepEqual(flags("extreme"), [true, true, true]);
+test("clarifyFirst gates only at extreme", () => {
+  const clarifyFirst = (l: EffortLevel) => effortPolicy(l).clarifyFirst;
+  assert.equal(clarifyFirst("low"), false);
+  assert.equal(clarifyFirst("normal"), false);
+  assert.equal(clarifyFirst("high"), false);
+  assert.equal(clarifyFirst("ultra"), false);
+  assert.equal(clarifyFirst("extreme"), true);
+});
+
+test("tierAllowsSearch: Mikros never grounds with search, every other tier does", () => {
+  assert.equal(tierAllowsSearch("lite"), false);
+  assert.equal(tierAllowsSearch("normal"), true);
+  assert.equal(tierAllowsSearch("pro"), true);
+  assert.equal(tierAllowsSearch("titan"), true);
 });
 
 test("system addon: only extreme + conversational asks the user to clarify first", () => {

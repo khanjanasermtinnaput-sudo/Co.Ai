@@ -29,6 +29,30 @@ export function logAofInfo(message: string): void {
   console.info(`[AOF] ${formatUtc(new Date().toISOString())} ${message}`);
 }
 
+/** Structured Input → Processing → Output lifecycle log (Co.AI Master Prompt
+ *  Part 3 "Logging" / "Runtime Transparency"): every important runtime decision
+ *  for a chat turn — model tier, stage count, provider, duration, success —
+ *  greppable by requestId. Only real, observed values are ever logged; a field
+ *  is simply omitted rather than fabricated. Every Model Workflow stage (Master
+ *  Prompt Part 4) logs under "Processing" with a `stage=` field, following the
+ *  Simple Task Detector's precedent — greppable as
+ *  `[AOF STAGE] … Processing stage=deep-think executed=true durationMs=…`.
+ *  Kanon's single provider call (phase-stream.ts) genuinely observes real
+ *  prompt/completion token counts once the generation finishes — via
+ *  `onComplete`, which can fire after the HTTP response has already been
+ *  returned — and logs them on "Output" as `promptTokens`/`completionTokens`;
+ *  every other path still has no usage available at this layer and omits them. */
+export function logAofStage(
+  stage: "Input" | "Processing" | "Output",
+  fields: Record<string, string | number | boolean | undefined>,
+): void {
+  const parts = Object.entries(fields)
+    .filter(([, v]) => v !== undefined)
+    .map(([k, v]) => `${k}=${v}`)
+    .join(" ");
+  console.info(`[AOF STAGE] ${formatUtc(new Date().toISOString())} ${stage} ${parts}`);
+}
+
 // ── Startup check ─────────────────────────────────────────────────────────────
 // Logged once per server process the first time an AI route is hit, mirroring the
 // AOF startup banner: which keys loaded, database status, overall system status.

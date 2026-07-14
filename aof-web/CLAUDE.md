@@ -21,3 +21,158 @@ When adding or touching UI:
   See `readableTextColor()` in `src/lib/utils.ts`.
 - Before merging any visual change, check it in both Light and Dark theme
   (Settings → Appearance in the app, or `next-themes`' `useTheme()`).
+
+## Co.AI Master Prompt — governance
+
+This repo is governed by the "Co.AI Master Prompt v1.0" (Parts 1–3: global engineering
+rules, layered system architecture, Mikros tier spec). Its core rules — no fake/placeholder
+workflows, single source of truth per concept, one responsibility per module, every
+config must be consumed at runtime, every runtime decision must be loggable/explainable —
+apply to all work in this repo, not just CoChat.
+
+Tier branding SoT: `src/lib/model-branding.ts` (`lite`→Mikros, `normal`→Kanon, `pro`→Ypertatos,
+`titan`→Titan). Effort/depth SoT: `src/lib/effort.ts`. Stage-*sequence* SoT (which stages a
+tier/effort combo runs): `src/lib/server/model-workflow.ts` `stagesFor()` — Mikros always
+resolves to a single `processing` stage. Don't add a second mechanism that decides whether a
+workflow runs — extend `stagesFor()`.
+
+**Kanon invariant** (Master Prompt Part 4): Kanon makes **exactly ONE provider call per turn**,
+at every effort level — Low (Processing→Review), Medium/`normal` (+Context Builder), High (+Deep
+Think). Context Builder is `execution: "local"` in `stagesFor()`'s specs and executes with zero
+provider calls in `src/lib/server/workflow-context.ts` (sibling of the Simple Task Detector below) — it
+REPLACES the history sent to the provider with a relevance-scored selection, so it can only save
+tokens, never add them (the invariant a prior LLM-based version violated). Processing/Deep
+Think/Review are NOT separate calls: they're phases inside that one generation, opened by
+line-anchored markers (`PHASE_MARKER`, e.g. `<<<COAI_FINAL>>>`) the model is asked to emit
+(`buildWorkflowSystem()`), parsed back out by `src/lib/server/phase-stream.ts` — draft/critique
+text is suppressed server-side and only the FINAL phase streams to the user. `workflowMaxTokens()`
+adds interior-phase overhead on top of `effortMaxTokens()`'s answer budget rather than routing the
+combined total back through it, so Kanon Low's answer isn't starved paying for its own draft.
+`phaseStream()`'s one hard rule: it must never yield before the wrapped provider generator's first
+non-empty chunk, or `primeAndStream()` commits an HTTP 200 before the provider has even been
+reached, silently breaking failover on every pre-first-token error.
+
+Structured `Input → Processing → Output` server-side lifecycle logging lives in
+`logAofStage()` (`src/lib/server/ai-log.ts`) — distinct from the client-facing `StageNotice`
+frames (`errors.ts`) that drive the UI's live stage-progress indicator. Every Model Workflow
+stage logs under `"Processing"` with a `stage=` field (same precedent as the Simple Task
+Detector). Only log real, observed values — never fabricate a metric that isn't actually
+available at that layer; Kanon's single call is the one path where real token usage genuinely
+is observable (via `phaseStream()`'s `onComplete`, which can fire after the HTTP response has
+already been returned), logged on `"Output"` as `promptTokens`/`completionTokens`.
+
+**Mikros invariant** (`src/app/api/chat/route.ts` + `src/lib/effort.ts`): Mikros (CoChat `lite`)
+is structurally limited to one stage/one provider call by `stagesFor()`, and
+`tierAllowsSearch()` additionally skips Universal Search/retrieval for that same plain-chat
+`lite` path — Master Prompt Part 3: "Mikros must never execute... expensive retrieval
+workflows." Kanon and every agent-driven path (incl. CoCode code-chat) are unaffected. The
+low/normal/high effort dial is intentionally kept for Mikros (sizes tokens/temperature only) —
+a deliberate departure from the spec's literal "no selectable effort," approved by the user.
+This does not apply to CoCode's `lite` build mode, a separate product surface with its own
+conversation→generate workflow.
+
+**Simple Task Detector** (`src/lib/server/simple-task-detector.ts`): a deterministic,
+<10ms, zero-provider-call classifier that picks Mikros's response SHAPE (`simple` /
+`medium` / `light-coding`) from the message text — orthogonal to `effort.ts`, which owns
+response DEPTH. It is explicitly not a workflow stage; don't wire it into `stagesFor()`.
+Scoped identically to `tierAllowsSearch()` (plain-chat `lite` only). Gotcha: Thai script is
+not a JS regex "word" character, so `\b` is unreliable adjacent to it — Thai and English
+detection patterns are kept as separate regexes (English uses `\b`, Thai relies on substring
+containment only). Logged via `logAofStage("Processing", ...)`. `workflow-context.ts`'s
+tokenizer hits the same gotcha from the other direction — Thai has no word spaces at all, so
+whitespace/`\b` splitting collapses lexical overlap to ~0; it tokenizes Thai runs as character
+trigrams instead (keeping vowels/tone marks, since stripping them merges distinct words).
+
+**Ypertatos invariant** (Master Prompt Parts 5.1–5.6, all shipped): a `lightweight` turn makes
+exactly ONE provider call, same as Kanon. An `engineering` turn makes **2 + N**: buffered
+Requirement Analysis (5.3) → buffered TMAP planning (5.4) → **N ∈ [0, 6] buffered agent calls**
+(5.5/5.6) → the ONE streamed answer. N is 0 whenever TMAP's plan has ≤1 task, has a dependency
+cycle, TMAP itself failed, or the turn's wall-clock budget is spent — in every one of those
+cases the orchestration ("multi-agent") stage is **never inserted into `stagesFor()`'s table at
+all**, not faked and not simulated; it is only ever added *after* a real, parsed, >1-task,
+acyclic plan confirms it should run. Ypertatos is only reachable on the `agent === "code-chat"`
+path (CoCode) — CoChat's header selector and the one-shot build agents (`code-gen`/`plan`/
+`analyze`/`debug`) can never reach `pro`; see the `tier` narrow in `src/app/api/chat/route.ts`
+right after `tierEligible`.
+
+The **Ypertatos Task Classifier** (`src/lib/server/task-classifier.ts`) is Part 5.2's mandatory,
+deterministic, zero-LLM, <15ms gate — sibling of the Simple Task Detector above, but a
+*separate* module (different taxonomy, different question: "does this turn need the
+engineering workflow?", not "which product surface?"). It decides `stagesFor()`'s `"pro"`
+branch between `"lightweight"` (delegates straight to `kanonWorkflow()`) and `"engineering"`.
+Low confidence always escalates to `"engineering"` — Part 5.2's "never underestimate an
+engineering task" — and a classifier failure defaults to `"lightweight"`, i.e. Kanon's exact
+table, satisfying Part 5.2's own "fall back to Kanon-style workflow" failure policy for free.
+
+**Every non-`"phase"` stage of a workflow — `"local"`, `"buffered"`, `"orchestrated"` — is
+executed by `src/lib/server/prestream-dispatch.ts`'s `runPreStreamStages()`, never by ad-hoc
+`findIndex()` calls in `route.ts`.** That module exists because of a real, shipped-then-fixed
+bug: a `findIndex(s => s.execution === "buffered")` only ever runs the *first* buffered stage,
+which was harmless while Ypertatos had at most one, but silently would have skipped TMAP the
+moment a second buffered stage existed — present in the stage table, counted in the client's
+stage total, absent from every log line, never actually executed. `prestream-dispatch.ts` runs
+context-builder → requirement-analysis → planner → (conditionally) multi-agent by name, in
+order, exactly once each; `prestream-dispatch.test.ts`'s first test is the regression lock (it
+fails against the old `findIndex` shape). Extend this module, never reintroduce a `findIndex`
+over `execution`, if a further stage is ever added.
+
+The buffered Requirement Analysis call (`src/lib/server/requirement-analysis.ts`) is **not** the
+same thing as CoCode's Requirements Architect in `src/lib/raa.ts` (`RAA_SYSTEM`,
+`agent: "requirements"`) — that is a browser-safe conversational persona that gathers a
+`ProjectBrief` across a DISCOVERY chat; Ypertatos's RAA is server-only, single-shot, and
+produces a machine-parsed `RequirementSpec` folded into the streamed answer's system prompt
+(`requirementSpecSystemAddon()`) — never shown to the user, never generates code itself. They
+can never co-occur in one request: `tierEligible` already excludes `agent: "requirements"` from
+all Ypertatos staging. `src/lib/server/buffered-call.ts`'s `runBufferedCall()` is the **only**
+buffered (non-streamed) provider call primitive in the app — deliberately not re-exported from
+`ai-providers.ts` — and every buffered/orchestrated call in the engineering workflow (RAA, TMAP,
+and every individual agent call orchestrator.ts makes) goes through it, so all of them share its
+one failover policy; Kanon and Mikros must never import it.
+
+A failed RAA call degrades the WHOLE table to lightweight rather than failing the turn (5.3:
+"never terminate the workflow unexpectedly") — TMAP and orchestration both drop with it, since
+TMAP would be planning against no `RequirementSpec`, exactly the placeholder stage Part 5.1
+forbids. `RequirementSpec`'s `completenessScore`/`confidenceScore` are `number | null` — `null`
+when the model didn't emit one, **never** a computed substitute — and `readyForPlanning`, when
+the model omitted the line, is *derived* from `missingInformation.length` and labelled
+`readyForPlanningSource: "derived"` so the log never claims a measurement that didn't happen.
+
+**TMAP** (`src/lib/server/execution-plan.ts`, Part 5.4) follows RAA's exact anti-fabrication
+discipline, reusing its exported line-walk helpers (`listUnder`/`lineValue`/`parsePercent`/
+`parseRisks`/`hasHeader`) rather than a second parser: `priority`/`complexity`/`planConfidence`
+are `null`, never a fabricated `"medium"`/`0`, when the model omits them; an unknown agent name
+resolves to `"general"` with `agentSource: "fallback"`, never invented as a real assignment; a
+dependency on a nonexistent task **drops the edge, not the task**, and is warned. The task
+`executionOrder` is **always derived by Kahn's algorithm** (`buildExecutionOrder()`), never read
+from the model even if it emits one — a residual cycle sets `integrity: "cycle"` and empties the
+order rather than breaking an arbitrary edge to force one. Part 5.4's "no orphan tasks" is
+deliberately read as "no dangling dependency references" — DAG roots/leaves are the normal,
+required shape of the parallel plans Part 5.5 exists to execute, so the literal reading would be
+self-contradictory with orchestration.
+
+**The Agent Registry** (`src/lib/server/agent-registry.ts`, Part 5.6) is the single source of
+truth for the ten agents TMAP may assign a task to (architect, frontend, backend, database,
+security, testing, documentation, reviewer, validator, general — the exact names
+`YPERTATOS_RESERVED_STAGES` used to reserve; they are agent ids, not workflow stages, which is
+why that reserved list shrank to just `"consensus"`). `resolveAgent()` never invents an agent —
+unrecognized input resolves to `"general"`/`"fallback"`. Every agent produces exactly ONE text
+artifact (no repo writes — `/api/chat` has no write surface); `buildAgentSystem()` prepends a
+shared contract to every persona saying so explicitly.
+
+**The Workflow Orchestrator** (`src/lib/server/orchestrator.ts`, Part 5.5) executes TMAP's plan
+wave-by-wave, up to `MAX_PARALLEL` (3) concurrent agent calls per wave, inside
+`src/lib/server/turn-budget.ts`'s shared wall-clock ledger — a fixed margin under `route.ts`'s
+`maxDuration = 60`, with orchestration as the elastic term that gets whatever's left after RAA
+and TMAP's fixed deadlines, capped, and degrades (skips tasks, honestly reported via
+`TaskRecord.skipReason`) rather than blowing the budget. Of Part 5.5's 11 listed internal
+components, only 4 are actually new code here (wave scheduler, task-state map, context assembly,
+Result Integrator) plus one run record; the Retry Engine is `buffered-call.ts`'s existing
+failover loop (reused, not duplicated) and the Dependency Resolver is TMAP's own
+`executionOrder` — Recovery Engine, Event Bus, and a standalone Timeline/Monitor were
+deliberately **not** built, since none would have a real runtime job in a stateless,
+single-request, ≤6-agent pipeline with no write surface (see the module's own header comment for
+the full reasoning). `OrchestrationRun.maxParallelObserved` is a real, measured peak of
+concurrent in-flight calls — proof parallelism happened, never a claim. `integrateArtifacts()`
+folds completed artifacts into the streamed answer's system prompt and explicitly names every
+task that did **not** produce one, so the final answer can never claim an agent finished work it
+didn't.

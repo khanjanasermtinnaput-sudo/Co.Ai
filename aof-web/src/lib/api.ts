@@ -6,7 +6,7 @@
 // is *explicitly* put in demo mode (`NEXT_PUBLIC_AOF_DEMO=1`); it is off by
 // default so the UI never appears to work when AI is actually down.
 
-import type { ChatModel, EffortLevel, ProjectBrief, RouteDecision } from "./types";
+import type { ChatModel, EffortLevel, ProjectBrief, RepoMetadata, RouteDecision, WorkflowModelId } from "./types";
 import {
   mockChat,
   mockCodeChat,
@@ -426,12 +426,18 @@ export async function streamCodeChat(
   history: ChatHistoryItem[],
   handlers: StreamHandlers,
   effort: EffortLevel = "normal",
-  /** CoCode's active mode, collapsed onto the CoChat model dial ("1.0" → "normal";
-   *  everything else → "lite") so the server can tell whether real Model
-   *  Workflow staging applies — see model-workflow.ts's stagesFor(). Optional
+  /** CoCode's active mode, collapsed onto the tier the server should STAGE
+   *  ("1.0" → "normal", "pro" → "pro", everything else → "lite") so it can
+   *  tell whether Model Workflow staging applies — see model-workflow.ts's
+   *  stagesFor(). "pro" (Ypertatos) is reachable ONLY via this code-chat path
+   *  — never CoChat's header selector, which stays typed ChatModel. Optional
    *  only for callers that predate this addition; omitting it keeps today's
    *  single-call behavior (server treats a missing model as Mikros). */
-  model?: ChatModel,
+  model?: WorkflowModelId,
+  /** CoCode's open workspace, when non-empty — feeds the Ypertatos Task
+   *  Classifier's complexity signal. Omitted entirely for an empty workspace
+   *  (never guessed). Ignored server-side for any tier but "pro". */
+  repo?: RepoMetadata,
 ): Promise<void> {
   if (isDemoMode()) {
     await mockCodeChat(message, handlers, history);
@@ -441,7 +447,7 @@ export async function streamCodeChat(
     const res = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...(await sessionAuthHeaders()) },
-      body: JSON.stringify({ message, agent: "code-chat", effort, model, history: history.slice(-20) }),
+      body: JSON.stringify({ message, agent: "code-chat", effort, model, repo, history: history.slice(-20) }),
       signal: handlers.signal,
     });
     await readAofStream(res, handlers);
