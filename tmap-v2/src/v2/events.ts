@@ -18,7 +18,16 @@ export type WorkflowEvent =
   // for every ExecNode regardless of kind) — this is the one genuinely new
   // signal tool nodes introduce: a permission check failing BEFORE the node
   // even attempts to run, which agent nodes have no equivalent of.
-  | { type: 'permission_denied'; nodeId: string; toolId: string; permission: string };
+  | { type: 'permission_denied'; nodeId: string; toolId: string; permission: string }
+  // Budget Enforcer (Master Prompt 6.8.1). Emitted by budget-enforcer.ts's
+  // BudgetEnforcer.evaluate() the FIRST time a run crosses into a graduated
+  // level — never re-emitted every call at the same level, so this is a
+  // transition signal, not a poll. 'budget_exceeded' fires immediately before
+  // the underlying CostMonitor.precheck() throws BudgetExceededError, so a
+  // subscriber sees the classification before the hard stop.
+  | { type: 'budget_warning'; category: 'tokens' | 'cost' | 'calls'; ratio: number }
+  | { type: 'budget_critical'; category: 'tokens' | 'cost' | 'calls'; ratio: number }
+  | { type: 'budget_exceeded'; category: 'tokens' | 'cost' | 'calls'; ratio: number };
 
 export type WorkflowEventType = WorkflowEvent['type'];
 

@@ -58,9 +58,10 @@ import { phaseStream } from "@/lib/server/phase-stream";
 import { detectSimpleTask, simpleTaskSystemAddon } from "@/lib/server/simple-task-detector";
 import { classifyTask, type TaskDecision } from "@/lib/server/task-classifier";
 import { runPreStreamStages } from "@/lib/server/prestream-dispatch";
-import { makeTurnBudget } from "@/lib/server/turn-budget";
+import { makeTurnBudget, TURN_BUDGET_MS, STREAM_RESERVE_MS } from "@/lib/server/turn-budget";
 import { compilePrompt } from "@/lib/server/prompt-compiler";
 import { allocateBudget, guardOverflow } from "@/lib/server/token-manager";
+import { enforcementFor } from "@/lib/server/budget-enforcer";
 import {
   RAA_SYSTEM,
   AOF_CODE_CHAT_SYSTEM,
@@ -781,6 +782,29 @@ async function handleChat(req: Request): Promise<Response> {
     compressed: overflowGuard.compressed || undefined,
     historyDropped: overflowGuard.historyDropped || undefined,
     stillOver: overflowGuard.stillOver || undefined,
+  });
+
+  // ── Budget Enforcer (Master Prompt Part 6.8.1) ────────────────────────────────
+  // Formalizes the severity of this turn's ALREADY-computed real snapshots
+  // (turn-budget.ts's wall clock + Part 6.7's token budget) as one typed
+  // level/action pair — purely observational here; actual enforcement is the
+  // pre-existing degrade paths (orchestrator.ts's timeUp()/skipReason,
+  // guardOverflow()'s history-drop above), not a new control surface. See
+  // budget-enforcer.ts's header for why there is no pause/resume plane in a
+  // stateless single-request pipeline.
+  const budgetDecision = enforcementFor(
+    { elapsedMs: budget.elapsedMs(), totalPreStreamPoolMs: TURN_BUDGET_MS - STREAM_RESERVE_MS },
+    { totalBudget: tokenBudget.totalBudget, contextWindow: tokenBudget.contextWindow },
+  );
+  logAofStage("Processing", {
+    requestId: turnRequestId,
+    stage: "budget-enforcer",
+    mode: "local",
+    level: budgetDecision.level,
+    category: budgetDecision.category,
+    action: budgetDecision.action,
+    ratio: budgetDecision.ratio,
+    recommendation: budgetDecision.recommendation,
   });
 
   const temperature = isStaged

@@ -23,6 +23,7 @@ import {
   estimateTokens, estimateCost, CostMonitor, defaultBudget, isBudgetError,
   type BudgetLimits,
 } from './cost-budget.js';
+import { BudgetEnforcer } from './budget-enforcer.js';
 
 type Emit = (role: string, text: string, kind?: 'status' | 'output' | 'error') => void;
 
@@ -91,6 +92,12 @@ export async function runTMAP(
   // replans) instead of spending unbounded LLM calls. Iteration is already capped
   // by maxIter; this bounds total spend regardless of how each stage behaves.
   const budget = new CostMonitor(defaultBudget(runOpts.budget));
+  // Budget Enforcer (Master Prompt 6.8.1): graduated warning/critical
+  // classification layered on top of the SAME CostMonitor, no EventBus in
+  // this legacy (non-v2) pipeline — precheckWithEnforcement() still throws
+  // the identical BudgetExceededError precheck() always did, so every
+  // `catch (isBudgetError(e))` below is unaffected.
+  const budgetEnforcer = new BudgetEnforcer(budget);
 
   await runOpts.onSessionStart?.(bb.sessionId);
 
@@ -140,7 +147,8 @@ export async function runTMAP(
 
   const callFor = (role: Role): LLMCall => async (messages, opts = {}) => {
     // Hard budget gate: refuse to make another call once a ceiling is reached.
-    budget.precheck();
+    // Graduated warning/critical classification, then the same hard throw.
+    budgetEnforcer.precheckWithEnforcement();
     const startMs = Date.now();
     let success = true;
     let r: Awaited<ReturnType<typeof chatWithDARS>>;
@@ -278,7 +286,7 @@ export async function runTMAP(
       // Stop cleanly between iterations if the budget is exhausted — keep whatever
       // files were already produced rather than spending more on another pass.
       try {
-        budget.precheck();
+        budgetEnforcer.precheckWithEnforcement();
       } catch (e) {
         if (isBudgetError(e)) {
           emit('system', `budget reached (${e.message}) — stopping with current files`, 'status');

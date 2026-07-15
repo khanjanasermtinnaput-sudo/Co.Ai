@@ -30,6 +30,7 @@ import { persist } from './blackboard.js';
 import {
   estimateTokens, estimateCost, CostMonitor, defaultBudget, isBudgetError,
 } from './cost-budget.js';
+import { BudgetEnforcer } from './budget-enforcer.js';
 import { runCostResourceManager } from './cost-resource-manager.js';
 import { runSelfReflection } from './self-reflection.js';
 import type { EngineeringQualityReport } from './quality-gate.js';
@@ -187,6 +188,30 @@ async function runYpertatosNormal(
   const trace = new TraceRecorder(requestId, logger);
   const budget = new CostMonitor(defaultBudget(runOpts.budget));
 
+  // Workflow event bus — constructed here (earlier than its historical
+  // position, right before executeGraph()) so callFor() below can route
+  // Budget Enforcer's (Part 6.8.1) graduated warning/critical/exceeded
+  // events onto it too, not just the domain graph's own node_*/replan_*
+  // events. Nothing emits on it until executeGraph() runs, so this
+  // reordering changes nothing about domain-graph event delivery.
+  const wfBus = new EventBus();
+  wfBus.onAny((e) => {
+    if (e.type === 'node_start') emit(e.nodeId, `${e.nodeId} agent starting`, 'status');
+    else if (e.type === 'node_complete') emit(e.nodeId, `${e.nodeId} agent done`, 'status');
+    else if (e.type === 'node_fail') emit(e.nodeId, `${e.nodeId} agent failed: ${e.error}`, 'error');
+    else if (e.type === 'replan_triggered') emit('system', `replanning ${e.nodeId ?? 'node'}: ${e.reason}`, 'status');
+    else if (e.type === 'budget_warning' || e.type === 'budget_critical') {
+      emit('system', `budget ${e.type.slice(7)}: ${e.category} at ${Math.round(e.ratio * 100)}%`, 'status');
+    } else if (e.type === 'budget_exceeded') {
+      emit('system', `budget exceeded: ${e.category} at ${Math.round(e.ratio * 100)}%`, 'error');
+    }
+  });
+  // Budget Enforcer (Master Prompt 6.8.1): graduated classification layered
+  // on the SAME CostMonitor, now with a real EventBus to publish transitions
+  // on. precheckWithEnforcement() still throws the identical
+  // BudgetExceededError precheck() always did.
+  const budgetEnforcer = new BudgetEnforcer(budget, wfBus);
+
   if (opts.effort === 'ultra' || opts.effort === 'extreme') {
     runCostResourceManager(
       bb,
@@ -201,7 +226,7 @@ async function runYpertatosNormal(
     messages: { role: 'system' | 'user' | 'assistant'; content: string }[],
     callOpts: { temperature?: number; maxTokens?: number; signal?: AbortSignal } = {},
   ): Promise<string> => {
-    budget.precheck();
+    budgetEnforcer.precheckWithEnforcement();
     const r = await chatWithDARS(role, messages, callOpts, {
       creds, health, emit: () => {}, sessionId: bb.sessionId,
     });
@@ -281,14 +306,6 @@ async function runYpertatosNormal(
         emit('system', `resumed from checkpoint ${opts.resumeRequestId} (${ckpt.nodes.filter((n) => n.status === 'done').length}/${ckpt.nodes.length} domain(s) already done)`, 'status');
       }
     }
-
-    const wfBus = new EventBus();
-    wfBus.onAny((e) => {
-      if (e.type === 'node_start') emit(e.nodeId, `${e.nodeId} agent starting`, 'status');
-      else if (e.type === 'node_complete') emit(e.nodeId, `${e.nodeId} agent done`, 'status');
-      else if (e.type === 'node_fail') emit(e.nodeId, `${e.nodeId} agent failed: ${e.error}`, 'error');
-      else if (e.type === 'replan_triggered') emit('system', `replanning ${e.nodeId ?? 'node'}: ${e.reason}`, 'status');
-    });
 
     const execOpts: ExecOptions = {
       maxParallel: domainGraphMaxParallel(domains.length, opts.qualityGate),

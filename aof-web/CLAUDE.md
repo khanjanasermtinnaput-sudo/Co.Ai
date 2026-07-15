@@ -211,6 +211,40 @@ normal turn logs `overflow=false` with the primary provider's real `contextWindo
 logs `overflow=true compressed=true historyDropped=1` and the turn still completes rather than
 crashing — see `token-manager.test.ts` for the same behavior locked as regression tests.
 
+**Budget Enforcer** (`src/lib/server/budget-enforcer.ts`, Part 6.8.1) runs right after Token
+Manager, purely observational: `enforcementFor()` evaluates the turn's ALREADY-computed real
+snapshots — `turn-budget.ts`'s wall clock and Part 6.7's `TokenBudget` — against graduated
+healthy/warning/critical/exceeded thresholds and returns whichever dimension is WORSE. It does not
+gate, pause, or abort anything itself; actual enforcement is the pre-existing degrade paths this
+module merely classifies the severity of — `orchestrator.ts`'s `timeUp()` → `TaskRecord.skipReason:
+"budget"`, and Part 6.7's `guardOverflow()` dropping history. Deliberately mirrors
+`tmap-v2/src/core/budget-enforcer.ts`'s vocabulary (`BudgetLevel`/`BudgetCategory`/`BudgetAction`/
+`EnforcementDecision`) — same pattern as `crypto.ts` and the Tool Execution Engine's two independent
+copies, since aof-web and tmap-v2 share no workspace. **Boundary (documented, following the Part
+5.5 precedent of not building an Event Bus/Recovery Engine for a stateless pipeline):** no
+pause/resume control plane exists here — a stateless HTTP request has no live actor to pause and
+resume later. Verified live: a normal turn logs `level=healthy category=tokens action=continue`; the
+same deliberately oversized history that trips Token Manager's overflow guard logs
+`level=exceeded category=tokens action=abort ratio=1.131` — an honest classification of the
+turn's PRE-mitigation severity (Token Manager's own `compressed=true` on the preceding log line
+shows what was actually done about it; the two log lines answer different questions on purpose).
+
+In tmap-v2, the SAME `evaluate()`/`BudgetEnforcer` pair (`tmap-v2/src/core/budget-enforcer.ts`)
+wraps `cost-budget.ts`'s `CostMonitor`: `precheckWithEnforcement()` is a drop-in replacement for
+`CostMonitor.precheck()` that emits `budget_warning`/`budget_critical`/`budget_exceeded` events on
+`v2/events.ts`'s `EventBus` on level TRANSITIONS only (never once per call, which would be spam on
+a run with hundreds of calls at the same level) before calling through to the SAME
+`precheck()` — every existing `catch (isBudgetError(e))` call site is unaffected because the hard
+throw is byte-identical to before. Wired into `core/orchestrator.ts`'s `runTMAP` (no bus available,
+graduated classification only) and `core/ypertatos.ts`'s `runYpertatosNormal` (with its `wfBus`,
+whose construction was moved earlier — before `callFor` is defined — so the enforcer can publish to
+it from the very first LLM call, not just after `executeGraph()` starts). `chief-agent.ts` and
+`v2/executor.ts` are deliberately left unwired this phase: `chief-agent.ts` follows the identical
+already-proven `callFor`+precheck pattern with no new engineering value from repeating it, and
+`executeGraph()` has no budget parameter in its signature at all — adding one would be a
+signature-breaking change touching every caller, out of scope for "graduated enforcement over
+EXISTING budgets."
+
 **The Workflow Orchestrator** (`src/lib/server/orchestrator.ts`, Part 5.5) executes TMAP's plan
 wave-by-wave, up to `MAX_PARALLEL` (3) concurrent agent calls per wave, inside
 `src/lib/server/turn-budget.ts`'s shared wall-clock ledger — a fixed margin under `route.ts`'s
