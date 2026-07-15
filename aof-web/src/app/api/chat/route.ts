@@ -42,7 +42,6 @@ import { loadUserKeyOverrides } from "@/lib/server/keys-store";
 import { planFor } from "@/lib/plans";
 import type { EffortLevel, RepoMetadata, RouteDecision, WorkflowModelId } from "@/lib/types";
 import {
-  effortMaxTokens,
   effortSystemAddon,
   effortTemperature,
   normalizeEffort,
@@ -52,7 +51,6 @@ import { getModelBaseName, modelTierFromId, type ModelTier } from "@/lib/model-b
 import {
   buildWorkflowSystem,
   stagesFor,
-  workflowMaxTokens,
   KANON_TEMPERATURE,
   YPERTATOS_TEMPERATURE,
 } from "@/lib/server/model-workflow";
@@ -62,6 +60,7 @@ import { classifyTask, type TaskDecision } from "@/lib/server/task-classifier";
 import { runPreStreamStages } from "@/lib/server/prestream-dispatch";
 import { makeTurnBudget } from "@/lib/server/turn-budget";
 import { compilePrompt } from "@/lib/server/prompt-compiler";
+import { allocateBudget, guardOverflow } from "@/lib/server/token-manager";
 import {
   RAA_SYSTEM,
   AOF_CODE_CHAT_SYSTEM,
@@ -691,6 +690,19 @@ async function handleChat(req: Request): Promise<Response> {
     });
   }
 
+  // Resolved once here, mirroring (read-only) the SAME per-provider model
+  // resolution the provider loop below computes independently for real —
+  // this is a pre-flight estimate for Prompt Compiler's metadata and Token
+  // Manager's context-window lookup, never a second source of truth for
+  // what actually gets sent (the loop still resolves its own `model` per
+  // attempt, unchanged).
+  const primaryProvider = providers[0];
+  const primaryModel = primaryProvider
+    ? REGISTRY_ROUTES_MODEL.has(primaryProvider.id)
+      ? process.env[primaryProvider.modelEnv]?.trim() || bestModelFor(primaryProvider.id, task)
+      : modelFor(primaryProvider)
+    : undefined;
+
   // ── Prompt Compiler (Master Prompt Part 6.6) ─────────────────────────────────
   // The one place `system` is finalized before the provider loop below. Every
   // layer's TEXT still comes from the exact generators above (unchanged) —
@@ -707,8 +719,8 @@ async function handleChat(req: Request): Promise<Response> {
     ],
     workflowId: tier ?? "chat",
     stageId: workflowStages.map((s) => s.stage).join("+"),
-    provider: providers[0]?.id ?? "unresolved",
-    model: providers[0] ? modelFor(providers[0]) : "unresolved",
+    provider: primaryProvider?.id ?? "unresolved",
+    model: primaryModel ?? "unresolved",
   });
   system = compiledPrompt.system;
   logAofStage("Processing", {
@@ -724,13 +736,53 @@ async function handleChat(req: Request): Promise<Response> {
     compileMs: compiledPrompt.metadata.compileMs,
   });
 
-  // ── Effort dial → token budget & temperature, from the FINAL workflowStages ──
-  // Computed here (not earlier) so a Requirement Analysis downgrade above is
-  // already reflected. Kanon's/Ypertatos's ONE streamed call pays for its own
-  // draft/critique overhead on top of the effort-scaled answer budget
-  // (workflowMaxTokens — see model-workflow.ts for why this is deliberately
-  // NOT routed through effortMaxTokens() as a combined total).
-  const maxTokens = isStaged ? workflowMaxTokens(workflowStages, effort) : effortMaxTokens(baseMaxTokens, effort);
+  // ── Token Manager (Master Prompt Part 6.7) ────────────────────────────────────
+  // Wraps the SAME output-budget computation route.ts always used
+  // (workflowMaxTokens/effortMaxTokens — see model-workflow.ts for why that's
+  // deliberately NOT routed through effortMaxTokens() as a combined total)
+  // with a real prompt-size estimate and an overflow guard against the
+  // primary provider's actual context window. Computed here (not earlier) so
+  // a Requirement Analysis downgrade above is already reflected. For any
+  // turn that doesn't actually overflow — the overwhelming majority at
+  // today's effort/history scales — `maxTokens` below is byte-identical to
+  // what this line computed before Part 6.7 existed.
+  const tokenBudget = allocateBudget({
+    stages: workflowStages,
+    effort,
+    isStaged,
+    baseMaxTokens,
+    compiledSystem: system,
+    history: effectiveHistory,
+    message,
+    provider: primaryProvider?.id ?? "unresolved",
+    model: primaryModel,
+  });
+  const overflowGuard = guardOverflow({
+    compiledSystem: system,
+    history: effectiveHistory,
+    message,
+    outputBudget: tokenBudget.outputBudget,
+    contextWindow: tokenBudget.contextWindow,
+  });
+  if (overflowGuard.overflow) {
+    effectiveHistory = overflowGuard.history;
+  }
+  const maxTokens = overflowGuard.outputBudget;
+  logAofStage("Processing", {
+    requestId: turnRequestId,
+    stage: "token-manager",
+    mode: "local",
+    promptTokens: tokenBudget.promptTokens,
+    outputBudget: tokenBudget.outputBudget,
+    contextWindow: tokenBudget.contextWindow,
+    contextWindowIsDefault: tokenBudget.contextWindowIsDefault,
+    utilization: tokenBudget.utilization,
+    overflow: overflowGuard.overflow,
+    compressed: overflowGuard.compressed || undefined,
+    historyDropped: overflowGuard.historyDropped || undefined,
+    stillOver: overflowGuard.stillOver || undefined,
+  });
+
   const temperature = isStaged
     ? effortTemperature(tier === "pro" ? YPERTATOS_TEMPERATURE : KANON_TEMPERATURE, effort)
     : effortTemperature(baseTemperature, effort);

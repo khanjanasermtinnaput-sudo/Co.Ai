@@ -187,6 +187,30 @@ Manager (Part 6.7) reuses `prompt-compiler.ts`'s `estimateTokens()` rather than 
 Prompt Size / Provider Limits / Context Budget validation is deliberately left to Token Manager,
 not duplicated in Prompt Compiler's own (Required Sections only) validation.
 
+**Token Manager** (`src/lib/server/token-manager.ts`, Part 6.7) runs immediately after the Prompt
+Compiler, right before the provider loop. `allocateBudget()` wraps the SAME output-budget
+computation route.ts always used (`workflowMaxTokens()`/`effortMaxTokens()`, reused verbatim, not
+recomputed differently) with a real char/4 estimate of the whole turn (compiled system + history +
+message) and the resolved primary provider/model's REAL `ModelDef.contextWindow` from
+`model-registry.ts` — the first consumer of `contextWindow` for anything other than `matchScore()`'s
+cosmetic scoring; when no exact registry match exists (an OpenRouter model outside its one
+representative entry, or an explicit `*_MODEL` env override) it falls back to
+`CONSERVATIVE_DEFAULT_CONTEXT_WINDOW` (the smallest real window in the registry), never a fabricated
+number. `guardOverflow()` is the actual enforcement: when `promptTokens + outputBudget` would exceed
+`contextWindow`, it drops the OLDEST history turns first (mirroring `workflow-context.ts`'s own
+"replace conversation, keep the freshest" precedent) and, only as an absolute last resort, floors
+`outputBudget` at `MIN_OUTPUT_BUDGET` (256) rather than aborting the turn — "Token Manager must never
+terminate workflows unexpectedly." It deliberately does NOT drop lower-priority PROMPT LAYERS
+(RAA/TMAP grounding, memory) — there is no layer in this pipeline safe to cut without risking real
+engineering-context loss, so that spec lever is out of scope by design, not faked. `reportEfficiency()`
+computes an accuracy ratio ONLY from real provider `usage`; absent usage, it never fabricates an
+`actualPromptTokens`/`estimateAccuracy`. `estimateTokens()` is NOT redefined here — it's re-exported
+from `prompt-compiler.ts`, the single source of truth for both Parts 6.6 and 6.7. Verified live: a
+normal turn logs `overflow=false` with the primary provider's real `contextWindow` (e.g. Anthropic's
+200,000) and an unchanged `outputBudget`; a deliberately oversized history (a single ~900KB turn)
+logs `overflow=true compressed=true historyDropped=1` and the turn still completes rather than
+crashing — see `token-manager.test.ts` for the same behavior locked as regression tests.
+
 **The Workflow Orchestrator** (`src/lib/server/orchestrator.ts`, Part 5.5) executes TMAP's plan
 wave-by-wave, up to `MAX_PARALLEL` (3) concurrent agent calls per wave, inside
 `src/lib/server/turn-budget.ts`'s shared wall-clock ledger — a fixed margin under `route.ts`'s
