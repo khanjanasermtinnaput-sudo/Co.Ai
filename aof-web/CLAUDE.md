@@ -159,6 +159,34 @@ unrecognized input resolves to `"general"`/`"fallback"`. Every agent produces ex
 artifact (no repo writes — `/api/chat` has no write surface); `buildAgentSystem()` prepends a
 shared contract to every persona saying so explicitly.
 
+**The Prompt Compiler** (`src/lib/server/prompt-compiler.ts`, Part 6.6) is the one place `system`
+is finalized before `/api/chat`'s provider loop — `route.ts` no longer builds the final system
+string by hand. It does not invent prompt text: every layer's content still comes from this repo's
+existing generators (`buildSystem`/`agentConfig`, `effortSystemAddon`, `simpleTaskSystemAddon`,
+`buildSearchContext`, `userPreferenceSystemAddon`, `prestream-dispatch.ts`'s engineering/context
+addons, `buildWorkflowSystem`) — `compilePrompt()` only owns layering/ordering/dedup/validation/
+caching/metadata around that unchanged text. Real render order (`PROMPT_LAYER_ORDER`) is `system →
+memory → context → workflow`, deliberately NOT the spec's literal Layer-1..7 numbering: the
+`"workflow"` layer (buildWorkflowSystem's phase-marker protocol) must render LAST, both because
+phase-stream.ts needs the model's freshest instruction to be the marker protocol and because the
+protocol's own text ("Any length/depth guidance elsewhere in this prompt...") is self-referential
+and assumes everything else was already stated above it — reordering to the spec's numbering would
+silently change what that sentence refers to. `"context"` deliberately merges the spec's Engineering
+Context and Conversation Context layers, since `prestream-dispatch.ts`'s regression-locked return
+contract accumulates the Context Builder digest and RAA/TMAP/orchestration artifacts into one opaque
+`system` string already — splitting that return contract into separate named layers would touch a
+module this repo explicitly protects, for no behavioral gain. A dedicated regression test
+(`prompt-compiler.test.ts`) proves `compilePrompt()`'s output is byte-identical to the pre-6.6 manual
+string concatenation for a representative Ypertatos-engineering turn, and a separate test proves
+`PHASE_MARKER` values pass through unmodified. `compilePrompt()` is synchronous and pure — it makes
+zero provider calls, so it cannot affect Kanon/Mikros/Ypertatos's call-count invariants. It compiles
+once per turn, before the provider failover loop, since no per-provider prompt formatting exists in
+this codebase yet (Provider Awareness is Future Compatibility, not implemented) — `provider`/`model`
+in its metadata name the primary candidate for observability only, not a per-attempt truth. Token
+Manager (Part 6.7) reuses `prompt-compiler.ts`'s `estimateTokens()` rather than defining a second one;
+Prompt Size / Provider Limits / Context Budget validation is deliberately left to Token Manager,
+not duplicated in Prompt Compiler's own (Required Sections only) validation.
+
 **The Workflow Orchestrator** (`src/lib/server/orchestrator.ts`, Part 5.5) executes TMAP's plan
 wave-by-wave, up to `MAX_PARALLEL` (3) concurrent agent calls per wave, inside
 `src/lib/server/turn-budget.ts`'s shared wall-clock ledger — a fixed margin under `route.ts`'s

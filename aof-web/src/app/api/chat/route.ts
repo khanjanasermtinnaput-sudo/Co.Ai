@@ -61,6 +61,7 @@ import { detectSimpleTask, simpleTaskSystemAddon } from "@/lib/server/simple-tas
 import { classifyTask, type TaskDecision } from "@/lib/server/task-classifier";
 import { runPreStreamStages } from "@/lib/server/prestream-dispatch";
 import { makeTurnBudget } from "@/lib/server/turn-budget";
+import { compilePrompt } from "@/lib/server/prompt-compiler";
 import {
   RAA_SYSTEM,
   AOF_CODE_CHAT_SYSTEM,
@@ -458,7 +459,12 @@ async function handleChat(req: Request): Promise<Response> {
   // (after any Ypertatos Requirement Analysis has had a chance to downgrade
   // the stage table) so they always reflect the FINAL workflowStages.
   const effortAddon = effortSystemAddon(effort, { conversational: isConversationalAgent(body.agent) });
-  let system = effortAddon ? `${baseSystem}\n\n${effortAddon}` : baseSystem;
+  // Renamed from the old `system` accumulator: this is Prompt Compiler's
+  // (Part 6.6) "system" layer input, not the final compiled prompt — that's
+  // `system` below, assigned once by compilePrompt() right before the
+  // provider loop.
+  let systemLayerText = effortAddon ? `${baseSystem}\n\n${effortAddon}` : baseSystem;
+  let system: string;
 
   // ── Simple Task Detector — Mikros response-style classifier ──────────────────
   // Deterministic, <10ms, zero provider calls — NOT a workflow stage (Master
@@ -470,7 +476,7 @@ async function handleChat(req: Request): Promise<Response> {
     const detectStart = performance.now();
     const taskDetection = detectSimpleTask(message);
     const detectMs = performance.now() - detectStart;
-    system = `${system}\n\n${simpleTaskSystemAddon(taskDetection.category)}`;
+    systemLayerText = `${systemLayerText}\n\n${simpleTaskSystemAddon(taskDetection.category)}`;
     logAofStage("Processing", {
       requestId: turnRequestId,
       taskCategory: taskDetection.category,
@@ -499,7 +505,7 @@ async function handleChat(req: Request): Promise<Response> {
       const outcome = await runSearch(message, { signal: req.signal, limit: 5 });
       if (outcome) {
         const built = buildSearchContext(outcome);
-        system = `${system}\n\n${built.systemAddon}`;
+        systemLayerText = `${systemLayerText}\n\n${built.systemAddon}`;
         sourcesFrame = encodeSourcesFrame(built.notice);
         logAofInfo(`Search: ${outcome.provider} → ${outcome.hits.length} results (${searchDecision.reason})`);
       }
@@ -511,10 +517,13 @@ async function handleChat(req: Request): Promise<Response> {
   // ── User Memory (Master Prompt 6.2) ──────────────────────────────────────────
   // Long-term per-user preferences. loadUserPreferenceMemories is itself
   // best-effort (returns [] on any failure — missing key, unmigrated table,
-  // network hiccup), so this can never block the turn.
+  // network hiccup), so this can never block the turn. Kept as its OWN Prompt
+  // Compiler layer (Part 6.6) — not folded into systemLayerText — so it can
+  // be re-inserted at its documented position (between "system" and
+  // "context") regardless of what prestream-dispatch.ts appends.
+  let memoryLayerText = "";
   if (user?.id) {
-    const memoryAddon = userPreferenceSystemAddon(await loadUserPreferenceMemories(user.id));
-    if (memoryAddon) system = `${system}\n\n${memoryAddon}`;
+    memoryLayerText = userPreferenceSystemAddon(await loadUserPreferenceMemories(user.id));
   }
 
   // ── Task-aware provider order (model-registry.ts), filtered to what's configured. ──
@@ -564,7 +573,11 @@ async function handleChat(req: Request): Promise<Response> {
     message,
     history,
     repo: body.repo,
-    system,
+    // Deliberately systemLayerText, NOT the memory layer folded in — Prompt
+    // Compiler (Part 6.6) reinserts memory at its documented position after
+    // this call returns, rather than baking it into what prestream-dispatch
+    // appends to.
+    system: systemLayerText,
     providers,
     overrides,
     signal: req.signal,
@@ -580,7 +593,15 @@ async function handleChat(req: Request): Promise<Response> {
   }
 
   workflowStages = preStream.stages;
-  system = preStream.system;
+  // prestream-dispatch.ts only ever APPENDS to the `system` it was given
+  // (never restructures the prefix — see its own source), so stripping the
+  // systemLayerText prefix back off recovers exactly what it added: the
+  // Context Builder digest + RAA/TMAP/orchestration artifacts, Prompt
+  // Compiler's merged "context" layer (Part 6.6 — see prompt-compiler.ts's
+  // header for why Engineering/Conversation Context are merged here).
+  const contextLayerText = preStream.system.startsWith(systemLayerText)
+    ? preStream.system.slice(systemLayerText.length).replace(/^\n\n/, "")
+    : preStream.system;
   let effectiveHistory = preStream.history;
   providers = preStream.providers;
   const stagePrefix = preStream.stagePrefix;
@@ -670,7 +691,38 @@ async function handleChat(req: Request): Promise<Response> {
     });
   }
 
-  system = buildWorkflowSystem(workflowStages, { baseSystem: system });
+  // ── Prompt Compiler (Master Prompt Part 6.6) ─────────────────────────────────
+  // The one place `system` is finalized before the provider loop below. Every
+  // layer's TEXT still comes from the exact generators above (unchanged) —
+  // this only owns layering/ordering/validation/caching/metadata. See
+  // prompt-compiler.ts's header for why "workflow" renders last and why
+  // "context" merges Engineering + Conversation Context.
+  const workflowLayerText = buildWorkflowSystem(workflowStages, { baseSystem: "" }).replace(/^\n\n/, "");
+  const compiledPrompt = compilePrompt({
+    layers: [
+      { id: "system", text: systemLayerText },
+      { id: "memory", text: memoryLayerText },
+      { id: "context", text: contextLayerText },
+      { id: "workflow", text: workflowLayerText },
+    ],
+    workflowId: tier ?? "chat",
+    stageId: workflowStages.map((s) => s.stage).join("+"),
+    provider: providers[0]?.id ?? "unresolved",
+    model: providers[0] ? modelFor(providers[0]) : "unresolved",
+  });
+  system = compiledPrompt.system;
+  logAofStage("Processing", {
+    requestId: turnRequestId,
+    stage: "prompt-compiler",
+    mode: "local",
+    promptId: compiledPrompt.metadata.promptId,
+    templateVersion: compiledPrompt.metadata.promptVersion,
+    promptSize: system.length,
+    estTokens: compiledPrompt.metadata.estTokens,
+    optimizationRatio: compiledPrompt.metadata.optimizationRatio,
+    cacheHit: compiledPrompt.metadata.cacheHit,
+    compileMs: compiledPrompt.metadata.compileMs,
+  });
 
   // ── Effort dial → token budget & temperature, from the FINAL workflowStages ──
   // Computed here (not earlier) so a Requirement Analysis downgrade above is
