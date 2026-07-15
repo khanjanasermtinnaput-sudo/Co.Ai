@@ -38,6 +38,9 @@ import { Logger } from './logger.js';
 import { globalRunQueue } from './queue.js';
 import { globalRoutingTelemetry, type RoutingRoute } from './routing-telemetry.js';
 import { runCodeExecTool } from './tool-agent.js';
+import type { ExecGraph } from './dag.js';
+import { globalRecoveryEngine, type RecoveryReport } from './recovery/recovery-engine.js';
+import { globalDeadLetter } from './recovery/dead-letter.js';
 
 export type V2Emit = (event: object) => void;
 
@@ -66,6 +69,9 @@ export interface RunV2Result {
   trace:        ExecutionTrace;
   totalCostUsd: number;
   totalTokens:  number;
+  /** Runtime Recovery Engine's post-hoc assessment of this run (Master
+   *  Prompt 6.12). Additive/optional — existing callers are unaffected. */
+  recovery?:    RecoveryReport;
 }
 
 /** Below this RAA plan confidence we don't execute the (guessy) DAG — we drop to
@@ -85,6 +91,7 @@ export async function runV2(task: string, opts: RunV2Opts): Promise<RunV2Result>
 async function runV2Inner(task: string, opts: RunV2Opts): Promise<RunV2Result> {
   const health = opts.health ?? globalHealth;
   const requestId = randomUUID();
+  const runStartedAt = Date.now();
   const emit = opts.emit ?? (() => {});
   const sessionId = 'v2-' + opts.userId;
 
@@ -229,9 +236,12 @@ async function runV2Inner(task: string, opts: RunV2Opts): Promise<RunV2Result> {
   let selectedAgents: string[] = [];
   let mode = 'fallback';
   let output = '';
+  let epGraph: ExecGraph | undefined;
+  let fatalError: unknown;
 
   try {
     const ep = await raaPlan(task, requestId, cfg, trace);
+    epGraph = ep.graph;
     confidence = ep.confidence;
     selectedAgents = [...ep.graph.nodes.values()].map((n) => n.agentId);
     emit({
@@ -279,6 +289,7 @@ async function runV2Inner(task: string, opts: RunV2Opts): Promise<RunV2Result> {
   } catch (err) {
     // Never crash the request: any RAA planning or DAG execution failure drops to
     // the legacy single route so the user still gets an answer.
+    fatalError = err;
     route = 'legacy-fallback';
     fallbackUsed = true;
     fallbackReason = (err as Error).message;
@@ -305,6 +316,36 @@ async function runV2Inner(task: string, opts: RunV2Opts): Promise<RunV2Result> {
   logger.logSystem('routing_decision', decisionLog);
   emit({ role: 'v2', kind: 'routing', ...decisionLog });
 
+  // ── Runtime Recovery Engine (Master Prompt 6.12): post-hoc, read-only
+  // assessment of what just happened. Never alters `output` — a reporting
+  // failure here must not break the turn the recovery engine is reporting on. ──
+  let recovery: RecoveryReport | undefined;
+  try {
+    recovery = globalRecoveryEngine.assess({
+      runId: requestId,
+      logger,
+      startedAt: runStartedAt,
+      graph: epGraph,
+      fatalError,
+      producedOutput: output.trim().length > 0,
+    });
+    logger.logSystem('recovery_report', recovery as unknown as Record<string, unknown>);
+    await globalRecoveryEngine.persist(recovery).catch(() => {});
+    if (recovery.deadLettered) {
+      await globalDeadLetter.record({
+        id: randomUUID(),
+        runId: requestId,
+        kind: 'run',
+        rcaKind: recovery.rootCause?.kind ?? 'unknown',
+        error: recovery.failureSummary,
+        checkpointRef: requestId,
+        ts: recovery.timestamp,
+      }).catch(() => {});
+    }
+  } catch {
+    /* recovery reporting is best-effort observability — never break the turn */
+  }
+
   await trace.persist();
   return {
     requestId,
@@ -316,5 +357,6 @@ async function runV2Inner(task: string, opts: RunV2Opts): Promise<RunV2Result> {
     trace:        trace.get(),
     totalCostUsd: logger.totalCost(),
     totalTokens:  logger.totalTokens(),
+    recovery,
   };
 }
