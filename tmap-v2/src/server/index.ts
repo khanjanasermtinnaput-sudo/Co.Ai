@@ -38,6 +38,7 @@ import { runTMAP, type RunOpts } from '../core/orchestrator.js';
 import { runYpertatos, normalizeYpertatosEffort } from '../core/ypertatos.js';
 import { runV2 } from '../v2/run.js';
 import { globalRoutingTelemetry } from '../v2/routing-telemetry.js';
+import { bootKernel, globalKernel } from '../v2/kernel/kernel.js';
 import { estimateCost, estimateTokens } from '../core/cost-budget.js';
 import { runRAA } from '../core/raa.js';
 import { runTitan } from '../core/titan.js';
@@ -1736,18 +1737,19 @@ function preflightEnv(): void {
 if (!process.env.VERCEL) {
   // Process-level safety net: a stray rejection/throw should be logged (never
   // swallowed silently). For an uncaught exception the process is in an unknown
-  // state — log and exit non-zero so the platform (Render) restarts it cleanly.
+  // state — attempt a best-effort kernel drain (never let it hang the exit),
+  // then exit non-zero so the platform (Render) restarts it cleanly.
   process.on('unhandledRejection', (reason) => {
     logger.error('unhandledRejection', { reason: reason instanceof Error ? reason.stack : String(reason) });
   });
   process.on('uncaughtException', (err) => {
     logger.error('uncaughtException', { error: err.stack ?? String(err) });
-    process.exit(1);
+    globalKernel.shutdown('uncaughtException', 2_000).catch(() => {}).finally(() => process.exit(1));
   });
 
   preflightEnv();
   const PORT = Number(process.env.PORT || 8787);
-  app.listen(PORT, async () => {
+  const server = app.listen(PORT, async () => {
     console.log(`Coagentix → http://localhost:${PORT}`);
     // Start BullMQ workers + register scheduled jobs when Redis is configured
     if (process.env.REDIS_URL ?? process.env.REDIS_HOST) {
@@ -1755,5 +1757,34 @@ if (!process.env.VERCEL) {
       startWorkers();
       await registerScheduledJobs();
     }
+    await bootKernel({ server });
+    globalKernel.markRunning();
   });
+
+  // Graceful shutdown (Runtime Kernel, Master Prompt 6.11) — stop accepting
+  // requests, drain in-flight v2 runs, release Redis/telemetry, THEN close the
+  // HTTP server and exit 0. A FORCE_EXIT_MS hard timer guarantees the process
+  // still exits even if a dependency close hangs (never rely on drain alone).
+  const FORCE_EXIT_MS = Number(process.env.SHUTDOWN_FORCE_EXIT_MS ?? 15_000);
+  let exiting = false;
+  const gracefulExit = (signal: string) => {
+    if (exiting) return;
+    exiting = true;
+    const forceTimer = setTimeout(() => {
+      logger.error('shutdown_force_exit', { signal, forceExitMs: FORCE_EXIT_MS });
+      process.exit(1);
+    }, FORCE_EXIT_MS);
+    forceTimer.unref();
+
+    logger.info('shutdown_signal_received', { signal });
+    globalKernel.shutdown(signal).finally(() => {
+      server.close(() => {
+        clearTimeout(forceTimer);
+        logger.info('shutdown_complete', { signal });
+        process.exit(0);
+      });
+    });
+  };
+  process.on('SIGTERM', () => gracefulExit('SIGTERM'));
+  process.on('SIGINT', () => gracefulExit('SIGINT'));
 }
