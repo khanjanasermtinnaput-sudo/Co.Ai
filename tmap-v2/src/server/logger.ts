@@ -3,10 +3,35 @@
 // compatible with Cloud Logging / Datadog / Loki log aggregators.
 // Automatically pulls correlationId/requestId from AsyncLocalStorage when available.
 // Error-level logs are also forwarded to Sentry if SENTRY_DSN is set.
+//
+// Secret redaction (Master Prompt Part 6.10 — Security & Permission Manager):
+// this logger had no automatic redaction until now — every `fields` value was
+// written to stdout/stderr verbatim, so a caller passing a raw API key or
+// Authorization header would leak it into logs. Mirrors aof-web's
+// src/lib/errors.ts `redact()`/SECRET_PATTERNS (separate packages, no shared
+// workspace — same precedent as crypto.ts and the Tool Execution Engine's two
+// independent copies), plus this package's own cgntx_sk_ developer-key prefix
+// (server/developer-keys.ts). Applied to the WHOLE stringified line rather
+// than walking `fields`' arbitrary shape field-by-field — a secret-looking
+// substring is caught regardless of which key it was logged under.
 
 import { getContext } from './correlation.js';
 
 export type LogLevel = 'info' | 'warn' | 'error' | 'debug';
+
+const SECRET_PATTERNS: RegExp[] = [
+  /\b(sk|sk-or|sk-ant|gsk|key)[-_][A-Za-z0-9._-]{6,}\b/g, // common key prefixes
+  /\bcgntx_sk_[A-Za-z0-9._-]{6,}\b/g, // this package's own developer-key prefix
+  /\bBearer\s+[A-Za-z0-9._-]{8,}\b/gi, // Authorization: Bearer …
+  /"?api[_-]?key"?\s*[:=]\s*"?[A-Za-z0-9._-]{8,}"?/gi, // api_key=… / "apiKey": "…"
+];
+
+/** Replace anything that looks like a secret with a placeholder. */
+export function redactLogLine(line: string): string {
+  let out = line;
+  for (const re of SECRET_PATTERNS) out = out.replace(re, '«redacted»');
+  return out;
+}
 
 export interface LogEntry {
   ts:              string;
@@ -33,7 +58,7 @@ function write(level: LogLevel, msg: string, fields: Record<string, unknown> = {
     ...fields,
   };
 
-  const line = JSON.stringify(entry) + '\n';
+  const line = redactLogLine(JSON.stringify(entry)) + '\n';
   if (level === 'error' || level === 'warn') {
     process.stderr.write(line);
   } else {

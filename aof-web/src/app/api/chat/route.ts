@@ -38,7 +38,6 @@ import { loadUserPreferenceMemories, userPreferenceSystemAddon } from "@/lib/ser
 import { logAofError, logAofInfo, logAofStage, runStartupCheckOnce } from "@/lib/server/ai-log";
 import { checkRateLimit, applyRateLimitHeaders } from "@/lib/server/rate-limit";
 import { getUserFromRequest, tierForUser } from "@/lib/server/supabase-admin";
-import { loadUserKeyOverrides } from "@/lib/server/keys-store";
 import { planFor } from "@/lib/plans";
 import type { EffortLevel, RepoMetadata, RouteDecision, WorkflowModelId } from "@/lib/types";
 import {
@@ -63,6 +62,7 @@ import { compilePrompt } from "@/lib/server/prompt-compiler";
 import { allocateBudget, guardOverflow } from "@/lib/server/token-manager";
 import { enforcementFor } from "@/lib/server/budget-enforcer";
 import { buildTimeline, summarizeTimeline } from "@/lib/server/telemetry";
+import { resolveSecrets, assessKeyAccessRisk, auditSecurityEvent } from "@/lib/server/security-manager";
 import {
   RAA_SYSTEM,
   AOF_CODE_CHAT_SYSTEM,
@@ -338,7 +338,9 @@ async function handleChat(req: Request): Promise<Response> {
   }
 
   // Per-user keys (Settings → API Keys) take priority over the server's env vars.
-  const overrides: KeyOverrides = await loadUserKeyOverrides(user?.id);
+  // Routed through the Security & Permission Manager facade (Master Prompt
+  // Part 6.10) — resolveSecrets() is loadUserKeyOverrides() unchanged.
+  const overrides: KeyOverrides = await resolveSecrets(user?.id);
 
   let body: ChatBody;
   try {
@@ -382,6 +384,25 @@ async function handleChat(req: Request): Promise<Response> {
   // deadlines off the top; orchestration gets whatever's left, capped, and
   // is designed to degrade rather than blow route.ts's maxDuration=60.
   const budget = makeTurnBudget(turnStart);
+
+  // ── Security & Permission Manager (Master Prompt Part 6.10) ──────────────────
+  // Auditing the two security-relevant decisions already made above (auth
+  // resolution, secret access) — not re-deciding them. See
+  // security-manager.ts's header for why aof-web's facade has no tool-
+  // permission method (this path has no tool execution to gate).
+  auditSecurityEvent({
+    action: "auth",
+    requestId: turnRequestId,
+    userId: user?.id,
+    detail: user ? "authenticated" : "anonymous",
+  });
+  const keyRisk = assessKeyAccessRisk(overrides);
+  auditSecurityEvent({
+    action: "key-access",
+    requestId: turnRequestId,
+    userId: user?.id,
+    detail: `${keyRisk.level}: ${keyRisk.reason}`,
+  });
 
   // ── Model Workflow → which stages this tier/effort combo runs ────────────────
   // Model (Mikros/Kanon/Ypertatos) owns stage SEQUENCE; effort.ts (below) owns

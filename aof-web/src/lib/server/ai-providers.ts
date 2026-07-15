@@ -363,7 +363,10 @@ export async function* anthropicTextStream(input: AdapterInput): AsyncGenerator<
   throw lastError;
 }
 
-const OPENROUTER_CHAT_URL = "https://openrouter.ai/api/v1/chat/completions";
+// Exported so security-manager.ts's egress allowlist (Master Prompt Part
+// 6.10) can derive real, live provider hostnames instead of a second,
+// hand-typed list that could silently drift from what this file actually calls.
+export const OPENROUTER_CHAT_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 // Free/community models occasionally return a transient upstream error (overloaded
 // or briefly rate-limited) that clears on a quick retry. We retry ONLY the initial
@@ -582,7 +585,8 @@ interface OpenAiCompatConfig {
   providerId: "gemini" | "deepseek" | "qwen" | "llama" | "ollama" | "vllm";
 }
 
-const OPENAI_COMPAT: Record<OpenAiCompatConfig["providerId"], string> = {
+// Exported for the same reason as OPENROUTER_CHAT_URL above.
+export const OPENAI_COMPAT: Record<OpenAiCompatConfig["providerId"], string> = {
   gemini: "https://generativelanguage.googleapis.com/v1beta/openai",
   deepseek: "https://api.deepseek.com/v1",
   qwen: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
@@ -600,6 +604,63 @@ const OPENAI_COMPAT: Record<OpenAiCompatConfig["providerId"], string> = {
   vllm: process.env.VLLM_BASE_URL?.trim().replace(/\/$/, "") || "http://localhost:8000/v1",
 };
 
+// ── Network Access Policy (Master Prompt Part 6.10) ──────────────────────────
+// Co-located with OPENAI_COMPAT/OPENROUTER_CHAT_URL above (its only real
+// inputs) rather than in security-manager.ts, to avoid that module needing
+// to import THIS file for the allowlist while this file also calls it —
+// security-manager.ts re-exports checkEgress from here instead. Anthropic
+// uses the official SDK's built-in default host, not independently
+// configurable in this file, so it's the one hardcoded entry alongside the
+// live config below. This is a defense-in-depth drift-guard, not a fix for
+// a live vulnerability: no user-supplied URL reaches any fetch call in this
+// file today — every target is a hardcoded literal or an operator-set env
+// var (OLLAMA_BASE_URL/VLLM_BASE_URL).
+const ANTHROPIC_HOST = "api.anthropic.com";
+
+function allowedProviderHosts(): Set<string> {
+  const hosts = new Set<string>([ANTHROPIC_HOST]);
+  try {
+    hosts.add(new URL(OPENROUTER_CHAT_URL).hostname);
+  } catch {
+    // unreachable — OPENROUTER_CHAT_URL is a hardcoded literal above.
+  }
+  for (const url of Object.values(OPENAI_COMPAT)) {
+    try {
+      hosts.add(new URL(url).hostname);
+    } catch {
+      // An operator-misconfigured OLLAMA_BASE_URL/VLLM_BASE_URL — skip
+      // rather than crash the allowlist; checkEgress() still denies the
+      // resulting request below since its host was never added.
+    }
+  }
+  return hosts;
+}
+
+export interface EgressDecision {
+  allowed: boolean;
+  hostname: string;
+  reason?: string;
+}
+
+/** Fail-closed: a malformed URL, or any host not in the live provider
+ *  config above, is denied. Loopback is always allowed — Ollama/vLLM are
+ *  operator-run local models, not external egress. */
+export function checkEgress(url: string): EgressDecision {
+  let hostname: string;
+  try {
+    hostname = new URL(url).hostname;
+  } catch {
+    return { allowed: false, hostname: url, reason: "malformed URL" };
+  }
+  if (hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1") {
+    return { allowed: true, hostname };
+  }
+  if (allowedProviderHosts().has(hostname)) {
+    return { allowed: true, hostname };
+  }
+  return { allowed: false, hostname, reason: "not a configured provider host" };
+}
+
 const COMPAT_MAX_ATTEMPTS = 3;
 const COMPAT_BACKOFF_MS = [300, 800];
 
@@ -610,6 +671,17 @@ async function openAiCompatConnect(
   messages: unknown[],
   input: AdapterInput,
 ): Promise<Response> {
+  // Network Access Policy (Master Prompt Part 6.10) — checked once per call,
+  // not per retry attempt. ollama/vllm are the one operator-configured URL
+  // in this file (OLLAMA_BASE_URL/VLLM_BASE_URL env vars); every other
+  // provider here is a hardcoded literal. See security-manager.ts's header
+  // for why this is a defense-in-depth drift-guard, not a fix for a live
+  // vulnerability — no untrusted (user-supplied) URL reaches this function.
+  const egress = checkEgress(cfg.baseUrl);
+  if (!egress.allowed) {
+    throw new ProviderHttpError(502, "", undefined, `egress denied: ${egress.hostname} (${egress.reason})`);
+  }
+
   const body = JSON.stringify({
     model,
     messages,

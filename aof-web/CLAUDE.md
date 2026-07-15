@@ -273,6 +273,41 @@ stream — landing in the SAME structured, persisted record every node/agent/cos
 already does, via `logSystem`'s freeform `meta`, deliberately without adding a new `LogCategory` to
 `v2/logger.ts` (which several exhaustive category-based aggregations already switch over).
 
+**Security & Permission Manager** (`src/lib/server/security-manager.ts`, Part 6.10) is the ONE
+facade for every security-relevant decision on `/api/chat`: `authenticate()`
+(`getUserFromRequest`), `resolveSecrets()` (`loadUserKeyOverrides`), `redactForLog()` (`errors.ts`'s
+`redact`) delegate to EXISTING implementations, unchanged — this is a facade, not a rewrite of the
+systems it wraps. Two genuinely new capabilities: `checkEgress()` (defined in `ai-providers.ts`
+itself, re-exported here — co-located with the real `OPENAI_COMPAT`/`OPENROUTER_CHAT_URL` config it
+reads, to avoid a circular import between the two modules) is a fail-closed provider-hostname
+allowlist wired into `openAiCompatConnect()` before every fetch; it is a **defense-in-depth
+drift-guard, not a fix for a live vulnerability** — no user-supplied URL reaches any fetch call in
+this file today, every target is a hardcoded literal or an operator-set `OLLAMA_BASE_URL`/
+`VLLM_BASE_URL`. `assessKeyAccessRisk()` scores the ONE privileged action this path takes (reading a
+stored provider key) from a real signal only — per-user key present vs. server env fallback — never
+a fabricated numeric score. `auditSecurityEvent()` is aof-web's first audit log (only tmap-v2's
+`server/audit.ts` had one before); it runs every value through `redactForLog()` so an audited
+`detail` string can never leak a secret, and logs through the SAME `[AOF]` console sink as every
+other security-relevant line, keyed by `turnRequestId`. **Deliberately has NO
+`checkToolPermission()`-style method**: `/api/chat` has no write surface and no tool execution at
+all (every agent produces exactly one text artifact — `agent-registry.ts`'s `AGENT_CONTRACT`); the
+REAL Tool Permission Engine (Part 6.3's `permissionSatisfied` ladder) already exists in
+`tmap-v2/src/v2/tools/registry.ts` and `coagentix-cli/src/tools/registry.ts`, where tools actually
+run — faking an aof-web analog with nothing to gate would be the exact scaffold this repo's
+discipline forbids (see the Workflow Orchestrator entry below for the same principle applied to Part
+5.5). Verified live: a normal turn logs `[SECURITY AUDIT] action=auth ... detail=anonymous` and
+`action=key-access ... detail=low: request uses the server's own configured provider key(s)`,
+correctly correlated with the turn's `requestId` alongside every Part 6.6–6.9 log line on the same
+turn.
+
+In tmap-v2, `server/logger.ts` gained its first automatic redaction pass (`redactLogLine()`) —
+previously EVERY `fields` value was written to stdout/stderr verbatim, so a caller logging a raw key
+would leak it. Mirrors aof-web's `errors.ts` `redact()`/`SECRET_PATTERNS` (separate packages, no
+shared workspace — same precedent as `crypto.ts` and the Tool Execution Engine's two independent
+copies), plus this package's own `cgntx_sk_` developer-key prefix (`server/developer-keys.ts`).
+Applied to the WHOLE stringified log line rather than walking `fields`' arbitrary shape
+field-by-field, so a secret-looking substring is caught regardless of which key it was logged under.
+
 **The Workflow Orchestrator** (`src/lib/server/orchestrator.ts`, Part 5.5) executes TMAP's plan
 wave-by-wave, up to `MAX_PARALLEL` (3) concurrent agent calls per wave, inside
 `src/lib/server/turn-budget.ts`'s shared wall-clock ledger — a fixed margin under `route.ts`'s
