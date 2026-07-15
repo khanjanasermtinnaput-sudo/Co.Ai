@@ -200,10 +200,14 @@ async function runYpertatosNormal(
     else if (e.type === 'node_complete') emit(e.nodeId, `${e.nodeId} agent done`, 'status');
     else if (e.type === 'node_fail') emit(e.nodeId, `${e.nodeId} agent failed: ${e.error}`, 'error');
     else if (e.type === 'replan_triggered') emit('system', `replanning ${e.nodeId ?? 'node'}: ${e.reason}`, 'status');
-    else if (e.type === 'budget_warning' || e.type === 'budget_critical') {
-      emit('system', `budget ${e.type.slice(7)}: ${e.category} at ${Math.round(e.ratio * 100)}%`, 'status');
-    } else if (e.type === 'budget_exceeded') {
-      emit('system', `budget exceeded: ${e.category} at ${Math.round(e.ratio * 100)}%`, 'error');
+    else if (e.type === 'budget_warning' || e.type === 'budget_critical' || e.type === 'budget_exceeded') {
+      const level = e.type.slice(7); // 'warning' | 'critical' | 'exceeded'
+      emit('system', `budget ${level}: ${e.category} at ${Math.round(e.ratio * 100)}%`, level === 'exceeded' ? 'error' : 'status');
+      // Observability & Telemetry Platform (Master Prompt 6.9): budget
+      // transitions land in the SAME structured, persisted record every
+      // node/agent/cost/failure event already does (logSystem's meta is
+      // freeform, so this needs no new LogCategory — see logger.ts).
+      logger.logSystem(`budget ${level}`, { category: e.category, ratio: e.ratio, level });
     }
   });
   // Budget Enforcer (Master Prompt 6.8.1): graduated classification layered

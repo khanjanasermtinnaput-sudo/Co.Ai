@@ -245,6 +245,34 @@ already-proven `callFor`+precheck pattern with no new engineering value from rep
 signature-breaking change touching every caller, out of scope for "graduated enforcement over
 EXISTING budgets."
 
+**Observability & Telemetry** (`src/lib/server/telemetry.ts`, Part 6.9): `buildTimeline()` is a pure
+aggregation of the real, already-computed structured data every stage of a turn produces
+(`prestream-dispatch.ts`'s `PreStreamTelemetry`, Prompt Compiler's `PromptMetadata`, Token Manager's
+`TokenBudget`/`GuardOverflowResult`, Budget Enforcer's `EnforcementDecision`) into one
+`WorkflowTimeline`, keyed by the SAME `turnRequestId` that already correlates every existing
+`logAofStage` line — that id IS this turn's trace id; no new id scheme. `summarizeTimeline()`
+flattens it into the same greppable `key=value` shape every other field uses, merged into the
+EXISTING three `"Output"` log calls in `route.ts` (staged/Kanon `onComplete`, non-staged success,
+all-providers-failed) rather than a fourth log line — omits `traceId`/`totalDurationMs`/`outcome`
+since those duplicate the Output line's own `requestId`/`durationMs`/`success`. A stage that didn't
+run for a turn is simply absent from `spans`, never a placeholder. **Boundary (documented, following
+the Part 5.5 precedent of not building an Event Bus/Recovery Engine/standalone Monitor for a
+stateless pipeline):** no long-lived global event bus and no live dashboard exist here — aof-web is
+a stateless per-request Vercel runtime with no persistent process to host one; the existing
+`/api/admin/analytics` + `/api/timeline` product surfaces and tmap-v2's Prometheus/health endpoints
+(genuinely long-lived processes) are where that belongs. Verified live: a failed turn logs
+`spanCount=3 spans=prompt-compiler:ok(0ms),token-manager:ok,budget-enforcer:ok alertCount=1
+alerts=error:provider`; the same oversized-history turn that trips Token Manager's overflow guard
+logs three DISTINCT real alerts on one line — `warning:token-manager` (mitigated),
+`error:budget-enforcer` (classified exceeded), `error:provider` (the eventual failure) — proving the
+whole chain (6.6→6.7→6.8.1→6.9) produces one coherent, honest picture of a turn.
+
+In tmap-v2, `core/ypertatos.ts`'s `wfBus.onAny` handler routes `budget_warning`/`budget_critical`/
+`budget_exceeded` events through `logger.logSystem()` in addition to the existing `emit()` status
+stream — landing in the SAME structured, persisted record every node/agent/cost/failure event
+already does, via `logSystem`'s freeform `meta`, deliberately without adding a new `LogCategory` to
+`v2/logger.ts` (which several exhaustive category-based aggregations already switch over).
+
 **The Workflow Orchestrator** (`src/lib/server/orchestrator.ts`, Part 5.5) executes TMAP's plan
 wave-by-wave, up to `MAX_PARALLEL` (3) concurrent agent calls per wave, inside
 `src/lib/server/turn-budget.ts`'s shared wall-clock ledger — a fixed margin under `route.ts`'s

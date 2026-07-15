@@ -62,6 +62,7 @@ import { makeTurnBudget, TURN_BUDGET_MS, STREAM_RESERVE_MS } from "@/lib/server/
 import { compilePrompt } from "@/lib/server/prompt-compiler";
 import { allocateBudget, guardOverflow } from "@/lib/server/token-manager";
 import { enforcementFor } from "@/lib/server/budget-enforcer";
+import { buildTimeline, summarizeTimeline } from "@/lib/server/telemetry";
 import {
   RAA_SYSTEM,
   AOF_CODE_CHAT_SYSTEM,
@@ -878,6 +879,21 @@ async function handleChat(req: Request): Promise<Response> {
                 durationMs: rec.durationMs,
               });
             }
+            // Observability & Telemetry Platform (Master Prompt Part 6.9): one
+            // aggregated timeline, keyed by the SAME turnRequestId every log
+            // line above already shares — see telemetry.ts's header for why
+            // this is a pure aggregation of data already computed, not a new
+            // event bus or dashboard.
+            const timeline = buildTimeline({
+              traceId: turnRequestId,
+              turnStart,
+              outcome: "success",
+              preStream: preStream.telemetry,
+              promptCompiler: compiledPrompt.metadata,
+              tokenBudget,
+              overflowGuard,
+              budgetDecision,
+            });
             logAofStage("Output", {
               requestId: turnRequestId,
               provider: p.label,
@@ -908,6 +924,7 @@ async function handleChat(req: Request): Promise<Response> {
               maxParallelObserved: preStream.telemetry.orchestration?.maxParallelObserved,
               orchestrationSkippedReason: preStream.telemetry.orchestrationSkipped,
               fallback: s.fallback,
+              ...summarizeTimeline(timeline),
             });
           },
         })
@@ -936,12 +953,23 @@ async function handleChat(req: Request): Promise<Response> {
         // measurement", so it's omitted. Kanon logs real usage from
         // phaseStream's onComplete once the generation actually finishes,
         // which can be after this Response is already returned to the client.
+        const timeline = buildTimeline({
+          traceId: turnRequestId,
+          turnStart,
+          outcome: "success",
+          preStream: preStream.telemetry,
+          promptCompiler: compiledPrompt.metadata,
+          tokenBudget,
+          overflowGuard,
+          budgetDecision,
+        });
         logAofStage("Output", {
           requestId: turnRequestId,
           provider: p.label,
           model,
           success: true,
           durationMs: Date.now() - turnStart,
+          ...summarizeTimeline(timeline),
         });
       }
       return new Response(result.stream, { headers: TEXT_HEADERS });
@@ -966,12 +994,23 @@ async function handleChat(req: Request): Promise<Response> {
   }
 
   // Every configured provider failed.
+  const failureTimeline = buildTimeline({
+    traceId: turnRequestId,
+    turnStart,
+    outcome: "failure",
+    preStream: preStream.telemetry,
+    promptCompiler: compiledPrompt.metadata,
+    tokenBudget,
+    overflowGuard,
+    budgetDecision,
+  });
   logAofStage("Output", {
     requestId: turnRequestId,
     success: false,
     durationMs: Date.now() - turnStart,
     mode: workflowMode,
     providerCalls: 1 + preStream.telemetry.preStreamProviderCalls,
+    ...summarizeTimeline(failureTimeline),
   });
   return errorResponse(lastError!);
 }
