@@ -308,6 +308,19 @@ copies), plus this package's own `cgntx_sk_` developer-key prefix (`server/devel
 Applied to the WHOLE stringified log line rather than walking `fields`' arbitrary shape
 field-by-field, so a secret-looking substring is caught regardless of which key it was logged under.
 
+**Runtime Kernel / Recovery Engine / Certification** (Parts 6.11–6.13) live entirely in
+`tmap-v2` (`tmap-v2/src/v2/kernel/`, `tmap-v2/src/v2/recovery/`, `tmap-v2/src/v2/certification/`),
+not here — the same boundary the Budget Enforcer, Observability, and Workflow Orchestrator
+entries above already draw and explain: aof-web is a stateless, per-request Vercel runtime with
+no persistent process to host a lifecycle manager, a long-lived recovery coordinator, or a test-
+certification runner. tmap-v2 is the genuine long-lived process (`tmap-v2/src/server/index.ts`,
+a CLI + Express server) where a process lifecycle, graceful shutdown, an executor with a real
+failure ladder, durable checkpoints, and the `node:test` harness those three parts coordinate
+already exist. Building parallel/analog modules here would be exactly the scaffold-with-nothing-
+to-do-here anti-pattern Part 6.10's boundary note calls out for `checkToolPermission()`. See
+`tmap-v2`'s own module headers (each opens with a "Deliberately NOT built" list) for what each
+part actually owns versus coordinates.
+
 **The Workflow Orchestrator** (`src/lib/server/orchestrator.ts`, Part 5.5) executes TMAP's plan
 wave-by-wave, up to `MAX_PARALLEL` (3) concurrent agent calls per wave, inside
 `src/lib/server/turn-budget.ts`'s shared wall-clock ledger — a fixed margin under `route.ts`'s
