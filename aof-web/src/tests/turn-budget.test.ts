@@ -29,8 +29,20 @@ test("preStreamRemainingMs is monotonically non-increasing and never negative", 
 test("deadlineFor never exceeds the request and never exceeds what's left", () => {
   const budget = makeTurnBudget(Date.now() - 20_000);
   const remaining = budget.preStreamRemainingMs();
-  assert.equal(budget.deadlineFor(1_000), Math.min(1_000, remaining));
-  assert.equal(budget.deadlineFor(999_999), remaining);
+
+  // 1_000 is far below `remaining` (~8s), so capping to the request is exact
+  // regardless of the sub-millisecond drift between these calls.
+  assert.equal(budget.deadlineFor(1_000), 1_000);
+
+  // deadlineFor() recomputes preStreamRemainingMs() from Date.now() on every
+  // call, so real wall-clock time elapsing between this call and the
+  // `remaining` snapshot above can only make this value equal to or SMALLER
+  // than remaining — asserting exact equality flakes under any scheduling
+  // jitter (GC pause, slow CI, etc). Assert the actual invariant instead:
+  // never more than what was left when we checked, never negative.
+  const uncapped = budget.deadlineFor(999_999);
+  assert.ok(uncapped <= remaining, `deadlineFor(999_999)=${uncapped} must not exceed remaining=${remaining}`);
+  assert.ok(uncapped >= 0, `deadlineFor(999_999)=${uncapped} must never be negative`);
 });
 
 test("exhausted() flips true once preStreamRemainingMs drops below minMs", () => {
