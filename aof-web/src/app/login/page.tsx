@@ -5,21 +5,27 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/providers/auth-provider";
 import { Logo } from "@/components/brand/logo";
 import { Button } from "@/components/ui/button";
+import { sanitizeRedirectPath } from "@/lib/utils";
 
 export default function LoginPage() {
   const { user, configured, signInWithGoogle } = useAuth();
   const router = useRouter();
   const [submitting, setSubmitting] = React.useState(false);
 
-  // Already signed in (or demo mode) → go straight to the app.
+  // Already signed in (or demo mode) → go straight to the intended page,
+  // e.g. /login?redirect=/admin sends an already-authenticated visitor back
+  // to /admin instead of always bouncing to the chat home.
   React.useEffect(() => {
-    if (user) router.replace("/");
+    if (!user) return;
+    const target = sanitizeRedirectPath(new URLSearchParams(window.location.search).get("redirect"));
+    router.replace(target);
   }, [user, router]);
 
   const onGoogle = async () => {
     setSubmitting(true);
     try {
-      await signInWithGoogle();
+      const target = sanitizeRedirectPath(new URLSearchParams(window.location.search).get("redirect"));
+      await signInWithGoogle(target);
       // The browser is redirected to Google; keep the spinner until it leaves.
     } catch {
       setSubmitting(false);

@@ -6,6 +6,7 @@ import { getSupabase, isSupabaseConfigured } from "@/lib/supabase/client";
 import { useAuthStore, type UserTier } from "@/store/auth-store";
 import { useGuestStore } from "@/store/guest-store";
 import { useChatStore } from "@/store/chat-store";
+import { sanitizeRedirectPath } from "@/lib/utils";
 
 export interface AuthUser {
   id: string;
@@ -22,7 +23,8 @@ interface AuthContextValue {
   configured: boolean;
   /** Effective access tier (GUEST when signed out). */
   tier: UserTier;
-  signInWithGoogle: () => Promise<void>;
+  /** `redirectPath` is where the user lands after OAuth completes (default "/"). */
+  signInWithGoogle: (redirectPath?: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -116,12 +118,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     prevUserId.current = realUserId;
   }, [user, loading]);
 
-  const signInWithGoogle = React.useCallback(async () => {
+  const signInWithGoogle = React.useCallback(async (redirectPath = "/") => {
     const supabase = getSupabase();
     if (!supabase) return;
+    const safePath = sanitizeRedirectPath(redirectPath);
+    const callbackUrl = new URL("/auth/callback", window.location.origin);
+    if (safePath !== "/") callbackUrl.searchParams.set("redirect", safePath);
     await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
+      options: { redirectTo: callbackUrl.toString() },
     });
   }, []);
 

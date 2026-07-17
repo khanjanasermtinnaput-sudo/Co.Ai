@@ -43,6 +43,18 @@ export function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
+/**
+ * Only allow same-origin relative paths as a post-login redirect target.
+ * Blocks open-redirect via `//evil.com`, `https://evil.com`, or the
+ * backslash trick (`/\evil.com`) that some browsers treat as protocol-relative.
+ */
+export function sanitizeRedirectPath(path: string | null | undefined): string {
+  if (!path || !path.startsWith("/") || path.startsWith("//") || path.startsWith("/\\")) {
+    return "/";
+  }
+  return path;
+}
+
 /** Black or white, whichever reads better on the given hex background color. */
 export function readableTextColor(hex: string): "#000000" | "#ffffff" {
   const match = /^#?([0-9a-f]{6})$/i.exec(hex);

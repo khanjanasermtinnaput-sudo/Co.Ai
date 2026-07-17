@@ -4,6 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { getSupabase } from "@/lib/supabase/client";
 import { LogoMark } from "@/components/brand/logo";
+import { sanitizeRedirectPath } from "@/lib/utils";
 
 /**
  * OAuth landing page. Google redirects here with a `?code=` (PKCE). We exchange
@@ -22,14 +23,18 @@ export default function AuthCallbackPage() {
     }
 
     let cancelled = false;
+    const params = new URLSearchParams(window.location.search);
+    // Round-tripped from /login?redirect=... via signInWithGoogle's redirectTo,
+    // so a sign-in started from /admin lands back on /admin, not the chat home.
+    const target = sanitizeRedirectPath(params.get("redirect"));
+    const loginPath = target === "/" ? "/login" : `/login?redirect=${encodeURIComponent(target)}`;
     const goLogin = (msg: string) => {
       if (cancelled) return;
       setError(msg);
-      setTimeout(() => router.replace("/login"), 1600);
+      setTimeout(() => router.replace(loginPath), 1600);
     };
 
     (async () => {
-      const params = new URLSearchParams(window.location.search);
       const oauthError = params.get("error_description") || params.get("error");
       if (oauthError) {
         goLogin(oauthError);
@@ -43,19 +48,19 @@ export default function AuthCallbackPage() {
           // The code may already have been consumed — if a session exists, proceed.
           const { data } = await supabase.auth.getSession();
           if (data.session) {
-            if (!cancelled) router.replace("/");
+            if (!cancelled) router.replace(target);
             return;
           }
           goLogin(exErr.message);
           return;
         }
-        if (!cancelled) router.replace("/");
+        if (!cancelled) router.replace(target);
         return;
       }
 
       // No code present — maybe the user is already signed in.
       const { data } = await supabase.auth.getSession();
-      if (!cancelled) router.replace(data.session ? "/" : "/login");
+      if (!cancelled) router.replace(data.session ? target : loginPath);
     })();
 
     return () => {
