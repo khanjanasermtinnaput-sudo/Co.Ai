@@ -151,6 +151,7 @@ function CoChatHistoryPanel({ pathname }: { pathname: string }) {
   const deleteConversation = useChatStore((s) => s.deleteConversation);
   const renameConversation = useChatStore((s) => s.renameConversation);
   const loadRemoteConversations = useChatStore((s) => s.loadRemoteConversations);
+  const conversationsListStatus = useChatStore((s) => s.conversationsListStatus);
   const router = useRouter();
 
   const [search, setSearch] = useState("");
@@ -216,7 +217,29 @@ function CoChatHistoryPanel({ pathname }: { pathname: string }) {
     return [...localFiltered, ...serverExtras];
   }, [localFiltered, serverHits, conversations, search]);
 
-  if (conversations.length === 0) return null;
+  if (conversations.length === 0) {
+    if (conversationsListStatus !== "error") return null;
+    // A genuinely empty list looks identical to a failed fetch unless we
+    // distinguish them via status — show a retry row instead of just
+    // vanishing the whole section (which reads as "my chats disappeared").
+    return (
+      <div className="mt-3 flex flex-col gap-1 px-2">
+        <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/70">
+          Recent Chats
+        </p>
+        <div className="flex items-center justify-between gap-2 rounded-lg border border-border/50 bg-secondary/20 px-2.5 py-2">
+          <span className="text-[12px] text-muted-foreground">Couldn&rsquo;t load your chats</span>
+          <button
+            type="button"
+            onClick={() => loadRemoteConversations()}
+            className="shrink-0 rounded-md border border-border/50 bg-secondary/40 px-2 py-1 text-[11px] text-foreground transition-colors hover:bg-secondary"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const pendingTitle = pendingDeleteId
     ? conversations.find((c) => c.id === pendingDeleteId)?.title

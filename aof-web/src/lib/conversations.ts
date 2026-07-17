@@ -99,10 +99,14 @@ export function toChatMessages(rows: RemoteMessage[]): ChatMessageT[] {
   }));
 }
 
-/** Fetch all conversations for the signed-in user in a workspace, newest first. */
+/**
+ * Fetch all conversations for the signed-in user in a workspace, newest first.
+ * Throws on a non-OK response so callers can tell a real fetch failure apart
+ * from a genuinely empty (but successfully loaded) list.
+ */
 export async function fetchConversations(workspace: Workspace = "cochat"): Promise<RemoteConversation[]> {
   const res = await authedFetch(`/api/conversations?workspace=${workspace}`);
-  if (!res.ok) return [];
+  if (!res.ok) throw new Error(`fetch-conversations-failed (${res.status})`);
   const json = (await res.json()) as { conversations: RemoteConversation[] };
   return json.conversations ?? [];
 }

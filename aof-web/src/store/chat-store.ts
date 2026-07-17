@@ -47,6 +47,9 @@ interface ChatState {
   /** Per-conversation server-hydration status, keyed by conversation id.
    *  Session-only (not persisted) — a fresh load always re-checks the server. */
   messagesStatus: Record<string, "loading" | "loaded" | "error">;
+  /** Status of the last loadRemoteConversations() call — lets the sidebar tell
+   *  "zero chats" apart from "the list fetch just failed" (session-only). */
+  conversationsListStatus: "idle" | "loading" | "loaded" | "error";
 
   setModel: (m: ChatModel) => void;
   setEffort: (e: EffortLevel) => void;
@@ -94,6 +97,7 @@ export const useChatStore = create<ChatState>()(
       pendingFirstMessage: null,
       abort: null,
       messagesStatus: {},
+      conversationsListStatus: "idle",
 
       // Effort is snapped to the incoming model's scale so a persisted High
       // never survives a switch onto a model that doesn't offer it.
@@ -184,9 +188,9 @@ export const useChatStore = create<ChatState>()(
 
       loadRemoteConversations: async () => {
         if (!conversationsEnabled()) return;
+        set({ conversationsListStatus: "loading" });
         try {
           const remote = await fetchConversations("cochat");
-          if (!remote.length) return;
           set((s) => {
             const localIds = new Set(s.conversations.map((c) => c.id));
             const toAdd: Conversation[] = remote
@@ -199,15 +203,23 @@ export const useChatStore = create<ChatState>()(
                 createdAt: r.created_at,
                 updatedAt: r.updated_at,
               }));
-            if (!toAdd.length) return s;
+            if (!toAdd.length) return { conversationsListStatus: "loaded" };
             const merged = [...s.conversations, ...toAdd].sort(
               (a, b) =>
                 new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
             );
-            return { conversations: merged };
+            return { conversations: merged, conversationsListStatus: "loaded" };
           });
-        } catch {
-          // network failure — keep working with local state
+        } catch (err) {
+          console.warn(
+            "[chat-store] loadRemoteConversations failed:",
+            err instanceof Error ? err.message : String(err),
+          );
+          set({ conversationsListStatus: "error" });
+          toast.error("Couldn't load your chat list", {
+            id: "load-conversations-error",
+            duration: 4000,
+          });
         }
       },
 
