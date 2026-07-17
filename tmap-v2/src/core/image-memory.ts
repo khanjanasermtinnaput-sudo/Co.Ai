@@ -8,7 +8,7 @@
 //   - File fallback        : per-user JSON when Supabase isn't configured
 //
 // Retrieval ranks stored memories against a user message (token overlap over
-// summaries + OCR text + entities), so /v1/orchestrate can inject the relevant
+// summaries + OCR text + entities), so callers can inject the relevant
 // image knowledge into the prompt automatically (step 10).
 
 import { mkdirSync, readFileSync, writeFileSync, existsSync, unlinkSync } from 'node:fs';

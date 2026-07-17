@@ -238,12 +238,13 @@ a run with hundreds of calls at the same level) before calling through to the SA
 throw is byte-identical to before. Wired into `core/orchestrator.ts`'s `runTMAP` (no bus available,
 graduated classification only) and `core/ypertatos.ts`'s `runYpertatosNormal` (with its `wfBus`,
 whose construction was moved earlier — before `callFor` is defined — so the enforcer can publish to
-it from the very first LLM call, not just after `executeGraph()` starts). `chief-agent.ts` and
-`v2/executor.ts` are deliberately left unwired this phase: `chief-agent.ts` follows the identical
-already-proven `callFor`+precheck pattern with no new engineering value from repeating it, and
-`executeGraph()` has no budget parameter in its signature at all — adding one would be a
-signature-breaking change touching every caller, out of scope for "graduated enforcement over
-EXISTING budgets."
+it from the very first LLM call, not just after `executeGraph()` starts). `v2/executor.ts` is
+deliberately left unwired this phase: `executeGraph()` has no budget parameter in its signature at
+all — adding one would be a signature-breaking change touching every caller, out of scope for
+"graduated enforcement over EXISTING budgets." (The `/v1/orchestrate` route and its
+`core/chief-agent.ts` implementation, which previously would have followed this same pattern, were
+removed as dead code — no frontend caller, no tests, and no budget wiring; see
+`tmap-v2/AUDIT_CHIEF_AGENT.md`.)
 
 **Observability & Telemetry** (`src/lib/server/telemetry.ts`, Part 6.9): `buildTimeline()` is a pure
 aggregation of the real, already-computed structured data every stage of a turn produces

@@ -47,7 +47,6 @@ import { runAnalyzer } from '../core/analyze.js';
 import { loadMemory, memoryToContext, recordSessionMemory, recordDecision, clearMemory, scopedKey, type Product } from '../core/memory.js';
 import { currentMode } from '../config.js';
 import type { Mode, ChatMessage } from '../types.js';
-import { runChiefAgent } from '../core/chief-agent.js';
 import { chatWithDARS } from '../dars/run.js';
 import { globalHealth } from '../dars/health.js';
 import { runImagePipeline, processImage, type ImageUnderstanding } from '../core/image-pipeline.js';
@@ -869,94 +868,6 @@ if (v2RoutingEnabled) {
 
   logger.info('v2_enabled', { routes: ['POST /v2/run', 'GET /v2/routing-metrics'] });
 }
-
-// ── ORCHESTRATE — Coagentix Universal Chief Agent (SSE stream) ───────────────
-app.post('/v1/orchestrate', requireAuth, requireSubscription('PRO', 'Multi-agent orchestration'), async (req: AuthedRequest, res) => {
-  const message = String(req.body?.message ?? '').trim();
-  const history: ChatMessage[] = Array.isArray(req.body?.history) ? req.body.history : [];
-  const enableQualityGate = req.body?.qualityGate !== false;
-  // Not yet wired to a specific frontend surface — accept the caller's product,
-  // defaulting to 'cochat' (this is framed as universal *chat*), so memory stays
-  // scoped once something does call it (Req 5).
-  const product: Product = parseProduct(req.body?.product) ?? 'cochat';
-  if (!message) return res.status(400).json({ error: 'message required' });
-  if (tooLong(message, MAX_MESSAGE)) return res.status(413).json({ error: `message too long (max ${MAX_MESSAGE} bytes)` });
-
-  const u = req.user!;
-  const creds: CredentialBag = {};
-  for (const p of PROVIDERS) {
-    if (u.encryptedKeys[p]) (creds as Record<string, string>)[p] = decryptSecret(u.encryptedKeys[p]!);
-  }
-
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    Connection: 'keep-alive',
-  });
-  const send = (event: object) => res.write(`data: ${JSON.stringify(event)}\n\n`);
-
-  // Load memory for context continuity
-  let memCtx = '';
-  try {
-    const mem = await loadMemory(scopedKey(u.id, product));
-    memCtx = memoryToContext(mem);
-    if (memCtx) send({ role: 'chief', kind: 'status', text: 'memory: loading context from previous sessions' });
-  } catch { /* best-effort */ }
-
-  // Image memory: pull in knowledge from images analyzed earlier that are
-  // relevant to this message, so we can answer without re-reading them (step 10).
-  let imgCtx = '';
-  try {
-    const ranked = await searchImageMemories(u.id, product, message, 3);
-    imgCtx = imageMemoriesToContext(ranked);
-    if (imgCtx) send({ role: 'chief', kind: 'status', text: `image memory: ${ranked.length} relevant image(s)` });
-  } catch { /* best-effort */ }
-
-  // Prepend memory to history context if available
-  const systemContext = [memCtx, imgCtx].filter(Boolean).join('\n\n');
-  const enrichedHistory: ChatMessage[] = systemContext
-    ? [{ role: 'system' as const, content: systemContext }, ...history]
-    : history;
-
-  try {
-    const result = await runChiefAgent(message, {
-      creds,
-      health: globalHealth,
-      emit: (agent, text, kind = 'status') => send({ role: agent, kind, text }),
-      sessionId: 'orchestrate-' + u.id,
-      history: enrichedHistory,
-      enableQualityGate,
-    });
-
-    send({
-      role: 'chief',
-      kind: 'output',
-      text: result.response,
-    });
-    send({
-      role: 'chief',
-      kind: 'done',
-      categories: result.categories,
-      agentsUsed: result.agentsUsed,
-      qualityScore: result.qualityScore,
-      iterations: result.iterations,
-    });
-
-    // Record to memory for future sessions
-    try {
-      await recordSessionMemory(scopedKey(u.id, product), {
-        task: message.slice(0, 160),
-        status: 'done',
-        files: [],
-        iterations: result.iterations,
-        at: new Date().toISOString(),
-      }, {});
-    } catch { /* best-effort */ }
-  } catch (e) {
-    send({ role: 'chief', kind: 'error', text: (e as Error).message });
-  }
-  res.end();
-});
 
 // ── CLI AUTH ──────────────────────────────────────────────────────────────────
 // POST /v1/cli/auth — exchange raw CLI token for a tmap-v2 JWT (Advanced only)

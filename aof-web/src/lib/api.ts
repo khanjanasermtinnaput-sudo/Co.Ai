@@ -55,8 +55,7 @@ export function isDemoMode(): boolean {
 
 /**
  * Opt-in: route through the score-based v2 engine (`POST /v2/run`) instead of
- * the v1 paths — builds (else `/v1/run`) and universal chat (else
- * `/v1/orchestrate`).
+ * the v1 paths — builds (else `/v1/run`).
  *
  * Default OFF. Both sides must be enabled to take effect: this frontend flag
  * (NEXT_PUBLIC_COAGENTIX_V2=1) AND the backend must mount the route
@@ -650,72 +649,6 @@ export interface OrchestrationHandlers {
   onDone?: (result: { categories: string[]; agentsUsed: string[]; qualityScore: number; iterations: number }) => void;
   onError?: (error: unknown) => void;
   signal?: AbortSignal;
-}
-
-/**
- * Stream a universal orchestration request through the Co.AI Chief Agent.
- * The Chief Agent classifies intent, expands the prompt, delegates to specialized
- * agents, runs a quality review loop, and returns the best possible response.
- */
-export async function streamOrchestrate(
-  message: string,
-  history: ChatHistoryItem[],
-  handlers: OrchestrationHandlers,
-  qualityGate = true,
-): Promise<void> {
-  if (isLive()) {
-    try {
-      await postSSE(
-        "/v1/orchestrate",
-        {
-          message,
-          history: history.map((h) => ({ role: h.role, content: h.content })),
-          qualityGate,
-        },
-        (e: SSEEvent) => {
-          const oe = e as OrchestrationEvent;
-          if (oe.kind === "status" && typeof oe.text === "string") {
-            handlers.onStatus?.(String(oe.role ?? "chief"), oe.text);
-          } else if (oe.kind === "output" && typeof oe.text === "string") {
-            handlers.onToken(oe.text);
-          } else if (oe.kind === "done") {
-            handlers.onDone?.({
-              categories: Array.isArray(oe.categories) ? oe.categories : [],
-              agentsUsed: Array.isArray(oe.agentsUsed) ? oe.agentsUsed : [],
-              qualityScore: typeof oe.qualityScore === "number" ? oe.qualityScore : 0,
-              iterations: typeof oe.iterations === "number" ? oe.iterations : 1,
-            });
-          } else if (oe.kind === "error" && typeof oe.text === "string") {
-            handlers.onError?.(new Error(oe.text));
-          }
-        },
-        handlers.signal,
-      );
-      return; // backend handled it
-    } catch (e) {
-      if ((e as { name?: string })?.name === "AbortError") return;
-      // backend unreachable — fall through to /api/chat below
-    }
-  }
-
-  // Fallback: regular chat via /api/chat (when backend not configured or unreachable).
-  // Decode in-band control frames so they're never rendered as literal text.
-  try {
-    const res = await fetch("/api/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...(await sessionAuthHeaders()) },
-      body: JSON.stringify({ message, agent: "chat", history: history.slice(-20) }),
-      signal: handlers.signal,
-    });
-    await readAofStream(res, {
-      onToken: handlers.onToken,
-      signal: handlers.signal,
-      onError: (err) => handlers.onError?.(err),
-    });
-  } catch (e) {
-    if ((e as { name?: string })?.name === "AbortError") return;
-    handlers.onError?.(e);
-  }
 }
 
 /**
