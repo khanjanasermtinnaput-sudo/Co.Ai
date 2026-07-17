@@ -14,6 +14,7 @@ import { NavLink } from "./nav-link";
 import { ThemeToggle } from "./theme-toggle";
 import { UserMenu } from "./user-menu";
 import { Settings } from "lucide-react";
+import { isCoCodeArea, CoChatHistoryPanel, CoCodeHistoryPanel } from "./sidebar";
 
 export function MobileTopbar() {
   const open = useUIStore((s) => s.mobileNavOpen);
@@ -21,6 +22,7 @@ export function MobileTopbar() {
   const pathname = usePathname();
   const router = useRouter();
   const selectConversation = useChatStore((s) => s.selectConversation);
+  const inCoCode = isCoCodeArea(pathname);
 
   // Close the drawer whenever navigation completes.
   useEffect(() => {
@@ -87,6 +89,9 @@ export function MobileTopbar() {
                   onNavigate={() => setOpen(false)}
                 />
               ))}
+              {inCoCode ? <CoCodeHistoryPanel /> : <CoChatHistoryPanel pathname={pathname} />}
+
+              <div className="mt-auto" />
               <NavLink
                 href="/settings"
                 label="Settings"

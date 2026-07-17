@@ -31,8 +31,10 @@ import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { conversationsEnabled, searchMessages, type SearchHit } from "@/lib/conversations";
 
 /** CoCode's workspace lives across /code, /cocode, and /projects — none of these
- *  should ever render CoChat's conversation list (Req 1/6: no cross-product leak). */
-function isCoCodeArea(pathname: string | null): boolean {
+ *  should ever render CoChat's conversation list (Req 1/6: no cross-product leak).
+ *  Exported so the mobile nav drawer (mobile-nav.tsx) can pick the same panel
+ *  the desktop sidebar shows, instead of omitting history entirely. */
+export function isCoCodeArea(pathname: string | null): boolean {
   if (!pathname) return false;
   return (
     pathname.startsWith("/code") ||
@@ -142,9 +144,10 @@ export function Sidebar() {
 }
 
 // ── CoChat history panel ───────────────────────────────────────────────────────
-// Reads only useChatStore — never touches CoCode's projects.
+// Reads only useChatStore — never touches CoCode's projects. Exported for reuse
+// by the mobile nav drawer (mobile-nav.tsx).
 
-function CoChatHistoryPanel({ pathname }: { pathname: string }) {
+export function CoChatHistoryPanel({ pathname }: { pathname: string }) {
   const conversations = useChatStore((s) => s.conversations);
   const activeId = useChatStore((s) => s.activeId);
   const selectConversation = useChatStore((s) => s.selectConversation);
@@ -335,7 +338,8 @@ function CoChatHistoryPanel({ pathname }: { pathname: string }) {
 // ── CoCode history panel ────────────────────────────────────────────────────────
 // Reads only useProjectStore — never touches CoChat's conversations.
 
-function CoCodeHistoryPanel() {
+// Exported for reuse by the mobile nav drawer (mobile-nav.tsx).
+export function CoCodeHistoryPanel() {
   const projects = useProjectStore((s) => s.projects);
   const load = useProjectStore((s) => s.load);
   const deleteProject = useProjectStore((s) => s.deleteProject);
