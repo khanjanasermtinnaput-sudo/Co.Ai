@@ -29,6 +29,10 @@ export function ChatView() {
   const send = useChatStore((s) => s.send);
   const stop = useChatStore((s) => s.stop);
   const consumePending = useChatStore((s) => s.consumePending);
+  const loadMessages = useChatStore((s) => s.loadMessages);
+  const messagesStatus = useChatStore((s) =>
+    activeId ? s.messagesStatus[activeId] : undefined,
+  );
 
   // Auth readiness — we wait for this before firing the queued first message.
   // This prevents the race condition where send() is called before the Supabase
@@ -61,6 +65,16 @@ export function ChatView() {
     pendingRef.current = null;
     void send(pending.text, pending.attachments);
   }, [ready, send]);
+
+  // Hydrate this conversation's messages from the server whenever it becomes
+  // active — the localStorage cache alone can't show history saved on (or
+  // trimmed past 20 messages by) another device/session. loadMessages() is a
+  // no-op once already "loading"/"loaded" for this id, so this only ever
+  // fires the actual fetch once per conversation per session.
+  useEffect(() => {
+    if (!activeId) return;
+    void loadMessages(activeId);
+  }, [activeId, loadMessages]);
 
   const empty = messages.length === 0;
 
@@ -115,7 +129,22 @@ export function ChatView() {
 
       {/* ── Body ────────────────────────────────────────────────────────────── */}
       <div className="min-h-0 flex-1 overflow-y-auto">
-        {empty ? (
+        {empty && messagesStatus === "loading" ? (
+          <div className="flex h-full flex-col items-center justify-center px-4 text-center">
+            <p className="text-sm text-muted-foreground">Loading messages…</p>
+          </div>
+        ) : empty && messagesStatus === "error" ? (
+          <div className="flex h-full flex-col items-center justify-center gap-3 px-4 text-center">
+            <p className="text-sm text-muted-foreground">Couldn&rsquo;t load this conversation.</p>
+            <button
+              type="button"
+              onClick={() => activeId && loadMessages(activeId)}
+              className="rounded-lg border border-border/50 bg-secondary/40 px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-secondary"
+            >
+              Retry
+            </button>
+          </div>
+        ) : empty ? (
           <div className="flex h-full flex-col items-center justify-center px-4 text-center">
             <span className="text-3xl" role="img" aria-label="wave">👋</span>
             <h2 className="mt-4 text-xl font-medium text-foreground">Welcome to Co.AI</h2>

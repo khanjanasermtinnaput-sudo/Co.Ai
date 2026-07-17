@@ -4,7 +4,7 @@
 
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase/client";
 import { isSignedIn } from "@/store/auth-store";
-import type { ChatMessageT, Conversation } from "@/lib/types";
+import type { ChatMessageT, Conversation, RouteTarget } from "@/lib/types";
 import type { Workspace } from "@/lib/server/workspace";
 
 /**
@@ -46,6 +46,57 @@ export interface RemoteConversation {
   model: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface RemoteMessage {
+  id: string;
+  role: string;
+  content: string;
+  model?: string | null;
+  route_target?: string | null;
+  route_label?: string | null;
+  style?: string | null;
+  created_at?: string;
+}
+
+/**
+ * Fetch all saved messages for a conversation, oldest first.
+ * Returns `null` on 404 — the conversation doesn't exist server-side yet
+ * (e.g. a brand-new local conversation whose create POST hasn't landed),
+ * which is a normal "nothing to hydrate" case, not a fetch failure.
+ * Throws on any other non-OK response so callers can surface a real error.
+ */
+export async function fetchMessages(conversationId: string): Promise<RemoteMessage[] | null> {
+  const res = await authedFetch(`/api/conversations/${conversationId}/messages`);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`fetch-messages-failed (${res.status})`);
+  const json = (await res.json()) as { messages: RemoteMessage[] };
+  return json.messages ?? [];
+}
+
+/**
+ * Convert server message rows into the client's ChatMessageT shape. A pure
+ * function so the reconciliation logic (chat-store's loadMessages) can be
+ * unit-tested without a network/Supabase mock.
+ *
+ * `route_target`/`route_label` are all POST /messages ever persists (see
+ * saveMessages below) — the original RouteDecision's `reason`/`confidence`
+ * are never stored, so a reconstructed route always has `reason: ""`. That's
+ * fine: `reason` is only ever shown as an ephemeral "why this route" hint on
+ * a freshly-streamed reply, never re-displayed for history loaded from disk.
+ */
+export function toChatMessages(rows: RemoteMessage[]): ChatMessageT[] {
+  return rows.map((m) => ({
+    id: m.id,
+    role: m.role as ChatMessageT["role"],
+    content: m.content,
+    createdAt: m.created_at ?? new Date().toISOString(),
+    model: (m.model as ChatMessageT["model"]) ?? undefined,
+    route:
+      m.route_target && m.route_label
+        ? { target: m.route_target as RouteTarget, label: m.route_label, reason: "" }
+        : undefined,
+  }));
 }
 
 /** Fetch all conversations for the signed-in user in a workspace, newest first. */

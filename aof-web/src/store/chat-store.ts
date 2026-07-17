@@ -11,8 +11,10 @@ import {
   deleteAllConversationsRemote,
   deleteConversationRemote,
   fetchConversations,
+  fetchMessages,
   renameConversation,
   saveMessages,
+  toChatMessages,
 } from "@/lib/conversations";
 import type {
   Attachment,
@@ -42,6 +44,9 @@ interface ChatState {
   streaming: boolean;
   pendingFirstMessage: PendingMessage | null;
   abort: AbortController | null;
+  /** Per-conversation server-hydration status, keyed by conversation id.
+   *  Session-only (not persisted) — a fresh load always re-checks the server. */
+  messagesStatus: Record<string, "loading" | "loaded" | "error">;
 
   setModel: (m: ChatModel) => void;
   setEffort: (e: EffortLevel) => void;
@@ -52,6 +57,11 @@ interface ChatState {
   deleteAllConversations: () => Promise<void>;
   renameConversation: (id: string, title: string) => void;
   loadRemoteConversations: () => Promise<void>;
+  /** Hydrate a conversation's messages from the server (source of truth) —
+   *  the only place the localStorage cache is reconciled against Supabase.
+   *  No-ops for guests/offline and skips a conversation already in flight
+   *  or already loaded this session; an "error" status may be retried. */
+  loadMessages: (id: string) => Promise<void>;
   migrateGuestConversations: () => Promise<void>;
   queueFirstMessage: (text: string, attachments?: Attachment[]) => void;
   consumePending: () => PendingMessage | null;
@@ -83,6 +93,7 @@ export const useChatStore = create<ChatState>()(
       streaming: false,
       pendingFirstMessage: null,
       abort: null,
+      messagesStatus: {},
 
       // Effort is snapped to the incoming model's scale so a persisted High
       // never survives a switch onto a model that doesn't offer it.
@@ -197,6 +208,39 @@ export const useChatStore = create<ChatState>()(
           });
         } catch {
           // network failure — keep working with local state
+        }
+      },
+
+      loadMessages: async (id) => {
+        if (!conversationsEnabled()) return;
+        const status = get().messagesStatus[id];
+        if (status === "loading" || status === "loaded") return;
+
+        set((s) => ({ messagesStatus: { ...s.messagesStatus, [id]: "loading" } }));
+        try {
+          const rows = await fetchMessages(id);
+          // `null` = 404 = not synced server-side yet (e.g. a brand-new local
+          // conversation) — normal, not an error; leave local messages as-is.
+          if (rows !== null) {
+            const messages = toChatMessages(rows);
+            set((s) => ({
+              conversations: s.conversations.map((c) =>
+                c.id === id ? { ...c, messages } : c,
+              ),
+            }));
+          }
+          set((s) => ({ messagesStatus: { ...s.messagesStatus, [id]: "loaded" } }));
+        } catch (err) {
+          console.warn(
+            "[chat-store] loadMessages failed:",
+            err instanceof Error ? err.message : String(err),
+            { conversationId: id },
+          );
+          set((s) => ({ messagesStatus: { ...s.messagesStatus, [id]: "error" } }));
+          toast.error("Couldn't load this conversation's history", {
+            id: "load-messages-error",
+            duration: 4000,
+          });
         }
       },
 

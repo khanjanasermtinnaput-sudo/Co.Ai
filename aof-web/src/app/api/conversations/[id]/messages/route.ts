@@ -1,4 +1,5 @@
 // ── /api/conversations/[id]/messages ─────────────────────────────────────────
+// GET  → load all saved messages for a conversation the caller owns
 // POST → append one or more messages to a conversation
 
 import { NextResponse } from "next/server";
@@ -25,6 +26,56 @@ interface MessageRow {
   route_label?: string;
   style?: string;
   created_at?: string;
+}
+
+export async function GET(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { user, error } = await requireUser(req);
+  if (error) return error;
+
+  const { id: conversationId } = await params;
+
+  // Ownership check first, separate from the messages query itself, so a
+  // conversation id belonging to another user 404s instead of ever reaching
+  // (or revealing the existence of) that user's messages.
+  const { data: conv, error: convErr } = await getAdminSupabase()
+    .from("conversations")
+    .select("id")
+    .eq("id", conversationId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (convErr) {
+    console.error(
+      "[/api/conversations/[id]/messages] ownership check failed:",
+      convErr.message,
+      { conversationId, userId: user.id },
+    );
+    return NextResponse.json({ error: "load-failed" }, { status: 500 });
+  }
+  if (!conv) {
+    return NextResponse.json({ error: "not-found" }, { status: 404 });
+  }
+
+  const { data, error: dbErr } = await getAdminSupabase()
+    .from("messages")
+    .select("id, role, content, model, route_target, route_label, style, created_at")
+    .eq("conversation_id", conversationId)
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: true });
+
+  if (dbErr) {
+    console.error(
+      "[/api/conversations/[id]/messages] load failed:",
+      dbErr.message,
+      { conversationId, userId: user.id },
+    );
+    return NextResponse.json({ error: "load-failed" }, { status: 500 });
+  }
+
+  return NextResponse.json({ messages: (data ?? []) as MessageRow[] });
 }
 
 export async function POST(
