@@ -60,15 +60,21 @@ See [`aof-web/.env.example`](aof-web/.env.example) for the full list with commen
 | `COAGENTIX_MASTER_KEY` | AES master key (`openssl rand -hex 32`) |
 | At least one AI provider key | `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, etc. |
 
-## Deploy to Railway
+## Deploy
 
-1. Push to GitHub
-2. Create a new Railway project → connect repo
-3. Railway detects `railway.toml` automatically
-4. Add all environment variables from `.env.example` in the Railway dashboard
-5. Set `NEXT_PUBLIC_SITE_URL` to your Railway domain (e.g. `https://coagentix.railway.app`)
-6. Update Supabase → Auth → URL Configuration: add your Railway domain to allowed redirect URLs
-7. Update Google Cloud Console → OAuth consent: add your Railway domain to authorised redirect URIs
+The frontend (`aof-web/`) deploys to **Vercel**; the backend (`tmap-v2/`)
+deploys to **Render** (`tmap-v2/render.yaml`).
+
+**Frontend → Vercel**
+
+1. Push to GitHub.
+2. Import the repo in Vercel with `aof-web/` as the root directory (or push to
+   `main` — `.github/workflows/vercel-deploy.yml` deploys automatically once a
+   `VERCEL_TOKEN` repo secret is set).
+3. Add every variable from `aof-web/.env.example` in the Vercel dashboard.
+4. Set `NEXT_PUBLIC_SITE_URL` to your Vercel domain.
+5. Update Supabase → Auth → URL Configuration and Google Cloud Console → OAuth
+   consent to add your Vercel domain to the allowed redirect URLs/URIs.
 
 ## Architecture
 
