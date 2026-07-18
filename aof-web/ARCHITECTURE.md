@@ -4,6 +4,17 @@ This document covers the deliverables for the Co.AI homepage experience: folder
 structure, UI & component architecture, routing, state management, database
 schema recommendations, and the implementation plan.
 
+> **Current state (2026).** The sections below describe the original build plan.
+> Since then: (a) auth, conversation/message, project, workspace, and AI-memory
+> persistence all shipped to Supabase (see `supabase/migrations/0006`–`0011`), so
+> the "Next" items in §7 are largely done; (b) the multi-agent pipeline (RAA →
+> TMAP → orchestration) now runs **inline inside aof-web** under
+> `src/lib/server/` — the `tmap-v2` Express backend is a parallel, largely
+> duplicate implementation reached only via the optional `/v1` proxy, and
+> consolidating the two is tracked as a separate cleanup; (c) the CoCode
+> workspace's mockup-only "Phase 71–100" panels were removed, leaving the 40
+> panels backed by a real API or the client-side virtual FS.
+
 Co.AI is a **professional AI platform** — not a generic chatbot. It unifies three
 products plus settings behind one premium, dark, orange-gold workspace:
 
@@ -189,6 +200,10 @@ memory) remain unchanged and continue to power the build pipeline.
 7. ✅ Projects — pinned/recent, search, create dialog, status/type/last-edited.
 8. ✅ Settings — account, appearance, API keys, billing.
 9. ✅ API client with live `/v1/*` SSE + offline mock fallback.
-10. ⏭️ Next: wire auth (`/v1/auth/*`), persist conversations/projects to Supabase,
-    stream live CoCode file trees + diff view, and a one-click project export.
+10. ✅ Auth (Supabase/Google OAuth), conversations/messages, projects, and
+    workspace all persisted to Supabase (`migrations 0006`–`0011`); CoCode file
+    trees + diff view stream live; project export ships as a zip.
+11. ⏭️ Next: consolidate the `tmap-v2` backend and the inline `src/lib/server/`
+    pipeline into one source of truth; complete the CoCode IA (group the
+    remaining 40 panels into ~6–8 task-oriented clusters).
 ```
