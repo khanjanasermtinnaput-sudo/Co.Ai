@@ -4,6 +4,15 @@ Multi-agent coding assistant ที่ทำงานจริง: **Planner →
 อิงสถาปัตยกรรมใน [`AOF_CODE_TDD.md`](./AOF_CODE_TDD.md). โค้ดทั้งหมดเรียกโมเดลจริงด้วย API key ของคุณ
 ถ้าไม่ใส่ key จะรันใน **mock mode** (เดโมออฟไลน์) ได้
 
+> **ขอบเขต & การ deploy.** `tmap-v2` คือ **backend ของ `coagentix-cli`** (CLI เรียก
+> `/v1/*` ที่ `tmap.coagentix.com`) — จงใจแยกออกจาก `aof-web` ซึ่งรัน pipeline
+> multi-agent เอง inline (`aof-web/src/lib/server/`) และ **ไม่** พึ่ง service นี้ตอน
+> deploy จริง โมดูลที่ชื่อชนกันระหว่างสอง repo (`crypto`, `budget-enforcer`,
+> `telemetry`, `orchestrator`) เป็นสำเนาที่ตั้งใจแยก ไม่ใช่ workspace ร่วม —
+> ดูเหตุผลใน `aof-web/CLAUDE.md`. service นี้ deploy บน **Render ที่เดียว** ผ่าน
+> blueprint `render.yaml` ที่ **root ของ repo** (ตัวที่ตั้ง `COAGENTIX_MASTER_KEY`
+> ด้วย `sync: false` — ห้าม regenerate ไม่งั้น provider key ที่เข้ารหัสไว้ถอดไม่ได้).
+
 ## ความต้องการ
 - Node.js ≥ 18 (ทดสอบบน 24)
 

@@ -63,7 +63,7 @@ See [`aof-web/.env.example`](aof-web/.env.example) for the full list with commen
 ## Deploy
 
 The frontend (`aof-web/`) deploys to **Vercel**; the backend (`tmap-v2/`)
-deploys to **Render** (`tmap-v2/render.yaml`).
+deploys to **Render** via the `render.yaml` blueprint at the repo root.
 
 **Frontend → Vercel**
 

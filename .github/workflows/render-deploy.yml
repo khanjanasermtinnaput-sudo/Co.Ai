@@ -5,9 +5,8 @@ on:
     branches: [main]
     paths:
       - 'tmap-v2/src/**'
-      - 'tmap-v2/api/**'
       - 'tmap-v2/package.json'
-      - 'tmap-v2/render.yaml'
+      - 'render.yaml'
 
 jobs:
   deploy:
