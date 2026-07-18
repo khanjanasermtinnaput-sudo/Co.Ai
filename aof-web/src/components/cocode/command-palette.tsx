@@ -45,7 +45,7 @@ export function CommandPalette({
         label: `Open ${def.label}`,
         description: def.description,
         shortcut: def.shortcut,
-        category: "Panels",
+        category: def.group,
         action: () => {
           setViewMode("editor");
           setRightPanel(def.id as IDEPanel);

@@ -18,7 +18,7 @@ import { useCocodeIDEStore } from "@/store/cocode-ide-store";
 import { useUIStore } from "@/store/ui-store";
 import { useCodeStore } from "@/store/code-store";
 import { extractDiffs } from "@/lib/cocode/diff";
-import { getAdaptivePanels, PANEL_DEFS, type PanelDef } from "@/lib/cocode/adaptive-panels";
+import { getAdaptivePanels, PANEL_DEFS, PANEL_GROUP_ORDER, type PanelDef } from "@/lib/cocode/adaptive-panels";
 import { analyzeFiles } from "@/lib/cocode/diagnostics";
 import { flattenFiles } from "@/lib/cocode/virtual-fs";
 import { CommandPalette } from "./command-palette";
@@ -250,24 +250,35 @@ function OverflowPanelMenu({
             style={{ top: coords.top, right: coords.right }}
             className="fixed z-[160] w-52 max-h-[70vh] overflow-y-auto rounded-xl border border-border/60 bg-card/98 py-1.5 shadow-2xl backdrop-blur-2xl"
           >
-            {panels.map((p) => {
-              const Icon = p.icon;
+            {PANEL_GROUP_ORDER.map((group) => {
+              const groupPanels = panels.filter((p) => p.group === group);
+              if (groupPanels.length === 0) return null;
               return (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => { onSelect(p.id as IDEPanel); setOpen(false); }}
-                  className={cn(
-                    "flex w-full items-start gap-2 px-3 py-2 text-left transition-colors hover:bg-white/5",
-                    activePanel === p.id && "bg-primary/10",
-                  )}
-                >
-                  <Icon className={cn("size-3.5 mt-0.5 shrink-0", activePanel === p.id ? "text-primary" : "text-muted-foreground/70")} />
-                  <span className="flex flex-col gap-0.5">
-                    <span className={cn("text-[12px] font-medium", activePanel === p.id ? "text-primary" : "text-foreground/80")}>{p.label}</span>
-                    <span className="text-[10px] text-muted-foreground/50 leading-tight">{p.description}</span>
-                  </span>
-                </button>
+                <div key={group}>
+                  <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/40">
+                    {group}
+                  </div>
+                  {groupPanels.map((p) => {
+                    const Icon = p.icon;
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => { onSelect(p.id as IDEPanel); setOpen(false); }}
+                        className={cn(
+                          "flex w-full items-start gap-2 px-3 py-2 text-left transition-colors hover:bg-white/5",
+                          activePanel === p.id && "bg-primary/10",
+                        )}
+                      >
+                        <Icon className={cn("size-3.5 mt-0.5 shrink-0", activePanel === p.id ? "text-primary" : "text-muted-foreground/70")} />
+                        <span className="flex flex-col gap-0.5">
+                          <span className={cn("text-[12px] font-medium", activePanel === p.id ? "text-primary" : "text-foreground/80")}>{p.label}</span>
+                          <span className="text-[10px] text-muted-foreground/50 leading-tight">{p.description}</span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               );
             })}
           </div>

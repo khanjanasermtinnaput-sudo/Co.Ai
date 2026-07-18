@@ -17,42 +17,74 @@ export interface PanelDef {
   shortcut?: string;
   /** Hidden unless Developer Mode is ON */
   devModeOnly?: boolean;
+  /** Task-oriented workspace this panel belongs to (drives grouped navigation). */
+  group: PanelGroup;
 }
 
+// Eight task-oriented workspaces the 32 panels are organized into. Order here is
+// the order groups render in the command palette and the "More" panel menu.
+export type PanelGroup =
+  | "Code"
+  | "Preview"
+  | "Quality"
+  | "Source Control"
+  | "Data & Deps"
+  | "Ship"
+  | "Docs & Architecture"
+  | "Collaborate";
+
+export const PANEL_GROUP_ORDER: PanelGroup[] = [
+  "Code",
+  "Preview",
+  "Quality",
+  "Source Control",
+  "Data & Deps",
+  "Ship",
+  "Docs & Architecture",
+  "Collaborate",
+];
+
 export const PANEL_DEFS: Record<string, PanelDef> = {
-  diff:          { id: "diff",         label: "Diff",          icon: SplitSquareHorizontal, description: "Review and accept AI-generated code changes" },
-  preview:       { id: "preview",      label: "Preview",       icon: Eye,                   description: "Live browser preview of your app" },
-  "multi-preview":{ id:"multi-preview",label: "Devices",       icon: Laptop,                description: "Preview across mobile, tablet, and desktop" },
-  github:        { id: "github",       label: "GitHub",        icon: Github,                description: "Commit, branch, and pull requests", shortcut: "Ctrl+Shift+G" },
-  checkpoints:   { id: "checkpoints",  label: "History",       icon: History,               description: "Checkpoint history — undo/redo snapshots" },
-  explorer:      { id: "explorer",     label: "Refactor",      icon: Wrench,                description: "AI-powered rename, extract, and refactoring tools" },
-  tests:         { id: "tests",        label: "Tests",         icon: FlaskConical,          description: "Run and manage your test suite" },
-  deps:          { id: "deps",         label: "Deps",          icon: Package2,              description: "View and manage npm/package dependencies" },
-  docs:          { id: "docs",         label: "Docs",          icon: BookOpen,              description: "AI-generated documentation for your code" },
-  diagnostics:   { id: "diagnostics",  label: "Issues",        icon: AlertCircle,           description: "TypeScript errors, lint warnings, and type checks" },
-  pair:          { id: "pair",         label: "Pair AI",       icon: Bot,                   description: "AI pair programmer — real-time suggestions" },
-  deploy:        { id: "deploy",       label: "Deploy",        icon: Rocket,                description: "Deploy to Vercel, Railway, or Render",          shortcut: "Ctrl+Shift+D" },
-  env:           { id: "env",          label: "Env",           icon: KeyRound,              description: "Manage environment variables securely" },
-  perf:          { id: "perf",         label: "Perf",          icon: Gauge,                 description: "Bundle size and runtime performance analysis" },
-  security:      { id: "security",     label: "Security",      icon: ShieldCheck,           description: "Dependency and code vulnerability scanning" },
-  api:           { id: "api",          label: "API Studio",    icon: Globe,                 description: "Test and document REST/GraphQL endpoints" },
-  db:            { id: "db",           label: "Database",      icon: Database,              description: "Supabase / PostgreSQL schema and query explorer" },
-  mobile:        { id: "mobile",       label: "Mobile",        icon: Smartphone,            description: "iOS and Android device preview" },
-  review:        { id: "review",       label: "AI Review",     icon: Star,                  description: "AI code review with actionable suggestions" },
-  // Developer Mode only
-  graph:         { id: "graph",        label: "Graph",         icon: Network,               description: "Knowledge graph of code relationships",          devModeOnly: true },
-  cicd:          { id: "cicd",         label: "CI/CD",         icon: GitMerge,              description: "GitHub Actions workflow builder",               devModeOnly: true },
-  collab:        { id: "collab",       label: "Collab",        icon: Users,                 description: "Real-time team collaboration",                  devModeOnly: true },
-  testgen:       { id: "testgen",      label: "Test Gen",      icon: FlaskConical,          description: "AI-generated test cases from source code",      devModeOnly: true },
-  search:        { id: "search",       label: "Semantic Search",icon: Search,               description: "AI-powered semantic code search",             devModeOnly: true },
-  translate:     { id: "translate",    label: "Translate",     icon: Languages,             description: "Convert code between languages",                devModeOnly: true },
-  changelog:     { id: "changelog",    label: "Changelog",     icon: ScrollText,            description: "Auto-generated changelog from commit history",  devModeOnly: true },
-  arch:          { id: "arch",         label: "Architecture",  icon: Network,               description: "System architecture and dependency diagram",    devModeOnly: true },
-  runtime:       { id: "runtime",      label: "Runtime",       icon: Activity,              description: "Live runtime metrics and execution timeline",   devModeOnly: true },
-  a11y:          { id: "a11y",         label: "Accessibility", icon: Accessibility,         description: "WCAG accessibility audit and fixes",            devModeOnly: true },
-  i18n:          { id: "i18n",         label: "i18n",          icon: Globe,                 description: "Internationalization string management",        devModeOnly: true },
-  coverage:      { id: "coverage",     label: "Coverage",      icon: BarChart3,             description: "Code coverage visualization per file",          devModeOnly: true },
-  scaffold:      { id: "scaffold",     label: "Scaffold",      icon: Wand2,                 description: "Generate components, routes, and modules",      devModeOnly: true },
+  // ── Code ──────────────────────────────────────────────────────────────────
+  explorer:      { id: "explorer",     label: "Refactor",      icon: Wrench,                group: "Code",               description: "AI-powered rename, extract, and refactoring tools" },
+  diff:          { id: "diff",         label: "Diff",          icon: SplitSquareHorizontal, group: "Code",               description: "Review and accept AI-generated code changes" },
+  search:        { id: "search",       label: "Semantic Search",icon: Search,               group: "Code",               description: "AI-powered semantic code search",             devModeOnly: true },
+  translate:     { id: "translate",    label: "Translate",     icon: Languages,             group: "Code",               description: "Convert code between languages",                devModeOnly: true },
+  scaffold:      { id: "scaffold",     label: "Scaffold",      icon: Wand2,                 group: "Code",               description: "Generate components, routes, and modules",      devModeOnly: true },
+  // ── Preview ───────────────────────────────────────────────────────────────
+  preview:       { id: "preview",      label: "Preview",       icon: Eye,                   group: "Preview",            description: "Live browser preview of your app" },
+  "multi-preview":{ id:"multi-preview",label: "Devices",       icon: Laptop,                group: "Preview",            description: "Preview across mobile, tablet, and desktop" },
+  mobile:        { id: "mobile",       label: "Mobile",        icon: Smartphone,            group: "Preview",            description: "iOS and Android device preview" },
+  // ── Quality ───────────────────────────────────────────────────────────────
+  diagnostics:   { id: "diagnostics",  label: "Issues",        icon: AlertCircle,           group: "Quality",            description: "TypeScript errors, lint warnings, and type checks" },
+  tests:         { id: "tests",        label: "Tests",         icon: FlaskConical,          group: "Quality",            description: "Run and manage your test suite" },
+  testgen:       { id: "testgen",      label: "Test Gen",      icon: FlaskConical,          group: "Quality",            description: "AI-generated test cases from source code",      devModeOnly: true },
+  coverage:      { id: "coverage",     label: "Coverage",      icon: BarChart3,             group: "Quality",            description: "Code coverage visualization per file",          devModeOnly: true },
+  review:        { id: "review",       label: "AI Review",     icon: Star,                  group: "Quality",            description: "AI code review with actionable suggestions" },
+  a11y:          { id: "a11y",         label: "Accessibility", icon: Accessibility,         group: "Quality",            description: "WCAG accessibility audit and fixes",            devModeOnly: true },
+  perf:          { id: "perf",         label: "Perf",          icon: Gauge,                 group: "Quality",            description: "Bundle size and runtime performance analysis" },
+  // ── Source Control ────────────────────────────────────────────────────────
+  github:        { id: "github",       label: "GitHub",        icon: Github,                group: "Source Control",     description: "Commit, branch, and pull requests", shortcut: "Ctrl+Shift+G" },
+  checkpoints:   { id: "checkpoints",  label: "History",       icon: History,               group: "Source Control",     description: "Checkpoint history — undo/redo snapshots" },
+  changelog:     { id: "changelog",    label: "Changelog",     icon: ScrollText,            group: "Source Control",     description: "Auto-generated changelog from commit history",  devModeOnly: true },
+  // ── Data & Deps ───────────────────────────────────────────────────────────
+  api:           { id: "api",          label: "API Studio",    icon: Globe,                 group: "Data & Deps",        description: "Test and document REST/GraphQL endpoints" },
+  db:            { id: "db",           label: "Database",      icon: Database,              group: "Data & Deps",        description: "Supabase / PostgreSQL schema and query explorer" },
+  env:           { id: "env",          label: "Env",           icon: KeyRound,              group: "Data & Deps",        description: "Manage environment variables securely" },
+  deps:          { id: "deps",         label: "Deps",          icon: Package2,              group: "Data & Deps",        description: "View and manage npm/package dependencies" },
+  // ── Ship ──────────────────────────────────────────────────────────────────
+  deploy:        { id: "deploy",       label: "Deploy",        icon: Rocket,                group: "Ship",               description: "Deploy to Vercel, Railway, or Render",          shortcut: "Ctrl+Shift+D" },
+  cicd:          { id: "cicd",         label: "CI/CD",         icon: GitMerge,              group: "Ship",               description: "GitHub Actions workflow builder",               devModeOnly: true },
+  security:      { id: "security",     label: "Security",      icon: ShieldCheck,           group: "Ship",               description: "Dependency and code vulnerability scanning" },
+  runtime:       { id: "runtime",      label: "Runtime",       icon: Activity,              group: "Ship",               description: "Live runtime metrics and execution timeline",   devModeOnly: true },
+  // ── Docs & Architecture ───────────────────────────────────────────────────
+  docs:          { id: "docs",         label: "Docs",          icon: BookOpen,              group: "Docs & Architecture", description: "AI-generated documentation for your code" },
+  arch:          { id: "arch",         label: "Architecture",  icon: Network,               group: "Docs & Architecture", description: "System architecture and dependency diagram",    devModeOnly: true },
+  graph:         { id: "graph",        label: "Graph",         icon: Network,               group: "Docs & Architecture", description: "Knowledge graph of code relationships",          devModeOnly: true },
+  i18n:          { id: "i18n",         label: "i18n",          icon: Globe,                 group: "Docs & Architecture", description: "Internationalization string management",        devModeOnly: true },
+  // ── Collaborate ───────────────────────────────────────────────────────────
+  pair:          { id: "pair",         label: "Pair AI",       icon: Bot,                   group: "Collaborate",        description: "AI pair programmer — real-time suggestions" },
+  collab:        { id: "collab",       label: "Collab",        icon: Users,                 group: "Collaborate",        description: "Real-time team collaboration",                  devModeOnly: true },
 };
 
 export type FileContext = "style" | "api" | "test" | "component" | "config" | "markdown" | "default";
