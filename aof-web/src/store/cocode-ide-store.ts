@@ -83,20 +83,7 @@ export type IDEPanel =
   | "explorer" | "diff" | "preview" | "graph" | "checkpoints" | "github"
   | "multi-preview" | "deps" | "docs" | "diagnostics" | "pair"
   | "deploy" | "cicd" | "collab" | "env" | "perf" | "security" | "api" | "db" | "mobile" | "review"
-  | "tests" | "testgen" | "search" | "translate" | "changelog" | "arch" | "runtime" | "a11y" | "i18n" | "coverage" | "scaffold"
-  // Phase 71–80
-  | "cloud-workspace" | "realtime-collab" | "project-manager" | "analytics"
-  | "devops" | "infrastructure" | "incident-response" | "business-intel"
-  | "governance" | "autonomous-engine"
-  // Phase 81–90
-  | "self-improving" | "knowledge-base" | "arch-evolution" | "auto-refactor"
-  | "docs-platform" | "marketplace" | "cross-project" | "simulation"
-  | "global-intel" | "engineering-os"
-  // Phase 91–100
-  | "autonomous-company" | "biz-requirements" | "product-designer"
-  | "ai-governance" | "qa-platform" | "predictive-intel"
-  | "innovation-engine" | "universal-platform" | "intel-network"
-  | "ultimate-vision";
+  | "tests" | "testgen" | "search" | "translate" | "changelog" | "arch" | "runtime" | "a11y" | "i18n" | "coverage" | "scaffold";
 
 // ── Full store interface ──────────────────────────────────────────────────────
 
