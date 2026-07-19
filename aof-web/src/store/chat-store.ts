@@ -381,12 +381,18 @@ export const useChatStore = create<ChatState>()(
           }));
 
         // ── Math & Learning mode ──────────────────────────────────────────────
-        if (route.target === "chat" && isLearningProblem(content)) {
+        // Only intercepts questions the local engine can actually solve (flat
+        // arithmetic) — composeLearningReply() returns null for everything
+        // else, so real questions always fall through to the live model.
+        const learning =
+          route.target === "chat" && isLearningProblem(content)
+            ? composeLearningReply(content)
+            : null;
+        if (learning) {
           const controller = new AbortController();
           set({ abort: controller });
           await new Promise((r) => setTimeout(r, 500));
           if (!controller.signal.aborted) {
-            const learning = composeLearningReply(content);
             set((s) => ({
               conversations: s.conversations.map((c) =>
                 c.id === activeId

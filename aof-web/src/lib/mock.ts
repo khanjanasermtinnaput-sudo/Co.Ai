@@ -83,25 +83,40 @@ export function isLearningProblem(message: string): boolean {
 
 /** Try to evaluate a simple arithmetic expression safely (no eval). */
 function tryArithmetic(message: string): string | null {
-  const match = message.match(/(-?\d+(?:\.\d+)?(?:\s*[+\-*/×÷^]\s*-?\d+(?:\.\d+)?)+)/);
-  if (!match) return null;
-  const expr = match[1].replace(/×/g, "*").replace(/÷/g, "/").replace(/\^/g, "**");
-  // Only digits, operators, parens, dots and spaces are allowed through.
-  if (!/^[\d+\-*/.()\s*]+$/.test(expr.replace(/\*\*/g, "*"))) return null;
-  try {
-    // eslint-disable-next-line no-new-func
-    const value = Function(`"use strict";return (${expr});`)() as number;
-    if (typeof value === "number" && Number.isFinite(value)) {
-      return `${match[1].trim()} = ${Number(value.toFixed(6))}`;
+  const re = /(-?\d+(?:\.\d+)?(?:\s*[+\-*/×÷^]\s*-?\d+(?:\.\d+)?)+)/g;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(message))) {
+    // A numeric run glued to an identifier or a larger expression (x^2 - 5,
+    // the "3 + 4" inside "12 × (3 + 4)") is a FRAGMENT — computing just the
+    // fragment answers the wrong question, so skip it rather than intercept.
+    const before = message[match.index - 1];
+    const after = message[match.index + match[0].length];
+    if (before && /[A-Za-z0-9_^.()]/.test(before)) continue;
+    if (after && /[A-Za-z0-9_.()]/.test(after)) continue;
+    const expr = match[1].replace(/×/g, "*").replace(/÷/g, "/").replace(/\^/g, "**");
+    // Only digits, operators, parens, dots and spaces are allowed through.
+    if (!/^[\d+\-*/.()\s*]+$/.test(expr.replace(/\*\*/g, "*"))) continue;
+    try {
+      // eslint-disable-next-line no-new-func
+      const value = Function(`"use strict";return (${expr});`)() as number;
+      if (typeof value === "number" && Number.isFinite(value)) {
+        return `${match[1].trim()} = ${Number(value.toFixed(6))}`;
+      }
+    } catch {
+      /* not evaluable — try the next candidate */
     }
-  } catch {
-    /* not evaluable */
   }
   return null;
 }
 
-/** Build a structured Math/Learning answer (answer · steps · concept). */
-export function composeLearningReply(message: string): LearningAnswer {
+/** Build a structured Math/Learning answer (answer · steps · concept).
+ *
+ *  Returns `null` for anything it cannot genuinely compute (only flat
+ *  arithmetic expressions are solvable here), so the caller falls through to
+ *  the live model instead of intercepting the question with filler — a
+ *  question this engine can't answer must never be swallowed by a template
+ *  (Master Prompt: no fake/placeholder workflows). */
+export function composeLearningReply(message: string): LearningAnswer | null {
   const th = isThai(message);
   const arithmetic = tryArithmetic(message);
   if (arithmetic) {
@@ -132,33 +147,7 @@ export function composeLearningReply(message: string): LearningAnswer {
     };
   }
 
-  if (th) {
-    return {
-      answer:
-        "นี่คือผลลัพธ์ พร้อมเหตุผลแบบเต็มในแท็บ **Steps** และแนวคิดเบื้องหลังในแท็บ **Concept**",
-      steps: [
-        "เรียบเรียงโจทย์ด้วยคำของคุณเอง และแยกว่าอะไรคือสิ่งที่ให้มากับสิ่งที่ต้องหา",
-        "เลือกกฎหรือสูตรที่เชื่อมสิ่งที่ให้มากับสิ่งที่ต้องหา",
-        "แทนค่าที่ทราบลงไปและจัดรูปอย่างระมัดระวัง",
-        "ตรวจสอบคำตอบเทียบกับค่าประมาณหรือหน่วย",
-      ],
-      concept:
-        "โจทย์ส่วนใหญ่จะง่ายขึ้นเมื่อแยกสิ่งที่รู้ออกจากสิ่งที่ต้องการ แล้วเชื่อมช่องว่างด้วยหลักการเดียว สร้างแบบจำลองความคิดก่อน ส่วนการคำนวณเป็นแค่งานบันทึก",
-    };
-  }
-
-  return {
-    answer:
-      "Here's the result, with the full reasoning in the **Steps** tab and the underlying idea in **Concept**.",
-    steps: [
-      "Restate the problem in your own words and list what's given vs. unknown.",
-      "Pick the rule or formula that connects the givens to the unknown.",
-      "Substitute the known values and simplify carefully.",
-      "Sanity-check the answer against an estimate or units.",
-    ],
-    concept:
-      "Most problems become easy once you separate what you know from what you want, then bridge the gap with a single principle. Build the mental model first; the arithmetic is just bookkeeping.",
-  };
+  return null;
 }
 
 // ── Chat reply (style- & attachment-aware) ────────────────────────────────────
