@@ -89,3 +89,24 @@ describe('revokeAllUserTokens', () => {
     assert.notDeepEqual(resNew._json, { error: 'token revoked' });
   });
 });
+
+describe('assertJwtSecret', () => {
+  // Regression: register once created the user BEFORE signing the token, so a
+  // missing/weak JWT_SECRET stranded the account and burned the username.
+  // assertJwtSecret() is the pre-createUser gate — it must throw on exactly
+  // the same condition signToken throws on.
+  it('throws when JWT_SECRET is missing or under 32 chars, passes when valid', async () => {
+    const { assertJwtSecret } = await import('../server/auth.js');
+    const saved = process.env.JWT_SECRET;
+    try {
+      delete process.env.JWT_SECRET;
+      assert.throws(() => assertJwtSecret(), /JWT_SECRET/);
+      process.env.JWT_SECRET = 'short';
+      assert.throws(() => assertJwtSecret(), /JWT_SECRET/);
+      process.env.JWT_SECRET = saved;
+      assert.doesNotThrow(() => assertJwtSecret());
+    } finally {
+      process.env.JWT_SECRET = saved;
+    }
+  });
+});

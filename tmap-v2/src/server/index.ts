@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 import { hashPassword, verifyPassword, encryptSecret, decryptSecret, maskKey } from './crypto.js';
-import { signToken, requireAuth, requireAdmin, revokeToken, revokeAllUserTokens, type AuthedRequest } from './auth.js';
+import { signToken, assertJwtSecret, requireAuth, requireAdmin, revokeToken, revokeAllUserTokens, type AuthedRequest } from './auth.js';
 import {
   createUser, findUserByUsername, setUserKey, deleteUserKey,
   createSession, updateSession, getUserSessions, getSession, getSessionLogs,
@@ -199,6 +199,10 @@ app.post('/v1/auth/register', async (req, res) => {
     if (await findUserByUsername(username)) {
       return res.status(409).json({ error: 'ชื่อนี้ถูกใช้แล้ว' });
     }
+    // Fail BEFORE creating the user if token signing can't succeed — otherwise
+    // a misconfigured JWT_SECRET strands a created account and permanently
+    // burns the username while the client only ever sees "try again".
+    assertJwtSecret();
     const user = await createUser(username.trim(), hashPassword(String(pin).trim()));
     return res.json({ token: signToken(user.id), username: user.username });
   } catch (e) {

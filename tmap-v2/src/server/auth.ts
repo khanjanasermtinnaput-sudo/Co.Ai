@@ -60,6 +60,14 @@ export function signToken(userId: string): string {
   return jwt.sign({ sub: userId, jti: randomUUID() }, jwtSecret(), { expiresIn: TOKEN_TTL });
 }
 
+/** Throws when JWT_SECRET is missing/weak — same check signToken enforces.
+ *  Call BEFORE creating state that a later signToken failure would strand
+ *  (register once created the user first, then failed to sign, permanently
+ *  burning the username on a misconfigured server). */
+export function assertJwtSecret(): void {
+  jwtSecret();
+}
+
 // ── Token revocation (denylist) ───────────────────────────────────────────────
 // Leaked or logged-out tokens must die before their 7-day expiry. Two levels:
 //   • per-token:  cgntx:jwt:deny:<jti> — set on logout / refresh rotation.
