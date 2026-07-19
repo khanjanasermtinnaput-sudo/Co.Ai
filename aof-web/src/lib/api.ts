@@ -3,8 +3,10 @@
 // provider fails, the failure is surfaced to the UI as a structured
 // `AofProviderError` (via `handlers.onError`) — it is NEVER hidden behind a fake
 // "mock" reply. The offline mock engine still exists, but only runs when the app
-// is *explicitly* put in demo mode (`NEXT_PUBLIC_AOF_DEMO=1`); it is off by
-// default so the UI never appears to work when AI is actually down.
+// is *explicitly* put in demo mode (`NEXT_PUBLIC_COAGENTIX_DEMO=1`) AND no live
+// backend is configured (`isLive()` false) — every mock gate below uses that
+// same rule, so a real deployment can never serve simulated output. It is off
+// by default so the UI never appears to work when AI is actually down.
 
 import type { ChatModel, EffortLevel, ProjectBrief, RepoMetadata, RouteDecision, WorkflowModelId } from "./types";
 import {
@@ -349,7 +351,9 @@ export async function streamCodeRun(
   context?: string,
   effort: EffortLevel = "normal",
 ): Promise<void> {
-  if (isDemoMode()) {
+  // Same rule as streamChat: a configured live backend always wins over the
+  // demo flag, so a real deployment can never serve simulated output.
+  if (isDemoMode() && !isLive()) {
     await mockCodeRun(task, mode, handlers);
     return;
   }
@@ -439,7 +443,7 @@ export async function streamCodeChat(
    *  (never guessed). Ignored server-side for any tier but "pro". */
   repo?: RepoMetadata,
 ): Promise<void> {
-  if (isDemoMode()) {
+  if (isDemoMode() && !isLive()) {
     await mockCodeChat(message, handlers, history);
     return;
   }
@@ -536,7 +540,7 @@ export async function streamPlan(
   context?: string,
   effort: EffortLevel = "normal",
 ): Promise<void> {
-  if (isDemoMode()) {
+  if (isDemoMode() && !isLive()) {
     await mockPlan(task, handlers);
     return;
   }
@@ -567,7 +571,7 @@ export async function streamAnalyze(
   handlers: StreamHandlers,
   effort: EffortLevel = "normal",
 ): Promise<void> {
-  if (isDemoMode()) {
+  if (isDemoMode() && !isLive()) {
     await mockAnalyze(brief, handlers);
     return;
   }
@@ -603,7 +607,7 @@ export async function streamDebug(
   handlers: StreamHandlers,
   effort: EffortLevel = "normal",
 ): Promise<void> {
-  if (isDemoMode()) {
+  if (isDemoMode() && !isLive()) {
     await mockDebug(input.error, handlers);
     return;
   }

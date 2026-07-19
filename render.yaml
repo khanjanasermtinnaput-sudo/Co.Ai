@@ -20,12 +20,25 @@ services:
         value: normal
       - key: NODE_ENV
         value: production
+      # ── Redis (preflight P4) ───────────────────────────────────────────────────
+      # This blueprint provisions NO Redis, and server/preflight.ts refuses to
+      # start in production without one unless this override is set. The free
+      # plan runs a single instance, which is exactly the case the override is
+      # documented for (login lockout / rate limiter fall back to per-instance
+      # memory). If you later add a Render Key Value instance, set REDIS_URL
+      # and remove this override.
+      - key: COAGENTIX_ALLOW_NO_REDIS
+        value: "1"
       # ── Durable storage (DB_001) ───────────────────────────────────────────────
       # Without these, tmap-v2 falls back to an ephemeral file DB on Render's disk,
       # which is wiped on every redeploy/cold start — CLI accounts and their
       # encrypted provider keys would be LOST. Set both in the Render dashboard
       # (sync: false keeps the secret out of source control). Point at the same
       # Supabase project that aof-web uses.
+      #
+      # server/preflight.ts refuses to start in production when these are unset.
+      # For a throwaway demo WITHOUT Supabase, add COAGENTIX_ALLOW_EPHEMERAL_DB=1
+      # in the dashboard instead — accepting that accounts/keys reset on redeploy.
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY

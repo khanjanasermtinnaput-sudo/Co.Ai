@@ -4,7 +4,8 @@
 //   DELETE → logout all CLI sessions
 
 import { NextResponse } from "next/server";
-import { getAdminSupabase, getUserFromRequest, isAdminConfigured } from "@/lib/server/supabase-admin";
+import { getAdminSupabase, getUserFromRequest, isAdminConfigured, tierForUser } from "@/lib/server/supabase-admin";
+import { hasFeature } from "@/lib/plans";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,8 +27,9 @@ async function requireAdvanced(req: Request) {
   if (!user) {
     return { error: NextResponse.json({ error: "unauthorized" }, { status: 401 }) };
   }
-  const tier = (user.app_metadata?.tier as string | undefined) ?? "FREE";
-  if (tier !== "ADVANCED") {
+  // Mirrors /api/cli/token: tierForUser + hasFeature("cli"), so CLI access is
+  // lenient while plan enforcement is off and ADVANCED-gated once it's on.
+  if (!hasFeature(tierForUser(user), "cli")) {
     return { error: NextResponse.json({ error: "advanced-required" }, { status: 403 }) };
   }
   return { user };
