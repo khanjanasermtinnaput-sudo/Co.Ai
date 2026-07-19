@@ -11,7 +11,16 @@ export const dynamic = "force-dynamic";
 
 async function requireAdvanced(req: Request) {
   if (!isAdminConfigured()) {
-    return { error: NextResponse.json({ error: "backend-not-configured" }, { status: 503 }) };
+    return {
+      error: NextResponse.json(
+        {
+          error: "backend-not-configured",
+          message:
+            "CLI sessions are unavailable: this deployment is missing its Supabase admin configuration (NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY). Ask the site operator to set them.",
+        },
+        { status: 503 },
+      ),
+    };
   }
   const user = await getUserFromRequest(req);
   if (!user) {

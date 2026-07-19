@@ -648,7 +648,9 @@ async function apiFetch(path: string, opts: RequestInit = {}) {
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.error ?? `HTTP ${res.status}`);
+    // Prefer the human-readable message (e.g. backend-not-configured guidance)
+    // over the machine-readable error code.
+    throw new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
   }
   return res.json();
 }

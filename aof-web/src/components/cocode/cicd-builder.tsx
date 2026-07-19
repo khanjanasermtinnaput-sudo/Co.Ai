@@ -1,8 +1,10 @@
 "use client";
 
 // ── CI/CD Pipeline Builder (Phase 32) ────────────────────────────────────────
-// Generate GitHub Actions, GitLab CI, CircleCI, or Bitbucket Pipeline YAML.
-// Preview the generated YAML and save it directly to the virtual FS.
+// Generate GitHub Actions or GitLab CI YAML. Preview the generated YAML and
+// save it directly to the virtual FS. CircleCI and Bitbucket Pipelines have no
+// generator yet, so they're listed as disabled "Soon" targets rather than
+// producing a placeholder file.
 
 import { useState, useMemo } from "react";
 import { GitMerge, Download, FolderOpen, Copy, CheckCircle2 } from "lucide-react";
@@ -19,11 +21,11 @@ import {
 } from "@/lib/cocode/deployment";
 import { flattenFiles } from "@/lib/cocode/virtual-fs";
 
-const CICD_TARGETS: Array<{ id: CICDTarget; label: string; file: string }> = [
+const CICD_TARGETS: Array<{ id: CICDTarget; label: string; file: string; comingSoon?: boolean }> = [
   { id: "github-actions", label: "GitHub Actions", file: ".github/workflows/ci.yml" },
   { id: "gitlab-ci", label: "GitLab CI", file: ".gitlab-ci.yml" },
-  { id: "circleci", label: "CircleCI", file: ".circleci/config.yml" },
-  { id: "bitbucket", label: "Bitbucket Pipelines", file: "bitbucket-pipelines.yml" },
+  { id: "circleci", label: "CircleCI", file: ".circleci/config.yml", comingSoon: true },
+  { id: "bitbucket", label: "Bitbucket Pipelines", file: "bitbucket-pipelines.yml", comingSoon: true },
 ];
 
 const STEPS_OPTIONS: Array<{ id: CICDConfig["steps"][0]; label: string }> = [
@@ -118,12 +120,21 @@ export function CICDBuilder({ className }: { className?: string }) {
           <div>
             <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">Platform</p>
             {CICD_TARGETS.map((t) => (
-              <button key={t.id} type="button" onClick={() => setTarget(t.id)}
+              <button key={t.id} type="button" disabled={t.comingSoon}
+                onClick={() => setTarget(t.id)}
+                title={t.comingSoon ? "No generator for this platform yet" : undefined}
                 className={cn(
-                  "mb-0.5 flex w-full items-center rounded-md px-2 py-1.5 text-left text-[12px] transition-colors",
-                  target === t.id ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-white/5",
+                  "mb-0.5 flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-[12px] transition-colors",
+                  t.comingSoon
+                    ? "cursor-not-allowed text-muted-foreground/40"
+                    : target === t.id ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-white/5",
                 )}>
                 {t.label}
+                {t.comingSoon && (
+                  <span className="ml-auto rounded border border-border/60 px-1 py-px text-[9px] uppercase tracking-wide text-muted-foreground/60">
+                    Soon
+                  </span>
+                )}
               </button>
             ))}
           </div>

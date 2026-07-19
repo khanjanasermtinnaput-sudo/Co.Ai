@@ -53,5 +53,7 @@ export function requireLogin(): CoaiConfig {
 }
 
 export function defaultApiBase(): string {
-  return process.env.COAI_API_BASE ?? "https://tmap.coagentix.com";
+  // Matches the tmap-v2 deployment from the repo-root render.yaml (service
+  // name "coagentix"). Override with COAI_API_BASE for self-hosted backends.
+  return process.env.COAI_API_BASE ?? "https://coagentix.onrender.com";
 }
