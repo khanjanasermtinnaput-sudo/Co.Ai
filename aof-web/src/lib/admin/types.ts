@@ -9,31 +9,6 @@ import type { UserTier } from "@/store/auth-store";
 /** Elevated roles stored in user_roles. USER is implicit (no row in the table). */
 export type AdminRole = "OWNER" | "ADMIN" | "STAFF" | "BETA_TESTER" | "USER";
 
-// ── Permissions ───────────────────────────────────────────────────────────────
-
-export type AdminPermission =
-  // Ownership
-  | "transfer-ownership"
-  | "grant-admin"
-  | "remove-admin"
-  | "emergency-controls"
-  // User management
-  | "manage-users"
-  | "view-users"
-  | "provide-support"
-  // Subscriptions & codes
-  | "manage-subscriptions"
-  | "manage-codes"
-  // Feature management
-  | "manage-features"
-  // Analytics & logs
-  | "view-analytics"
-  | "view-logs"
-  // Beta
-  | "access-beta"
-  // Baseline
-  | "standard-access";
-
 // ── Beta features ─────────────────────────────────────────────────────────────
 
 export type BetaFeature =

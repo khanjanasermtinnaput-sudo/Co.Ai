@@ -16,6 +16,7 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/cli.ts",
+    "test": "tsx --test src/tests/*.test.ts",
     "prepublishOnly": "npm run build"
   },
   "dependencies": {

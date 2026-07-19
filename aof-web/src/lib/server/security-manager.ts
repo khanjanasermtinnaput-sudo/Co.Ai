@@ -27,8 +27,9 @@
 // write surface and no tool execution at all — every agent produces exactly
 // ONE text artifact (agent-registry.ts's AGENT_CONTRACT says so explicitly).
 // The REAL Tool Permission Engine (Part 6.3's permissionSatisfied ladder)
-// already exists in tmap-v2/src/v2/tools/registry.ts and
-// coagentix-cli/src/tools/registry.ts, where tools actually run. Faking an
+// already exists in tmap-v2/src/v2/tools/registry.ts, where tools actually
+// run (the CLI gates its own fs/git/terminal ops directly in
+// coagentix-cli/src/files.ts, git.ts and terminal.ts). Faking an
 // aof-web analog with nothing to gate would be exactly the scaffold this
 // repo's discipline forbids (orchestrator.ts's own header documents the
 // same principle for Part 5.5's omitted Event Bus/Recovery Engine).

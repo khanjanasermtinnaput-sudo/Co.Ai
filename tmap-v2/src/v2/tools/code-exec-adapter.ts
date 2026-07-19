@@ -7,9 +7,9 @@
 // This is deliberately the ONLY tool wired into the v2 DAG engine today: it's
 // ephemeral and sandboxed, so a server-side node can safely invoke it. A real
 // fs/git/terminal tool needs the user's actual local project, which this
-// server-side engine never has access to — those exist as CLI-native
-// ToolAdapters instead (coagentix-cli/src/tools/), wrapping the CLI's existing
-// files.ts/git.ts/terminal.ts safety gates, run locally where the repo is.
+// server-side engine never has access to — the CLI runs those locally where
+// the repo is, gated by its own files.ts/git.ts/terminal.ts safety checks
+// (coagentix-cli/src/), with no adapter layer in between.
 
 import { randomUUID } from 'node:crypto';
 import { runInSandbox, SUPPORTED_LANGUAGES } from '../../core/sandbox.js';

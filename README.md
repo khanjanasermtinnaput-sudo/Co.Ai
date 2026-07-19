@@ -24,7 +24,7 @@
 - **Universal search** — web search toggle backed by Tavily / Google CSE / GitHub / Wikipedia
 - **Subscription tiers** — Free / Pro / Enterprise, enforced via Supabase RLS + `user_roles` table
 - **13 typed error codes** — every provider failure is classified, user-visible, and actionable
-- **610+ tests** — `npm test` in `aof-web/`
+- **1,000+ tests** — `npm test` in `aof-web/`, `tmap-v2/`, and `coagentix-cli/`
 
 ## Quick start
 

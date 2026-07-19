@@ -292,8 +292,9 @@ other security-relevant line, keyed by `turnRequestId`. **Deliberately has NO
 `checkToolPermission()`-style method**: `/api/chat` has no write surface and no tool execution at
 all (every agent produces exactly one text artifact — `agent-registry.ts`'s `AGENT_CONTRACT`); the
 REAL Tool Permission Engine (Part 6.3's `permissionSatisfied` ladder) already exists in
-`tmap-v2/src/v2/tools/registry.ts` and `coagentix-cli/src/tools/registry.ts`, where tools actually
-run — faking an aof-web analog with nothing to gate would be the exact scaffold this repo's
+`tmap-v2/src/v2/tools/registry.ts`, where tools actually run (the CLI gates its own fs/git/terminal
+ops directly in `coagentix-cli/src/files.ts`/`git.ts`/`terminal.ts` — its unused ToolAdapter copy
+was removed as dead code) — faking an aof-web analog with nothing to gate would be the exact scaffold this repo's
 discipline forbids (see the Workflow Orchestrator entry below for the same principle applied to Part
 5.5). Verified live: a normal turn logs `[SECURITY AUDIT] action=auth ... detail=anonymous` and
 `action=key-access ... detail=low: request uses the server's own configured provider key(s)`,

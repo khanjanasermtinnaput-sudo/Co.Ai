@@ -97,7 +97,7 @@ npm run dev   # → http://localhost:3000, Ctrl-C to stop
 
 ```bash
 npm run typecheck   # tsc --noEmit
-npm test             # tsx --test src/tests/*.test.ts (610+ tests)
+npm test             # tsx --test src/tests/*.test.ts (hermetic unit suite)
 ```
 
 ## Gotchas

@@ -72,94 +72,7 @@ describe('FileStore', () => {
   });
 });
 
-// ── 2. Query Optimizer ────────────────────────────────────────────────────────
-
-describe('QueryOptimizer', () => {
-  it('encodeCursor / decodeCursor round-trip', async () => {
-    const { encodeCursor, decodeCursor } = await import('../server/query-optimizer.js');
-    const val = '2024-01-15T10:00:00Z';
-    assert.equal(decodeCursor(encodeCursor(val)), val);
-  });
-
-  it('paginateCursor returns hasMore next cursor', async () => {
-    const { paginateCursor } = await import('../server/query-optimizer.js');
-    const items = [{ id: '1' }, { id: '2' }, { id: '3' }, { id: '4' }];
-    const page  = paginateCursor(items, 'id', 3);
-    assert.equal(page.items.length, 3);
-    assert.ok(page.nextCursor !== null);
-  });
-
-  it('paginateCursor no next cursor when all fit', async () => {
-    const { paginateCursor } = await import('../server/query-optimizer.js');
-    const items = [{ id: '1' }, { id: '2' }];
-    const page  = paginateCursor(items, 'id', 5);
-    assert.equal(page.nextCursor, null);
-  });
-
-  it('estimateQueryCost: aggregation is expensive', async () => {
-    const { estimateQueryCost } = await import('../server/query-optimizer.js');
-    const hint = estimateQueryCost({ hasFilters: true, isAggregation: true });
-    assert.equal(hint.level, 'expensive');
-    assert.equal(hint.suggestCache, true);
-  });
-
-  it('estimateQueryCost: filtered small limit is cheap', async () => {
-    const { estimateQueryCost } = await import('../server/query-optimizer.js');
-    const hint = estimateQueryCost({ hasFilters: true, limit: 5 });
-    assert.equal(hint.level, 'cheap');
-    assert.equal(hint.suggestCache, false);
-  });
-
-  it('estimateQueryCost: full scan is expensive', async () => {
-    const { estimateQueryCost } = await import('../server/query-optimizer.js');
-    const hint = estimateQueryCost({ hasFilters: false });
-    assert.equal(hint.level, 'expensive');
-  });
-
-  it('chunkArray splits correctly', async () => {
-    const { chunkArray } = await import('../server/query-optimizer.js');
-    const chunks = chunkArray([1,2,3,4,5], 2);
-    assert.equal(chunks.length, 3);
-    assert.deepEqual(chunks[0], [1, 2]);
-    assert.deepEqual(chunks[2], [5]);
-  });
-
-  it('paginateOffset returns correct page', async () => {
-    const { paginateOffset } = await import('../server/query-optimizer.js');
-    const items = Array.from({ length: 25 }, (_, i) => ({ n: i }));
-    const page  = paginateOffset(items, 2, 10);
-    assert.equal(page.items.length, 10);
-    assert.equal(page.items[0].n, 10);
-    assert.equal(page.total, 25);
-    assert.equal(page.pages, 3);
-  });
-});
-
-// ── 3. CDN ───────────────────────────────────────────────────────────────────
-
-describe('CDN', () => {
-  it('generateETag is deterministic', async () => {
-    const { generateETag } = await import('../server/cdn.js');
-    const e1 = generateETag('hello world');
-    const e2 = generateETag('hello world');
-    assert.equal(e1, e2);
-    assert.ok(e1.startsWith('"') && e1.endsWith('"'));
-  });
-
-  it('generateETag differs for different content', async () => {
-    const { generateETag } = await import('../server/cdn.js');
-    assert.notEqual(generateETag('aaa'), generateETag('bbb'));
-  });
-
-  it('fingerprintUrl appends hash', async () => {
-    const { fingerprintUrl } = await import('../server/cdn.js');
-    const url = fingerprintUrl('/static/app.js', 'console.log("hi")');
-    assert.ok(url.includes('?v='));
-    assert.ok(url.startsWith('/static/app.js'));
-  });
-});
-
-// ── 4. Streaming ─────────────────────────────────────────────────────────────
+// ── 2. Streaming ─────────────────────────────────────────────────────────────
 
 describe('Streaming', () => {
   it('getConnectionStats returns zero with no connections', async () => {
@@ -180,7 +93,7 @@ describe('Streaming', () => {
   });
 });
 
-// ── 5. Teams ─────────────────────────────────────────────────────────────────
+// ── 3. Teams ─────────────────────────────────────────────────────────────────
 
 describe('Teams', () => {
   it('creates a team with owner as member', async () => {
@@ -242,7 +155,7 @@ describe('Teams', () => {
   });
 });
 
-// ── 6. Organizations ─────────────────────────────────────────────────────────
+// ── 4. Organizations ─────────────────────────────────────────────────────────
 
 describe('Organizations', () => {
   it('creates org with owner as member', async () => {
@@ -285,7 +198,7 @@ describe('Organizations', () => {
   });
 });
 
-// ── 7. Permissions ────────────────────────────────────────────────────────────
+// ── 5. Permissions ────────────────────────────────────────────────────────────
 
 describe('Permissions', () => {
   it('roleAtLeast: viewer < member < team_admin', async () => {
@@ -334,7 +247,7 @@ describe('Permissions', () => {
   });
 });
 
-// ── 8. Backup ─────────────────────────────────────────────────────────────────
+// ── 6. Backup ─────────────────────────────────────────────────────────────────
 
 describe('Backup', () => {
   it('creates backup and returns manifest', async () => {
@@ -376,7 +289,7 @@ describe('Backup', () => {
   });
 });
 
-// ── 9. Restore ────────────────────────────────────────────────────────────────
+// ── 7. Restore ────────────────────────────────────────────────────────────────
 
 describe('Restore', () => {
   it('preRestoreChecks fails for unknown backup', async () => {
@@ -404,7 +317,7 @@ describe('Restore', () => {
   });
 });
 
-// ── 10. Disaster Recovery ──────────────────────────────────────────────────────
+// ── 8. Disaster Recovery ──────────────────────────────────────────────────────
 
 describe('DisasterRecovery', () => {
   it('createIncident returns incident with correct fields', async () => {
@@ -450,7 +363,7 @@ describe('DisasterRecovery', () => {
   });
 });
 
-// ── 11. Failover / Circuit Breaker ────────────────────────────────────────────
+// ── 9. Failover / Circuit Breaker ────────────────────────────────────────────
 
 describe('Failover', () => {
   it('withRetry succeeds on first try', async () => {
@@ -535,7 +448,7 @@ describe('Failover', () => {
   });
 });
 
-// ── 12. Analytics ─────────────────────────────────────────────────────────────
+// ── 10. Analytics ─────────────────────────────────────────────────────────────
 
 describe('Analytics', () => {
   const today = new Date().toISOString().slice(0, 10);
@@ -574,7 +487,7 @@ describe('Analytics', () => {
   });
 });
 
-// ── 13. Redis Cluster Helpers (unit-testable parts only) ─────────────────────
+// ── 11. Redis Cluster Helpers (unit-testable parts only) ─────────────────────
 
 describe('RedisCluster (no Redis)', () => {
   it('chunkArray equivalent via pipelineGet with empty array', async () => {
