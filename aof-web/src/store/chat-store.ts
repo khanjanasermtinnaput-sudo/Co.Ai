@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { toast } from "sonner";
 import { uid } from "@/lib/utils";
-import { streamChat, clearProductMemory, type ChatHistoryItem } from "@/lib/api";
+import { streamChat, clearProductMemory, type ChatAttachment, type ChatHistoryItem } from "@/lib/api";
 import { routeRequest } from "@/lib/router";
 import { composeLearningReply, isLearningProblem } from "@/lib/mock";
 import {
@@ -417,6 +417,13 @@ export const useChatStore = create<ChatState>()(
           .slice(-40)
           .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
 
+        // This turn's attachments, reshaped for the model (only the fields
+        // /api/chat's vision-input.ts actually reads) — sent alongside the
+        // turn only, never re-attached from history on later turns.
+        const modelAttachments: ChatAttachment[] | undefined = attachments?.length
+          ? attachments.map((a) => ({ kind: a.kind, mime: a.mime, name: a.name, dataUrl: a.dataUrl, text: a.text }))
+          : undefined;
+
         const controller = new AbortController();
         set({ abort: controller });
 
@@ -458,7 +465,7 @@ export const useChatStore = create<ChatState>()(
           // asynchronously in finish() after the response, never blocking it.
           await streamChat(
             content,
-            { model, route, history, effort: get().effort },
+            { model, route, history, effort: get().effort, attachments: modelAttachments },
             {
               onToken: appendToken,
               signal: controller.signal,

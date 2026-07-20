@@ -81,7 +81,7 @@ export async function fileToAttachment(file: File): Promise<Attachment> {
     size: file.size,
   };
   try {
-    if (kind === "image") {
+    if (kind === "image" || kind === "pdf") {
       base.dataUrl = await readAsDataUrl(file);
     } else if (kind === "code" || kind === "document") {
       // Cap decoded text so we never blow up memory on a huge file.

@@ -61,7 +61,8 @@ export interface Attachment {
   name: string;
   mime: string;
   size: number;
-  /** data: URL — only kept for images so they can be previewed inline. */
+  /** data: URL — kept for images (inline preview) and PDFs (sent to the model
+   *  as a document block; Anthropic's API is the only provider that reads one). */
   dataUrl?: string;
   /** decoded text for code / document files, used for analysis previews. */
   text?: string;

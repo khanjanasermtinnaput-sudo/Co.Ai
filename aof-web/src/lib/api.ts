@@ -8,7 +8,7 @@
 // same rule, so a real deployment can never serve simulated output. It is off
 // by default so the UI never appears to work when AI is actually down.
 
-import type { ChatModel, EffortLevel, ProjectBrief, RepoMetadata, RouteDecision, WorkflowModelId } from "./types";
+import type { Attachment, ChatModel, EffortLevel, ProjectBrief, RepoMetadata, RouteDecision, WorkflowModelId } from "./types";
 import {
   mockChat,
   mockCodeChat,
@@ -274,6 +274,12 @@ export interface ChatHistoryItem {
   content: string;
 }
 
+/** What /api/chat actually needs from an Attachment (chat-store.ts's send())
+ *  to give the model real access to the file — image/PDF bytes as a data URL,
+ *  or decoded text for code/document files. See vision-input.ts (server) for
+ *  how each shape is validated and turned into a provider call. */
+export type ChatAttachment = Pick<Attachment, "kind" | "mime" | "name" | "dataUrl" | "text">;
+
 export interface ChatRequest {
   /** Manual model choice from the CoChat header: "lite" (Mikros) | "normal" (Kanon). */
   model: ChatModel;
@@ -281,6 +287,9 @@ export interface ChatRequest {
   history: ChatHistoryItem[];
   /** Reasoning-effort dial for the chosen model (low → high for CoChat). */
   effort: EffortLevel;
+  /** Files attached to this turn — sent alongside `message` so the model can
+   *  actually read them (see /api/chat route's `attachments` field). */
+  attachments?: ChatAttachment[];
 }
 
 /**
@@ -309,6 +318,7 @@ export async function streamChat(
         route: req.route,
         effort: req.effort,
         history: req.history.map((h) => ({ role: h.role, content: h.content })),
+        attachments: req.attachments,
       }),
       signal: handlers.signal,
     });

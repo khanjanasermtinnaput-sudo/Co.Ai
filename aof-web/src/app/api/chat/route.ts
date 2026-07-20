@@ -32,7 +32,7 @@ import {
   type KeyOverrides,
   type ProviderMeta,
 } from "@/lib/server/ai-providers";
-import { bestModelFor, matchScore, ROLE_LABEL, type TaskCategory } from "@/lib/server/model-registry";
+import { bestModelFor, matchScore, providerHasCapability, ROLE_LABEL, type TaskCategory } from "@/lib/server/model-registry";
 import { classifyFailureKind, configuredProvidersByScore, globalProviderHealth } from "@/lib/server/provider-router";
 import { loadUserPreferenceMemories, userPreferenceSystemAddon } from "@/lib/server/memory-context";
 import { logAofError, logAofInfo, logAofStage, runStartupCheckOnce } from "@/lib/server/ai-log";
@@ -63,6 +63,7 @@ import { allocateBudget, guardOverflow } from "@/lib/server/token-manager";
 import { enforcementFor } from "@/lib/server/budget-enforcer";
 import { buildTimeline, summarizeTimeline } from "@/lib/server/telemetry";
 import { resolveSecrets, assessKeyAccessRisk, auditSecurityEvent } from "@/lib/server/security-manager";
+import { decodeAttachments, appendTextBlocks, type RawAttachment } from "@/lib/server/vision-input";
 import {
   RAA_SYSTEM,
   AOF_CODE_CHAT_SYSTEM,
@@ -128,6 +129,11 @@ interface ChatBody {
   /** CoCode's open workspace, when non-empty — the Ypertatos Task Classifier's
    *  complexity signal (task-classifier.ts). Ignored for any tier but "pro". */
   repo?: RepoMetadata;
+  /** Files attached to THIS turn only (composer.tsx) — images/PDFs are sent to
+   *  the model as real multimodal content (vision-input.ts decodes + validates
+   *  them); code/document attachments are folded into `message` as fenced text
+   *  so every provider can read them, not just vision-capable ones. */
+  attachments?: RawAttachment[];
 }
 
 /** Agents that hold a conversation with the user (vs. one-shot generators) —
@@ -158,6 +164,23 @@ const ChatBodySchema = z
     model: z.enum(["lite", "normal", "pro"]).optional(),
     effort: z.string().optional(),
     repo: z.object({ fileCount: z.number(), languages: z.array(z.string()).max(50) }).optional(),
+    // Generous dataUrl cap covers a ~20MB base64-encoded PDF/image; the real
+    // per-file byte limits are enforced by vision-input.ts's decodeAttachments()
+    // against the DECODED bytes, not this raw-string ceiling.
+    attachments: z
+      .array(
+        z
+          .object({
+            kind: z.string().optional(),
+            mime: z.string().optional(),
+            name: z.string().max(500).optional(),
+            dataUrl: z.string().max(30_000_000).optional(),
+            text: z.string().max(50_000).optional(),
+          })
+          .passthrough(),
+      )
+      .max(10)
+      .optional(),
   })
   .passthrough();
 
@@ -355,10 +378,28 @@ async function handleChat(req: Request): Promise<Response> {
     return errorResponse(error);
   }
 
-  const message = String(body.message ?? "").trim();
-  if (!message) {
+  const userText = String(body.message ?? "").trim();
+  // vision-input.ts decodes+validates images/PDFs (base64, real magic-byte
+  // check, size/count caps) and code/document attachments (decoded text,
+  // already capped client-side and re-capped here). Never throws — a
+  // malformed attachment is just dropped rather than failing the turn.
+  const decodedAttachments = decodeAttachments(body.attachments);
+  const hasAttachments =
+    decodedAttachments.images.length > 0 ||
+    decodedAttachments.documents.length > 0 ||
+    decodedAttachments.textBlocks.length > 0;
+  if (!userText && !hasAttachments) {
     return Response.json({ error: "message required" }, { status: 400 });
   }
+  // An image/PDF with no accompanying text still needs a prompt for the
+  // model to act on; code/document attachments don't (their own content,
+  // appended below, IS the message).
+  const baseMessage =
+    userText ||
+    (decodedAttachments.images.length || decodedAttachments.documents.length
+      ? "Please read and describe the attached file(s)."
+      : "");
+  const message = appendTextBlocks(baseMessage, decodedAttachments.textBlocks);
 
   const history = (Array.isArray(body.history) ? body.history.slice(-20) : []).filter(
     (h) => h && (h.role === "user" || h.role === "assistant") && typeof h.content === "string",
@@ -472,6 +513,9 @@ async function handleChat(req: Request): Promise<Response> {
     historyTurns: history.length,
     repoFiles: body.repo?.fileCount,
     stages: workflowStages.length,
+    images: decodedAttachments.images.length || undefined,
+    documents: decodedAttachments.documents.length || undefined,
+    textAttachments: decodedAttachments.textBlocks.length || undefined,
   });
 
   // ── Effort dial → system prompt addon ────────────────────────────────────────
@@ -626,6 +670,17 @@ async function handleChat(req: Request): Promise<Response> {
     : preStream.system;
   let effectiveHistory = preStream.history;
   providers = preStream.providers;
+  // Attachments present → bump vision-capable providers to the front (a
+  // provider whose registry model doesn't claim "vision" would just ignore
+  // or error on the image block); a PDF specifically bumps Anthropic first,
+  // since its document content block is the only one wired up (ai-providers.ts).
+  // Array.prototype.sort is stable, so ties keep the existing task-based order.
+  if (decodedAttachments.images.length || decodedAttachments.documents.length) {
+    const needsDocument = decodedAttachments.documents.length > 0;
+    const attachmentScore = (p: ProviderMeta) =>
+      (needsDocument && p.id === "anthropic" ? 2 : 0) + (providerHasCapability(p.id, task, "vision") ? 1 : 0);
+    providers = [...providers].sort((a, b) => attachmentScore(b) - attachmentScore(a));
+  }
   const stagePrefix = preStream.stagePrefix;
   isStaged = workflowStages.length > 1;
   providerPhases = workflowStages.filter((s) => s.execution === "phase");
@@ -877,6 +932,8 @@ async function handleChat(req: Request): Promise<Response> {
       signal: req.signal,
       overrides,
       taskModel,
+      images: decodedAttachments.images,
+      documents: decodedAttachments.documents,
     });
     // Kanon: wrap the ONE provider call so its internal DRAFT/DEEPTHINK/FINAL
     // phases (see model-workflow.ts, phase-stream.ts) are parsed back out into

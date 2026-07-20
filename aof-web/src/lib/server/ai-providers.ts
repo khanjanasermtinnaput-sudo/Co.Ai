@@ -256,6 +256,36 @@ export interface AdapterInput {
   /** Task-selected model, when the router picked one more specific than the
    *  provider's configured default (see model-registry.ts). */
   taskModel?: string;
+  /** Decoded image attachments for this turn (vision-input.ts). Every
+   *  adapter below folds these into the final user message as a multimodal
+   *  content array; a provider whose model doesn't actually support vision
+   *  still receives (and typically ignores or errors on) them — provider
+   *  ordering in route.ts is what keeps a vision-capable model first when
+   *  images are present. */
+  images?: { mediaType: string; data: string }[];
+  /** Decoded PDF attachments. Anthropic's document content block is the
+   *  only one wired up (its API is the one provider here with a native PDF
+   *  block); other adapters ignore this field. */
+  documents?: { mediaType: string; data: string; name?: string }[];
+}
+
+/** Build the OpenAI-style user message content for a turn with image
+ *  attachments — an array of text + `image_url` parts — or the plain
+ *  string when there are none, so the byte-identical request shape is
+ *  preserved for every text-only turn (Gemini/DeepSeek/Qwen/Llama/
+ *  OpenRouter/Ollama/vLLM all speak this same dialect). */
+export function openAiUserContent(
+  message: string,
+  images: { mediaType: string; data: string }[] | undefined,
+): string | Array<{ type: string; text?: string; image_url?: { url: string } }> {
+  if (!images || !images.length) return message;
+  return [
+    { type: "text", text: message },
+    ...images.map((img) => ({
+      type: "image_url",
+      image_url: { url: `data:${img.mediaType};base64,${img.data}` },
+    })),
+  ];
 }
 
 // ── Shared streaming utilities ─────────────────────────────────────────────────
@@ -288,12 +318,38 @@ const ANTHROPIC_TRANSIENT_STATUSES = new Set([503, 529]);
 const ANTHROPIC_MAX_ATTEMPTS = 3;
 const ANTHROPIC_BACKOFF_MS = [300, 800];
 
+/** Build the Anthropic user message content for a turn with image/PDF
+ *  attachments — a content-block array (image + document + text blocks) —
+ *  or the plain string when there are none, so a text-only turn's request
+ *  stays byte-identical to before this attachment support existed.
+ *  Anthropic is the one provider here with a native `document` block, so
+ *  PDFs are only ever attached on this path (see AdapterInput's header). */
+export function anthropicUserContent(
+  message: string,
+  images: { mediaType: string; data: string }[] | undefined,
+  documents: { mediaType: string; data: string; name?: string }[] | undefined,
+): Anthropic.MessageParam["content"] {
+  if (!images?.length && !documents?.length) return message;
+  const blocks = [
+    ...(images ?? []).map((img) => ({
+      type: "image" as const,
+      source: { type: "base64" as const, media_type: img.mediaType, data: img.data },
+    })),
+    ...(documents ?? []).map((doc) => ({
+      type: "document" as const,
+      source: { type: "base64" as const, media_type: "application/pdf", data: doc.data },
+    })),
+    { type: "text" as const, text: message },
+  ];
+  return blocks as unknown as Anthropic.MessageParam["content"];
+}
+
 export async function* anthropicTextStream(input: AdapterInput): AsyncGenerator<string, UsageNotice | undefined> {
   const meta = PROVIDER_REGISTRY.anthropic;
   const model = input.taskModel || modelFor(meta);
   const messages: Anthropic.MessageParam[] = [
     ...input.history.map((h) => ({ role: h.role, content: h.content })),
-    { role: "user" as const, content: input.message },
+    { role: "user" as const, content: anthropicUserContent(input.message, input.images, input.documents) },
   ];
 
   let started = false;
@@ -452,7 +508,7 @@ export async function* openrouterTextStream(input: AdapterInput): AsyncGenerator
   const messages = [
     { role: "system", content: input.system },
     ...input.history,
-    { role: "user", content: input.message },
+    { role: "user", content: openAiUserContent(input.message, input.images) },
   ];
 
   // Try each model in the chain; an overloaded/rate-limited/unknown/slow model falls
@@ -726,7 +782,7 @@ async function* openAiCompatTextStream(
   const messages = [
     { role: "system", content: input.system },
     ...input.history,
-    { role: "user", content: input.message },
+    { role: "user", content: openAiUserContent(input.message, input.images) },
   ];
 
   const ctrl = new AbortController();

@@ -22,7 +22,7 @@ export interface ModelDef {
 
 export const MODEL_REGISTRY: ModelDef[] = [
   // ── Anthropic ──────────────────────────────────────────────────────────────
-  { provider: "anthropic", model: "claude-haiku-4-5-20251001", capabilities: ["chat", "reasoning", "coding"], contextWindow: 200_000, costTier: "medium" },
+  { provider: "anthropic", model: "claude-haiku-4-5-20251001", capabilities: ["chat", "vision", "reasoning", "coding"], contextWindow: 200_000, costTier: "medium" },
 
   // ── Gemini ─────────────────────────────────────────────────────────────────
   { provider: "gemini", model: "gemini-2.5-pro", capabilities: ["chat", "vision", "reasoning", "coding"], contextWindow: 1_048_576, costTier: "medium" },
@@ -116,6 +116,14 @@ export const ROLE_LABEL: Record<TaskCategory, string> = {
 export function modelDefFor(provider: ProviderId, task: TaskCategory): ModelDef | undefined {
   const model = bestModelFor(provider, task);
   return MODEL_REGISTRY.find((m) => m.provider === provider && m.model === model);
+}
+
+/** Whether the model the registry would pick for `provider`+`task` claims a
+ *  capability — used to re-order the provider chain ahead of a turn that
+ *  carries image/document attachments, so a vision-capable model is tried
+ *  first instead of one that would just ignore or error on the image block. */
+export function providerHasCapability(provider: ProviderId, task: TaskCategory, capability: Capability): boolean {
+  return modelDefFor(provider, task)?.capabilities.includes(capability) ?? false;
 }
 
 const COST_RANK: Record<CostTier, number> = { free: 0, low: 1, medium: 2, high: 3 };
