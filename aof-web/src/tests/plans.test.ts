@@ -44,11 +44,13 @@ test("tier-specific features land on the right plan", () => {
 });
 
 // ── hasFeature with enforcement flag ──────────────────────────────────────────
-test("enforcement ON: FREE cannot use aof-code, PRO can", () => {
+test("enforcement ON: FREE/LITE cannot use CoCode, PRO/ADVANCED can", () => {
   withEnforcement(true, () => {
     assert.equal(entitlementsEnforced(), true);
     assert.equal(hasFeature("FREE", "coagentix-code"), false);
+    assert.equal(hasFeature("LITE", "coagentix-code"), false);
     assert.equal(hasFeature("PRO", "coagentix-code"), true);
+    assert.equal(hasFeature("ADVANCED", "coagentix-code"), true);
     assert.equal(hasFeature("PRO", "titan"), false);
     assert.equal(hasFeature("ADVANCED", "titan"), true);
   });
@@ -73,6 +75,20 @@ test("evaluateFeature points guests to login and FREE to an upgrade (enforced)",
     assert.equal(free.allowed, false);
     assert.equal(free.requiresUpgrade, true);
     assert.equal(free.upgradeTo, "ADVANCED");
+  });
+});
+
+test("evaluateFeature: CoCode requires Pro, not just any signed-in tier (enforced)", () => {
+  withEnforcement(true, () => {
+    for (const tier of ["FREE", "LITE"] as const) {
+      const r = evaluateFeature("coagentix-code", { tier });
+      assert.equal(r.allowed, false, `${tier} should not have CoCode`);
+      assert.equal(r.requiresUpgrade, true);
+      assert.equal(r.upgradeTo, "PRO");
+    }
+    for (const tier of ["PRO", "ADVANCED"] as const) {
+      assert.equal(evaluateFeature("coagentix-code", { tier }).allowed, true, `${tier} should have CoCode`);
+    }
   });
 });
 

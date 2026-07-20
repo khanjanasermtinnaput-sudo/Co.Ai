@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { CoCodeWorkspace } from "@/components/cocode/cocode-workspace";
+import { CoCodeGate } from "@/components/cocode/cocode-gate";
 
 export const metadata: Metadata = {
   title: "CoCode",
@@ -9,7 +10,9 @@ export const metadata: Metadata = {
 export default function CodePage() {
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <CoCodeWorkspace />
+      <CoCodeGate>
+        <CoCodeWorkspace />
+      </CoCodeGate>
     </div>
   );
 }

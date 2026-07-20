@@ -8,6 +8,7 @@
 // same rule, so a real deployment can never serve simulated output. It is off
 // by default so the UI never appears to work when AI is actually down.
 
+import { toast } from "sonner";
 import type { Attachment, ChatModel, EffortLevel, ProjectBrief, RepoMetadata, RouteDecision, WorkflowModelId } from "./types";
 import {
   mockChat,
@@ -201,6 +202,16 @@ async function readAofStream(
 ): Promise<{ errored: boolean; text: string }> {
   if (!res.ok) {
     const body = await res.json().catch(() => null);
+    // Not a provider failure — the request never reached a provider. Handled
+    // separately so it isn't misrepresented as an AI/provider error.
+    if (body && typeof body === "object" && (body as { code?: string }).code === "PLAN_UPGRADE_REQUIRED") {
+      const { error } = body as { error?: string };
+      toast.error(error ?? "Upgrade required", {
+        description: "Open Settings → Billing to upgrade your plan.",
+        duration: 5000,
+      });
+      return { errored: true, text: "" };
+    }
     const err = isAofProviderError(body)
       ? body
       : classifyProviderError({ provider: "Co.AI", status: res.status, message: `Request failed (${res.status})` });

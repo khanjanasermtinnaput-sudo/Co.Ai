@@ -38,7 +38,7 @@ import { loadUserPreferenceMemories, userPreferenceSystemAddon } from "@/lib/ser
 import { logAofError, logAofInfo, logAofStage, runStartupCheckOnce } from "@/lib/server/ai-log";
 import { checkRateLimit, applyRateLimitHeaders } from "@/lib/server/rate-limit";
 import { getUserFromRequest, tierForUser } from "@/lib/server/supabase-admin";
-import { planFor } from "@/lib/plans";
+import { hasFeature, minTierForFeature, planFor } from "@/lib/plans";
 import type { EffortLevel, RepoMetadata, RouteDecision, WorkflowModelId } from "@/lib/types";
 import {
   effortSystemAddon,
@@ -376,6 +376,26 @@ async function handleChat(req: Request): Promise<Response> {
       hint: "config",
     });
     return errorResponse(error);
+  }
+
+  // ── Plan gate ──────────────────────────────────────────────────────────────
+  // CoCode (agent: "code-chat") is a Pro+ feature (lib/plans.ts's
+  // "coagentix-code") — the client-side gate in CoCodeGate stops the workspace
+  // from mounting for FREE/LITE/GUEST, but this is the real enforcement
+  // boundary since the API can be called directly, bypassing the UI.
+  if (body.agent === "code-chat") {
+    const tier = user ? tierForUser(user) : "FREE";
+    if (!hasFeature(tier, "coagentix-code")) {
+      const upgradeTo = minTierForFeature("coagentix-code");
+      return Response.json(
+        {
+          error: `CoCode requires the ${planFor(upgradeTo).name} plan or above.`,
+          code: "PLAN_UPGRADE_REQUIRED",
+          upgradeTo,
+        },
+        { status: 403 },
+      );
+    }
   }
 
   const userText = String(body.message ?? "").trim();

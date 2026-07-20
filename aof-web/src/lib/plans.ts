@@ -3,10 +3,12 @@
 // ADVANCED + GUEST) and the features each unlocks. checkUserAccess() and the
 // pricing UI both read from here so plan rules live in exactly one place.
 //
-// Enforcement is gated behind a launch switch (entitlementsEnforced): until a
-// billing provider is wired and users can actually upgrade, gating stays lenient
-// so signed-in users keep full access. Flip NEXT_PUBLIC_COAGENTIX_ENFORCE_PLANS=1 to
-// enforce per-plan limits once checkout is live.
+// Enforcement is gated behind a launch switch (entitlementsEnforced,
+// NEXT_PUBLIC_COAGENTIX_ENFORCE_PLANS) so it can still be turned off for local
+// development. In any real deployment it must be "1" — upgrades happen via
+// admin grant or a redeem code (see supabase/migrations/0003_admin_system.sql)
+// even without a live checkout flow, so there's no reason to leave gating
+// lenient there.
 
 import { TIER_RANK, type UserTier } from "@/store/auth-store";
 
