@@ -3,7 +3,7 @@
 // Part 8 — Professional Status Bar
 // Only displays useful information. Everything optional except the essentials.
 
-import { GitBranch, AlertCircle, Zap, CheckCircle, Loader2, Radio } from "lucide-react";
+import { GitBranch, AlertCircle, Zap, CheckCircle, Loader2, Radio, Save } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCocodeIDEStore } from "@/store/cocode-ide-store";
 import { useUIStore } from "@/store/ui-store";
@@ -14,6 +14,7 @@ interface StatusBarProps {
   tsErrorCount?: number;
   buildStatus?: "idle" | "building" | "success" | "error";
   aiStatus?: "idle" | "streaming" | "thinking";
+  saveStatus?: "idle" | "saving" | "saved" | "error";
   language?: string;
   encoding?: string;
 }
@@ -23,6 +24,7 @@ export function WorkspaceStatusBar({
   tsErrorCount = 0,
   buildStatus = "idle",
   aiStatus = "idle",
+  saveStatus = "idle",
   language,
   encoding = "UTF-8",
 }: StatusBarProps) {
@@ -55,6 +57,20 @@ export function WorkspaceStatusBar({
     streaming: "AI writing…",
     thinking: "AI thinking…",
   }[aiStatus];
+
+  const SAVE_ICON = {
+    idle: null,
+    saving: <Loader2 className="size-3 animate-spin text-muted-foreground/60" />,
+    saved: <Save className="size-3 text-emerald-400" />,
+    error: <AlertCircle className="size-3 text-red-400" />,
+  }[saveStatus];
+
+  const SAVE_LABEL = {
+    idle: null,
+    saving: "Saving…",
+    saved: "Saved",
+    error: "Save failed — workspace may not persist across reloads",
+  }[saveStatus];
 
   return (
     <div
@@ -113,6 +129,19 @@ export function WorkspaceStatusBar({
             <div className="flex h-full items-center gap-1 px-2">
               {BUILD_ICON}
               <span>{BUILD_LABEL}</span>
+            </div>
+          </SimpleTooltip>
+          <div className="h-3.5 w-px bg-border/40" />
+        </>
+      )}
+
+      {/* Save status (IndexedDB workspace persistence) */}
+      {saveStatus !== "idle" && SAVE_ICON && SAVE_LABEL && (
+        <>
+          <SimpleTooltip label="Workspace Persistence" description={SAVE_LABEL} side="top">
+            <div className="flex h-full items-center gap-1 px-2">
+              {SAVE_ICON}
+              <span>{SAVE_LABEL === "Saved" || SAVE_LABEL === "Saving…" ? SAVE_LABEL : "Save failed"}</span>
             </div>
           </SimpleTooltip>
           <div className="h-3.5 w-px bg-border/40" />

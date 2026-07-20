@@ -9,7 +9,8 @@
 // • Checkpoints (Phase 20)
 
 import { create } from "zustand";
-import { persist, subscribeWithSelector } from "zustand/middleware";
+import { persist, subscribeWithSelector, createJSONStorage } from "zustand/middleware";
+import { createIDBStorage } from "@/lib/cocode/idb-storage";
 
 import {
   buildTree,
@@ -200,6 +201,13 @@ interface CocodeIDEState {
 
   // ── Virtual FS upsert (for docs, etc.) ──────────────────────────────────
   upsertFile: (path: string, content: string) => void;
+
+  // ── Persistence rehydration (IndexedDB) ──────────────────────────────────
+  /** False until the async IndexedDB read of fs/checkpoints/etc. has resolved
+   *  — gate the workspace UI on this so a reload shows a loading state instead
+   *  of a flash of an empty workspace before the real snapshot loads. */
+  hasHydrated: boolean;
+  setHasHydrated: (v: boolean) => void;
 }
 
 // ── GitHub proxy helpers ──────────────────────────────────────────────────────
@@ -902,6 +910,10 @@ export const useCocodeIDEStore = create<CocodeIDEState>()(
         get().openTab(path);
       },
 
+      // ── Persistence rehydration ───────────────────────────────────────────────
+      hasHydrated: false,
+      setHasHydrated: (v) => set({ hasHydrated: v }),
+
       // ── Refactoring ───────────────────────────────────────────────────────────
       refactoring: false,
 
@@ -947,8 +959,14 @@ export const useCocodeIDEStore = create<CocodeIDEState>()(
       },
     })),
     {
-      name: "cocode.ide",
-      // Only persist lightweight state — snapshots are too large for localStorage
+      // New DB name (not the old localStorage "cocode.ide" key) — the old key
+      // never held fs/checkpoints anyway, so there's nothing to migrate; a
+      // fresh key avoids any ambiguity with the orphaned old entry.
+      name: "cocode.ide.v2",
+      // IndexedDB, not localStorage — fs/checkpoint snapshots are too large
+      // for localStorage's ~5-10MB quota (the reason they were excluded from
+      // persistence before, wiping every generated/edited file on reload).
+      storage: createJSONStorage(() => createIDBStorage("cocode.ide.v2", "state")),
       partialize: (s) => ({
         projectName: s.projectName,
         tabs: s.tabs.slice(0, 20),
@@ -959,7 +977,13 @@ export const useCocodeIDEStore = create<CocodeIDEState>()(
         rightPanel: s.rightPanel,
         // repos are refetched by initGitHub() on load; don't cache them.
         github: { ...s.github, repos: [], loading: false, error: null, needsReconnect: false },
+        fs: s.fs,
+        checkpoints: pruneStack(s.checkpoints),
       }),
+      onRehydrateStorage: () => (state, error) => {
+        if (error) console.error("[cocode] Failed to rehydrate workspace from IndexedDB:", error);
+        state?.setHasHydrated(true);
+      },
     },
   ),
 );

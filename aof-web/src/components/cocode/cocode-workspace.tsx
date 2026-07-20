@@ -21,6 +21,7 @@ import { extractDiffs } from "@/lib/cocode/diff";
 import { getAdaptivePanels, PANEL_DEFS, PANEL_GROUP_ORDER, type PanelDef } from "@/lib/cocode/adaptive-panels";
 import { analyzeFiles } from "@/lib/cocode/diagnostics";
 import { flattenFiles } from "@/lib/cocode/virtual-fs";
+import { useIDBWriteStatus } from "@/lib/cocode/idb-storage";
 import { CommandPalette } from "./command-palette";
 import { WorkspaceStatusBar } from "./status-bar";
 import { useSmartContextMenu, SmartContextMenu } from "./smart-context-menu";
@@ -308,6 +309,8 @@ export function CoCodeWorkspace() {
   const activeTab      = useCocodeIDEStore((s) => s.activeTab);
   const hasFiles        = useCocodeIDEStore((s) => s.fs.children.length > 0);
   const fs              = useCocodeIDEStore((s) => s.fs);
+  const hasHydrated     = useCocodeIDEStore((s) => s.hasHydrated);
+  const saveStatus      = useIDBWriteStatus();
 
   const aiStreaming = useUIStore((s) => s.aiStreaming);
   const codeBuilding = useCodeStore((s) => s.building);
@@ -421,7 +424,12 @@ export function CoCodeWorkspace() {
         onSendToChat={handleSendToChat}
       />
 
-      {viewMode === "build" ? (
+      {!hasHydrated ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-2 text-muted-foreground/60">
+          <Loader2 className="size-5 animate-spin" />
+          <p className="text-[12px]">Restoring your workspace…</p>
+        </div>
+      ) : viewMode === "build" ? (
         <>
           {/* ── Build Titlebar ───────────────────────────────────────────────── */}
           <div className="flex h-10 items-center gap-2 border-b border-border/60 bg-card/50 px-3">
@@ -692,6 +700,7 @@ export function CoCodeWorkspace() {
         tsErrorCount={tsErrorCount}
         buildStatus={buildStatus}
         aiStatus={aiStreaming ? "streaming" : "idle"}
+        saveStatus={saveStatus}
       />
         </>
       )}
