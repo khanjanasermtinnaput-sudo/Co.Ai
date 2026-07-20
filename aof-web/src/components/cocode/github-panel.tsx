@@ -4,11 +4,11 @@
 // Connect, clone, switch branches, commit, push, create PRs.
 // All Git ops go through the /api/github proxy (token stays in httpOnly cookie).
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Github, GitBranch, GitCommit, GitPullRequest,
-  Loader2, LogIn, LogOut, RefreshCw, ShieldAlert,
-  Check, Plus,
+  Loader2, LogOut, RefreshCw, ShieldAlert,
+  Check, Plus, ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -18,13 +18,15 @@ export function GitHubPanel() {
   const github = useCocodeIDEStore((s) => s.github);
   const connectGitHub = useCocodeIDEStore((s) => s.connectGitHub);
   const disconnectGitHub = useCocodeIDEStore((s) => s.disconnectGitHub);
+  const listRepos = useCocodeIDEStore((s) => s.listRepos);
   const loadRepo = useCocodeIDEStore((s) => s.loadRepo);
   const switchBranch = useCocodeIDEStore((s) => s.switchBranch);
-  const commitFiles = useCocodeIDEStore((s) => s.commitFiles);
+  const pushToGitHub = useCocodeIDEStore((s) => s.pushToGitHub);
   const createGitBranch = useCocodeIDEStore((s) => s.createGitBranch);
   const openPR = useCocodeIDEStore((s) => s.openPR);
   const cloneProgress = useCocodeIDEStore((s) => s.cloneProgress);
   const allFiles = useCocodeIDEStore((s) => s.allFiles);
+  const projectName = useCocodeIDEStore((s) => s.projectName);
 
   const [repoInput, setRepoInput] = useState("");
   const [commitMsg, setCommitMsg] = useState("");
@@ -34,11 +36,20 @@ export function GitHubPanel() {
   const [committing, setCommitting] = useState(false);
   const [creatingBranch, setCreatingBranch] = useState(false);
   const [prUrl, setPrUrl] = useState<string | null>(null);
+  const [lastCommitUrl, setLastCommitUrl] = useState<string | null>(null);
 
-  const dirtyFiles = allFiles().filter((f) => f.dirty).map((f) => f.path);
+  const files = allFiles();
+  const dirtyFiles = files.filter((f) => f.dirty).map((f) => f.path);
 
-  async function handleLoadRepo() {
-    const clean = repoInput.trim();
+  // Repos may be stale/empty when the panel opens (e.g. connection restored
+  // from cookie before this panel mounted) — fetch once when connected.
+  useEffect(() => {
+    if (github.connected && github.repos.length === 0) void listRepos();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run on connect only
+  }, [github.connected]);
+
+  async function handleLoadRepo(fullName?: string) {
+    const clean = (fullName ?? repoInput).trim();
     if (!clean.includes("/")) {
       setError("Format: owner/repo");
       return;
@@ -47,19 +58,22 @@ export function GitHubPanel() {
     try {
       await loadRepo(clean);
     } catch (e) {
-      setError(String(e));
+      setError(e instanceof Error ? e.message : String(e));
     }
   }
 
-  async function handleCommit() {
-    if (!commitMsg.trim() || !dirtyFiles.length) return;
+  async function handlePush() {
+    if (!files.length) return;
+    const message = commitMsg.trim() || `Update ${projectName} from CoCode`;
     setCommitting(true);
     setError(null);
+    setLastCommitUrl(null);
     try {
-      await commitFiles(commitMsg.trim(), dirtyFiles);
+      const { commitUrl } = await pushToGitHub(message);
+      setLastCommitUrl(commitUrl);
       setCommitMsg("");
     } catch (e) {
-      setError(String(e));
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setCommitting(false);
     }
@@ -99,10 +113,19 @@ export function GitHubPanel() {
       <div className="flex h-full flex-col items-center justify-center gap-4 p-6 text-center">
         <div className="rounded-2xl border border-border bg-card/50 p-5">
           <Github className="mx-auto mb-3 size-10 text-muted-foreground/60" />
-          <h3 className="mb-1 font-semibold">Connect GitHub</h3>
-          <p className="mb-4 text-[13px] text-muted-foreground">
-            Clone any repo, switch branches, commit, push, and open PRs — all without leaving CoCode.
-          </p>
+          <h3 className="mb-1 font-semibold">
+            {github.needsReconnect ? "Reconnect GitHub" : "Connect GitHub"}
+          </h3>
+          {github.needsReconnect ? (
+            <p className="mb-4 text-[13px] text-amber-400">
+              Your GitHub session expired or was revoked. Sign in again to keep pushing —
+              your workspace files are untouched.
+            </p>
+          ) : (
+            <p className="mb-4 text-[13px] text-muted-foreground">
+              Clone any repo, switch branches, commit, push, and open PRs — all without leaving CoCode.
+            </p>
+          )}
           <Button
             onClick={() => void connectGitHub()}
             disabled={github.loading}
@@ -113,9 +136,9 @@ export function GitHubPanel() {
             ) : (
               <Github className="size-4" />
             )}
-            Sign in with GitHub
+            {github.needsReconnect ? "Reconnect GitHub" : "Sign in with GitHub"}
           </Button>
-          {github.error && (
+          {github.error && !github.needsReconnect && (
             <p className="mt-2 text-[12px] text-red-400">{github.error}</p>
           )}
         </div>
@@ -145,9 +168,44 @@ export function GitHubPanel() {
           </button>
         </div>
 
-        {/* Clone repo */}
+        {/* Repo picker */}
         <div className="rounded-xl border border-border bg-card/40 p-4">
-          <p className="mb-2 text-[12px] font-medium">Load Repository</p>
+          <div className="mb-2 flex items-center gap-1.5">
+            <p className="text-[12px] font-medium">Your Repositories</p>
+            <button
+              type="button"
+              onClick={() => void listRepos()}
+              className="ml-auto rounded p-1 text-muted-foreground hover:text-foreground"
+              title="Refresh repository list"
+            >
+              <RefreshCw className="size-3" />
+            </button>
+          </div>
+          <select
+            value=""
+            onChange={(e) => e.target.value && void handleLoadRepo(e.target.value)}
+            disabled={github.loading || github.repos.length === 0}
+            className="w-full rounded-md border border-border bg-background/50 px-2 py-1.5 text-[12px] outline-none focus:border-primary/50 disabled:opacity-50"
+          >
+            <option value="" disabled>
+              {github.repos.length === 0
+                ? "No repositories found"
+                : `Select a repository (${github.repos.length})…`}
+            </option>
+            {github.repos.map((r) => (
+              <option key={r.fullName} value={r.fullName}>
+                {r.fullName}{r.private ? " 🔒" : ""}
+              </option>
+            ))}
+          </select>
+          {github.repos.length === 0 && (
+            <p className="mt-1.5 text-[11px] text-muted-foreground/60">
+              No repositories on this GitHub account yet — create one on GitHub first,
+              then hit refresh. CoCode never creates repos on its own.
+            </p>
+          )}
+
+          <p className="mb-1 mt-3 text-[11px] text-muted-foreground/60">Or load by name:</p>
           <div className="flex gap-2">
             <input
               type="text"
@@ -259,11 +317,11 @@ export function GitHubPanel() {
         </div>
       </div>
 
-      {/* Commit */}
+      {/* Commit & Push */}
       <div className="rounded-xl border border-border bg-card/40 p-3">
         <div className="mb-2 flex items-center gap-1.5">
           <GitCommit className="size-3.5 text-muted-foreground" />
-          <span className="text-[12px] font-medium">Commit Changes</span>
+          <span className="text-[12px] font-medium">Commit & Push</span>
           {dirtyFiles.length > 0 && (
             <span className="ml-auto rounded-full bg-amber-500/20 px-1.5 text-[10px] text-amber-400">
               {dirtyFiles.length} changed
@@ -271,36 +329,54 @@ export function GitHubPanel() {
           )}
         </div>
 
-        {dirtyFiles.length === 0 ? (
-          <p className="text-[12px] text-muted-foreground/60">No changed files.</p>
+        {files.length === 0 ? (
+          <p className="text-[12px] text-muted-foreground/60">Workspace is empty — nothing to push.</p>
         ) : (
           <>
-            <div className="mb-2 max-h-24 overflow-y-auto rounded-md border border-border/50 bg-background/20 px-2 py-1">
-              {dirtyFiles.map((f) => (
-                <div key={f} className="truncate font-mono text-[11px] text-amber-400">{f}</div>
-              ))}
-            </div>
+            {dirtyFiles.length > 0 && (
+              <div className="mb-2 max-h-24 overflow-y-auto rounded-md border border-border/50 bg-background/20 px-2 py-1">
+                {dirtyFiles.map((f) => (
+                  <div key={f} className="truncate font-mono text-[11px] text-amber-400">{f}</div>
+                ))}
+              </div>
+            )}
             <input
               type="text"
               value={commitMsg}
               onChange={(e) => setCommitMsg(e.target.value)}
-              placeholder="Commit message…"
-              onKeyDown={(e) => e.key === "Enter" && void handleCommit()}
+              placeholder={`Commit message (default: "Update ${projectName} from CoCode")`}
+              onKeyDown={(e) => e.key === "Enter" && void handlePush()}
               className="mb-2 w-full rounded-md border border-border bg-background/50 px-2 py-1.5 text-[12px] outline-none focus:border-primary/50"
             />
             <Button
               size="sm"
               className="w-full"
-              onClick={() => void handleCommit()}
-              disabled={committing || !commitMsg.trim()}
+              onClick={() => void handlePush()}
+              disabled={committing || repo.protected}
             >
               {committing ? (
                 <Loader2 className="size-3.5 animate-spin" />
               ) : (
                 <GitCommit className="size-3.5" />
               )}
-              Commit & Push
+              {committing
+                ? "Pushing…"
+                : `Push ${files.length} file${files.length !== 1 ? "s" : ""} (one commit)`}
             </Button>
+            {lastCommitUrl && (
+              <div className="mt-2 flex items-center gap-2 rounded-lg bg-emerald-500/10 px-3 py-2 text-[12px] text-emerald-400">
+                <Check className="size-3.5 shrink-0" />
+                <span>Pushed!</span>
+                <a
+                  href={lastCommitUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="ml-auto inline-flex items-center gap-1 underline hover:text-emerald-300"
+                >
+                  View commit <ExternalLink className="size-3" />
+                </a>
+              </div>
+            )}
           </>
         )}
       </div>

@@ -13,13 +13,14 @@ export const EXPORT_STAGE_LABEL: Record<ExportStage, string> = {
   done: "Download Ready",
 };
 
-export type ExportErrorReason = "EMPTY_PROJECT" | "INVALID_CODE" | "MISSING_FILES" | "NO_HTML_ENTRY";
+export type ExportErrorReason = "EMPTY_PROJECT" | "INVALID_CODE" | "MISSING_FILES" | "NO_HTML_ENTRY" | "SERVER_PROJECT";
 
 export const EXPORT_ERROR_MESSAGE: Record<ExportErrorReason, string> = {
   EMPTY_PROJECT: "Empty Project State",
   INVALID_CODE: "Invalid Generated Code",
   MISSING_FILES: "Missing Project Files",
   NO_HTML_ENTRY: "No index.html found in the generated project",
+  SERVER_PROJECT: "This project needs a server build (e.g. Next.js) — export as ZIP instead",
 };
 
 export class ExportError extends Error {

@@ -275,6 +275,12 @@ async function loadModule(path) {
 
 (async () => {
   try {
+    if (typeof Babel === "undefined") {
+      throw new Error(
+        "Preview engine failed to load: Babel Standalone (unpkg.com) was blocked or unreachable. " +
+        "Check your network connection and the page Content-Security-Policy (script-src must allow https://unpkg.com and https://esm.sh)."
+      );
+    }
     const url = await loadModule(ENTRY);
     await import(url);
   } catch (e) {

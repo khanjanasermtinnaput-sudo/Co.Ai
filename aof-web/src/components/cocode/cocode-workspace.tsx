@@ -63,6 +63,7 @@ const AccessibilityPanel = lazy(() => import("./accessibility-panel").then((m) =
 const I18nPanel       = lazy(() => import("./i18n-panel").then((m) => ({ default: m.I18nPanel })));
 const CoveragePanel   = lazy(() => import("./coverage-panel").then((m) => ({ default: m.CoveragePanel })));
 const ScaffolderPanel = lazy(() => import("./scaffolder-panel").then((m) => ({ default: m.ScaffolderPanel })));
+const WorkspaceExportMenu = lazy(() => import("./workspace-export-menu").then((m) => ({ default: m.WorkspaceExportMenu })));
 
 // ── Loader fallback ────────────────────────────────────────────────────────────
 function PanelLoader() {
@@ -378,22 +379,16 @@ export function CoCodeWorkspace() {
     return () => window.removeEventListener("keydown", onKey);
   }, [setCommandPaletteOpen, toggleDeveloperMode, undo, redo]);
 
-  // Handle GitHub OAuth callback
+  // Handle GitHub OAuth callback + silently restore an existing connection.
+  // initGitHub() covers both cases: right after the ?github=connected redirect
+  // AND on any later page load while the httpOnly gh_token cookie is still
+  // valid (it probes /user, sets connected+user, then fetches the repo list).
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("github") === "connected") {
       window.history.replaceState({}, "", window.location.pathname);
-      fetch("/api/github?path=/user")
-        .then((r) => r.json())
-        .then((user: { login?: string; name?: string; avatar_url?: string }) => {
-          if (user.login) {
-            useCocodeIDEStore.setState((s) => ({
-              github: { ...s.github, connected: true, user: { login: user.login!, name: user.name ?? null, avatar_url: user.avatar_url ?? "" } },
-            }));
-          }
-        })
-        .catch(() => {});
     }
+    void useCocodeIDEStore.getState().initGitHub();
   }, []);
 
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -538,6 +533,15 @@ export function CoCodeWorkspace() {
               <Upload className="size-3.5" />
               <input type="file" multiple className="hidden" onChange={handleFileUpload} />
             </label>
+          </SimpleTooltip>
+
+          {/* Export workspace (index.html / ZIP) */}
+          <SimpleTooltip label="Export Project" description="Download the workspace as a standalone index.html or a ZIP" side="bottom">
+            <span>
+              <Suspense fallback={null}>
+                <WorkspaceExportMenu />
+              </Suspense>
+            </span>
           </SimpleTooltip>
 
           {/* Back to CoCode */}

@@ -3,8 +3,21 @@
 // httpOnly cookie, and redirects back to the CoCode workspace.
 
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 
 export const runtime = "nodejs";
+
+/** Expire the one-shot CSRF state cookie (used or not, it's done after this hit). */
+function clearStateCookie(res: NextResponse): NextResponse {
+  res.cookies.set("gh_oauth_state", "", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: 0,
+    path: "/",
+  });
+  return res;
+}
 
 export async function GET(req: Request): Promise<Response> {
   const url = new URL(req.url);
@@ -14,6 +27,16 @@ export async function GET(req: Request): Promise<Response> {
   if (!code) {
     return NextResponse.redirect(
       new URL("/code?error=github_no_code", url.origin),
+    );
+  }
+
+  // CSRF check: the state GitHub echoes back must match the one we set as a
+  // cookie when the flow started (route.ts PATCH). A mismatch means this
+  // callback wasn't initiated by our own connect button.
+  const expectedState = cookies().get("gh_oauth_state")?.value ?? null;
+  if (!expectedState || state !== expectedState) {
+    return clearStateCookie(
+      NextResponse.redirect(new URL("/code?error=github_bad_state", url.origin)),
     );
   }
 
@@ -49,9 +72,9 @@ export async function GET(req: Request): Promise<Response> {
     };
 
     if (!data.access_token) {
-      return NextResponse.redirect(
+      return clearStateCookie(NextResponse.redirect(
         new URL(`/code?error=github_${data.error ?? "token_failed"}`, url.origin),
-      );
+      ));
     }
 
     // Store token in httpOnly cookie (7-day expiry)
@@ -65,10 +88,10 @@ export async function GET(req: Request): Promise<Response> {
       maxAge: 60 * 60 * 24 * 7,
       path: "/",
     });
-    return response;
+    return clearStateCookie(response);
   } catch {
-    return NextResponse.redirect(
+    return clearStateCookie(NextResponse.redirect(
       new URL("/code?error=github_network", url.origin),
-    );
+    ));
   }
 }

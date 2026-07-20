@@ -169,7 +169,7 @@ export function MobilePreview({ className }: { className?: string }) {
           {/* Iframe content */}
           <iframe
             srcDoc={srcDoc}
-            sandbox="allow-scripts allow-same-origin"
+            sandbox="allow-scripts allow-forms allow-modals allow-popups allow-same-origin"
             className="absolute inset-0 w-full h-full border-0"
             style={{ borderRadius: device.borderRadius * scale }}
             title={`Mobile preview — ${device.name}`}

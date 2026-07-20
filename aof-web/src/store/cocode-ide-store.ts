@@ -53,9 +53,17 @@ import {
 
 // ── GitHub connection state ───────────────────────────────────────────────────
 
+export interface GitHubRepoRef {
+  fullName: string;
+  private: boolean;
+  defaultBranch: string;
+}
+
 export interface GitHubConnection {
   connected: boolean;
   user: { login: string; name: string | null; avatar_url: string } | null;
+  /** Repos the connected account can push to — populated by listRepos(). */
+  repos: GitHubRepoRef[];
   repo: {
     fullName: string;
     branch: string;
@@ -66,6 +74,8 @@ export interface GitHubConnection {
   } | null;
   loading: boolean;
   error: string | null;
+  /** True when a GitHub call came back 401 — token expired or revoked. */
+  needsReconnect: boolean;
 }
 
 // ── Editor tab ────────────────────────────────────────────────────────────────
@@ -124,9 +134,15 @@ interface CocodeIDEState {
   github: GitHubConnection;
   connectGitHub: () => Promise<void>;
   disconnectGitHub: () => void;
+  /** Silently restore the connection from a still-valid gh_token cookie. */
+  initGitHub: () => Promise<void>;
+  /** Fetch the pushable repos of the connected account into github.repos. */
+  listRepos: () => Promise<void>;
   loadRepo: (fullName: string, branch?: string) => Promise<void>;
   switchBranch: (branch: string) => Promise<void>;
   commitFiles: (message: string, paths: string[]) => Promise<{ commitSha: string }>;
+  /** Push ALL workspace files to the loaded repo/branch as ONE commit. */
+  pushToGitHub: (message: string) => Promise<{ commitSha: string; commitUrl: string }>;
   createGitBranch: (name: string) => Promise<void>;
   openPR: (title: string, body: string, head: string, base: string) => Promise<string>;
   cloneProgress: number; // 0-100
@@ -184,6 +200,48 @@ interface CocodeIDEState {
 
   // ── Virtual FS upsert (for docs, etc.) ──────────────────────────────────
   upsertFile: (path: string, content: string) => void;
+}
+
+// ── GitHub proxy helpers ──────────────────────────────────────────────────────
+
+/** Thrown when the gh_token cookie is missing, expired, or revoked (HTTP 401). */
+export class GitHubAuthError extends Error {
+  constructor() {
+    super("GitHub session expired or was revoked — please reconnect.");
+    this.name = "GitHubAuthError";
+  }
+}
+
+/** Call the /api/github proxy and unwrap the response.
+ *  `path` may carry query params in the proxy's `&`-forwarding style
+ *  (e.g. "/user/repos&per_page=100") or inline ("/x/branches?per_page=100"). */
+async function ghRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`/api/github?path=${path}`, init);
+  if (res.status === 401) throw new GitHubAuthError();
+  const data = (await res.json().catch(() => ({}))) as T & { message?: string; error?: string };
+  if (!res.ok) {
+    throw new Error(data.message ?? data.error ?? `GitHub API error (HTTP ${res.status})`);
+  }
+  return data;
+}
+
+/** Fold a caught GitHub error into the store's github slice. An auth failure
+ *  flips needsReconnect so the UI can prompt to reconnect instead of crashing. */
+function ghErrorPatch(s: { github: GitHubConnection }, e: unknown): { github: GitHubConnection } {
+  if (e instanceof GitHubAuthError) {
+    return {
+      github: {
+        ...s.github,
+        connected: false,
+        loading: false,
+        needsReconnect: true,
+        error: e.message,
+      },
+    };
+  }
+  return {
+    github: { ...s.github, loading: false, error: e instanceof Error ? e.message : String(e) },
+  };
 }
 
 // ── Store ─────────────────────────────────────────────────────────────────────
@@ -292,7 +350,7 @@ export const useCocodeIDEStore = create<CocodeIDEState>()(
       setViewMode: (viewMode) => set({ viewMode }),
 
       // ── GitHub ──────────────────────────────────────────────────────────────
-      github: { connected: false, user: null, repo: null, loading: false, error: null },
+      github: { connected: false, user: null, repos: [], repo: null, loading: false, error: null, needsReconnect: false },
       cloneProgress: 0,
 
       connectGitHub: async () => {
@@ -313,7 +371,51 @@ export const useCocodeIDEStore = create<CocodeIDEState>()(
       disconnectGitHub: () => {
         // gh_token is httpOnly — only the server can actually clear it.
         void fetch("/api/github", { method: "OPTIONS" }).catch(() => {});
-        set({ github: { connected: false, user: null, repo: null, loading: false, error: null } });
+        set({ github: { connected: false, user: null, repos: [], repo: null, loading: false, error: null, needsReconnect: false } });
+      },
+
+      initGitHub: async () => {
+        // Restore the connection from a still-valid httpOnly cookie on page
+        // load — no re-login round-trip. On 401 (or no cookie) stay quietly
+        // disconnected, correcting any stale persisted `connected: true`.
+        try {
+          const user = await ghRequest<{ login: string; name: string | null; avatar_url: string }>("/user");
+          set((s) => ({
+            github: {
+              ...s.github,
+              connected: true,
+              needsReconnect: false,
+              error: null,
+              user: { login: user.login, name: user.name, avatar_url: user.avatar_url },
+            },
+          }));
+          void get().listRepos();
+        } catch {
+          set((s) => (s.github.connected
+            ? { github: { ...s.github, connected: false, user: null } }
+            : s));
+        }
+      },
+
+      listRepos: async () => {
+        try {
+          const repos = await ghRequest<Array<{
+            full_name: string;
+            private: boolean;
+            default_branch: string;
+            permissions?: { push?: boolean };
+          }>>("/user/repos&per_page=100&sort=updated&affiliation=owner,collaborator,organization_member");
+          set((s) => ({
+            github: {
+              ...s.github,
+              repos: (Array.isArray(repos) ? repos : [])
+                .filter((r) => r.permissions?.push !== false)
+                .map((r) => ({ fullName: r.full_name, private: r.private, defaultBranch: r.default_branch })),
+            },
+          }));
+        } catch (e) {
+          set((s) => ghErrorPatch(s, e));
+        }
       },
 
       loadRepo: async (fullName, branch) => {
@@ -379,7 +481,7 @@ export const useCocodeIDEStore = create<CocodeIDEState>()(
             cloneProgress: 100,
           }));
         } catch (e) {
-          set((s) => ({ github: { ...s.github, loading: false, error: String(e) } }));
+          set((s) => ghErrorPatch(s, e));
         }
       },
 
@@ -397,26 +499,115 @@ export const useCocodeIDEStore = create<CocodeIDEState>()(
         const { fullName, branch } = github.repo;
         let lastCommitSha = "";
 
-        for (const path of paths) {
-          const file = findFile(fs, path);
-          if (!file) continue;
-          const res = await fetch(`/api/github?path=/repos/${fullName}/contents/${path}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              message,
-              content: btoa(unescape(encodeURIComponent(file.content))),
-              branch,
-              ...(file.sha ? { sha: file.sha } : {}),
-            }),
-          });
-          const data = await res.json() as { commit?: { sha: string } };
-          lastCommitSha = data.commit?.sha ?? "";
-          // Mark file as clean
-          set((s) => ({ fs: upsertFile(s.fs, path, file.content, data.commit?.sha) }));
+        try {
+          for (const path of paths) {
+            const file = findFile(fs, path);
+            if (!file) continue;
+            const data = await ghRequest<{ commit?: { sha: string }; content?: { sha: string } }>(
+              `/repos/${fullName}/contents/${path}`,
+              {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  message,
+                  content: btoa(unescape(encodeURIComponent(file.content))),
+                  branch,
+                  ...(file.sha ? { sha: file.sha } : {}),
+                }),
+              },
+            );
+            lastCommitSha = data.commit?.sha ?? "";
+            // Adopt the new BLOB sha (content.sha) — that's what a later
+            // contents PUT must send back, not the commit sha.
+            set((s) => ({ fs: upsertFile(s.fs, path, file.content, data.content?.sha) }));
+          }
+        } catch (e) {
+          set((s) => ghErrorPatch(s, e));
+          throw e;
         }
 
         return { commitSha: lastCommitSha };
+      },
+
+      pushToGitHub: async (message) => {
+        const { github, fs } = get();
+        if (!github.repo) throw new Error("No repo connected");
+        if (github.repo.protected) throw new Error("Branch is protected — create a feature branch first.");
+        const files = flattenFiles(fs);
+        if (!files.length) throw new Error("Workspace is empty — nothing to push.");
+        const { fullName, branch } = github.repo;
+
+        try {
+          // 1 — Current branch head → base commit + its tree.
+          const ref = await ghRequest<{ object: { sha: string } }>(
+            `/repos/${fullName}/git/ref/heads/${branch}`,
+          );
+          const baseCommitSha = ref.object.sha;
+          const baseCommit = await ghRequest<{ tree: { sha: string } }>(
+            `/repos/${fullName}/git/commits/${baseCommitSha}`,
+          );
+
+          // 2 — One blob per workspace file (base64 survives non-ASCII).
+          const blobs: Array<{ path: string; sha: string }> = [];
+          const BATCH = 5;
+          for (let i = 0; i < files.length; i += BATCH) {
+            const batch = files.slice(i, i + BATCH);
+            const created = await Promise.all(batch.map(async (f) => {
+              const blob = await ghRequest<{ sha: string }>(`/repos/${fullName}/git/blobs`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  content: btoa(unescape(encodeURIComponent(f.content))),
+                  encoding: "base64",
+                }),
+              });
+              return { path: f.path, sha: blob.sha };
+            }));
+            blobs.push(...created);
+          }
+
+          // 3 — One tree on top of the current one, 4 — ONE commit, 5 — advance the ref.
+          const tree = await ghRequest<{ sha: string }>(`/repos/${fullName}/git/trees`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              base_tree: baseCommit.tree.sha,
+              tree: blobs.map((b) => ({ path: b.path, mode: "100644", type: "blob", sha: b.sha })),
+            }),
+          });
+          const commit = await ghRequest<{ sha: string }>(`/repos/${fullName}/git/commits`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ message, tree: tree.sha, parents: [baseCommitSha] }),
+          });
+          await ghRequest(`/repos/${fullName}/git/refs/heads/${branch}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sha: commit.sha, force: false }),
+          });
+
+          // Mark the whole workspace clean, adopting the new blob SHAs.
+          const shaByPath = new Map(blobs.map((b) => [b.path, b.sha]));
+          set((s) => ({
+            fs: buildTree(flattenFiles(s.fs).map((f) => ({
+              path: f.path,
+              content: f.content,
+              sha: shaByPath.get(f.path) ?? f.sha,
+            }))),
+            github: {
+              ...s.github,
+              repo: s.github.repo ? { ...s.github.repo, lastCommit: commit.sha } : null,
+            },
+          }));
+
+          return {
+            commitSha: commit.sha,
+            commitUrl: `https://github.com/${fullName}/commit/${commit.sha}`,
+          };
+        } catch (e) {
+          set((s) => ghErrorPatch(s, e));
+          throw e;
+        }
       },
 
       createGitBranch: async (name) => {
@@ -424,10 +615,9 @@ export const useCocodeIDEStore = create<CocodeIDEState>()(
         if (!github.repo) throw new Error("No repo connected");
         const { fullName, branch } = github.repo;
         // Get current branch HEAD SHA
-        const refRes = await fetch(`/api/github?path=/repos/${fullName}/git/ref/heads/${branch}`);
-        const ref = await refRes.json() as { object?: { sha: string } };
+        const ref = await ghRequest<{ object?: { sha: string } }>(`/repos/${fullName}/git/ref/heads/${branch}`);
         const sha = ref.object?.sha ?? "";
-        await fetch(`/api/github?path=/repos/${fullName}/git/refs`, {
+        await ghRequest(`/repos/${fullName}/git/refs`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ ref: `refs/heads/${name}`, sha }),
@@ -445,12 +635,14 @@ export const useCocodeIDEStore = create<CocodeIDEState>()(
       openPR: async (title, body, head, base) => {
         const { github } = get();
         if (!github.repo) throw new Error("No repo connected");
-        const res = await fetch(`/api/github?path=/repos/${github.repo.fullName}/pulls`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title, body, head, base }),
-        });
-        const pr = await res.json() as { html_url?: string; number?: number };
+        const pr = await ghRequest<{ html_url?: string; number?: number }>(
+          `/repos/${github.repo.fullName}/pulls`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ title, body, head, base }),
+          },
+        );
         return pr.html_url ?? "";
       },
 
@@ -765,7 +957,8 @@ export const useCocodeIDEStore = create<CocodeIDEState>()(
         pinnedFiles: s.pinnedFiles,
         explorerOpen: s.explorerOpen,
         rightPanel: s.rightPanel,
-        github: { ...s.github, loading: false, error: null },
+        // repos are refetched by initGitHub() on load; don't cache them.
+        github: { ...s.github, repos: [], loading: false, error: null, needsReconnect: false },
       }),
     },
   ),

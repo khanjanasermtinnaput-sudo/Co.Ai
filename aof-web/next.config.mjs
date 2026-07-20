@@ -6,9 +6,17 @@
 // allow-listed alongside 'self' or the editor silently hangs on "Loading...".
 const MONACO_CDN = "https://cdn.jsdelivr.net";
 
+// CoCode's live preview renders inside a srcDoc iframe, which INHERITS this
+// page CSP. Its React/SPA pipeline (src/lib/cocode/preview-runtime.ts) loads
+// Babel Standalone from unpkg and bare modules (react, react-dom) from esm.sh,
+// then imports each transpiled module from a blob:/data: URL — all four must
+// be allow-listed or React previews silently render a blank frame while plain
+// HTML previews keep working.
+const PREVIEW_CDNS = "https://unpkg.com https://esm.sh";
+
 const CSP = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-eval' 'unsafe-inline' ${MONACO_CDN}`,
+  `script-src 'self' 'unsafe-eval' 'unsafe-inline' blob: data: ${MONACO_CDN} ${PREVIEW_CDNS}`,
   // Monaco's tokenizer/language services run in web workers instantiated from
   // blob: URLs. worker-src has no fallback-from-script-src exemption for blob:,
   // so it needs its own directive rather than relying on the script-src fallback.
@@ -17,7 +25,9 @@ const CSP = [
   // data: is needed for Monaco's inlined codicon font (base64 data: URI).
   `font-src 'self' data: https://fonts.gstatic.com ${MONACO_CDN}`,
   "img-src 'self' data: blob: https:",
-  `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.anthropic.com https://openrouter.ai https://generativelanguage.googleapis.com https://api.deepseek.com https://dashscope.aliyuncs.com https://api.groq.com https://api.tavily.com https://www.googleapis.com ${MONACO_CDN}`,
+  // unpkg/esm.sh are needed by the preview iframe's module fetches (importmap
+  // resolution + esm.sh's internal sub-requests), which count as connect-src.
+  `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.anthropic.com https://openrouter.ai https://generativelanguage.googleapis.com https://api.deepseek.com https://dashscope.aliyuncs.com https://api.groq.com https://api.tavily.com https://www.googleapis.com ${MONACO_CDN} ${PREVIEW_CDNS}`,
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",

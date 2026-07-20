@@ -2,6 +2,7 @@
 import type { Conversation, ProjectBrief } from "@/lib/types";
 import { ExportError, type ExportFormat, type ExportStage } from "@/lib/export-types";
 import { detectProjectKind, canBuildHtml } from "@/lib/project-detect";
+import { buildPreview } from "@/lib/cocode/preview-runtime";
 
 /** Format a conversation as clean Markdown. */
 export function toMarkdown(conv: Conversation): string {
@@ -69,15 +70,19 @@ export function toJSON(conv: Conversation): string {
   return JSON.stringify(clean, null, 2);
 }
 
-/** Trigger a browser file download. */
-export function downloadFile(content: string, filename: string, type: string): void {
-  const blob = new Blob([content], { type });
+/** Trigger a browser download of a Blob. */
+export function downloadBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+/** Trigger a browser file download. */
+export function downloadFile(content: string, filename: string, type: string): void {
+  downloadBlob(new Blob([content], { type }), filename);
 }
 
 /** Slugify a title for use as a filename. */
@@ -403,13 +408,53 @@ export async function exportProject(
   onProgress?.("compressing");
   const blob = await buildZip(files, brief);
   onProgress?.("done");
+  downloadBlob(blob, `${slug}.zip`);
+}
 
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${slug}.zip`;
-  a.click();
-  URL.revokeObjectURL(url);
+// ── CoCode IDE workspace export ───────────────────────────────────────────────
+
+/** Export the live CoCode workspace (virtual FS) as a standalone index.html or
+ *  a ZIP. Unlike exportProject(), the input is the workspace's real files —
+ *  including any edits made in Monaco — not the raw AI build log.
+ *
+ *  HTML strategy mirrors the live preview:
+ *   - static HTML/CSS/JS → buildProjectHtml() inlines everything into one file;
+ *   - React/Vite SPA     → the preview runtime's self-booting document (Babel +
+ *     esm.sh via CDN), which runs when opened straight from disk (needs internet);
+ *   - Next.js            → honest SERVER_PROJECT error; ZIP still works.
+ */
+export async function exportWorkspace(
+  files: ExtractedFile[],
+  format: ExportFormat,
+  projectName?: string | null,
+  onProgress?: (stage: ExportStage) => void,
+): Promise<void> {
+  onProgress?.("preparing");
+  if (!files.length) throw new ExportError("EMPTY_PROJECT");
+  for (const f of files) {
+    const normalized = f.path.replace(/^\.\//, "");
+    if (!normalized || normalized.includes("..") || normalized.startsWith("/")) {
+      throw new ExportError("INVALID_CODE");
+    }
+  }
+  const slug = slugify(projectName ?? "cocode-project");
+
+  onProgress?.("building");
+  if (format === "html") {
+    const preview = buildPreview(files);
+    if (preview.kind === "nextjs") throw new ExportError("SERVER_PROJECT");
+    const html = preview.kind === "spa" && preview.html
+      ? preview.html
+      : buildProjectHtml(files); // throws NO_HTML_ENTRY when nothing is renderable
+    onProgress?.("done");
+    downloadFile(html, "index.html", "text/html");
+    return;
+  }
+
+  onProgress?.("compressing");
+  const blob = await buildZip(files, null);
+  onProgress?.("done");
+  downloadBlob(blob, `${slug}.zip`);
 }
 
 export { canBuildHtml, detectProjectKind };

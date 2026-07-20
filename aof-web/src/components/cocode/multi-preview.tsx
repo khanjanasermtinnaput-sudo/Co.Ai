@@ -156,7 +156,7 @@ export function MultiPreview({ className }: { className?: string }) {
                     key={`${nonce}-${vp.id}`}
                     title={`${vp.label} preview`}
                     srcDoc={finalHtml}
-                    sandbox="allow-scripts allow-forms allow-modals allow-same-origin"
+                    sandbox="allow-scripts allow-forms allow-modals allow-popups allow-same-origin"
                     style={{
                       width: vp.width,
                       height: vp.height,

@@ -55,33 +55,38 @@ export async function GET(req: Request): Promise<Response> {
   return proxyGitHub(fullPath, "GET");
 }
 
-export async function POST(req: Request): Promise<Response> {
+async function proxyWithBody(req: Request, method: string): Promise<Response> {
   const url = new URL(req.url);
   const path = url.searchParams.get("path");
-  if (!path) return Response.json({ error: "Missing path" }, { status: 400 });
+  if (!path || !path.startsWith("/")) {
+    return Response.json({ error: "Missing or invalid path" }, { status: 400 });
+  }
   const body = await req.json().catch(() => ({}));
-  return proxyGitHub(path, "POST", body);
+  return proxyGitHub(path, method, body);
+}
+
+export async function POST(req: Request): Promise<Response> {
+  return proxyWithBody(req, "POST");
 }
 
 export async function PUT(req: Request): Promise<Response> {
-  const url = new URL(req.url);
-  const path = url.searchParams.get("path");
-  if (!path) return Response.json({ error: "Missing path" }, { status: 400 });
-  const body = await req.json().catch(() => ({}));
-  return proxyGitHub(path, "PUT", body);
+  return proxyWithBody(req, "PUT");
 }
 
 export async function DELETE(req: Request): Promise<Response> {
-  const url = new URL(req.url);
-  const path = url.searchParams.get("path");
-  if (!path) return Response.json({ error: "Missing path" }, { status: 400 });
-  const body = await req.json().catch(() => ({}));
-  return proxyGitHub(path, "DELETE", body);
+  return proxyWithBody(req, "DELETE");
 }
 
-// ── GitHub OAuth connect initiation ──────────────────────────────────────────
+// ── GitHub OAuth connect initiation (and PATCH proxy) ────────────────────────
 export async function PATCH(req: Request): Promise<Response> {
-  // PATCH /api/github → returns the OAuth URL to redirect to
+  // PATCH /api/github?path=/... → proxied GitHub PATCH (e.g. updating a git
+  // ref during an atomic multi-file push). Without ?path=, PATCH initiates
+  // the OAuth flow and returns the URL to redirect to.
+  const url = new URL(req.url);
+  if (url.searchParams.get("path")) {
+    return proxyWithBody(req, "PATCH");
+  }
+
   const clientId = process.env.GITHUB_CLIENT_ID;
   if (!clientId) {
     return Response.json(
@@ -96,6 +101,15 @@ export async function PATCH(req: Request): Promise<Response> {
   const origin = process.env.NEXT_PUBLIC_SITE_URL || new URL(req.url).origin;
   const redirectUri = `${origin}/api/github/callback`;
   const oauthUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=repo,read:user&state=${state}`;
+  // Persist the CSRF state so the callback can verify GitHub echoed it back.
+  const jar = cookies();
+  jar.set("gh_oauth_state", state, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: 60 * 10, // the OAuth round-trip should take minutes, not hours
+    path: "/",
+  });
   return Response.json({ url: oauthUrl, state });
 }
 

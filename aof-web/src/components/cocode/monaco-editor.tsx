@@ -8,7 +8,7 @@ import { useEffect, useRef, memo } from "react";
 import dynamic from "next/dynamic";
 import { Loader2 } from "lucide-react";
 import { useCocodeIDEStore } from "@/store/cocode-ide-store";
-import type { VirtualFile } from "@/lib/cocode/virtual-fs";
+import { findFile, type VirtualFile } from "@/lib/cocode/virtual-fs";
 
 // Lazy load Monaco — it's 5MB+, we never want it in the initial bundle
 const MonacoEditorCore = dynamic(
@@ -64,8 +64,7 @@ function TabBar() {
       {tabs.map((tab) => {
         const name = tab.path.split("/").pop() ?? tab.path;
         const isActive = tab.path === activeTab;
-        // Check dirty state
-        const dirty = false; // Would check fs
+        const dirty = findFile(fs, tab.path)?.dirty ?? false;
 
         return (
           <div
@@ -85,6 +84,12 @@ function TabBar() {
               <span className="size-1.5 rounded-full bg-primary/60" />
             )}
             <span className="max-w-[120px] truncate">{name}</span>
+            {dirty && (
+              <span
+                className="size-1.5 shrink-0 rounded-full bg-amber-400"
+                title="Unsaved changes (not yet pushed/exported)"
+              />
+            )}
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); closeTab(tab.path); }}
