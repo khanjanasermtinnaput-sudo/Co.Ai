@@ -20,7 +20,7 @@ function meta(id: ProviderId, label: string): ProviderMeta {
     priority: 1,
   };
 }
-const PROVIDER_A = meta("anthropic", "Provider A");
+const PROVIDER_A = meta("gemini", "Provider A");
 
 function mkTask(id: string, dependsOn: string[] = [], agent: PlannedTask["agent"] = "general"): PlannedTask {
   return {

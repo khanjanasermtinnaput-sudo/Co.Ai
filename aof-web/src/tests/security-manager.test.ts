@@ -15,9 +15,9 @@ test("checkEgress allows a real, configured provider host (re-exported from ai-p
   assert.equal(d.hostname, "api.deepseek.com");
 });
 
-test("checkEgress allows Anthropic's SDK default host", () => {
+test("checkEgress denies api.anthropic.com — Anthropic support was removed", () => {
   const d = checkEgress("https://api.anthropic.com/v1/messages");
-  assert.equal(d.allowed, true);
+  assert.equal(d.allowed, false);
 });
 
 test("checkEgress allows loopback — local model providers are not external egress", () => {
@@ -44,7 +44,7 @@ test("assessKeyAccessRisk: empty overrides ⇒ low risk (server's own env keys)"
 });
 
 test("assessKeyAccessRisk: any per-user key present ⇒ medium risk, real reason named", () => {
-  const r = assessKeyAccessRisk({ anthropic: "sk-ant-real-key-not-a-fake-one" } as never);
+  const r = assessKeyAccessRisk({ gemini: "real-key-not-a-fake-one" } as never);
   assert.equal(r.level, "medium");
   assert.match(r.reason, /per-user/);
 });

@@ -33,7 +33,7 @@ export default function TermsPage() {
 
         <Section title="3. API keys & provider policies">
           <p>
-            When you provide API keys for third-party providers (Anthropic, Google, etc.), you remain
+            When you provide API keys for third-party providers (Google, DeepSeek, etc.), you remain
             responsible for complying with those providers&apos; terms of service. Co.AI stores your
             keys encrypted and forwards them only to the provider you select for each request.
           </p>

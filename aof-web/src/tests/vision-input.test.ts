@@ -12,10 +12,6 @@ function jpegDataUrl(): string {
   const bytes = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.from([1, 2, 3, 4])]);
   return `data:image/jpeg;base64,${bytes.toString("base64")}`;
 }
-function pdfDataUrl(): string {
-  const bytes = Buffer.from("%PDF-1.4\n%fake pdf body", "ascii");
-  return `data:application/pdf;base64,${bytes.toString("base64")}`;
-}
 function notAnImageDataUrl(): string {
   return `data:image/png;base64,${Buffer.from("just some text, not a real image").toString("base64")}`;
 }
@@ -26,7 +22,6 @@ test("decodes a valid PNG image attachment into base64 + real media type", () =>
   const out = decodeAttachments([{ kind: "image", dataUrl: pngDataUrl() }]);
   assert.equal(out.images.length, 1);
   assert.equal(out.images[0].mediaType, "image/png");
-  assert.equal(out.documents.length, 0);
 });
 
 test("decodes a valid JPEG image attachment", () => {
@@ -55,21 +50,6 @@ test("rejects an image over the byte-size cap", () => {
     if (prev === undefined) delete process.env.IMAGE_MAX_BYTES;
     else process.env.IMAGE_MAX_BYTES = prev;
   }
-});
-
-// ── decodeAttachments: PDFs ──────────────────────────────────────────────────
-
-test("decodes a valid PDF attachment", () => {
-  const out = decodeAttachments([{ kind: "pdf", dataUrl: pdfDataUrl(), name: "report.pdf" }]);
-  assert.equal(out.documents.length, 1);
-  assert.equal(out.documents[0].mediaType, "application/pdf");
-  assert.equal(out.documents[0].name, "report.pdf");
-});
-
-test("rejects a 'pdf' attachment whose bytes lack the %PDF- signature", () => {
-  const bytes = Buffer.from("not actually a pdf");
-  const out = decodeAttachments([{ kind: "pdf", dataUrl: `data:application/pdf;base64,${bytes.toString("base64")}` }]);
-  assert.equal(out.documents.length, 0);
 });
 
 // ── decodeAttachments: text (code/document) ─────────────────────────────────
@@ -114,7 +94,7 @@ test("appendTextBlocks fences file content onto the message", () => {
   assert.match(out, /const x = 1;/);
 });
 
-test("appendTextBlocks with an empty message still renders the file content (image/PDF-less, text-only turn)", () => {
+test("appendTextBlocks with an empty message still renders the file content (image-less, text-only turn)", () => {
   const out = appendTextBlocks("", [{ name: "a.ts", text: "const x = 1;" }]);
   assert.match(out, /a\.ts/);
   assert.doesNotMatch(out, /^\n\n/);

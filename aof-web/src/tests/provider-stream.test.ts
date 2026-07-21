@@ -10,7 +10,7 @@ import {
 } from "@/lib/server/ai-providers.js";
 import { decodeFrames, encodeFailoverFrame, makeFailoverNotice } from "@/lib/errors.js";
 
-const ctx = { provider: PROVIDER_REGISTRY.anthropic, model: "claude-haiku", requestId: "req_test" };
+const ctx = { provider: PROVIDER_REGISTRY.gemini, model: "gemini-2.5-flash", requestId: "req_test" };
 
 async function readAll(stream: ReadableStream<Uint8Array>): Promise<string> {
   const reader = stream.getReader();
@@ -52,7 +52,7 @@ test("failure before the first token → ok:false with a classified error (no st
   assert.equal(r.ok, false);
   assert.equal(r.stream, undefined);
   assert.equal(r.error?.code, "AOF_ERROR_002");
-  assert.equal(r.error?.provider, PROVIDER_REGISTRY.anthropic.label);
+  assert.equal(r.error?.provider, PROVIDER_REGISTRY.gemini.label);
 });
 
 test("provider closes with no content → AOF_ERROR_011 (empty response)", async () => {
@@ -69,7 +69,7 @@ test("successful stream replays every token", async () => {
 });
 
 test("prefix frame (failover) is emitted before the first token", async () => {
-  const notice = makeFailoverNotice("Claude (Anthropic)", "OpenRouter", "AOF_ERROR_006");
+  const notice = makeFailoverNotice("Google Gemini", "OpenRouter", "AOF_ERROR_006");
   const r = await primeAndStream({ ctx, gen: helloWorld(), prefixFrame: encodeFailoverFrame(notice) });
   assert.equal(r.ok, true);
   const decoded = decodeFrames(await readAll(r.stream!));

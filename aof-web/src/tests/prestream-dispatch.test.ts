@@ -26,7 +26,7 @@ function meta(id: ProviderId, label: string): ProviderMeta {
     priority: 1,
   };
 }
-const PROVIDER_A = meta("anthropic", "Provider A");
+const PROVIDER_A = meta("gemini", "Provider A");
 
 const DECISION: TaskDecision = {
   category: "code-generation",

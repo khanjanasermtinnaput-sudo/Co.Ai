@@ -1,11 +1,12 @@
 // ── Vision/document input validation ─────────────────────────────────────────
 // Decodes and validates the attachments a CoChat turn sends alongside its
-// message: images (any provider's vision path) and PDFs (Anthropic's document
-// block only — see ai-providers.ts). Magic-byte detection re-verifies the
-// claimed type rather than trusting the browser-supplied MIME string, the same
-// discipline as tmap-v2/src/core/image-pipeline.ts's processImage() — copied
-// in miniature here since aof-web and tmap-v2 share no workspace (same
-// precedent as crypto.ts's two independent copies).
+// message: images (any provider's vision path) and code/document text files
+// (folded into the message as fenced text — see appendTextBlocks below).
+// Magic-byte detection re-verifies the claimed type rather than trusting the
+// browser-supplied MIME string, the same discipline as
+// tmap-v2/src/core/image-pipeline.ts's processImage() — copied in miniature
+// here since aof-web and tmap-v2 share no workspace (same precedent as
+// crypto.ts's two independent copies).
 
 // Read fresh per call (like ai-providers.ts's firstTokenDeadlineMs()) rather
 // than frozen at module load, so both an operator's real env override and a
@@ -13,10 +14,6 @@
 function maxImageBytes(): number {
   const v = Number(process.env.IMAGE_MAX_BYTES);
   return Number.isFinite(v) && v > 0 ? v : 10 * 1024 * 1024; // 10 MB
-}
-function maxPdfBytes(): number {
-  const v = Number(process.env.PDF_MAX_BYTES);
-  return Number.isFinite(v) && v > 0 ? v : 20 * 1024 * 1024; // 20 MB
 }
 const MAX_ATTACHMENTS = 6;
 const MAX_TEXT_CHARS = 20_000;
@@ -34,12 +31,6 @@ export interface DecodedImage {
   data: string; // base64, no data: prefix
 }
 
-export interface DecodedDocument {
-  mediaType: "application/pdf";
-  data: string; // base64, no data: prefix
-  name?: string;
-}
-
 export interface DecodedTextBlock {
   name: string;
   text: string;
@@ -47,7 +38,6 @@ export interface DecodedTextBlock {
 
 export interface DecodedAttachments {
   images: DecodedImage[];
-  documents: DecodedDocument[];
   textBlocks: DecodedTextBlock[];
 }
 
@@ -57,10 +47,6 @@ function detectImageMime(bytes: Buffer): string | null {
   if (bytes.length >= 6 && bytes.toString("ascii", 0, 3) === "GIF") return "image/gif";
   if (bytes.length >= 12 && bytes.toString("ascii", 0, 4) === "RIFF" && bytes.toString("ascii", 8, 12) === "WEBP") return "image/webp";
   return null;
-}
-
-function isPdf(bytes: Buffer): boolean {
-  return bytes.length >= 5 && bytes.toString("ascii", 0, 5) === "%PDF-";
 }
 
 function decodeDataUrl(raw: string): Buffer | null {
@@ -81,10 +67,9 @@ function decodeDataUrl(raw: string): Buffer | null {
  *  than failing the whole request. */
 export function decodeAttachments(raw: RawAttachment[] | undefined): DecodedAttachments {
   const images: DecodedImage[] = [];
-  const documents: DecodedDocument[] = [];
   const textBlocks: DecodedTextBlock[] = [];
 
-  if (!Array.isArray(raw)) return { images, documents, textBlocks };
+  if (!Array.isArray(raw)) return { images, textBlocks };
 
   for (const att of raw.slice(0, MAX_ATTACHMENTS)) {
     if (!att || typeof att !== "object") continue;
@@ -98,19 +83,12 @@ export function decodeAttachments(raw: RawAttachment[] | undefined): DecodedAtta
       continue;
     }
 
-    if (att.kind === "pdf" && att.dataUrl) {
-      const bytes = decodeDataUrl(att.dataUrl);
-      if (!bytes || bytes.length > maxPdfBytes() || !isPdf(bytes)) continue;
-      documents.push({ mediaType: "application/pdf", data: bytes.toString("base64"), name: att.name });
-      continue;
-    }
-
     if ((att.kind === "code" || att.kind === "document") && typeof att.text === "string" && att.text.trim()) {
       textBlocks.push({ name: att.name || "attachment", text: att.text.slice(0, MAX_TEXT_CHARS) });
     }
   }
 
-  return { images, documents, textBlocks };
+  return { images, textBlocks };
 }
 
 /** Render decoded text-file attachments as a fenced block appended to the

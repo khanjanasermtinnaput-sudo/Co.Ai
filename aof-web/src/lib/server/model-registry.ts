@@ -21,9 +21,6 @@ export interface ModelDef {
 }
 
 export const MODEL_REGISTRY: ModelDef[] = [
-  // ── Anthropic ──────────────────────────────────────────────────────────────
-  { provider: "anthropic", model: "claude-haiku-4-5-20251001", capabilities: ["chat", "vision", "reasoning", "coding"], contextWindow: 200_000, costTier: "medium" },
-
   // ── Gemini ─────────────────────────────────────────────────────────────────
   { provider: "gemini", model: "gemini-2.5-pro", capabilities: ["chat", "vision", "reasoning", "coding"], contextWindow: 1_048_576, costTier: "medium" },
   { provider: "gemini", model: "gemini-2.5-flash", capabilities: ["chat", "vision", "reasoning", "coding"], contextWindow: 1_048_576, costTier: "low" },
@@ -87,10 +84,10 @@ const TASK_CAPABILITY: Record<TaskCategory, Capability> = {
 // local model is a real, free, zero-network-hop option worth trying before
 // falling through to a third-party gateway.
 export const ROUTE_PRIORITY: Record<TaskCategory, ProviderId[]> = {
-  chat: ["gemini", "anthropic", "deepseek", "qwen", "llama", "ollama", "vllm", "openrouter"],
-  coding: ["anthropic", "deepseek", "qwen", "gemini", "ollama", "vllm", "openrouter"],
-  research: ["gemini", "anthropic", "deepseek", "ollama", "vllm", "openrouter"],
-  reasoning: ["gemini", "anthropic", "deepseek", "ollama", "vllm", "openrouter"],
+  chat: ["gemini", "deepseek", "qwen", "llama", "ollama", "vllm", "openrouter"],
+  coding: ["deepseek", "qwen", "gemini", "ollama", "vllm", "openrouter"],
+  research: ["gemini", "deepseek", "ollama", "vllm", "openrouter"],
+  reasoning: ["gemini", "deepseek", "ollama", "vllm", "openrouter"],
 };
 
 /** Provider order for a task, deduplicated and always ending with openrouter
@@ -120,8 +117,8 @@ export function modelDefFor(provider: ProviderId, task: TaskCategory): ModelDef 
 
 /** Whether the model the registry would pick for `provider`+`task` claims a
  *  capability — used to re-order the provider chain ahead of a turn that
- *  carries image/document attachments, so a vision-capable model is tried
- *  first instead of one that would just ignore or error on the image block. */
+ *  carries image attachments, so a vision-capable model is tried first
+ *  instead of one that would just ignore or error on the image block. */
 export function providerHasCapability(provider: ProviderId, task: TaskCategory, capability: Capability): boolean {
   return modelDefFor(provider, task)?.capabilities.includes(capability) ?? false;
 }

@@ -1,5 +1,6 @@
 // ── Co.AI Chat — real LLM endpoint (server-side) ─────────────────────────────
-// Provider priority: Anthropic (Claude) → OpenRouter. Every failure is detected,
+// Provider priority is task-based — see model-registry.ts's ROUTE_PRIORITY,
+// with OpenRouter as the universal last-resort gateway. Every failure is detected,
 // classified into an AOF_ERROR_xxx, logged server-side, and surfaced to the user
 // — pre-stream failures as a JSON error envelope, mid-stream failures and
 // failover notices as in-band control frames. The route NEVER fabricates an
@@ -129,7 +130,7 @@ interface ChatBody {
   /** CoCode's open workspace, when non-empty — the Ypertatos Task Classifier's
    *  complexity signal (task-classifier.ts). Ignored for any tier but "pro". */
   repo?: RepoMetadata;
-  /** Files attached to THIS turn only (composer.tsx) — images/PDFs are sent to
+  /** Files attached to THIS turn only (composer.tsx) — images are sent to
    *  the model as real multimodal content (vision-input.ts decodes + validates
    *  them); code/document attachments are folded into `message` as fenced text
    *  so every provider can read them, not just vision-capable ones. */
@@ -164,7 +165,7 @@ const ChatBodySchema = z
     model: z.enum(["lite", "normal", "pro"]).optional(),
     effort: z.string().optional(),
     repo: z.object({ fileCount: z.number(), languages: z.array(z.string()).max(50) }).optional(),
-    // Generous dataUrl cap covers a ~20MB base64-encoded PDF/image; the real
+    // Generous dataUrl cap covers a ~20MB base64-encoded image; the real
     // per-file byte limits are enforced by vision-input.ts's decodeAttachments()
     // against the DECODED bytes, not this raw-string ceiling.
     attachments: z
@@ -399,24 +400,23 @@ async function handleChat(req: Request): Promise<Response> {
   }
 
   const userText = String(body.message ?? "").trim();
-  // vision-input.ts decodes+validates images/PDFs (base64, real magic-byte
-  // check, size/count caps) and code/document attachments (decoded text,
-  // already capped client-side and re-capped here). Never throws — a
-  // malformed attachment is just dropped rather than failing the turn.
+  // vision-input.ts decodes+validates images (base64, real magic-byte check,
+  // size/count caps) and code/document attachments (decoded text, already
+  // capped client-side and re-capped here). Never throws — a malformed
+  // attachment is just dropped rather than failing the turn.
   const decodedAttachments = decodeAttachments(body.attachments);
   const hasAttachments =
     decodedAttachments.images.length > 0 ||
-    decodedAttachments.documents.length > 0 ||
     decodedAttachments.textBlocks.length > 0;
   if (!userText && !hasAttachments) {
     return Response.json({ error: "message required" }, { status: 400 });
   }
-  // An image/PDF with no accompanying text still needs a prompt for the
-  // model to act on; code/document attachments don't (their own content,
-  // appended below, IS the message).
+  // An image with no accompanying text still needs a prompt for the model to
+  // act on; code/document attachments don't (their own content, appended
+  // below, IS the message).
   const baseMessage =
     userText ||
-    (decodedAttachments.images.length || decodedAttachments.documents.length
+    (decodedAttachments.images.length
       ? "Please read and describe the attached file(s)."
       : "");
   const message = appendTextBlocks(baseMessage, decodedAttachments.textBlocks);
@@ -534,7 +534,6 @@ async function handleChat(req: Request): Promise<Response> {
     repoFiles: body.repo?.fileCount,
     stages: workflowStages.length,
     images: decodedAttachments.images.length || undefined,
-    documents: decodedAttachments.documents.length || undefined,
     textAttachments: decodedAttachments.textBlocks.length || undefined,
   });
 
@@ -634,9 +633,9 @@ async function handleChat(req: Request): Promise<Response> {
     return errorResponse(error);
   }
 
-  // Anthropic and OpenRouter keep their existing env-override + fallback-chain
-  // model selection untouched; only the four newer providers pick a model from
-  // the registry based on the task (no ANTHROPIC_MODEL/OPENROUTER_MODEL surprise).
+  // OpenRouter keeps its existing env-override + fallback-chain model
+  // selection untouched; only the four newer providers pick a model from
+  // the registry based on the task (no OPENROUTER_MODEL surprise).
   const REGISTRY_ROUTES_MODEL = new Set<ProviderMeta["id"]>(["gemini", "deepseek", "qwen", "llama"]);
 
   // ── Model Workflow → local Context Builder, then (Ypertatos engineering only)
@@ -690,15 +689,12 @@ async function handleChat(req: Request): Promise<Response> {
     : preStream.system;
   let effectiveHistory = preStream.history;
   providers = preStream.providers;
-  // Attachments present → bump vision-capable providers to the front (a
-  // provider whose registry model doesn't claim "vision" would just ignore
-  // or error on the image block); a PDF specifically bumps Anthropic first,
-  // since its document content block is the only one wired up (ai-providers.ts).
-  // Array.prototype.sort is stable, so ties keep the existing task-based order.
-  if (decodedAttachments.images.length || decodedAttachments.documents.length) {
-    const needsDocument = decodedAttachments.documents.length > 0;
-    const attachmentScore = (p: ProviderMeta) =>
-      (needsDocument && p.id === "anthropic" ? 2 : 0) + (providerHasCapability(p.id, task, "vision") ? 1 : 0);
+  // Images present → bump vision-capable providers to the front (a provider
+  // whose registry model doesn't claim "vision" would just ignore or error
+  // on the image block). Array.prototype.sort is stable, so ties keep the
+  // existing task-based order.
+  if (decodedAttachments.images.length) {
+    const attachmentScore = (p: ProviderMeta) => (providerHasCapability(p.id, task, "vision") ? 1 : 0);
     providers = [...providers].sort((a, b) => attachmentScore(b) - attachmentScore(a));
   }
   const stagePrefix = preStream.stagePrefix;
@@ -953,7 +949,6 @@ async function handleChat(req: Request): Promise<Response> {
       overrides,
       taskModel,
       images: decodedAttachments.images,
-      documents: decodedAttachments.documents,
     });
     // Kanon: wrap the ONE provider call so its internal DRAFT/DEEPTHINK/FINAL
     // phases (see model-workflow.ts, phase-stream.ts) are parsed back out into

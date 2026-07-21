@@ -77,7 +77,7 @@ test("summarizeTimeline flattens into greppable key=value fields without duplica
     traceId: "req-8",
     turnStart: Date.now() - 100,
     outcome: "success",
-    promptCompiler: { promptId: "p1", workflowId: "lite", stageId: "processing", provider: "anthropic", model: "x", promptVersion: "1.0.0", compileMs: 1.5, estTokens: 50, optimizationRatio: 0, cacheHit: false },
+    promptCompiler: { promptId: "p1", workflowId: "lite", stageId: "processing", provider: "gemini", model: "x", promptVersion: "1.0.0", compileMs: 1.5, estTokens: 50, optimizationRatio: 0, cacheHit: false },
   });
   const flat = summarizeTimeline(t);
   assert.equal(flat.spanCount, 1);

@@ -21,16 +21,16 @@ import {
   type AofErrorCode,
 } from "../lib/errors.js";
 
-const P = "Claude (Anthropic)";
+const P = "Google Gemini";
 
 // ── Classification by hint ──────────────────────────────────────────────────
 
 test("missing-key hint → AOF_ERROR_001 with env var in solution", () => {
-  const e = missingKeyError(P, "ANTHROPIC_API_KEY");
+  const e = missingKeyError(P, "GEMINI_API_KEY");
   assert.equal(e.code, "AOF_ERROR_001");
   assert.equal(e.problem, "API Key Missing");
-  assert.match(e.details, /ANTHROPIC_API_KEY/);
-  assert.match(e.solution, /ANTHROPIC_API_KEY/);
+  assert.match(e.details, /GEMINI_API_KEY/);
+  assert.match(e.solution, /GEMINI_API_KEY/);
 });
 
 test("config hint → AOF_ERROR_013", () => {
@@ -52,7 +52,7 @@ test("network hint → AOF_ERROR_007", () => {
 // ── Classification by HTTP status ───────────────────────────────────────────
 
 test("401 invalid → 002, expired → 003, generic → 010", () => {
-  assert.equal(classifyProviderError({ provider: P, status: 401, message: "invalid x-api-key" }).code, "AOF_ERROR_002");
+  assert.equal(classifyProviderError({ provider: P, status: 401, message: "invalid api key" }).code, "AOF_ERROR_002");
   assert.equal(classifyProviderError({ provider: P, status: 401, message: "token has expired" }).code, "AOF_ERROR_003");
   assert.equal(classifyProviderError({ provider: P, status: 401, message: "unauthorized" }).code, "AOF_ERROR_010");
 });
@@ -63,7 +63,7 @@ test("403 quota → 004, generic → 010", () => {
 });
 
 test("404 → 009 (invalid model)", () => {
-  assert.equal(classifyProviderError({ provider: P, status: 404, model: "claude-x" }).code, "AOF_ERROR_009");
+  assert.equal(classifyProviderError({ provider: P, status: 404, model: "gemini-x" }).code, "AOF_ERROR_009");
 });
 
 test("429 rate-limit → 005, quota → 004", () => {
@@ -98,7 +98,7 @@ test("timeout messages → 008", () => {
   assert.equal(classifyProviderError({ provider: P, message: "Request aborted: deadline" }).code, "AOF_ERROR_008");
 });
 
-test("anthropic error types map correctly", () => {
+test("provider error types map correctly", () => {
   assert.equal(classifyProviderError({ provider: P, errorType: "rate_limit_error" }).code, "AOF_ERROR_005");
   assert.equal(classifyProviderError({ provider: P, errorType: "authentication_error" }).code, "AOF_ERROR_002");
   assert.equal(classifyProviderError({ provider: P, errorType: "not_found_error" }).code, "AOF_ERROR_009");
@@ -159,7 +159,7 @@ test("formatUtc renders YYYY-MM-DD HH:MM:SS UTC", () => {
 });
 
 test("formatErrorBlock includes code and all fields", () => {
-  const e = missingKeyError(P, "ANTHROPIC_API_KEY", "claude");
+  const e = missingKeyError(P, "GEMINI_API_KEY", "gemini-2.5-flash");
   const block = formatErrorBlock(e);
   assert.match(block, /AOF_ERROR_001/);
   assert.match(block, /Provider:/);
@@ -172,9 +172,9 @@ test("formatErrorBlock includes code and all fields", () => {
 // ── Failover ──────────────────────────────────────────────────────────────────
 
 test("failover notice round-trips through the guard", () => {
-  const n = makeFailoverNotice("Claude", "OpenRouter", "AOF_ERROR_004 · Quota Exceeded");
+  const n = makeFailoverNotice("Gemini", "OpenRouter", "AOF_ERROR_004 · Quota Exceeded");
   assert.ok(isFailoverNotice(n));
-  assert.equal(n.from, "Claude");
+  assert.equal(n.from, "Gemini");
   assert.equal(n.to, "OpenRouter");
 });
 
@@ -197,7 +197,7 @@ test("decodeFrames extracts an error frame and strips it from text", () => {
 });
 
 test("decodeFrames extracts a failover frame", () => {
-  const n = makeFailoverNotice("Claude", "OpenRouter", "reason");
+  const n = makeFailoverNotice("Gemini", "OpenRouter", "reason");
   const r = decodeFrames(encodeFailoverFrame(n) + "now answering");
   assert.equal(r.text, "now answering");
   assert.equal(r.failovers.length, 1);
@@ -240,7 +240,7 @@ test("a frame split across many chunks is still decoded, never leaked as text", 
 });
 
 test("failover frame then content, char-by-char, decodes cleanly", () => {
-  const n = makeFailoverNotice("Claude", "OpenRouter", "AOF_ERROR_006 · Provider Unavailable");
+  const n = makeFailoverNotice("Gemini", "OpenRouter", "AOF_ERROR_006 · Provider Unavailable");
   const full = encodeFailoverFrame(n) + "Switched and answering now.";
   const chunks = full.split("");
   const r = streamDecode(chunks);

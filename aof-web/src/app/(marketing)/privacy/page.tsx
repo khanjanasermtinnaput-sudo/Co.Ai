@@ -48,7 +48,7 @@ export default function PrivacyPage() {
             We do not sell your personal data. We share data only with:
           </p>
           <ul className="list-disc pl-5 space-y-2 mt-3">
-            <li><strong>AI providers</strong> (Anthropic, Google, DeepSeek, etc.) solely to fulfil your requests — your messages are transmitted directly to the chosen provider.</li>
+            <li><strong>AI providers</strong> (Google, DeepSeek, etc.) solely to fulfil your requests — your messages are transmitted directly to the chosen provider.</li>
             <li><strong>Supabase</strong> for authentication and database storage.</li>
             <li><strong>Vercel / Render</strong> for hosting. Standard processor agreement applies.</li>
           </ul>

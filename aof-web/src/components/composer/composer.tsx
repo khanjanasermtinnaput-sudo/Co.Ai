@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ArrowUp, ImageIcon, FileText, FileCode2, Plus, Square } from "lucide-react";
+import { ArrowUp, ImageIcon, FileCode2, Plus, Square } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ACCEPT, fileToAttachment } from "@/lib/attachments";
 import type { Attachment } from "@/lib/types";
@@ -36,7 +36,7 @@ interface ComposerProps {
 
 type UploadKind = keyof typeof ACCEPT;
 
-/** Premium auto-growing composer with multimodal uploads (image / PDF / file),
+/** Premium auto-growing composer with multimodal uploads (image / file),
  *  Enter-to-send and Shift+Enter for newline. */
 export function Composer({
   placeholder = "Ask anything…",
@@ -163,9 +163,6 @@ export function Composer({
           <DropdownMenuContent align="start" side="top" className="w-52">
             <DropdownMenuItem onClick={() => openPicker("image")} className="gap-2.5">
               <ImageIcon className="size-4 text-primary" /> Upload image
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => openPicker("pdf")} className="gap-2.5">
-              <FileText className="size-4 text-primary" /> Upload PDF
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => openPicker("file")} className="gap-2.5">
               <FileCode2 className="size-4 text-primary" /> Upload file

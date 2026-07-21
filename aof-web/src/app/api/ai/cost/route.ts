@@ -17,7 +17,7 @@ const CostScenarioSchema = z.object({
   storageGb: z.number().min(0).optional().default(0),
   bandwidthGb: z.number().min(0).optional().default(0),
   buildMinutesPerMonth: z.number().int().min(0).optional().default(0),
-  currentModel: z.string().max(100).optional().default("claude-sonnet"),
+  currentModel: z.string().max(100).optional().default("gemini-2.5-pro"),
   enableCaching: z.boolean().optional().default(false),
 });
 
@@ -44,7 +44,7 @@ function estimateCosts(data: z.infer<typeof CostScenarioSchema>) {
     },
     recommendations: [
       enableCaching ? null : "Enable response caching (5-min TTL) — saves ~60% on LLM costs",
-      "Route simple tasks to faster/cheaper models (Haiku vs Sonnet)",
+      "Route simple tasks to faster/cheaper models (Gemini Flash vs Pro)",
       "Compress API responses with gzip — reduces bandwidth cost",
       "Use ISR for static-heavy pages — reduces compute",
       "Batch database queries — reduces Supabase row-read costs",
@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
   const user = await getUserFromRequest(req);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const defaults = { monthlyRequests: 1000, avgTokensPerRequest: 1000, storageGb: 1, bandwidthGb: 10, buildMinutesPerMonth: 60, currentModel: "claude-sonnet", enableCaching: false };
+  const defaults = { monthlyRequests: 1000, avgTokensPerRequest: 1000, storageGb: 1, bandwidthGb: 10, buildMinutesPerMonth: 60, currentModel: "gemini-2.5-pro", enableCaching: false };
   const costs = estimateCosts(defaults);
 
   return NextResponse.json({

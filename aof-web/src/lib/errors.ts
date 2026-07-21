@@ -118,7 +118,7 @@ export interface AofProviderError {
   code: AofErrorCode;
   /** Short label, e.g. "Quota Exceeded". */
   problem: string;
-  /** Display name of the provider that failed, e.g. "Claude (Anthropic)". */
+  /** Display name of the provider that failed, e.g. "Google Gemini". */
   provider: string;
   /** Model in play when it failed, when known. */
   model?: string;
@@ -177,14 +177,14 @@ export function redact(text: string | undefined): string | undefined {
 // expired, 429 quota vs. rate-limit, 404 model vs. provider-down).
 
 export interface ClassifyInput {
-  /** Display name of the provider, e.g. "Claude (Anthropic)". */
+  /** Display name of the provider, e.g. "Google Gemini". */
   provider: string;
   model?: string;
   /** HTTP status from the upstream response, if any. */
   status?: number;
   /** Error message (Error.message, or upstream body summary). */
   message?: string;
-  /** Provider error "type"/"code" string (Anthropic `type`, OpenAI `code`). */
+  /** Provider error "type"/"code" string, when the upstream response includes one. */
   errorType?: string;
   /** Strong explicit hint that short-circuits status/message heuristics. */
   hint?: "missing-key" | "network" | "timeout" | "empty" | "config";

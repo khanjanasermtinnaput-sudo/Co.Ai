@@ -5,13 +5,12 @@
 // clean structured error (instead of a half-rendered fake answer), and the
 // lightweight health ping used by the diagnostics panel.
 //
-// Six providers are wired into the chat runtime: Anthropic (Claude), OpenRouter,
-// Google Gemini, DeepSeek, Qwen (DashScope) and Meta Llama (via Groq). A key for
-// any of the latter five can come from the server environment (operator-wide) or
-// from the signed-in user's own encrypted key (see keys-store.ts) — the user key
-// always wins when both are present.
+// Five cloud providers are wired into the chat runtime: OpenRouter, Google Gemini,
+// DeepSeek, Qwen (DashScope) and Meta Llama (via Groq) — plus two local
+// OpenAI-compatible servers (Ollama, vLLM). A key for any cloud provider can come
+// from the server environment (operator-wide) or from the signed-in user's own
+// encrypted key (see keys-store.ts) — the user key always wins when both are present.
 
-import Anthropic from "@anthropic-ai/sdk";
 import {
   classifyProviderError,
   emptyResponseError,
@@ -29,7 +28,7 @@ import type { ProviderHealth, ProviderStatusLevel } from "@/lib/health";
 
 // ── Registry ──────────────────────────────────────────────────────────────────
 
-export type ProviderId = "anthropic" | "openrouter" | "gemini" | "deepseek" | "qwen" | "llama" | "ollama" | "vllm";
+export type ProviderId = "openrouter" | "gemini" | "deepseek" | "qwen" | "llama" | "ollama" | "vllm";
 
 export interface ProviderMeta {
   id: ProviderId;
@@ -47,14 +46,6 @@ export interface ProviderMeta {
 export type KeyOverrides = Partial<Record<ProviderId, string>>;
 
 export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
-  anthropic: {
-    id: "anthropic",
-    label: "Claude (Anthropic)",
-    envVar: "ANTHROPIC_API_KEY",
-    modelEnv: "ANTHROPIC_MODEL",
-    defaultModel: "claude-haiku-4-5-20251001",
-    priority: 1,
-  },
   openrouter: {
     id: "openrouter",
     label: "OpenRouter",
@@ -62,7 +53,7 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
     modelEnv: "OPENROUTER_MODEL",
     // Set OPENROUTER_MODEL env var to override. Browse free models at openrouter.ai/models?q=:free
     defaultModel: "google/gemma-4-31b-it:free",
-    priority: 6,
+    priority: 5,
   },
   gemini: {
     id: "gemini",
@@ -70,7 +61,7 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
     envVar: "GEMINI_API_KEY",
     modelEnv: "GEMINI_MODEL",
     defaultModel: "gemini-2.5-flash",
-    priority: 2,
+    priority: 1,
   },
   deepseek: {
     id: "deepseek",
@@ -78,7 +69,7 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
     envVar: "DEEPSEEK_API_KEY",
     modelEnv: "DEEPSEEK_MODEL",
     defaultModel: "deepseek-chat",
-    priority: 3,
+    priority: 2,
   },
   qwen: {
     id: "qwen",
@@ -86,7 +77,7 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
     envVar: "QWEN_API_KEY",
     modelEnv: "QWEN_MODEL",
     defaultModel: "qwen-plus",
-    priority: 4,
+    priority: 3,
   },
   llama: {
     id: "llama",
@@ -94,7 +85,7 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
     envVar: "LLAMA_API_KEY",
     modelEnv: "LLAMA_MODEL",
     defaultModel: "llama-3.3-70b-versatile",
-    priority: 5,
+    priority: 4,
   },
   // ── Local models (Provider Load Balancer, Master Prompt 6.5) ────────────────
   // Self-hosted, OpenAI-compatible servers — no cloud vendor, no per-token
@@ -111,7 +102,7 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
     envVar: "OLLAMA_API_KEY",
     modelEnv: "OLLAMA_MODEL",
     defaultModel: "llama3.1",
-    priority: 7,
+    priority: 6,
   },
   vllm: {
     id: "vllm",
@@ -119,7 +110,7 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
     envVar: "VLLM_API_KEY",
     modelEnv: "VLLM_MODEL",
     defaultModel: "default", // vLLM serves one model per instance; override via VLLM_MODEL
-    priority: 8,
+    priority: 7,
   },
 };
 
@@ -221,7 +212,8 @@ export function toAofError(ctx: ErrCtx, thrown: unknown): AofProviderError {
 
   const name = e.name ?? "";
   const status = typeof e.status === "number" ? e.status : undefined;
-  // Anthropic nests the upstream error under `.error` (sometimes `.error.error`).
+  // Some thrown errors (e.g. network-level fetch failures) nest the upstream
+  // error under `.error` (sometimes `.error.error`).
   const bodyErr = e.error?.error ?? e.error;
   const errorType = bodyErr?.type ?? e.type;
   const message = bodyErr?.message ?? e.message ?? String(thrown);
@@ -263,10 +255,6 @@ export interface AdapterInput {
    *  ordering in route.ts is what keeps a vision-capable model first when
    *  images are present. */
   images?: { mediaType: string; data: string }[];
-  /** Decoded PDF attachments. Anthropic's document content block is the
-   *  only one wired up (its API is the one provider here with a native PDF
-   *  block); other adapters ignore this field. */
-  documents?: { mediaType: string; data: string; name?: string }[];
 }
 
 /** Build the OpenAI-style user message content for a turn with image
@@ -310,113 +298,6 @@ function abortableDelay(ms: number, signal: AbortSignal): Promise<void> {
 function firstTokenDeadlineMs(): number {
   const v = Number(process.env.FIRST_TOKEN_TIMEOUT_MS ?? process.env.OPENROUTER_FIRST_TOKEN_MS);
   return Number.isFinite(v) && v > 0 ? v : 10000;
-}
-
-// ── Anthropic adapter ──────────────────────────────────────────────────────────
-
-const ANTHROPIC_TRANSIENT_STATUSES = new Set([503, 529]);
-const ANTHROPIC_MAX_ATTEMPTS = 3;
-const ANTHROPIC_BACKOFF_MS = [300, 800];
-
-/** Build the Anthropic user message content for a turn with image/PDF
- *  attachments — a content-block array (image + document + text blocks) —
- *  or the plain string when there are none, so a text-only turn's request
- *  stays byte-identical to before this attachment support existed.
- *  Anthropic is the one provider here with a native `document` block, so
- *  PDFs are only ever attached on this path (see AdapterInput's header). */
-export function anthropicUserContent(
-  message: string,
-  images: { mediaType: string; data: string }[] | undefined,
-  documents: { mediaType: string; data: string; name?: string }[] | undefined,
-): Anthropic.MessageParam["content"] {
-  if (!images?.length && !documents?.length) return message;
-  const blocks = [
-    ...(images ?? []).map((img) => ({
-      type: "image" as const,
-      source: { type: "base64" as const, media_type: img.mediaType, data: img.data },
-    })),
-    ...(documents ?? []).map((doc) => ({
-      type: "document" as const,
-      source: { type: "base64" as const, media_type: "application/pdf", data: doc.data },
-    })),
-    { type: "text" as const, text: message },
-  ];
-  return blocks as unknown as Anthropic.MessageParam["content"];
-}
-
-export async function* anthropicTextStream(input: AdapterInput): AsyncGenerator<string, UsageNotice | undefined> {
-  const meta = PROVIDER_REGISTRY.anthropic;
-  const model = input.taskModel || modelFor(meta);
-  const messages: Anthropic.MessageParam[] = [
-    ...input.history.map((h) => ({ role: h.role, content: h.content })),
-    { role: "user" as const, content: anthropicUserContent(input.message, input.images, input.documents) },
-  ];
-
-  let started = false;
-  let lastError: unknown;
-
-  for (let attempt = 1; attempt <= ANTHROPIC_MAX_ATTEMPTS; attempt++) {
-    const anthropic = new Anthropic({ apiKey: apiKeyFor(meta, input.overrides)! });
-
-    const ctrl = new AbortController();
-    const onUserAbort = () => ctrl.abort();
-    input.signal.addEventListener("abort", onUserAbort, { once: true });
-    let timedOut = false;
-    const timer = setTimeout(() => {
-      timedOut = true;
-      ctrl.abort();
-    }, firstTokenDeadlineMs());
-    const clearDeadline = () => clearTimeout(timer);
-
-    let inputTokens = 0;
-    let outputTokens = 0;
-
-    try {
-      const stream = anthropic.messages.stream(
-        { model, max_tokens: input.maxTokens, temperature: input.temperature, system: input.system, messages },
-        { signal: ctrl.signal },
-      );
-
-      for await (const event of stream) {
-        if (event.type === "message_start") {
-          inputTokens = event.message.usage.input_tokens;
-        } else if (event.type === "message_delta") {
-          outputTokens = event.usage.output_tokens;
-        } else if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
-          if (!started) {
-            started = true;
-            clearDeadline();
-            input.signal.removeEventListener("abort", onUserAbort);
-          }
-          yield event.delta.text;
-        }
-      }
-      return makeUsageNotice(inputTokens, outputTokens);
-    } catch (thrown) {
-      if (started) throw thrown; // can't retry after emitting tokens
-
-      if (isAbort(thrown)) {
-        if (!input.signal.aborted && timedOut) {
-          throw new ProviderHttpError(504, "", "timeout", `${meta.label} did not respond in time`);
-        }
-        throw thrown;
-      }
-
-      const err = thrown as { status?: number };
-      if (err.status && ANTHROPIC_TRANSIENT_STATUSES.has(err.status) && attempt < ANTHROPIC_MAX_ATTEMPTS) {
-        lastError = thrown;
-        clearDeadline();
-        input.signal.removeEventListener("abort", onUserAbort);
-        await abortableDelay(ANTHROPIC_BACKOFF_MS[attempt - 1] ?? 800, input.signal);
-        continue;
-      }
-      throw thrown;
-    } finally {
-      clearDeadline();
-      input.signal.removeEventListener("abort", onUserAbort);
-    }
-  }
-  throw lastError;
 }
 
 // Exported so security-manager.ts's egress allowlist (Master Prompt Part
@@ -664,17 +545,13 @@ export const OPENAI_COMPAT: Record<OpenAiCompatConfig["providerId"], string> = {
 // Co-located with OPENAI_COMPAT/OPENROUTER_CHAT_URL above (its only real
 // inputs) rather than in security-manager.ts, to avoid that module needing
 // to import THIS file for the allowlist while this file also calls it —
-// security-manager.ts re-exports checkEgress from here instead. Anthropic
-// uses the official SDK's built-in default host, not independently
-// configurable in this file, so it's the one hardcoded entry alongside the
-// live config below. This is a defense-in-depth drift-guard, not a fix for
-// a live vulnerability: no user-supplied URL reaches any fetch call in this
-// file today — every target is a hardcoded literal or an operator-set env
-// var (OLLAMA_BASE_URL/VLLM_BASE_URL).
-const ANTHROPIC_HOST = "api.anthropic.com";
-
+// security-manager.ts re-exports checkEgress from here instead. This is a
+// defense-in-depth drift-guard, not a fix for a live vulnerability: no
+// user-supplied URL reaches any fetch call in this file today — every
+// target is a hardcoded literal or an operator-set env var
+// (OLLAMA_BASE_URL/VLLM_BASE_URL).
 function allowedProviderHosts(): Set<string> {
-  const hosts = new Set<string>([ANTHROPIC_HOST]);
+  const hosts = new Set<string>();
   try {
     hosts.add(new URL(OPENROUTER_CHAT_URL).hostname);
   } catch {
@@ -869,7 +746,6 @@ export const vllmTextStream = (input: AdapterInput) =>
   openAiCompatTextStream({ baseUrl: OPENAI_COMPAT.vllm, providerId: "vllm" }, input);
 
 const ADAPTERS: Record<ProviderId, (input: AdapterInput) => AsyncGenerator<string, UsageNotice | undefined>> = {
-  anthropic: anthropicTextStream,
   openrouter: openrouterTextStream,
   gemini: geminiTextStream,
   deepseek: deepseekTextStream,
@@ -1010,10 +886,7 @@ export async function pingProvider(p: ProviderMeta, overrides?: KeyOverrides): P
   const started = Date.now();
   try {
     const apiKey = apiKeyFor(p, overrides)!;
-    if (p.id === "anthropic") {
-      const anthropic = new Anthropic({ apiKey });
-      await anthropic.models.list({}, { signal: ctrl.signal });
-    } else if (p.id === "openrouter") {
+    if (p.id === "openrouter") {
       const res = await fetch("https://openrouter.ai/api/v1/key", {
         headers: { Authorization: `Bearer ${apiKey}` },
         signal: ctrl.signal,

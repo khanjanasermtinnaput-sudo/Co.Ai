@@ -33,14 +33,14 @@ test("allocateBudget's outputBudget is byte-identical to the pre-6.7 formula for
     compiledSystem: "SYSTEM TEXT",
     history: [],
     message: "hi",
-    provider: "anthropic",
-    model: "claude-haiku-4-5-20251001",
+    provider: "gemini",
+    model: "gemini-2.5-flash",
   });
   assert.equal(budget.outputBudget, workflowMaxTokens(specs, "normal"));
 });
 
 test("allocateBudget finds the real contextWindow for an exact registry match", () => {
-  const anthropic = MODEL_REGISTRY.find((m) => m.provider === "anthropic")!;
+  const gemini = MODEL_REGISTRY.find((m) => m.provider === "gemini" && m.model === "gemini-2.5-pro")!;
   const budget = allocateBudget({
     stages: [MIKROS_STAGE],
     effort: "normal",
@@ -49,10 +49,10 @@ test("allocateBudget finds the real contextWindow for an exact registry match", 
     compiledSystem: "SYS",
     history: [],
     message: "hi",
-    provider: "anthropic",
-    model: anthropic.model,
+    provider: "gemini",
+    model: gemini.model,
   });
-  assert.equal(budget.contextWindow, anthropic.contextWindow);
+  assert.equal(budget.contextWindow, gemini.contextWindow);
   assert.equal(budget.contextWindowIsDefault, false);
 });
 

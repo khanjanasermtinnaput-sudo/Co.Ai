@@ -41,7 +41,7 @@ export default function AboutPage() {
             ["Transparency",  "We surface failures, not fake successes. You always know which model responded and why."],
             ["Speed",         "CoCode goes from idea to runnable multi-file project in seconds, not hours."],
             ["Security",      "Your API keys are encrypted at rest with AES-256-GCM and a scrypt-derived master key. They never leave our servers in plaintext."],
-            ["Openness",      "Bring Your Own Key. Use any provider — Anthropic, Gemini, OpenRouter, DeepSeek, and more."],
+            ["Openness",      "Bring Your Own Key. Use any provider — Gemini, OpenRouter, DeepSeek, and more."],
           ].map(([title, body]) => (
             <li key={title} className="flex gap-3">
               <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-primary" />

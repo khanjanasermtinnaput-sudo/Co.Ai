@@ -35,7 +35,7 @@ No single agent sees the whole conversation. Each one gets exactly the context i
 
 ## Provider diversity by design
 
-Co.AI routes tasks to the best available provider — Anthropic, Gemini, DeepSeek, Qwen, Llama, or OpenRouter — based on task type and model availability. If a provider is down or rate-limited, the next one in the chain picks up without interrupting you.
+Co.AI routes tasks to the best available provider — Gemini, DeepSeek, Qwen, Llama, or OpenRouter — based on task type and model availability. If a provider is down or rate-limited, the next one in the chain picks up without interrupting you.
 
 You bring your own keys. We never bill you for model tokens.
 
@@ -115,7 +115,7 @@ The final stage runs whatever the project supports: TypeScript compiler, ESLint,
 
 ## Provider routing
 
-TMAP v2 adds DARS — the Distributed Agent Routing System — which maintains a health score for each configured provider and routes each pipeline stage to the fastest healthy one. If Anthropic is rate-limiting, DARS silently routes the next call to Gemini.
+TMAP v2 adds DARS — the Distributed Agent Routing System — which maintains a health score for each configured provider and routes each pipeline stage to the fastest healthy one. If Gemini is rate-limiting, DARS silently routes the next call to DeepSeek.
 
 The circuit breaker opens after 3 consecutive failures and half-opens after 60 seconds to test recovery.
     `.trim(),
@@ -166,7 +166,7 @@ The \`provider_keys\` table stores:
 | Column | Value |
 |--------|-------|
 | \`user_id\` | Supabase UUID |
-| \`provider\` | e.g. \`anthropic\` |
+| \`provider\` | e.g. \`gemini\` |
 | \`encrypted_key\` | \`salt:iv:ciphertext+tag\` (base64) |
 | \`updated_at\` | timestamp |
 

@@ -151,7 +151,7 @@ test("provider throws before the first chunk → propagates untouched, onComplet
     throwsImmediately({ status: 401, message: "invalid api key" }),
     opts(LOW_PHASES, () => (called = true)),
   );
-  const ctx = { provider: PROVIDER_REGISTRY.anthropic, model: "test-model", requestId: "req_test" };
+  const ctx = { provider: PROVIDER_REGISTRY.gemini, model: "test-model", requestId: "req_test" };
   const result = await primeAndStream({ ctx, gen: wrapped });
 
   assert.equal(result.ok, false);
@@ -161,7 +161,7 @@ test("provider throws before the first chunk → propagates untouched, onComplet
 
 test("provider yields nothing → phaseStream yields nothing → AOF_ERROR_011 via primeAndStream", async () => {
   const wrapped = phaseStream(yieldsNothing(), opts(LOW_PHASES));
-  const ctx = { provider: PROVIDER_REGISTRY.anthropic, model: "test-model", requestId: "req_test" };
+  const ctx = { provider: PROVIDER_REGISTRY.gemini, model: "test-model", requestId: "req_test" };
   const result = await primeAndStream({ ctx, gen: wrapped });
 
   assert.equal(result.ok, false);

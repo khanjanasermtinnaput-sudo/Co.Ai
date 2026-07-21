@@ -83,13 +83,6 @@ export const ERROR_CODES = {
     solution: "Check your OpenAI API key and usage limits.",
     category: "ai",
   },
-  AI_002: {
-    code: "AI-002",
-    title: "Claude Error",
-    message: "The Anthropic Claude API returned an error.",
-    solution: "Check your Anthropic API key and usage limits.",
-    category: "ai",
-  },
   AI_003: {
     code: "AI-003",
     title: "Gemini Error",
@@ -160,7 +153,6 @@ export function findByCode(code: string): ErrorEntry | undefined {
 export function aiProviderKey(provider: string): ErrorKey {
   const p = provider.toLowerCase();
   if (p.includes("openai") || p.includes("gpt")) return "AI_001";
-  if (p.includes("anthropic") || p.includes("claude")) return "AI_002";
   if (p.includes("gemini") || p.includes("google")) return "AI_003";
   if (p.includes("deepseek")) return "AI_004";
   if (p.includes("openrouter")) return "AI_005";

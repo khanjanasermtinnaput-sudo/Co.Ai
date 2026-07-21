@@ -25,7 +25,6 @@ const PluginSchema = z.object({
 
 // Built-in plugin registry (in production this would be from DB)
 const BUILTIN_PLUGINS = [
-  { id: "anthropic-claude",   name: "Anthropic Claude",   category: "ai-model",       version: "1.0.0", sandboxed: true,  active: true  },
   { id: "openrouter",         name: "OpenRouter",         category: "ai-model",       version: "1.0.0", sandboxed: true,  active: true  },
   { id: "google-gemini",      name: "Google Gemini",      category: "ai-model",       version: "1.0.0", sandboxed: true,  active: true  },
   { id: "eslint",             name: "ESLint",             category: "linter",         version: "8.0.0", sandboxed: true,  active: true  },

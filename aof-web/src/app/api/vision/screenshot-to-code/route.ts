@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
 
   const { framework, designSystem, reuseExisting, description } = parsed.data;
 
-  // Vision analysis placeholder — real implementation uses Anthropic claude-3-5-sonnet vision
+  // Vision analysis placeholder — real implementation uses a vision-capable model
   return NextResponse.json({
     status: "processed",
     framework,

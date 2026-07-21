@@ -23,7 +23,7 @@ function meta(id: ProviderId, label: string): ProviderMeta {
   };
 }
 
-const PROVIDER_A = meta("anthropic", "Provider A");
+const PROVIDER_A = meta("deepseek", "Provider A");
 const PROVIDER_B = meta("gemini", "Provider B");
 
 async function* okGen(chunks: string[], usage: UsageNotice): AsyncGenerator<string, UsageNotice | undefined> {
@@ -69,7 +69,7 @@ test("happy path: concatenates chunks, passes real usage through, attempts=1", a
   if (!result.ok) return;
   assert.equal(result.text, "Hello world");
   assert.deepEqual(result.usage, usage);
-  assert.equal(result.provider.id, "anthropic");
+  assert.equal(result.provider.id, "deepseek");
   assert.equal(result.attempts, 1);
 });
 
@@ -79,7 +79,7 @@ test("a failover-worthy error on provider #1 falls over to provider #2", async (
     baseOpts({
       providers: [PROVIDER_A, PROVIDER_B],
       adapterLookup: (id: ProviderId) => (_input: AdapterInput) =>
-        id === "anthropic" ? throwsImmediately({ status: 500, message: "overloaded" }) : okGen(["ok"], usage),
+        id === "deepseek" ? throwsImmediately({ status: 500, message: "overloaded" }) : okGen(["ok"], usage),
     }),
   );
   assert.equal(result.ok, true);

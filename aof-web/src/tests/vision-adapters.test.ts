@@ -1,7 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  anthropicUserContent,
   openAiUserContent,
   geminiTextStream,
 } from "@/lib/server/ai-providers.js";
@@ -30,45 +29,6 @@ test("openAiUserContent includes one image_url part per attached image", () => {
   ]);
   const arr = content as Array<{ type: string }>;
   assert.equal(arr.length, 3); // text + 2 images
-});
-
-// ── anthropicUserContent (Anthropic's image/document/text content blocks) ──────
-
-test("anthropicUserContent returns the plain string when there are no attachments", () => {
-  assert.equal(anthropicUserContent("hello", undefined, undefined), "hello");
-  assert.equal(anthropicUserContent("hello", [], []), "hello");
-});
-
-test("anthropicUserContent builds image + text blocks for an image attachment", () => {
-  const content = anthropicUserContent("what is this?", [{ mediaType: "image/png", data: "AAAA" }], undefined);
-  const arr = content as unknown as Array<Record<string, unknown>>;
-  assert.equal(arr.length, 2);
-  assert.equal(arr[0].type, "image");
-  assert.deepEqual(arr[0].source, { type: "base64", media_type: "image/png", data: "AAAA" });
-  assert.equal(arr[1].type, "text");
-  assert.equal(arr[1].text, "what is this?");
-});
-
-test("anthropicUserContent builds document + text blocks for a PDF attachment", () => {
-  const content = anthropicUserContent("summarize this", undefined, [{ mediaType: "application/pdf", data: "BASE64PDF" }]);
-  const arr = content as unknown as Array<Record<string, unknown>>;
-  assert.equal(arr.length, 2);
-  assert.equal(arr[0].type, "document");
-  assert.deepEqual(arr[0].source, { type: "base64", media_type: "application/pdf", data: "BASE64PDF" });
-  assert.equal(arr[1].type, "text");
-});
-
-test("anthropicUserContent orders image blocks, then document blocks, then the text block", () => {
-  const content = anthropicUserContent(
-    "both",
-    [{ mediaType: "image/png", data: "IMG" }],
-    [{ mediaType: "application/pdf", data: "DOC" }],
-  );
-  const arr = content as unknown as Array<Record<string, unknown>>;
-  assert.deepEqual(
-    arr.map((b) => b.type),
-    ["image", "document", "text"],
-  );
 });
 
 // ── End-to-end: an OpenAI-compatible adapter actually sends the image in the request body ──

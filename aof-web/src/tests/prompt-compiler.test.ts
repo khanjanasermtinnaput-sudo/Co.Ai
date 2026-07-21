@@ -21,8 +21,8 @@ function baseInputs(overrides?: Partial<PromptInputs>): PromptInputs {
     ],
     workflowId: "lite",
     stageId: "processing",
-    provider: "anthropic",
-    model: "claude-test",
+    provider: "gemini",
+    model: "gemini-test",
     ...overrides,
   };
 }

@@ -16,11 +16,11 @@ shadcn-style **Radix** primitives, **Lucide** icons, **Framer Motion**, and
 ```bash
 cd aof-web
 npm install
-cp .env.example .env.local   # add ANTHROPIC_API_KEY or OPENROUTER_API_KEY
+cp .env.example .env.local   # add GEMINI_API_KEY or OPENROUTER_API_KEY
 npm run dev                  # http://localhost:3000
 ```
 
-Set at least one AI provider key (`ANTHROPIC_API_KEY` or `OPENROUTER_API_KEY`).
+Set at least one AI provider key (`GEMINI_API_KEY` or `OPENROUTER_API_KEY`).
 **Co.AI never fakes AI** — with no key it surfaces a clear `AOF_ERROR_001` panel
 telling you exactly what to add. For a keyless local UI demo, opt in explicitly
 with `NEXT_PUBLIC_AOF_DEMO=1` (clearly-labelled simulated responses).

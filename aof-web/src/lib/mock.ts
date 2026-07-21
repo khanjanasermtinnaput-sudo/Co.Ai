@@ -155,18 +155,15 @@ export function composeLearningReply(message: string): LearningAnswer | null {
 function attachmentPreamble(attachments: Attachment[], th: boolean): string {
   if (attachments.length === 0) return "";
   const img = attachments.filter((a) => a.kind === "image").length;
-  const pdf = attachments.filter((a) => a.kind === "pdf").length;
   const code = attachments.filter((a) => a.kind === "code").length;
   const parts: string[] = [];
   if (th) {
     if (img) parts.push(`รูปภาพ ${img} ไฟล์ (กำลังอ่านข้อความและอธิบายสิ่งที่เห็น)`);
-    if (pdf) parts.push(`PDF ${pdf} ไฟล์ (กำลังดึงและสรุปเนื้อหา)`);
     if (code) parts.push(`ไฟล์โค้ด ${code} ไฟล์ (กำลังวิเคราะห์โครงสร้างและตรรกะ)`);
     if (parts.length === 0) return "";
     return `รับ${parts.join(" ")}ของคุณแล้วครับ\n\n`;
   }
   if (img) parts.push(`${img} image${img > 1 ? "s" : ""} (reading text & describing what I see)`);
-  if (pdf) parts.push(`${pdf} PDF${pdf > 1 ? "s" : ""} (extracting & summarizing the contents)`);
   if (code) parts.push(`${code} code file${code > 1 ? "s" : ""} (analyzing structure & logic)`);
   if (parts.length === 0) return "";
   return `I've taken in your ${parts.join(", ")}.\n\n`;
@@ -216,9 +213,9 @@ Want me to build it? Open **CoCode** and I'll take it from idea to working code.
 
   if (/(hello|hi|hey|สวัสดี|หวัดดี)/.test(m) && attachments.length === 0) {
     if (th) {
-      return `สวัสดีครับ! ผมคือ **CoAI** — เวิร์กสเปซ AI ของคุณ ผมช่วยระดมไอเดีย ช่วยเรียนรู้ อ่านรูปภาพและ PDF หรือกระโดดเข้า **CoCode** เพื่อสร้างซอฟต์แวร์จริงได้ วันนี้อยากทำอะไรดีครับ?`;
+      return `สวัสดีครับ! ผมคือ **CoAI** — เวิร์กสเปซ AI ของคุณ ผมช่วยระดมไอเดีย ช่วยเรียนรู้ อ่านรูปภาพ หรือกระโดดเข้า **CoCode** เพื่อสร้างซอฟต์แวร์จริงได้ วันนี้อยากทำอะไรดีครับ?`;
     }
-    return `Hi! I'm **CoAI** — your AI workspace. I can chat through ideas, help you learn, read images & PDFs, or jump into **CoCode** to build real software. What are we working on today?`;
+    return `Hi! I'm **CoAI** — your AI workspace. I can chat through ideas, help you learn, read images, or jump into **CoCode** to build real software. What are we working on today?`;
   }
 
   if (th) {

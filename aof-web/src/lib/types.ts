@@ -53,7 +53,7 @@ export interface RouteDecision {
 }
 
 /** Kinds of files the multimodal composer accepts. */
-export type AttachmentKind = "image" | "pdf" | "code" | "document";
+export type AttachmentKind = "image" | "code" | "document";
 
 export interface Attachment {
   id: string;
@@ -61,8 +61,7 @@ export interface Attachment {
   name: string;
   mime: string;
   size: number;
-  /** data: URL — kept for images (inline preview) and PDFs (sent to the model
-   *  as a document block; Anthropic's API is the only provider that reads one). */
+  /** data: URL — kept for images (inline preview). */
   dataUrl?: string;
   /** decoded text for code / document files, used for analysis previews. */
   text?: string;

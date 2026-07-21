@@ -100,12 +100,6 @@ test('image attachment without coding ask routes to chat', () => {
   assert.ok(r.reason.toLowerCase().includes('image'));
 });
 
-test('pdf attachment without coding ask routes to chat', () => {
-  const r = routeRequest('summarize this', [att('pdf')]);
-  assert.equal(r.target, 'chat');
-  assert.ok(r.reason.toLowerCase().includes('pdf'));
-});
-
 // ── routeLabel ────────────────────────────────────────────────────────────────
 
 test('routeLabel returns correct labels for all targets', () => {

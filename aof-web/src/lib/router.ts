@@ -313,13 +313,13 @@ export function routeRequest(text: string, attachments: Attachment[] = []): Rout
       ? `Detected ${primary.replace(/_/g, ' ')} task — routing to CoCode.`
       : `Handling as ${classification.categories.slice(0, 2).map((c) => c.replace(/_/g, ' ')).join(' + ')} request.`;
 
-    // Images & PDFs without coding → Co.AI
-    const visual = attachments.find((a) => a.kind === "image" || a.kind === "pdf");
+    // Images without coding → Co.AI
+    const visual = attachments.find((a) => a.kind === "image");
     if (visual && target !== 'code') {
       return {
         target: "chat",
         label: LABEL.chat,
-        reason: visual.kind === "image" ? "Understanding the image you shared." : "Reading the PDF you shared.",
+        reason: "Understanding the image you shared.",
         confidence: 80,
       };
     }

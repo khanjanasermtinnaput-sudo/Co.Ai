@@ -7,7 +7,6 @@ import type { Attachment, AttachmentKind } from "@/lib/types";
 
 const ICON: Record<AttachmentKind, LucideIcon> = {
   image: ImageIcon,
-  pdf: FileText,
   code: FileCode2,
   document: FileText,
 };

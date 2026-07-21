@@ -10,7 +10,7 @@ export type ProviderStatusLevel = "CONNECTED" | "DEGRADED" | "DISCONNECTED" | "U
 
 export interface ProviderHealth {
   id: string;
-  /** Human label, e.g. "Claude (Anthropic)". */
+  /** Human label, e.g. "Google Gemini". */
   label: string;
   status: ProviderStatusLevel;
   /** Short status note, e.g. "Connected · 240ms" or "Missing API Key". */

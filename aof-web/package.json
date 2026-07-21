@@ -12,7 +12,6 @@
     "test": "tsx --test src/tests/*.test.ts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.104.1",
     "@monaco-editor/react": "^4.7.0",
     "@radix-ui/react-avatar": "^1.1.1",
     "@radix-ui/react-dialog": "^1.1.2",
