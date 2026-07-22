@@ -37,6 +37,11 @@ interface UIState {
   /** Whether the CoCode AI chat is currently streaming a reply. Drives the status bar's AI indicator. */
   aiStreaming: boolean;
   setAiStreaming: (v: boolean) => void;
+
+  /** TaoTao mascot animations — ON by default. OS prefers-reduced-motion
+   *  always overrides this to off regardless of the setting. */
+  mascotAnimations: boolean;
+  setMascotAnimations: (v: boolean) => void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -64,12 +69,16 @@ export const useUIStore = create<UIState>()(
 
       aiStreaming: false,
       setAiStreaming: (v) => set({ aiStreaming: v }),
+
+      mascotAnimations: true,
+      setMascotAnimations: (v) => set({ mascotAnimations: v }),
     }),
     {
       name: "aof.ui",
       partialize: (s) => ({
         sidebarExpanded: s.sidebarExpanded,
         developerMode: s.developerMode,
+        mascotAnimations: s.mascotAnimations,
       }),
       // One-time adoption of the legacy diagnostics-store copy of developerMode:
       // users who had turned it on there must not silently lose the setting.

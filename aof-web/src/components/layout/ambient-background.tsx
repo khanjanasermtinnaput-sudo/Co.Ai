@@ -1,12 +1,19 @@
-/** Fixed, non-interactive ambient backdrop.
- *  Light mode: clean pure-white canvas, no vignette or edge shading.
- *  Dark mode: true-black canvas with a faint, low-intensity warm glow + a few
- *  barely-perceptible drifting particles. Purely decorative — sits behind all content. */
+/** Fixed, non-interactive ambient backdrop. Purely decorative — sits behind
+ *  all content, never competes with it. Every animated layer rides the
+ *  design system's global prefers-reduced-motion rule (globals.css), so it
+ *  quiets down automatically for users who ask for less motion.
+ *  Light mode: a barely-there cool highlight — quiet parity with dark mode,
+ *  not the stark blank canvas it used to be.
+ *  Dark mode: a faint, low-intensity warm glow + a few barely-perceptible
+ *  drifting particles. */
 export function AmbientBackground() {
   return (
     <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
       {/* base canvas — pure white (light) / true black (dark) */}
       <div className="absolute inset-0 bg-background" />
+
+      {/* Light mode: one quiet, static highlight — no motion, no particles */}
+      <div className="absolute -top-44 left-1/2 h-[480px] w-[760px] -translate-x-1/2 rounded-full bg-[radial-gradient(ellipse_at_center,hsl(220_14%_20%/0.025),transparent_64%)] blur-3xl dark:hidden" />
 
       {/* Warm ambient glow — dark mode only, ~80% softer than before */}
       <div className="absolute -top-44 left-1/2 hidden h-[480px] w-[760px] -translate-x-1/2 rounded-full bg-[radial-gradient(ellipse_at_center,hsl(32_94%_44%/0.05),transparent_64%)] blur-3xl dark:block" />

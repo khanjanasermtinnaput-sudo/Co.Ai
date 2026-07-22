@@ -157,3 +157,17 @@
     animation: none !important;
   }
 }
+
+/* Settings → Appearance → "Mascot animations" off. Same selector list as the
+ * reduced-motion query above — a user-facing choice, not just an OS signal. */
+[data-mascot-animate="off"] .tao-sprite *,
+[data-mascot-animate="off"].tao-bob,
+[data-mascot-animate="off"] .tao-bob,
+[data-mascot-animate="off"].tao-hop,
+[data-mascot-animate="off"] .tao-hop,
+[data-mascot-animate="off"] .tao-yarn-cross,
+[data-mascot-animate="off"] .tao-zzz,
+[data-mascot-animate="off"] .tao-tear,
+[data-mascot-animate="off"] .tao-twinkle {
+  animation: none !important;
+}

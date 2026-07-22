@@ -35,6 +35,7 @@ export function CollapsedRail({
                 <button
                   type="button"
                   onClick={() => onSelect(p.id as IDEPanel)}
+                  aria-label={p.label}
                   className="flex w-8 items-center justify-center rounded-md py-1.5 text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground"
                 >
                   <Icon className="size-4" />

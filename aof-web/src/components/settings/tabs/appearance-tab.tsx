@@ -4,12 +4,16 @@ import { useTheme } from "next-themes";
 import { Check, Moon, Sun } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMounted } from "@/hooks/use-mounted";
+import { useUIStore } from "@/store/ui-store";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
 
 export function AppearanceTab() {
   const { theme, setTheme } = useTheme();
   const mounted = useMounted();
   const current = mounted ? theme ?? "dark" : "dark";
+  const mascotAnimations = useUIStore((s) => s.mascotAnimations);
+  const setMascotAnimations = useUIStore((s) => s.setMascotAnimations);
 
   return (
     <div className="space-y-4">
@@ -56,6 +60,19 @@ export function AppearanceTab() {
             <span className="size-3.5 rounded-full bg-warning" title="Warning" />
             <span className="size-3.5 rounded-full bg-destructive" title="Error" />
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="flex items-center justify-between gap-3 py-4">
+          <div>
+            <p className="text-sm font-medium">Mascot animations</p>
+            <p className="text-xs text-muted-foreground">
+              TaoTao reacts to sending, thinking and errors. Turn off for a fully
+              static companion.
+            </p>
+          </div>
+          <Switch checked={mascotAnimations} onCheckedChange={setMascotAnimations} />
         </CardContent>
       </Card>
 
