@@ -13,8 +13,9 @@ import { Logo } from "@/components/brand/logo";
 import { NavLink } from "./nav-link";
 import { ThemeToggle } from "./theme-toggle";
 import { UserMenu } from "./user-menu";
-import { Settings } from "lucide-react";
-import { isCoCodeArea, CoChatHistoryPanel, CoCodeHistoryPanel } from "./sidebar";
+import { isCoCodeArea } from "./sidebar";
+import { CoChatHistoryPanel } from "./chat-history-panel";
+import { CoCodeHistoryPanel } from "./cocode-history-panel";
 
 export function MobileTopbar() {
   const open = useUIStore((s) => s.mobileNavOpen);
@@ -75,9 +76,6 @@ export function MobileTopbar() {
             </button>
 
             <nav className="flex flex-1 flex-col gap-1 overflow-y-auto pt-2">
-              <p className="px-2 pb-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/70">
-                Workspace
-              </p>
               {PRIMARY_NAV.map((item) => (
                 <NavLink
                   key={item.key}
@@ -90,15 +88,6 @@ export function MobileTopbar() {
                 />
               ))}
               {inCoCode ? <CoCodeHistoryPanel /> : <CoChatHistoryPanel pathname={pathname} />}
-
-              <div className="mt-auto" />
-              <NavLink
-                href="/settings"
-                label="Settings"
-                icon={Settings}
-                expanded
-                onNavigate={() => setOpen(false)}
-              />
             </nav>
 
             <div className="flex flex-col gap-1 border-t border-sidebar-border pt-3">

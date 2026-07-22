@@ -21,7 +21,6 @@ import { extractDiffs } from "@/lib/cocode/diff";
 import { getAdaptivePanels, PANEL_DEFS, PANEL_GROUP_ORDER, type PanelDef } from "@/lib/cocode/adaptive-panels";
 import { analyzeFiles } from "@/lib/cocode/diagnostics";
 import { flattenFiles } from "@/lib/cocode/virtual-fs";
-import { CommandPalette } from "./command-palette";
 import { WorkspaceStatusBar } from "./status-bar";
 import { useSmartContextMenu, SmartContextMenu } from "./smart-context-menu";
 import { SimpleTooltip } from "./ide-tooltip";
@@ -333,10 +332,7 @@ export function CoCodeWorkspace() {
   const viewMode    = useCocodeIDEStore((s) => s.viewMode);
   const setViewMode = useCocodeIDEStore((s) => s.setViewMode);
 
-  const developerMode       = useUIStore((s) => s.developerMode);
-  const toggleDeveloperMode = useUIStore((s) => s.toggleDeveloperMode);
-  const commandPaletteOpen  = useUIStore((s) => s.commandPaletteOpen);
-  const setCommandPaletteOpen = useUIStore((s) => s.setCommandPaletteOpen);
+  const developerMode = useUIStore((s) => s.developerMode);
 
   // Part 7 — Smart Context Menu
   const { position: ctxPos, selection: ctxSel, close: closeCtx } = useSmartContextMenu();
@@ -347,17 +343,10 @@ export function CoCodeWorkspace() {
   const activePanel = rightPanel as IDEPanel | null;
   const showRightPanel = activePanel !== null;
 
-  // Part 9 — Command Palette keyboard shortcut (Ctrl+Shift+P)
+  // Surface-local shortcuts (undo/redo). Palette + developer-mode shortcuts
+  // are global — see providers/keyboard-shortcuts.tsx.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "P") {
-        e.preventDefault();
-        setCommandPaletteOpen(true);
-      }
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "`") {
-        e.preventDefault();
-        toggleDeveloperMode();
-      }
       if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) {
         // Monaco handles its own undo; only intercept when editor not focused
         const active = document.activeElement;
@@ -376,7 +365,7 @@ export function CoCodeWorkspace() {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [setCommandPaletteOpen, toggleDeveloperMode, undo, redo]);
+  }, [undo, redo]);
 
   // Handle GitHub OAuth callback
   useEffect(() => {
@@ -410,13 +399,7 @@ export function CoCodeWorkspace() {
 
   return (
     <div className="cocode-workspace-outer flex h-full flex-col overflow-hidden">
-      {/* ── Command Palette (Part 9) ──────────────────────────────────────── */}
-      <CommandPalette
-        open={commandPaletteOpen}
-        onClose={() => setCommandPaletteOpen(false)}
-        developerMode={developerMode}
-        onToggleDeveloperMode={toggleDeveloperMode}
-      />
+      {/* Command palette is global — rendered by (app)/layout. */}
 
       {/* ── Smart Context Menu (Part 7) ───────────────────────────────────── */}
       <SmartContextMenu
@@ -498,8 +481,8 @@ export function CoCodeWorkspace() {
           >
             <button
               type="button"
-              onClick={toggleDeveloperMode}
-              className="flex items-center gap-1 rounded-md border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-400 hover:bg-amber-500/20 transition-colors"
+              onClick={() => useUIStore.getState().toggleDeveloperMode()}
+              className="flex items-center gap-1 rounded-md border border-accent-warm/30 bg-accent-warm/10 px-1.5 py-0.5 text-micro font-semibold text-accent-warm hover:bg-accent-warm/20 transition-colors"
             >
               <Code2 className="size-3" />
               DEV
@@ -556,7 +539,7 @@ export function CoCodeWorkspace() {
           <SimpleTooltip label="Command Palette" description="Search all commands, panels, and actions" shortcut="Ctrl+Shift+P" side="bottom">
             <button
               type="button"
-              onClick={() => setCommandPaletteOpen(true)}
+              onClick={() => useUIStore.getState().setCommandPaletteOpen(true)}
               className="flex items-center gap-1 rounded-md border border-border/40 px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground"
             >
               <Terminal className="size-3" />

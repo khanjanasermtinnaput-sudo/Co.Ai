@@ -1,8 +1,7 @@
-import type { Metadata } from "next";
-import { ChatView } from "@/components/chat/chat-view";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = { title: "Chat" };
-
+// "/" IS the chat surface — this legacy route exists only so old bookmarks
+// and deep links keep working.
 export default function ChatPage() {
-  return <ChatView />;
+  redirect("/");
 }

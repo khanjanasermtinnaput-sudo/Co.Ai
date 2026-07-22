@@ -14,8 +14,12 @@ interface UIState {
   mobileNavOpen: boolean;
   setMobileNav: (v: boolean) => void;
 
-  /** Developer Mode — OFF by default. Shows TMAP, Agent Monitor, advanced panels. */
+  /** Developer Mode — OFF by default. The ONE app-wide switch that reveals
+   *  technical surfaces: diagnostics panels, dev-only CoCode panels, raw error
+   *  details, backend/model internals. (diagnostics-store used to keep its own
+   *  copy; this is now the single source of truth.) */
   developerMode: boolean;
+  setDeveloperMode: (v: boolean) => void;
   toggleDeveloperMode: () => void;
 
   /** Command palette (Ctrl+Shift+P). */
@@ -46,6 +50,7 @@ export const useUIStore = create<UIState>()(
       setMobileNav: (v) => set({ mobileNavOpen: v }),
 
       developerMode: false,
+      setDeveloperMode: (v) => set({ developerMode: v }),
       toggleDeveloperMode: () => set((s) => ({ developerMode: !s.developerMode })),
 
       commandPaletteOpen: false,
@@ -66,6 +71,19 @@ export const useUIStore = create<UIState>()(
         sidebarExpanded: s.sidebarExpanded,
         developerMode: s.developerMode,
       }),
+      // One-time adoption of the legacy diagnostics-store copy of developerMode:
+      // users who had turned it on there must not silently lose the setting.
+      onRehydrateStorage: () => (state) => {
+        if (!state || state.developerMode || typeof window === "undefined") return;
+        try {
+          const raw = window.localStorage.getItem("aof.diagnostics");
+          if (raw && JSON.parse(raw)?.state?.developerMode === true) {
+            useUIStore.setState({ developerMode: true });
+          }
+        } catch {
+          // corrupt legacy state — ignore
+        }
+      },
     },
   ),
 );

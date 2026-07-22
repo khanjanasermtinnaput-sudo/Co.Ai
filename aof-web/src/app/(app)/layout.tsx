@@ -2,6 +2,8 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { MobileTopbar } from "@/components/layout/mobile-nav";
 import { AmbientBackground } from "@/components/layout/ambient-background";
 import { AuthGate } from "@/components/providers/auth-gate";
+import { KeyboardShortcuts } from "@/components/providers/keyboard-shortcuts";
+import { CommandPalette } from "@/components/command-palette/command-palette";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -12,6 +14,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       >
         Skip to content
       </a>
+      <KeyboardShortcuts />
+      <CommandPalette />
       <div className="relative flex h-dvh overflow-hidden">
         <AmbientBackground />
         <Sidebar />

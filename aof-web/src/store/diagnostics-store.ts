@@ -1,6 +1,7 @@
-// ── Diagnostics / Developer Mode ──────────────────────────────────────────────
-// Tracks developer mode toggle and the in-session error log (last 100 entries).
-// Both survive reloads via `persist`. The error log is also synced from the
+// ── Diagnostics ───────────────────────────────────────────────────────────────
+// Tracks debug-log flags and the in-session error log (last 100 entries).
+// Developer Mode itself lives in ui-store (the single source of truth) — this
+// store deliberately has no copy of it. The error log is also synced from the
 // client-side logger module via `subscribeErrorLog`.
 
 import { create } from "zustand";
@@ -8,10 +9,6 @@ import { persist } from "zustand/middleware";
 import type { ErrorLogEntry } from "@/lib/errors/logger";
 
 interface DiagnosticsState {
-  developerMode: boolean;
-  setDeveloperMode: (v: boolean) => void;
-  toggleDeveloperMode: () => void;
-
   /** Debug log flags (toggled per-category in Settings → Diagnostics). */
   debugLogs: boolean;
   apiLogs: boolean;
@@ -29,10 +26,6 @@ interface DiagnosticsState {
 export const useDiagnosticsStore = create<DiagnosticsState>()(
   persist(
     (set) => ({
-      developerMode: false,
-      setDeveloperMode: (developerMode) => set({ developerMode }),
-      toggleDeveloperMode: () => set((s) => ({ developerMode: !s.developerMode })),
-
       debugLogs: false,
       apiLogs: false,
       authLogs: false,
@@ -49,7 +42,6 @@ export const useDiagnosticsStore = create<DiagnosticsState>()(
       name: "aof.diagnostics",
       // Don't persist the error log across browser sessions — it's a live feed.
       partialize: (s) => ({
-        developerMode: s.developerMode,
         debugLogs: s.debugLogs,
         apiLogs: s.apiLogs,
         authLogs: s.authLogs,

@@ -4,6 +4,7 @@ import {
   Code2,
   FolderKanban,
   GraduationCap,
+  Settings,
   type LucideIcon,
 } from "lucide-react";
 import type {
@@ -23,27 +24,30 @@ export interface NavItem {
   description: string;
 }
 
+// Deliberately minimal: Home (chat), Code (projects + workspace), Settings.
+// Everything else is contextual (Code-area history, command palette) — new
+// top-level entries need a real page and a real reason to interrupt this calm.
 export const PRIMARY_NAV: NavItem[] = [
   {
     key: "chat",
-    label: "Co.AI",
+    label: "Home",
     href: "/",
     icon: MessageSquare,
-    description: "General AI assistant",
-  },
-  {
-    key: "projects",
-    label: "Projects",
-    href: "/projects",
-    icon: FolderKanban,
-    description: "Manage your work",
+    description: "Chat with Co.AI",
   },
   {
     key: "code",
-    label: "CoCode",
+    label: "Code",
     href: "/code",
     icon: Code2,
-    description: "Your AI development workspace",
+    description: "Projects and the AI development workspace",
+  },
+  {
+    key: "settings",
+    label: "Settings",
+    href: "/settings",
+    icon: Settings,
+    description: "Account, appearance, keys and billing",
   },
 ];
 

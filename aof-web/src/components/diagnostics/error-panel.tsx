@@ -10,10 +10,10 @@ import { useState } from "react";
 import { AlertOctagon, Copy, Check, Terminal, ChevronDown, Wrench } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatErrorBlock, formatUtc, type AofProviderError } from "@/lib/errors";
-import { useDiagnosticsStore } from "@/store/diagnostics-store";
+import { useUIStore } from "@/store/ui-store";
 
 export function ErrorPanel({ error, className }: { error: AofProviderError; className?: string }) {
-  const developerMode = useDiagnosticsStore((s) => s.developerMode);
+  const developerMode = useUIStore((s) => s.developerMode);
   const [copied, setCopied] = useState(false);
   const [showDev, setShowDev] = useState(false);
 
