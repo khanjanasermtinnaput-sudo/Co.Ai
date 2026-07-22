@@ -16,6 +16,9 @@ export function ErrorPanel({ error, className }: { error: AofProviderError; clas
   const developerMode = useUIStore((s) => s.developerMode);
   const [copied, setCopied] = useState(false);
   const [showDev, setShowDev] = useState(false);
+  // Progressive disclosure: what happened + what to do is always visible;
+  // the canonical AOF_ERROR field block is one click away.
+  const [showDetails, setShowDetails] = useState(false);
 
   const copy = async () => {
     try {
@@ -35,13 +38,12 @@ export function ErrorPanel({ error, className }: { error: AofProviderError; clas
         className,
       )}
     >
-      {/* header */}
+      {/* header — plain-language summary, no error-code jargon */}
       <div className="flex items-center gap-2.5 border-b border-destructive/25 bg-destructive/10 px-4 py-2.5">
         <AlertOctagon className="size-4 shrink-0 text-destructive" />
-        <span className="font-mono text-sm font-semibold tracking-tight text-destructive">
-          {error.code}
+        <span className="truncate text-sm font-medium text-destructive">
+          Co.AI couldn&apos;t finish this reply
         </span>
-        <span className="truncate text-sm text-destructive/90">· {error.problem}</span>
         <button
           type="button"
           onClick={copy}
@@ -53,18 +55,34 @@ export function ErrorPanel({ error, className }: { error: AofProviderError; clas
         </button>
       </div>
 
-      {/* body — the canonical AOF_ERROR fields */}
-      <div className="space-y-2.5 px-4 py-3.5 text-sm">
-        <Field label="Provider" value={`${error.provider}${error.model ? ` · ${error.model}` : ""}`} />
-        <Field label="Problem" value={error.problem} />
-        <Field label="Details" value={error.details} />
-        <Field
-          label="Solution"
-          value={error.solution}
-          icon={<Wrench className="size-3.5 text-primary" />}
-          accent
-        />
-        <Field label="Timestamp" value={formatUtc(error.timestamp)} mono />
+      {/* always visible: what happened + what to do about it */}
+      <div className="space-y-2 px-4 py-3.5 text-sm">
+        <p className="text-foreground">{error.problem}</p>
+        <p className="flex items-start gap-1.5 text-foreground">
+          <Wrench className="mt-0.5 size-3.5 shrink-0 text-primary" />
+          <span className="font-medium">{error.solution}</span>
+        </p>
+      </div>
+
+      {/* one click away: the canonical AOF_ERROR field block */}
+      <div className="border-t border-destructive/15">
+        <button
+          type="button"
+          onClick={() => setShowDetails((v) => !v)}
+          aria-expanded={showDetails}
+          className="flex w-full items-center gap-2 px-4 py-2 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+        >
+          Details
+          <span className="font-mono text-micro text-muted-foreground/60">{error.code}</span>
+          <ChevronDown className={cn("ml-auto size-3.5 transition-transform", showDetails && "rotate-180")} />
+        </button>
+        {showDetails && (
+          <div className="space-y-2.5 px-4 pb-3.5 text-sm">
+            <Field label="Provider" value={`${error.provider}${error.model ? ` · ${error.model}` : ""}`} />
+            <Field label="Details" value={error.details} />
+            <Field label="Timestamp" value={formatUtc(error.timestamp)} mono />
+          </div>
+        )}
       </div>
 
       {/* developer mode — raw diagnostics */}
@@ -90,12 +108,12 @@ export function ErrorPanel({ error, className }: { error: AofProviderError; clas
             </div>
           )}
         </div>
-      ) : (
-        <div className="border-t border-destructive/15 px-4 py-2 text-[11px] text-muted-foreground">
+      ) : showDetails ? (
+        <div className="border-t border-destructive/15 px-4 py-2 text-caption text-muted-foreground">
           Enable <span className="font-medium text-foreground">Developer Mode</span> in Settings →
-          Diagnostics for the raw provider response and stack trace.
+          Advanced for the raw provider response and stack trace.
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

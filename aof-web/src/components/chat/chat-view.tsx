@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Sparkles, Download, FileText, FileJson } from "lucide-react";
-import { QUICK_ACTIONS } from "@/lib/constants";
+import { BRAND, QUICK_ACTIONS } from "@/lib/constants";
 import { useChatStore } from "@/store/chat-store";
 import { useAuthStore } from "@/store/auth-store";
 import { exportConversation } from "@/lib/export";
@@ -40,6 +40,18 @@ export function ChatView() {
   // This prevents the race condition where send() is called before the Supabase
   // session resolves, causing access-gate checks to run against stale state.
   const ready = useAuthStore((s) => s.ready);
+
+  // Quick-action prefill hand-off into the composer ("Learn something").
+  const [prefill, setPrefill] = useState<{ text: string; nonce: number } | null>(null);
+
+  // Legacy deep link support: /?intent=learn used to be the Learn card's href.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("intent") === "learn") {
+      window.history.replaceState({}, "", "/");
+      setPrefill({ text: "Teach me about ", nonce: Date.now() });
+    }
+  }, []);
 
   const active = conversations.find((c) => c.id === activeId) ?? null;
   const messages = active?.messages ?? [];
@@ -152,27 +164,43 @@ export function ChatView() {
               <Sparkles className="size-6" />
             </div>
             <h2 className="mt-5 text-2xl font-semibold tracking-tight text-foreground">
-              Many minds. One intelligence.
+              {BRAND.tagline}
             </h2>
             <p className="mt-2 max-w-md text-sm text-muted-foreground">
               Ask anything below, or jump straight into a workspace.
             </p>
-            <div className="mt-8 grid w-full max-w-2xl grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {QUICK_ACTIONS.map((action) => (
-                <Link
-                  key={action.key}
-                  href={action.href}
-                  className="group flex flex-col items-start gap-2 rounded-2xl bg-card p-4 text-left shadow-neo-sm transition-all hover:shadow-neo active:shadow-neo-inset"
-                >
-                  <span className="flex size-9 items-center justify-center rounded-xl bg-muted text-foreground shadow-neo-inset">
-                    <action.icon className="size-[18px]" />
-                  </span>
-                  <span className="text-sm font-semibold text-foreground">{action.title}</span>
-                  <span className="text-xs leading-relaxed text-muted-foreground">
-                    {action.description}
-                  </span>
-                </Link>
-              ))}
+            <div className="mt-8 grid w-full max-w-2xl grid-cols-1 gap-3 sm:grid-cols-3">
+              {QUICK_ACTIONS.map((action) => {
+                const cardClass =
+                  "group flex flex-col items-start gap-2 rounded-2xl bg-card p-4 text-left shadow-neo-sm transition-all hover:shadow-neo active:shadow-neo-inset focus-ring";
+                const body = (
+                  <>
+                    <span className="flex size-9 items-center justify-center rounded-xl bg-muted text-foreground shadow-neo-inset">
+                      <action.icon className="size-[18px]" />
+                    </span>
+                    <span className="text-sm font-semibold text-foreground">{action.title}</span>
+                    <span className="text-xs leading-relaxed text-muted-foreground">
+                      {action.description}
+                    </span>
+                  </>
+                );
+                return action.href ? (
+                  <Link key={action.key} href={action.href} className={cardClass}>
+                    {body}
+                  </Link>
+                ) : (
+                  <button
+                    key={action.key}
+                    type="button"
+                    onClick={() =>
+                      setPrefill({ text: action.prefill ?? "", nonce: Date.now() })
+                    }
+                    className={cardClass}
+                  >
+                    {body}
+                  </button>
+                );
+              })}
             </div>
           </div>
         ) : (
@@ -192,6 +220,7 @@ export function ChatView() {
               streaming={streaming}
               onStop={stop}
               autoFocus={!empty}
+              prefill={prefill}
               toolbar={
                 <div className="flex items-center gap-2">
                   <Sparkles className="size-3.5 text-primary/70" />

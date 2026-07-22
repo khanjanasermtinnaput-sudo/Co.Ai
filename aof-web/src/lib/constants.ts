@@ -52,52 +52,40 @@ export const PRIMARY_NAV: NavItem[] = [
 ];
 
 // ── Homepage quick-action cards ───────────────────────────────────────────────
+// Every card does something real: `href` navigates, `prefill` seeds the
+// composer instead (no dead routes). The old self-referential "Co.AI" card
+// (home linking to home) was removed.
 export interface QuickAction {
   key: string;
-  emoji: string;
   icon: LucideIcon;
   title: string;
   description: string;
-  href: string;
-  accent: string; // tailwind gradient stops for the icon chip
+  href?: string;
+  /** Seed the home composer with this text instead of navigating. */
+  prefill?: string;
 }
 
 export const QUICK_ACTIONS: QuickAction[] = [
   {
-    key: "chat",
-    emoji: "💬",
-    icon: MessageSquare,
-    title: "Co.AI",
-    description: "General AI assistant for everyday tasks.",
-    href: "/",
-    accent: "from-amber-400/25 to-orange-500/10",
-  },
-  {
     key: "code",
-    emoji: "💻",
     icon: Code2,
-    title: "CoCode",
-    description: "Build websites, apps, games and software.",
+    title: "Build with CoCode",
+    description: "Websites, apps, games and software.",
     href: "/code",
-    accent: "from-sky-400/25 to-blue-500/10",
   },
   {
     key: "projects",
-    emoji: "📁",
     icon: FolderKanban,
-    title: "Projects",
-    description: "Manage and continue your work.",
+    title: "Continue a project",
+    description: "Pick up where you left off.",
     href: "/projects",
-    accent: "from-violet-400/25 to-fuchsia-500/10",
   },
   {
     key: "learn",
-    emoji: "📚",
     icon: GraduationCap,
-    title: "Learn",
+    title: "Learn something",
     description: "Research, study and explore ideas.",
-    href: "/?intent=learn",
-    accent: "from-emerald-400/25 to-teal-500/10",
+    prefill: "Teach me about ",
   },
 ];
 

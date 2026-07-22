@@ -5,6 +5,7 @@ import { Copy, Check, RefreshCw, ThumbsUp, ThumbsDown, Pencil, X, Coins } from "
 import { useState, useRef, useEffect, memo } from "react";
 import { cn } from "@/lib/utils";
 import { estimateTokens } from "@/lib/export";
+import { useUIStore } from "@/store/ui-store";
 import type { ChatMessageT } from "@/lib/types";
 import { TaotaoAvatar } from "@/components/mascot";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -38,19 +39,21 @@ function AgentStatusBar({ status }: { status: string }) {
   );
 }
 
+/** Router categories + self-review score — internal telemetry, so it only
+ *  renders in Developer Mode (the data is real; it's just not for everyone). */
 function AgentBadges({ agents, quality, categories }: { agents?: string[]; quality?: number; categories?: string[] }) {
   if (!agents?.length && !quality && !categories?.length) return null;
   return (
     <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
       {categories?.slice(0, 3).map((cat) => (
-        <span key={cat} className="rounded-full border border-foreground/10 bg-foreground/5 px-2 py-0.5 text-[10px] text-muted-foreground">
+        <span key={cat} className="rounded-full border border-foreground/10 bg-foreground/5 px-2 py-0.5 text-micro text-muted-foreground">
           {cat.replace(/_/g, " ")}
         </span>
       ))}
       {quality !== undefined && quality > 0 && (
         <span className={cn(
-          "rounded-full border px-2 py-0.5 text-[10px] font-medium",
-          quality >= 90 ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400" : "border-amber-500/30 bg-amber-500/10 text-amber-400",
+          "rounded-full border px-2 py-0.5 text-micro font-medium",
+          quality >= 90 ? "border-success/30 bg-success/10 text-success" : "border-warning/30 bg-warning/10 text-warning",
         )}>
           ✓ {quality}/100
         </span>
@@ -71,6 +74,7 @@ function ChatMessageImpl({
   onEdit?: (newContent: string) => void;
 }) {
   const isUser = message.role === "user";
+  const developerMode = useUIStore((s) => s.developerMode);
   const [copied, setCopied] = useState(false);
   const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
   const [editing, setEditing] = useState(false);
@@ -220,7 +224,7 @@ function ChatMessageImpl({
               <SourcesPanel notice={message.sources} />
             )}
 
-            {!isUser && !message.streaming && (
+            {!isUser && !message.streaming && developerMode && (
               <AgentBadges
                 agents={message.agentsUsed}
                 quality={message.qualityScore}
@@ -277,12 +281,12 @@ function ChatMessageImpl({
                   </ActionButton>
                 )}
 
-                {/* Token count estimate — fallback when the provider didn't report real usage */}
-                {tokens !== null && tokens > 10 && !message.usage && (
+                {/* Token counts are developer telemetry — hidden by default. */}
+                {developerMode && tokens !== null && tokens > 10 && !message.usage && (
                   <span
                     className={cn(
                       "ml-1 inline-flex items-center gap-1 rounded-full border border-border",
-                      "bg-secondary/40 px-2 py-0.5 text-[10px] font-medium text-muted-foreground",
+                      "bg-secondary/40 px-2 py-0.5 text-micro font-medium text-muted-foreground",
                     )}
                   >
                     <Coins className="size-3" />
@@ -291,11 +295,11 @@ function ChatMessageImpl({
                 )}
 
                 {/* Real provider token usage — total in + out */}
-                {!isUser && message.usage && (
+                {developerMode && !isUser && message.usage && (
                   <span
                     className={cn(
                       "ml-1 inline-flex items-center gap-1 rounded-full border border-border",
-                      "bg-secondary/40 px-2 py-0.5 text-[10px] font-medium text-muted-foreground",
+                      "bg-secondary/40 px-2 py-0.5 text-micro font-medium text-muted-foreground",
                     )}
                   >
                     <Coins className="size-3" />
@@ -332,8 +336,10 @@ function ActionButton({
       type="button"
       onClick={onClick}
       title={label}
+      aria-label={label}
+      aria-pressed={active}
       className={cn(
-        "inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs transition-colors",
+        "focus-ring inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs transition-colors",
         active ? "text-primary" : "text-muted-foreground hover:text-foreground",
       )}
     >

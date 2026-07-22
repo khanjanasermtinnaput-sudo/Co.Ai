@@ -32,6 +32,9 @@ interface ComposerProps {
   /** content rendered under the textarea, e.g. a model selector or hint */
   toolbar?: React.ReactNode;
   size?: "lg" | "md";
+  /** Seed the draft and focus the field whenever `nonce` changes — used by
+   *  quick actions ("Learn something") to start a prompt for the user. */
+  prefill?: { text: string; nonce: number } | null;
 }
 
 type UploadKind = keyof typeof ACCEPT;
@@ -48,6 +51,7 @@ export function Composer({
   className,
   toolbar,
   size = "md",
+  prefill = null,
 }: ComposerProps) {
   const [value, setValue] = React.useState("");
   const [attachments, setAttachments] = React.useState<Attachment[]>([]);
@@ -66,6 +70,20 @@ export function Composer({
   React.useEffect(() => {
     resize();
   }, [value, resize]);
+
+  React.useEffect(() => {
+    if (!prefill) return;
+    setValue(prefill.text);
+    const el = ref.current;
+    if (el) {
+      el.focus();
+      requestAnimationFrame(() => {
+        el.setSelectionRange(prefill.text.length, prefill.text.length);
+      });
+    }
+    // Re-run only when a new prefill is issued, not on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefill?.nonce]);
 
   const canSend =
     (value.trim().length > 0 || attachments.length > 0) && !disabled && !streaming;

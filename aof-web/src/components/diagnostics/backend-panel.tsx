@@ -3,13 +3,16 @@
 // ── Backend Transparency Panel ────────────────────────────────────────────────
 // Wraps the four "which model/route actually answered" indicators (failover
 // notice, model tier pill, active-model badge, route badge) behind a single
-// collapse toggle. Collapsed by default to keep the reply area quiet; every
-// indicator is still one click away since failovers/routing are never hidden.
+// collapse toggle — and the toggle itself only appears in Developer Mode,
+// since routes and provider names are plumbing, not product. The one
+// user-relevant fact, a failover, stays visible to everyone as a calm
+// one-line note (it is real information about the answer they just got).
 
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Eye, ChevronUp } from "lucide-react";
+import { Eye, ChevronUp, Shuffle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useUIStore } from "@/store/ui-store";
 import type { ChatMessageT } from "@/lib/types";
 import { FailoverNotice } from "./failover-notice";
 import { ModelBadge } from "./model-badge";
@@ -25,10 +28,21 @@ export function BackendPanel({
   showLabel?: string;
   hideLabel?: string;
 }) {
+  const developerMode = useUIStore((s) => s.developerMode);
   const [isBackendVisible, setIsBackendVisible] = useState(false);
 
   const hasBackend = Boolean(message.failover || message.model || message.activeModel || message.route);
   if (!hasBackend) return null;
+
+  if (!developerMode) {
+    if (!message.failover) return null;
+    return (
+      <p className="inline-flex w-fit items-center gap-1.5 rounded-lg border border-border bg-secondary/40 px-2.5 py-1 text-caption text-muted-foreground">
+        <Shuffle className="size-3" />
+        Answered by a backup model — your request went through fine.
+      </p>
+    );
+  }
 
   if (!isBackendVisible) {
     return (
