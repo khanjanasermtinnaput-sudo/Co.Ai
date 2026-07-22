@@ -33,12 +33,8 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="relative flex min-h-dvh items-center justify-center overflow-hidden px-4">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute left-1/2 top-1/2 size-[640px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/10 blur-3xl"
-      />
-      <div className="relative w-full max-w-sm rounded-2xl border border-border bg-card/60 p-8 shadow-glow backdrop-blur-xl">
+    <main className="relative flex min-h-dvh items-center justify-center px-4">
+      <div className="relative w-full max-w-sm rounded-2xl border border-border bg-card p-8 shadow-card-soft">
         <div className="flex flex-col items-center text-center">
           <Logo size={40} />
           <h1 className="mt-6 text-xl font-semibold tracking-tight">

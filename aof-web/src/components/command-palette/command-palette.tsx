@@ -227,7 +227,7 @@ export function CommandPalette() {
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 z-[290] bg-black/40 backdrop-blur-sm"
+        className="fixed inset-0 z-[290] bg-foreground/40 backdrop-blur-sm"
         onClick={close}
       />
 

@@ -37,7 +37,7 @@ export function MobileTopbar() {
   };
 
   return (
-    <header className="sticky top-0 z-40 flex h-14 items-center gap-2 border-b border-border bg-background/80 px-3 backdrop-blur-xl lg:hidden">
+    <header className="sticky top-0 z-40 flex h-14 items-center gap-2 border-b border-border bg-background px-3 lg:hidden">
       <Dialog.Root open={open} onOpenChange={setOpen}>
         <Dialog.Trigger asChild>
           <button
@@ -70,7 +70,7 @@ export function MobileTopbar() {
             <button
               type="button"
               onClick={startNewChat}
-              className="flex h-11 w-full items-center gap-2 rounded-xl bg-primary px-3 text-sm font-medium text-primary-foreground shadow-glow-sm"
+              className="flex h-11 w-full items-center gap-2 rounded-xl bg-primary px-3 text-sm font-medium text-primary-foreground"
             >
               <Plus className="size-5" /> New Chat
             </button>
@@ -105,7 +105,7 @@ export function MobileTopbar() {
       <button
         type="button"
         onClick={startNewChat}
-        className="ml-auto flex size-11 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-glow-sm"
+        className="ml-auto flex size-11 items-center justify-center rounded-lg bg-primary text-primary-foreground"
         aria-label="New chat"
       >
         <Plus className="size-5" />

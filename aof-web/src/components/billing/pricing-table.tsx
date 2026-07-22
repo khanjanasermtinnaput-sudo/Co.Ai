@@ -46,7 +46,7 @@ export function PricingTable() {
             key={tier}
             className={cn(
               "relative flex flex-col rounded-2xl border bg-card/50 p-5",
-              isRecommended ? "border-primary/40 shadow-glow" : "border-border",
+              isRecommended ? "border-primary/40" : "border-border",
               isCurrent && "ring-1 ring-primary/40",
             )}
           >

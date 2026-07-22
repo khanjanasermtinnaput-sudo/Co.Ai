@@ -8,18 +8,16 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        // Neomorphic raised → pressed
-        default:
-          "bg-primary text-primary-foreground shadow-neo-sm hover:shadow-neo active:shadow-neo-inset",
+        default: "bg-primary text-primary-foreground hover:opacity-90",
         secondary:
-          "bg-secondary text-secondary-foreground shadow-neo-sm hover:shadow-neo active:shadow-neo-inset",
+          "border border-border bg-secondary text-secondary-foreground hover:bg-accent",
         outline:
           "border border-border bg-transparent hover:bg-accent hover:text-accent-foreground",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         glass:
           "glass text-foreground hover:bg-foreground/10 hover:border-foreground/20",
         destructive:
-          "bg-destructive text-destructive-foreground shadow-neo-sm hover:brightness-105 active:shadow-neo-inset",
+          "bg-destructive text-destructive-foreground hover:brightness-105",
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {

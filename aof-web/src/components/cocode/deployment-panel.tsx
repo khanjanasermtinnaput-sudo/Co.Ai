@@ -219,7 +219,7 @@ export function DeploymentPanel({ className }: { className?: string }) {
 
             {/* Log stream */}
             {logs.length > 0 && (
-              <div className="rounded-xl border border-border/50 bg-[#0a0a0f] p-3">
+              <div className="rounded-xl border border-border/50 bg-muted/40 p-3">
                 <div className="mb-2 flex items-center justify-between">
                   <span className="text-caption font-medium text-muted-foreground/60">Deploy Log</span>
                   {status === "success" && (
@@ -235,7 +235,7 @@ export function DeploymentPanel({ className }: { className?: string }) {
                       l.level === "success" ? "text-success"
                       : l.level === "error" ? "text-destructive"
                       : l.level === "warn" ? "text-warning"
-                      : "text-slate-400",
+                      : "text-muted-foreground",
                     )}>
                       <span className="mr-2 text-muted-foreground/30 select-none">›</span>{l.message}
                     </div>

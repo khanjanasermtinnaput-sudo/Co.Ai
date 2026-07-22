@@ -211,7 +211,7 @@ function ConsolePanel({ logs, onClear }: { logs: ConsoleEntry[]; onClear: () => 
   }, [logs]);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-border bg-[#0b0b0b]">
+    <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-border bg-muted/40">
       <div className="flex items-center justify-between border-b border-border px-3 py-1.5">
         <span className="text-xs font-medium text-muted-foreground">Console · {logs.length}</span>
         <Button size="sm" variant="ghost" onClick={onClear} disabled={!logs.length} className="h-7">

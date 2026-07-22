@@ -319,7 +319,7 @@ export function ApiStudio({ className }: { className?: string }) {
                     value={active?.body ?? ""}
                     onChange={(e) => updateActive({ body: e.target.value })}
                     placeholder={active?.contentType === "application/json" ? '{\n  "key": "value"\n}' : "key=value&key2=value2"}
-                    className="flex-1 resize-none rounded border border-border/50 bg-[#0b0b0f] p-2 font-mono text-[12px] text-slate-300 outline-none focus:border-primary/40"
+                    className="flex-1 resize-none rounded border border-border/50 bg-muted/40 p-2 font-mono text-[12px] text-foreground outline-none focus:border-primary/40"
                   />
                 )}
               </div>
@@ -339,7 +339,7 @@ export function ApiStudio({ className }: { className?: string }) {
                       <Copy className="size-3.5" />
                     </button>
                   </div>
-                  <pre className="overflow-auto rounded bg-[#0b0b0f] p-3 font-mono text-[11px] text-slate-300 max-h-[calc(100vh-300px)]">
+                  <pre className="overflow-auto rounded bg-muted/40 p-3 font-mono text-[11px] text-foreground max-h-[calc(100vh-300px)]">
                     {prettyBody()}
                   </pre>
                 </div>

@@ -122,7 +122,7 @@ export function NewProjectDialog({
                     className={cn(
                       "flex flex-col items-center gap-1.5 rounded-xl border p-2.5 text-xs transition-all",
                       selected
-                        ? "border-primary/50 bg-primary/10 text-foreground shadow-glow-sm"
+                        ? "border-primary/50 bg-primary/10 text-foreground"
                         : "border-border bg-background/40 text-muted-foreground hover:border-primary/30 hover:text-foreground",
                     )}
                   >

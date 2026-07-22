@@ -3,10 +3,13 @@
 @tailwind utilities;
 
 /* ============================================================================
-   Co.AI design system — Monochrome · Neomorphism + Glassmorphism
-   Black & white canvas (off-white / off-black so neomorphic shadows read).
-   Colour is reserved strictly for status (success / warning / error).
-   Neutrals carry a faint cool bias (hue 220) for an editor-grade feel.
+   Co.AI design system — Monochrome, hairline-border, restrained elevation
+   (DESIGN.md). Black & white canvas (off-white / off-black). Colour is
+   reserved strictly for status (success / warning / error) and the AI
+   activity stage palette (DESIGN.md §6). Neutrals carry a faint cool bias
+   (hue 220) for an editor-grade feel. `.glass` / `.glass-strong` remain
+   defined below for dialogs, popovers, and menus only (DESIGN.md §10) — do
+   not apply them to buttons, inputs, cards, or other default-state surfaces.
    Full dark / light parity — every surface utility defines a base + .dark rule.
    ========================================================================== */
 

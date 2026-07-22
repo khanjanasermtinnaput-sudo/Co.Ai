@@ -204,7 +204,7 @@ function FindingRow({
           </div>
           <p>{finding.description}</p>
           {finding.code && (
-            <pre className="overflow-x-auto rounded bg-[#0a0a0f] px-2 py-1 font-mono text-[10px] text-slate-400">
+            <pre className="overflow-x-auto rounded bg-muted/40 px-2 py-1 font-mono text-[10px] text-muted-foreground">
               {finding.code}
             </pre>
           )}

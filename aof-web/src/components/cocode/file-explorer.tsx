@@ -341,6 +341,7 @@ export function FileExplorer() {
         <button
           type="button"
           title="New File (Ctrl+N)"
+          aria-label="New file"
           onClick={() => {
             const name = prompt("File name:");
             if (name) createFile(name);
@@ -352,6 +353,7 @@ export function FileExplorer() {
         <button
           type="button"
           title="New Folder"
+          aria-label="New folder"
           onClick={() => {
             const name = prompt("Folder name:");
             if (name) createFile(`${name}/.gitkeep`);
@@ -378,6 +380,7 @@ export function FileExplorer() {
             <button
               type="button"
               onClick={() => setSearch("")}
+              aria-label="Clear search"
               className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground/50 hover:text-foreground"
             >
               <X className="size-3" />

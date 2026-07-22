@@ -179,7 +179,7 @@ export function TestGeneratorPanel({ className }: { className?: string }) {
               {savedPath && (
                 <p className="mb-2 text-[11px] text-emerald-400">✓ Saved to {savedPath}</p>
               )}
-              <pre className="max-h-80 overflow-auto rounded-lg bg-[#0b0b0f] p-3 font-mono text-[11px] text-slate-300">
+              <pre className="max-h-80 overflow-auto rounded-lg bg-muted/40 p-3 font-mono text-[11px] text-foreground">
                 {result}
               </pre>
             </div>

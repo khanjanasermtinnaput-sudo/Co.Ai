@@ -199,7 +199,7 @@ function ChatMessageImpl({
                 className={cn(
                   "min-w-0 break-words [overflow-wrap:anywhere] rounded-xl",
                   isUser
-                    ? "rounded-tr-md bg-secondary px-4 py-3 text-foreground shadow-neo-sm"
+                    ? "rounded-tr-md border border-border bg-secondary px-4 py-3 text-foreground"
                     : "rounded-tl-md bg-transparent px-1 py-1 text-foreground",
                 )}
               >

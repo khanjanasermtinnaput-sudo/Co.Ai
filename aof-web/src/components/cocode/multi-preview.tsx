@@ -131,7 +131,7 @@ export function MultiPreview({ className }: { className?: string }) {
       </div>
 
       {/* Previews */}
-      <div className="min-h-0 flex-1 overflow-auto bg-[#0d0d14] p-4">
+      <div className="min-h-0 flex-1 overflow-auto bg-muted/30 p-4">
         <div className={cn(
           "flex gap-6",
           visibleViewports.length === 1 ? "justify-center" : "justify-start",

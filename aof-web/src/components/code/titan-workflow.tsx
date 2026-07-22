@@ -227,7 +227,7 @@ function ClarifyPhase() {
                     className={cn(
                       "rounded-lg border px-3 py-1.5 text-sm transition-all",
                       selected
-                        ? "border-primary/50 bg-primary/15 text-foreground shadow-glow-sm"
+                        ? "border-primary/50 bg-primary/15 text-foreground"
                         : "border-border bg-background/40 text-muted-foreground hover:border-primary/30 hover:text-foreground",
                     )}
                   >
@@ -398,7 +398,7 @@ function PlanCard({
       className={cn(
         "flex h-full flex-col rounded-2xl border p-4 text-left transition-card",
         selected
-          ? "border-primary/50 bg-primary/[0.06] shadow-glow"
+          ? "border-primary/50 bg-primary/[0.06]"
           : "border-foreground/[0.07] bg-card/60 hover:border-primary/30",
       )}
     >

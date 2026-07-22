@@ -140,12 +140,8 @@ export function Composer({
   return (
     <div
       className={cn(
-        // `.glass` already supplies the resting-state shadow (its box-shadow
-        // falls back to `--tw-shadow` when a utility sets it) — the only
-        // state that needs its own elevation is focus, so that's the one
-        // shadow utility applied here rather than stacking a second at rest.
-        "group glass border border-border transition-all duration-200 dark:border-foreground/10",
-        "focus-within:border-foreground/20 focus-within:shadow-neo",
+        "group border border-border bg-card transition-colors duration-200",
+        "focus-within:border-foreground/30",
         size === "lg" ? "rounded-2xl p-4" : "rounded-xl p-3",
         className,
       )}
@@ -174,7 +170,7 @@ export function Composer({
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              className="mb-0.5 flex size-11 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground shadow-neo-inset transition-colors hover:text-foreground"
+              className="mb-0.5 flex size-11 shrink-0 items-center justify-center rounded-xl border border-border bg-muted text-muted-foreground transition-colors hover:text-foreground"
               aria-label="Attach files"
             >
               <Plus className="size-[18px]" />
@@ -210,7 +206,7 @@ export function Composer({
           <button
             type="button"
             onClick={onStop}
-            className="mb-0.5 flex size-11 shrink-0 items-center justify-center rounded-xl bg-secondary text-foreground shadow-neo-sm transition-all hover:shadow-neo active:shadow-neo-inset"
+            className="mb-0.5 flex size-11 shrink-0 items-center justify-center rounded-xl border border-border bg-secondary text-foreground transition-colors hover:bg-accent"
             aria-label="Stop"
           >
             <Square className="size-4 fill-current" />
@@ -223,8 +219,8 @@ export function Composer({
             className={cn(
               "mb-0.5 flex size-11 shrink-0 items-center justify-center rounded-xl transition-all",
               canSend
-                ? "bg-primary text-primary-foreground shadow-neo-sm hover:shadow-neo active:shadow-neo-inset active:scale-95"
-                : "cursor-not-allowed bg-secondary text-muted-foreground/50 shadow-neo-inset",
+                ? "bg-primary text-primary-foreground hover:opacity-90 active:scale-95"
+                : "cursor-not-allowed border border-border bg-secondary text-muted-foreground/50",
             )}
             aria-label="Send"
           >

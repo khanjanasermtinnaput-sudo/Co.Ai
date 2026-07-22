@@ -50,10 +50,10 @@ export function AppearanceTab() {
           <CardDescription>Black &amp; white, with colour reserved for status.</CardDescription>
         </CardHeader>
         <CardContent className="flex items-center gap-3">
-          <span className="size-9 rounded-full bg-primary shadow-neo-sm" />
+          <span className="size-9 rounded-full bg-primary" />
           <div>
             <p className="text-sm font-medium">Monochrome</p>
-            <p className="text-xs text-muted-foreground">Neomorphism + glass</p>
+            <p className="text-xs text-muted-foreground">Quiet surfaces, hairline borders</p>
           </div>
           <div className="ml-auto flex items-center gap-1.5">
             <span className="size-3.5 rounded-full bg-success" title="Success" />

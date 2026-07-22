@@ -109,7 +109,7 @@ export function ChatView() {
   return (
     <div className="flex h-full flex-col">
       {/* ── Header ──────────────────────────────────────────────────────────── */}
-      <div className="sticky top-0 z-10 flex h-14 items-center justify-between gap-3 border-b border-border/70 bg-background/70 px-3 backdrop-blur-xl sm:px-5">
+      <div className="sticky top-0 z-10 flex h-14 items-center justify-between gap-3 border-b border-border bg-background px-3 sm:px-5">
         <div className="flex min-w-0 items-center gap-2">
           <ChatModelSelector
             value={model}
@@ -175,7 +175,7 @@ export function ChatView() {
       </div>
 
       {/* ── Composer ────────────────────────────────────────────────────────── */}
-      <div className="border-t border-border/70 bg-background/60 px-3 py-3 backdrop-blur-xl sm:px-5 sm:py-4">
+      <div className="border-t border-border bg-background px-3 py-3 sm:px-5 sm:py-4">
         <GuestMeter />
         <div className="mx-auto w-full max-w-3xl">
           <ComposerMascot state={mascotState}>
