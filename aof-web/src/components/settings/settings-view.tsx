@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import {
   Activity,
+  ArrowUpRight,
   BarChart3,
   CreditCard,
   KeyRound,
@@ -10,8 +12,8 @@ import {
   Zap,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useUIStore } from "@/store/ui-store";
-import { UsageDashboard } from "@/components/billing/usage-dashboard";
 import { AccountTab } from "./tabs/account-tab";
 import { AppearanceTab } from "./tabs/appearance-tab";
 import { KeysTab } from "./tabs/keys-tab";
@@ -71,7 +73,24 @@ export function SettingsView({ defaultTab = "account" }: { defaultTab?: string }
           <KeysTab />
         </TabsContent>
         <TabsContent value="usage">
-          <UsageDashboard />
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BarChart3 className="size-4 text-primary" /> Usage moved to Activity
+              </CardTitle>
+              <CardDescription>
+                Your usage, recent chats, and recent projects now live together in one place.
+              </CardDescription>
+            </CardHeader>
+            <div className="px-6 pb-6">
+              <Link
+                href="/activity"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-sm font-medium text-primary-foreground"
+              >
+                Open Activity <ArrowUpRight className="size-3.5" />
+              </Link>
+            </div>
+          </Card>
         </TabsContent>
         <TabsContent value="billing">
           <BillingTab />

@@ -47,7 +47,7 @@ function StatBar({
       </div>
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary">
         <div
-          className={cn("h-full rounded-full transition-all", near ? "bg-amber-500" : "bg-primary")}
+          className={cn("h-full rounded-full transition-all", near ? "bg-warning" : "bg-primary")}
           style={{ width: unlimited ? "8%" : `${pct}%` }}
         />
       </div>

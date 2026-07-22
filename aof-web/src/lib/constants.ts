@@ -5,6 +5,7 @@ import {
   FolderKanban,
   GraduationCap,
   Settings,
+  Activity,
   type LucideIcon,
 } from "lucide-react";
 import type {
@@ -41,6 +42,13 @@ export const PRIMARY_NAV: NavItem[] = [
     href: "/code",
     icon: Code2,
     description: "Projects and the AI development workspace",
+  },
+  {
+    key: "activity",
+    label: "Activity",
+    href: "/activity",
+    icon: Activity,
+    description: "Recent chats, projects, and usage",
   },
   {
     key: "settings",

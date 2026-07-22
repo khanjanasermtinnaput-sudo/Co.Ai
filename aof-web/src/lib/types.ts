@@ -4,7 +4,7 @@ import type { AofProviderError, FailoverNotice, ModelNotice, SourcesNotice, Stag
 
 /** Top-level products surfaced in the sidebar. Titan is intentionally absent —
  *  it is a mode *inside* CoCode, never a product on the homepage. */
-export type ProductKey = "chat" | "code" | "projects" | "settings";
+export type ProductKey = "chat" | "code" | "activity" | "settings";
 
 /** Chat models shown in the chat header selector. */
 export type ChatModel = "lite" | "normal";
