@@ -1,9 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { Sparkles, Download, FileText, FileJson } from "lucide-react";
-import { BRAND, QUICK_ACTIONS } from "@/lib/constants";
 import { useChatStore } from "@/store/chat-store";
 import { useAuthStore } from "@/store/auth-store";
 import { exportConversation } from "@/lib/export";
@@ -45,7 +43,9 @@ export function ChatView() {
   // session resolves, causing access-gate checks to run against stale state.
   const ready = useAuthStore((s) => s.ready);
 
-  // Quick-action prefill hand-off into the composer ("Learn something").
+  // Kept only for old external links (`/?intent=learn`) that predate the
+  // removal of the empty-state quick-action cards — no in-app control sets
+  // this anymore.
   const [prefill, setPrefill] = useState<{ text: string; nonce: number } | null>(null);
 
   // Legacy deep link support: /?intent=learn used to be the Learn card's href.
@@ -167,50 +167,8 @@ export function ChatView() {
             </button>
           </div>
         ) : empty ? (
-          <div className="flex h-full flex-col items-center justify-center px-4 py-10 text-center">
-            <div className="flex size-14 items-center justify-center rounded-xl bg-card text-foreground shadow-neo">
-              <Sparkles className="size-6" />
-            </div>
-            <h2 className="mt-5 text-2xl font-semibold tracking-tight text-foreground">
-              {BRAND.tagline}
-            </h2>
-            <p className="mt-2 max-w-md text-sm text-muted-foreground">
-              Ask anything below, or jump straight into a workspace.
-            </p>
-            <div className="mt-8 grid w-full max-w-2xl grid-cols-1 gap-3 sm:grid-cols-3">
-              {QUICK_ACTIONS.map((action) => {
-                const cardClass =
-                  "group flex flex-col items-start gap-2 rounded-xl bg-card p-4 text-left shadow-neo-sm transition-all hover:shadow-neo active:shadow-neo-inset focus-ring";
-                const body = (
-                  <>
-                    <span className="flex size-9 items-center justify-center rounded-xl bg-muted text-foreground shadow-neo-inset">
-                      <action.icon className="size-[18px]" />
-                    </span>
-                    <span className="text-sm font-semibold text-foreground">{action.title}</span>
-                    <span className="text-xs leading-relaxed text-muted-foreground">
-                      {action.description}
-                    </span>
-                  </>
-                );
-                return action.href ? (
-                  <Link key={action.key} href={action.href} className={cardClass}>
-                    {body}
-                  </Link>
-                ) : (
-                  <button
-                    key={action.key}
-                    type="button"
-                    onClick={() =>
-                      setPrefill({ text: action.prefill ?? "", nonce: Date.now() })
-                    }
-                    className={cardClass}
-                  >
-                    {body}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+          // Deliberately blank — the composer below is the whole surface.
+          <div className="h-full" />
         ) : (
           <ChatThread messages={messages} streaming={streaming} />
         )}
