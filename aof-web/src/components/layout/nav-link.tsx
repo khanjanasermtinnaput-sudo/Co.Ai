@@ -32,23 +32,17 @@ export function NavLink({
       onClick={onNavigate}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "group relative flex items-center rounded-xl text-sidebar-foreground transition-colors",
-        "hover:bg-foreground/[0.06] hover:text-foreground",
-        active && "bg-foreground/[0.06] text-foreground",
+        "group relative flex items-center rounded-xl text-sidebar-foreground transition-all",
+        "hover:bg-foreground/[0.05] hover:text-foreground",
+        // Active = raised neomorphic surface (mockup)
+        active && "bg-card text-foreground shadow-neo-sm",
         expanded ? "h-11 w-full gap-3 px-3" : "size-11 justify-center",
       )}
     >
-      {/* active accent bar */}
-      <span
-        className={cn(
-          "absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-primary transition-all",
-          active ? "opacity-100" : "opacity-0",
-        )}
-      />
       <Icon
         className={cn(
           "size-[20px] shrink-0 transition-colors",
-          active ? "text-primary" : "text-current",
+          active ? "text-foreground" : "text-current",
         )}
       />
       {expanded && <span className="truncate text-sm font-medium">{label}</span>}

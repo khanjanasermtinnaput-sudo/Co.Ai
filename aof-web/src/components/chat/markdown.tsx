@@ -19,7 +19,7 @@ function CodeBlock({ lang, body }: { lang: string; body: string }) {
   };
 
   return (
-    <div className="group/code relative overflow-hidden rounded-xl border border-foreground/10 bg-black/40">
+    <div className="group/code relative overflow-hidden rounded-xl bg-secondary shadow-neo-inset">
       <div className="flex h-8 items-center justify-between border-b border-foreground/[0.06] px-3">
         <span className="font-mono text-[11px] text-muted-foreground/60">
           {lang || "code"}

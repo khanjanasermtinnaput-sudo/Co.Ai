@@ -428,7 +428,7 @@ export function CoCodeHistoryPanel() {
                 e.stopPropagation();
                 setPendingDeleteId(p.id);
               }}
-              className="shrink-0 rounded p-1 text-muted-foreground/40 opacity-0 transition-all hover:text-red-400 group-hover:opacity-100"
+              className="shrink-0 rounded p-1 text-muted-foreground/40 opacity-0 transition-all hover:text-destructive group-hover:opacity-100"
               aria-label={`Delete "${p.name}"`}
             >
               <Trash2 className="size-3.5" />
@@ -558,7 +558,7 @@ function ConversationItem({
             e.stopPropagation();
             onDelete();
           }}
-          className="shrink-0 rounded p-1 text-muted-foreground/40 opacity-0 transition-all hover:text-red-400 group-hover:opacity-100"
+          className="shrink-0 rounded p-1 text-muted-foreground/40 opacity-0 transition-all hover:text-destructive group-hover:opacity-100"
           aria-label={`Delete "${title}"`}
         >
           <Trash2 className="size-3.5" />
@@ -583,7 +583,7 @@ function NewActionButton({
       onClick={onClick}
       aria-label={label}
       className={cn(
-        "group flex items-center rounded-xl bg-primary font-medium text-primary-foreground shadow-glow-sm transition-all hover:shadow-glow active:scale-[0.98]",
+        "group flex items-center rounded-xl bg-primary font-medium text-primary-foreground shadow-neo-sm transition-all hover:shadow-neo active:shadow-neo-inset active:scale-[0.98]",
         expanded ? "h-11 w-full gap-2 px-3 text-sm" : "size-11 justify-center",
       )}
     >

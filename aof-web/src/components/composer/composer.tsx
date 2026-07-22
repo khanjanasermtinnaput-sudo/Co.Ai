@@ -123,10 +123,10 @@ export function Composer({
     <div
       className={cn(
         "group glass border border-border transition-all duration-200 dark:border-foreground/10",
-        "focus-within:border-primary/40",
+        "focus-within:border-foreground/20",
         size === "lg"
-          ? "rounded-3xl p-4 shadow-glass focus-within:shadow-glow"
-          : "rounded-2xl p-2.5 shadow-glass focus-within:shadow-glow",
+          ? "rounded-3xl p-4 shadow-glass focus-within:shadow-neo"
+          : "rounded-2xl p-3 shadow-glass focus-within:shadow-neo",
         className,
       )}
     >
@@ -154,7 +154,7 @@ export function Composer({
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              className="mb-0.5 flex size-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground"
+              className="mb-0.5 flex size-11 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground shadow-neo-inset transition-colors hover:text-foreground"
               aria-label="Attach files"
             >
               <Plus className="size-[18px]" />
@@ -190,7 +190,7 @@ export function Composer({
           <button
             type="button"
             onClick={onStop}
-            className="mb-0.5 flex size-11 shrink-0 items-center justify-center rounded-lg bg-secondary text-foreground transition-colors hover:bg-accent"
+            className="mb-0.5 flex size-11 shrink-0 items-center justify-center rounded-xl bg-secondary text-foreground shadow-neo-sm transition-all hover:shadow-neo active:shadow-neo-inset"
             aria-label="Stop"
           >
             <Square className="size-4 fill-current" />
@@ -201,10 +201,10 @@ export function Composer({
             onClick={submit}
             disabled={!canSend}
             className={cn(
-              "mb-0.5 flex size-11 shrink-0 items-center justify-center rounded-lg transition-all",
+              "mb-0.5 flex size-11 shrink-0 items-center justify-center rounded-xl transition-all",
               canSend
-                ? "bg-primary text-primary-foreground shadow-glow-sm hover:shadow-glow active:scale-95"
-                : "cursor-not-allowed bg-secondary text-muted-foreground/50",
+                ? "bg-primary text-primary-foreground shadow-neo-sm hover:shadow-neo active:shadow-neo-inset active:scale-95"
+                : "cursor-not-allowed bg-secondary text-muted-foreground/50 shadow-neo-inset",
             )}
             aria-label="Send"
           >

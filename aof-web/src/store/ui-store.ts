@@ -38,7 +38,7 @@ interface UIState {
 export const useUIStore = create<UIState>()(
   persist(
     (set) => ({
-      sidebarExpanded: false,
+      sidebarExpanded: true,
       toggleSidebar: () => set((s) => ({ sidebarExpanded: !s.sidebarExpanded })),
       setSidebarExpanded: (v) => set({ sidebarExpanded: v }),
 

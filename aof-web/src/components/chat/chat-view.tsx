@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import Link from "next/link";
 import { Sparkles, Download, FileText, FileJson } from "lucide-react";
+import { QUICK_ACTIONS } from "@/lib/constants";
 import { useChatStore } from "@/store/chat-store";
 import { useAuthStore } from "@/store/auth-store";
 import { exportConversation } from "@/lib/export";
@@ -145,10 +147,33 @@ export function ChatView() {
             </button>
           </div>
         ) : empty ? (
-          <div className="flex h-full flex-col items-center justify-center px-4 text-center">
-            <span className="text-3xl" role="img" aria-label="wave">👋</span>
-            <h2 className="mt-4 text-xl font-medium text-foreground">Welcome to Co.AI</h2>
-            <p className="mt-2 text-sm text-muted-foreground">Start a conversation.</p>
+          <div className="flex h-full flex-col items-center justify-center px-4 py-10 text-center">
+            <div className="flex size-14 items-center justify-center rounded-2xl bg-card text-foreground shadow-neo">
+              <Sparkles className="size-6" />
+            </div>
+            <h2 className="mt-5 text-2xl font-semibold tracking-tight text-foreground">
+              Many minds. One intelligence.
+            </h2>
+            <p className="mt-2 max-w-md text-sm text-muted-foreground">
+              Ask anything below, or jump straight into a workspace.
+            </p>
+            <div className="mt-8 grid w-full max-w-2xl grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {QUICK_ACTIONS.map((action) => (
+                <Link
+                  key={action.key}
+                  href={action.href}
+                  className="group flex flex-col items-start gap-2 rounded-2xl bg-card p-4 text-left shadow-neo-sm transition-all hover:shadow-neo active:shadow-neo-inset"
+                >
+                  <span className="flex size-9 items-center justify-center rounded-xl bg-muted text-foreground shadow-neo-inset">
+                    <action.icon className="size-[18px]" />
+                  </span>
+                  <span className="text-sm font-semibold text-foreground">{action.title}</span>
+                  <span className="text-xs leading-relaxed text-muted-foreground">
+                    {action.description}
+                  </span>
+                </Link>
+              ))}
+            </div>
           </div>
         ) : (
           <ChatThread messages={messages} streaming={streaming} />

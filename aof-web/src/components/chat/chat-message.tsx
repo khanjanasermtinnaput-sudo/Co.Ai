@@ -191,10 +191,10 @@ function ChatMessageImpl({
             ) : (
               <div
                 className={cn(
-                  "min-w-0 break-words [overflow-wrap:anywhere] rounded-2xl px-4 py-3",
+                  "min-w-0 break-words [overflow-wrap:anywhere] rounded-2xl",
                   isUser
-                    ? "rounded-tr-md bg-primary/12 text-foreground"
-                    : "rounded-tl-md border border-foreground/[0.06] bg-card/70",
+                    ? "rounded-tr-md bg-primary px-4 py-3 text-primary-foreground shadow-neo-sm"
+                    : "rounded-tl-md bg-transparent px-1 py-1 text-foreground",
                 )}
               >
                 {message.attachments && message.attachments.length > 0 && (

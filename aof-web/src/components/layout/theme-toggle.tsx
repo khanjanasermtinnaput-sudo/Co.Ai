@@ -34,7 +34,9 @@ export function ThemeToggle({
         {mounted && isDark ? <Moon className="size-[18px]" /> : <Sun className="size-[18px]" />}
       </span>
       {expanded && (
-        <span className="text-sm font-medium">{isDark ? "Dark" : "Light"} theme</span>
+        <span className="text-sm font-medium">
+          {mounted ? `${isDark ? "Dark" : "Light"} theme` : "Theme"}
+        </span>
       )}
     </button>
   );
