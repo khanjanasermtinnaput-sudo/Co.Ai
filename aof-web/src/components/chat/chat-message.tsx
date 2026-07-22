@@ -122,7 +122,7 @@ function ChatMessageImpl({
       <div className="mt-0.5 shrink-0">
         {isUser ? (
           <Avatar className="size-8">
-            <AvatarFallback className="bg-secondary text-[11px] text-foreground">
+            <AvatarFallback className="bg-none bg-secondary text-[11px] text-foreground">
               You
             </AvatarFallback>
           </Avatar>

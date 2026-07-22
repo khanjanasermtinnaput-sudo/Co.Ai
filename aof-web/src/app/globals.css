@@ -67,25 +67,25 @@
   }
 
   .dark {
-    /* Dark theme — soft charcoal canvas (not pure #000) */
-    --background: 220 9% 8%;
+    /* Dark theme — solid neutral grey canvas (not near-black, not tinted) */
+    --background: 220 6% 14%;
     --foreground: 210 14% 95%;
 
-    --card: 220 8% 12%;
+    --card: 220 6% 18%;
     --card-foreground: 210 14% 95%;
-    --popover: 220 7% 14%;
+    --popover: 220 6% 20%;
     --popover-foreground: 210 14% 95%;
 
     --primary: 210 14% 95%;
     --primary-foreground: 220 14% 10%;
 
-    --secondary: 220 7% 16%;
+    --secondary: 220 6% 22%;
     --secondary-foreground: 210 12% 92%;
 
-    --muted: 220 7% 16%;
-    --muted-foreground: 215 8% 62%;
+    --muted: 220 6% 22%;
+    --muted-foreground: 215 8% 66%;
 
-    --accent: 220 7% 18%;
+    --accent: 220 6% 24%;
     --accent-foreground: 210 14% 95%;
 
     --destructive: 4 78% 62%;
@@ -100,13 +100,13 @@
     --accent-warm: 38 90% 55%;
     --accent-warm-foreground: 220 30% 8%;
 
-    --border: 220 8% 20%;
-    --input: 220 8% 22%;
+    --border: 220 6% 27%;
+    --input: 220 6% 29%;
     --ring: 210 14% 70%;
 
-    --sidebar: 220 10% 6%;
-    --sidebar-foreground: 215 8% 66%;
-    --sidebar-border: 220 8% 17%;
+    --sidebar: 220 6% 12%;
+    --sidebar-foreground: 215 8% 68%;
+    --sidebar-border: 220 6% 24%;
 
     /* Neomorphism dual-light sources — subtle highlight, deep shadow */
     --neo-light: 220 12% 26% / 0.55;
@@ -200,7 +200,7 @@
     border: 1px solid hsl(0 0% 9% / 0.08);
   }
   .dark .glass-strong {
-    background: hsl(0 0% 8% / 0.72);
+    background: hsl(220 6% 18% / 0.82);
     border-color: hsl(0 0% 100% / 0.08);
   }
 
