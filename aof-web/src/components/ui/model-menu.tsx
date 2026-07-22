@@ -11,40 +11,30 @@ import * as React from "react";
 import type { LucideIcon } from "lucide-react";
 import { Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { defaultEffortFor, effortLabel, effortLevelsFor } from "@/lib/effort";
+import { defaultEffortFor, effortLabel, effortLevelsFor, EFFORT_INTENT_LABELS, type EffortIntent } from "@/lib/effort";
 import type { ChatModel, CodeMode, EffortLevel } from "@/lib/types";
 
-// The `!` utilities override DropdownMenuContent's own glass/popover styling so
-// this menu commits to a solid, theme-aware surface.
-export const MODEL_MENU_SURFACE = cn(
-  "w-[340px] rounded-2xl p-2",
-  "!bg-white !text-neutral-900 !border-black/[0.08]",
-  "dark:!bg-[#0b0b0c] dark:!text-neutral-100 dark:!border-foreground/10",
-  "shadow-[0_2px_4px_rgba(0,0,0,0.05),0_16px_32px_-12px_rgba(0,0,0,0.22),0_32px_72px_-16px_rgba(0,0,0,0.18)]",
-  "dark:shadow-[0_2px_4px_rgba(0,0,0,0.5),0_24px_48px_-16px_rgba(0,0,0,0.7)]",
-);
+// A committed solid surface (popover tokens, not the app's translucent glass)
+// so the menu reads as one clear card rather than blending into whatever is
+// behind it — matched bg/foreground pair per the repo's contrast rule.
+export const MODEL_MENU_SURFACE = "w-[340px] rounded-2xl border border-border bg-popover p-2 text-popover-foreground shadow-2xl";
 
-export const MODEL_MENU_LABEL = "text-neutral-500 dark:text-neutral-400";
-export const MODEL_MENU_SEPARATOR = "!bg-neutral-200 dark:!bg-foreground/10";
+export const MODEL_MENU_LABEL = "text-muted-foreground";
+export const MODEL_MENU_SEPARATOR = "bg-border";
 
 export const MODEL_MENU_ITEM = cn(
   "items-start gap-3 rounded-xl px-2 py-2.5",
-  "focus:!bg-neutral-950/[0.05] focus:!text-neutral-900 data-[highlighted]:!bg-neutral-950/[0.05]",
-  "dark:focus:!bg-foreground/[0.06] dark:focus:!text-neutral-100 dark:data-[highlighted]:!bg-foreground/[0.06]",
+  "focus:bg-foreground/[0.05] focus:text-foreground data-[highlighted]:bg-foreground/[0.05]",
 );
 
-export const MODEL_MENU_TITLE = "text-sm font-semibold text-neutral-900 dark:text-neutral-100";
-export const MODEL_MENU_DESC = "mt-0.5 block text-xs text-neutral-500 dark:text-neutral-400";
-export const MODEL_MENU_BADGE = cn(
-  "rounded-full px-1.5 py-px text-[10px] font-medium",
-  "border border-neutral-200 bg-neutral-50 text-neutral-600",
-  "dark:border-foreground/10 dark:bg-foreground/5 dark:text-neutral-300",
-);
-export const MODEL_MENU_CHECK = "mt-1 size-4 !text-neutral-900 dark:!text-neutral-100";
+export const MODEL_MENU_TITLE = "text-sm font-semibold text-foreground";
+export const MODEL_MENU_DESC = "mt-0.5 block text-xs text-muted-foreground";
+export const MODEL_MENU_BADGE = "rounded-full border border-border bg-muted px-1.5 py-px text-micro font-medium text-muted-foreground";
+export const MODEL_MENU_CHECK = "mt-1 size-4 text-foreground";
 
 /** Model tile that appears to float above the card — two offset sheets and a
- *  long soft shadow give the depth. It inverts per theme so it always contrasts
- *  the surface: black-on-white in light, white-on-black in dark. */
+ *  long soft shadow give the depth. Inverted foreground/background so it
+ *  always contrasts the popover surface, in either theme. */
 export function ModelIconTile({
   icon: Icon,
   locked = false,
@@ -54,32 +44,66 @@ export function ModelIconTile({
 }) {
   return (
     <span className="relative mt-0.5 shrink-0">
-      <span
-        aria-hidden
-        className="absolute inset-x-[7px] -bottom-[7px] h-2.5 rounded-md bg-neutral-900/10 dark:bg-foreground/[0.07]"
-      />
-      <span
-        aria-hidden
-        className="absolute inset-x-1 -bottom-1 h-3 rounded-lg bg-neutral-900/25 dark:bg-foreground/15"
-      />
+      <span aria-hidden className="absolute inset-x-[7px] -bottom-[7px] h-2.5 rounded-md bg-foreground/10" />
+      <span aria-hidden className="absolute inset-x-1 -bottom-1 h-3 rounded-lg bg-foreground/20" />
       <span
         className={cn(
           "relative flex size-9 items-center justify-center rounded-[10px]",
-          "bg-gradient-to-b from-neutral-800 to-neutral-950 text-white ring-1 ring-black/50",
-          "shadow-[0_10px_20px_-6px_rgba(0,0,0,0.5),0_4px_8px_-2px_rgba(0,0,0,0.35)]",
-          "dark:from-neutral-100 dark:to-white dark:text-neutral-900 dark:ring-black/20",
-          "dark:shadow-[0_10px_22px_-6px_rgba(0,0,0,0.7),0_4px_8px_-2px_rgba(0,0,0,0.5)]",
+          "bg-foreground text-background shadow-lg ring-1 ring-foreground/20",
           locked && "opacity-75",
         )}
       >
         <Icon className="size-4" strokeWidth={1.75} />
       </span>
       {locked && (
-        <span className="absolute -bottom-1 -right-1 z-10 flex size-4 items-center justify-center rounded-full bg-white shadow-md ring-1 ring-black/10 dark:bg-neutral-900 dark:ring-foreground/15">
-          <Lock className="size-2.5 text-amber-600 dark:text-amber-500" strokeWidth={2.5} />
+        <span className="absolute -bottom-1 -right-1 z-10 flex size-4 items-center justify-center rounded-full bg-popover shadow-md ring-1 ring-border">
+          <Lock className="size-2.5 text-accent-warm" strokeWidth={2.5} />
         </span>
       )}
     </span>
+  );
+}
+
+/** Effort as intent chips (Fast/Balanced/Deep/Maximum), Auto included when
+ *  offered. One-tap, no drag — the plain-language default surface; the raw
+ *  numeric slider (EffortSlider below) stays for CoCode's build modes and,
+ *  in Developer Mode, as an advanced fallback so no real level is stranded. */
+export function IntentEffortChips({
+  intents,
+  value,
+  onChange,
+}: {
+  intents: EffortIntent[];
+  value: EffortIntent;
+  onChange: (intent: EffortIntent) => void;
+}) {
+  if (intents.length === 0) return null;
+  const selected = intents.includes(value) ? value : intents[0];
+  return (
+    <div className="px-2 pb-1.5 pt-2">
+      <span className="px-0.5 text-xs font-semibold text-foreground">Effort</span>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {intents.map((intent) => {
+          const active = intent === selected;
+          return (
+            <button
+              key={intent}
+              type="button"
+              onClick={() => onChange(intent)}
+              aria-pressed={active}
+              className={cn(
+                "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                active
+                  ? "border-foreground bg-foreground text-background"
+                  : "border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground",
+              )}
+            >
+              {EFFORT_INTENT_LABELS[intent]}
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -149,8 +173,8 @@ export function EffortSlider({
   return (
     <div className="px-2 pb-1.5 pt-2">
       <div className="flex items-baseline justify-between px-0.5">
-        <span className="text-xs font-semibold text-neutral-900 dark:text-neutral-100">Effort</span>
-        <span className="text-[11px] font-semibold text-neutral-900 dark:text-neutral-100">
+        <span className="text-xs font-semibold text-foreground">Effort</span>
+        <span className="text-caption font-semibold text-foreground">
           {effortLabel(model, selected)}
         </span>
       </div>
@@ -169,14 +193,11 @@ export function EffortSlider({
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
         onKeyDown={onKeyDown}
-        className="relative mt-3 flex h-5 cursor-pointer touch-none select-none items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-neutral-900/20 dark:focus-visible:ring-foreground/20"
+        className="relative mt-3 flex h-5 cursor-pointer touch-none select-none items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
-        <div ref={trackRef} className="relative h-1.5 w-full rounded-full bg-neutral-200 dark:bg-neutral-800">
+        <div ref={trackRef} className="relative h-1.5 w-full rounded-full bg-muted">
           {/* filled portion */}
-          <div
-            className="absolute inset-y-0 left-0 rounded-full bg-neutral-900 dark:bg-white"
-            style={{ width: `${pct}%` }}
-          />
+          <div className="absolute inset-y-0 left-0 rounded-full bg-foreground" style={{ width: `${pct}%` }} />
           {/* stop ticks */}
           {levels.map((lvl, i) => {
             const at = max === 0 ? 0 : (i / max) * 100;
@@ -187,9 +208,7 @@ export function EffortSlider({
                 aria-hidden
                 className={cn(
                   "absolute top-1/2 size-1 -translate-x-1/2 -translate-y-1/2 rounded-full",
-                  passed
-                    ? "bg-foreground/70 dark:bg-neutral-900/70"
-                    : "bg-neutral-400/70 dark:bg-neutral-600",
+                  passed ? "bg-background/70" : "bg-muted-foreground/40",
                 )}
                 style={{ left: `${at}%` }}
               />
@@ -198,9 +217,7 @@ export function EffortSlider({
           {/* knob */}
           <span
             className={cn(
-              "absolute top-1/2 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full transition-transform",
-              "bg-white ring-2 ring-neutral-900 shadow-[0_2px_6px_rgba(0,0,0,0.35)]",
-              "dark:bg-neutral-900 dark:ring-white dark:shadow-[0_2px_6px_rgba(0,0,0,0.6)]",
+              "absolute top-1/2 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-background ring-2 ring-foreground shadow-md transition-transform",
               dragging && "scale-110",
             )}
             style={{ left: `${pct}%` }}
@@ -218,10 +235,8 @@ export function EffortSlider({
               type="button"
               onClick={() => onChange(lvl)}
               className={cn(
-                "text-[10px] font-medium transition-colors",
-                active
-                  ? "text-neutral-900 dark:text-neutral-100"
-                  : "text-neutral-400 hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-300",
+                "text-micro font-medium transition-colors",
+                active ? "text-foreground" : "text-muted-foreground/60 hover:text-muted-foreground",
               )}
             >
               {effortLabel(model, lvl)}

@@ -1,20 +1,39 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Copy, Check, RefreshCw, ThumbsUp, ThumbsDown, Pencil, X, Coins } from "lucide-react";
+import { Copy, Check, RefreshCw, ThumbsUp, ThumbsDown, Pencil, X, Coins, Wand2 } from "lucide-react";
 import { useState, useRef, useEffect, memo } from "react";
 import { cn } from "@/lib/utils";
 import { estimateTokens } from "@/lib/export";
 import { useUIStore } from "@/store/ui-store";
+import { getModelDisplayName } from "@/lib/model-branding";
 import type { ChatMessageT } from "@/lib/types";
 import { TaotaoAvatar } from "@/components/mascot";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Markdown } from "./markdown";
 import { AttachmentList } from "./attachment-list";
 import { LearningAnswerView } from "./learning-answer";
 import { SourcesPanel } from "./sources-panel";
 import { ErrorPanel } from "@/components/diagnostics/error-panel";
 import { BackendPanel } from "@/components/diagnostics/backend-panel";
+
+/** Auto picked a model for this reply — real, checkable signal (the same
+ *  classifier behind the Route badge), so it stays visible to everyone as one
+ *  calm line, not developer plumbing. The reason is one tooltip away. */
+function AutoResolvedNote({ model, reason }: { model: NonNullable<ChatMessageT["model"]>; reason: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="inline-flex w-fit cursor-default items-center gap-1.5 rounded-lg border border-border bg-secondary/40 px-2.5 py-1 text-caption text-muted-foreground">
+          <Wand2 className="size-3" />
+          Auto · {getModelDisplayName(model)}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="bottom">{reason}</TooltipContent>
+    </Tooltip>
+  );
+}
 
 const AGENT_LABELS: Record<string, string> = {
   chief: "Chief Agent",
@@ -136,6 +155,9 @@ function ChatMessageImpl({
 
       {/* bubble */}
       <div className={cn("flex min-w-0 max-w-[min(680px,85%)] flex-col gap-1.5", isUser && "items-end")}>
+        {!isUser && message.autoResolved && message.model && (
+          <AutoResolvedNote model={message.model} reason={message.autoResolved.reason} />
+        )}
         {!isUser && <BackendPanel message={message} />}
 
         {!isUser && message.error ? (

@@ -86,6 +86,9 @@ export interface ChatMessageT {
   attachments?: Attachment[];
   /** which agent the router picked for this (assistant) reply */
   route?: RouteDecision;
+  /** present when the CoChat model was picked by Auto — the real classifier
+   *  reason shown to the user, e.g. "Detected a coding task." */
+  autoResolved?: { reason: string };
   /** structured Math/Learning payload — when present, rendered with a toggle */
   learning?: LearningAnswer;
   /** present when the AI provider failed — rendered as an error panel, never a reply */

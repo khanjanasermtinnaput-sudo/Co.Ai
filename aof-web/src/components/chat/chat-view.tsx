@@ -24,9 +24,13 @@ export function ChatView() {
   const conversations = useChatStore((s) => s.conversations);
   const activeId = useChatStore((s) => s.activeId);
   const model = useChatStore((s) => s.model);
+  const modelPreference = useChatStore((s) => s.modelPreference);
   const setModel = useChatStore((s) => s.setModel);
+  const setModelAuto = useChatStore((s) => s.setModelAuto);
   const effort = useChatStore((s) => s.effort);
   const setEffort = useChatStore((s) => s.setEffort);
+  const effortIntent = useChatStore((s) => s.effortIntent);
+  const setEffortIntent = useChatStore((s) => s.setEffortIntent);
   const streaming = useChatStore((s) => s.streaming);
   const send = useChatStore((s) => s.send);
   const stop = useChatStore((s) => s.stop);
@@ -109,9 +113,13 @@ export function ChatView() {
         <div className="flex min-w-0 items-center gap-2">
           <ChatModelSelector
             value={model}
+            preference={modelPreference}
             onChange={setModel}
-            effort={effort}
-            onEffortChange={setEffort}
+            onAuto={setModelAuto}
+            effortIntent={effortIntent}
+            onEffortIntentChange={setEffortIntent}
+            rawEffort={effort}
+            onRawEffortChange={setEffort}
           />
         </div>
         <div className="flex items-center gap-2">

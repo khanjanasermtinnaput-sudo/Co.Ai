@@ -117,6 +117,71 @@ export function effortPolicy(effort: EffortLevel): EffortPolicy {
   return EFFORT_POLICY[effort] ?? EFFORT_POLICY.normal;
 }
 
+// ── Effort intents — user-facing names for the same dial ──────────────────────
+// "Low/Normal/High/Ultra/Extreme" are accurate but read as internal tuning
+// knobs. Auto/Fast/Balanced/Deep/Maximum name the INTENT instead, mapped onto
+// the exact EffortLevel scale above — no new mechanism, no new server
+// behavior, just a friendlier front for the same EFFORT_POLICY table.
+export type EffortIntent = "auto" | "fast" | "balanced" | "deep" | "maximum";
+
+export const EFFORT_INTENT_LABELS: Record<EffortIntent, string> = {
+  auto: "Auto",
+  fast: "Fast",
+  balanced: "Balanced",
+  deep: "Deep",
+  maximum: "Maximum",
+};
+
+/** Which intents make sense to offer on `id`'s dial. Maximum only appears on
+ *  Ypertatos, where "extreme" actually exists on the scale; Titan (no dial)
+ *  offers none, same as effortLevelsFor(). */
+export function effortIntentsFor(id: ChatModel | CodeMode): EffortIntent[] {
+  if (effortLevelsFor(id).length === 0) return [];
+  const tier = modelTierFromId(id);
+  const base: EffortIntent[] = ["auto", "fast", "balanced", "deep"];
+  return tier === "pro" ? [...base, "maximum"] : base;
+}
+
+/** Resolve an intent to the real EffortLevel `id` should run at. "Deep" is
+ *  Ypertatos's "ultra" (its own default) but Mikros/Kanon's "high" (their
+ *  ceiling short of Ultra/Extreme, which don't exist on their scale). */
+export function resolveEffortIntent(id: ChatModel | CodeMode, intent: EffortIntent): EffortLevel {
+  const tier = modelTierFromId(id);
+  switch (intent) {
+    case "auto":
+      return defaultEffortFor(id);
+    case "fast":
+      return "low";
+    case "balanced":
+      return "normal";
+    case "deep":
+      return tier === "pro" ? "ultra" : "high";
+    case "maximum":
+      return "extreme";
+  }
+}
+
+/** Inverse of resolveEffortIntent — which intent chip a persisted EffortLevel
+ *  corresponds to, so an existing `effort` value degrades gracefully into the
+ *  new intent UI instead of defaulting silently back to Auto every time.
+ *  "high" and "ultra" both land on "Deep" (the one intent chip above
+ *  Balanced short of Ypertatos's Maximum) — Ypertatos's "high" specifically
+ *  stays reachable via the raw Advanced slider, never invented as its own
+ *  chip for one tier only. */
+export function effortIntentFromLevel(_id: ChatModel | CodeMode, level: EffortLevel): EffortIntent {
+  switch (level) {
+    case "low":
+      return "fast";
+    case "normal":
+      return "balanced";
+    case "high":
+    case "ultra":
+      return "deep";
+    case "extreme":
+      return "maximum";
+  }
+}
+
 /** Whether a plain-CoChat turn on this tier may run Universal Search grounding
  *  (a retrieval pass over live web results). Mikros (`lite`) never grounds with
  *  search — Co.AI Master Prompt Part 3: "Mikros must never execute... expensive

@@ -4,6 +4,8 @@ import { toast } from "sonner";
 import { uid } from "@/lib/utils";
 import { streamChat, clearProductMemory, type ChatAttachment, type ChatHistoryItem } from "@/lib/api";
 import { routeRequest } from "@/lib/router";
+import { resolveAutoModel } from "@/lib/auto-model";
+import { effortIntentFromLevel, resolveEffortIntent, type EffortIntent } from "@/lib/effort";
 import { composeLearningReply, isLearningProblem } from "@/lib/mock";
 import {
   conversationsEnabled,
@@ -37,9 +39,17 @@ interface PendingMessage {
 interface ChatState {
   conversations: Conversation[];
   activeId: string | null;
-  /** Manually-selected CoChat model: "lite" = Mikros, "normal" = Kanon. */
+  /** The user's model CHOICE: a concrete tier, or "auto" (resolved fresh per
+   *  message by resolveAutoModel — see `send()`). */
+  modelPreference: ChatModel | "auto";
+  /** The concrete tier the LAST turn actually used — "auto"'s live resolution,
+   *  or the manually-picked tier. What conversation records / badges read. */
   model: ChatModel;
-  /** Reasoning-effort dial for the selected model (Low/Normal/High). */
+  /** The user's effort CHOICE, in intent language (Fast/Balanced/Deep/…). */
+  effortIntent: EffortIntent;
+  /** Reasoning-effort dial for the selected model — resolveEffortIntent's
+   *  output for `model`, kept in sync so existing EffortLevel consumers
+   *  (server request, CoCode) need no changes. */
   effort: EffortLevel;
   streaming: boolean;
   pendingFirstMessage: PendingMessage | null;
@@ -51,8 +61,12 @@ interface ChatState {
    *  "zero chats" apart from "the list fetch just failed" (session-only). */
   conversationsListStatus: "idle" | "loading" | "loaded" | "error";
 
+  /** Set a concrete model choice (leaves Auto). */
   setModel: (m: ChatModel) => void;
+  /** Switch to Auto — resolved fresh per message at send time. */
+  setModelAuto: () => void;
   setEffort: (e: EffortLevel) => void;
+  setEffortIntent: (i: EffortIntent) => void;
   newConversation: () => string;
   selectConversation: (id: string | null) => void;
   deleteConversation: (id: string) => void;
@@ -91,7 +105,9 @@ export const useChatStore = create<ChatState>()(
       conversations: [],
       activeId: null,
       // Kanon is the balanced default (the "Default"-badged model in CHAT_MODELS).
+      modelPreference: "normal",
       model: "normal",
+      effortIntent: "auto",
       effort: "normal",
       streaming: false,
       pendingFirstMessage: null,
@@ -101,8 +117,20 @@ export const useChatStore = create<ChatState>()(
 
       // Effort is snapped to the incoming model's scale so a persisted High
       // never survives a switch onto a model that doesn't offer it.
-      setModel: (model) => set({ model, effort: clampEffort(model, get().effort) }),
-      setEffort: (effort) => set({ effort: clampEffort(get().model, effort) }),
+      setModel: (model) =>
+        set({
+          modelPreference: model,
+          model,
+          effort: resolveEffortIntent(model, get().effortIntent),
+        }),
+      setModelAuto: () => set({ modelPreference: "auto" }),
+      setEffort: (effort) =>
+        set({
+          effort: clampEffort(get().model, effort),
+          effortIntent: effortIntentFromLevel(get().model, effort),
+        }),
+      setEffortIntent: (effortIntent) =>
+        set({ effortIntent, effort: resolveEffortIntent(get().model, effortIntent) }),
 
       newConversation: () => {
         const id = uid("conv");
@@ -312,7 +340,20 @@ export const useChatStore = create<ChatState>()(
         let activeId = get().activeId;
         if (!activeId) activeId = get().newConversation();
 
-        const model = get().model;
+        // Auto is resolved fresh per message — the same deterministic signal
+        // that already powers the Route badge, never a fabricated "AI chose
+        // this" black box. Manual choices bypass this entirely.
+        const preference = get().modelPreference;
+        let autoResolved: { reason: string } | undefined;
+        let model = get().model;
+        if (preference === "auto") {
+          const resolved = resolveAutoModel(content, attachments ?? []);
+          model = resolved.model;
+          autoResolved = { reason: resolved.reason };
+        }
+        const effort = resolveEffortIntent(model, get().effortIntent);
+        set({ model, effort });
+
         const route = routeRequest(content, attachments ?? []);
         const now = new Date().toISOString();
 
@@ -332,6 +373,7 @@ export const useChatStore = create<ChatState>()(
           streaming: true,
           model,
           route,
+          autoResolved,
         };
 
         const isFirstMessage =
@@ -555,7 +597,9 @@ export const useChatStore = create<ChatState>()(
     {
       name: "aof.chat",
       partialize: (s) => ({
+        modelPreference: s.modelPreference,
         model: s.model,
+        effortIntent: s.effortIntent,
         effort: s.effort,
         conversations: s.conversations.map((c) => ({
           ...c,

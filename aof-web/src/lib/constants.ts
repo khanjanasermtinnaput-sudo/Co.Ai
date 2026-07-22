@@ -90,8 +90,13 @@ export const QUICK_ACTIONS: QuickAction[] = [
 ];
 
 // ── Chat models ───────────────────────────────────────────────────────────────
+/** Selector id: a concrete tier, or "auto" — resolved fresh per message by
+ *  resolveAutoModel(). Widens ChatModel only for this picker; the API
+ *  contract and every other ChatModel use stay exactly "lite" | "normal". */
+export type ChatModelSelectorId = ChatModel | "auto";
+
 export interface ChatModelInfo {
-  id: ChatModel;
+  id: ChatModelSelectorId;
   name: string;
   tagline: string;
   description: string;
@@ -99,6 +104,13 @@ export interface ChatModelInfo {
 }
 
 export const CHAT_MODELS: ChatModelInfo[] = [
+  {
+    id: "auto",
+    name: "Auto",
+    tagline: "Picks for you",
+    description: "Reads each message and picks Mikros or Kanon for it.",
+    badge: "Recommended",
+  },
   {
     id: "lite",
     name: getModelDisplayName("lite"),
@@ -109,8 +121,7 @@ export const CHAT_MODELS: ChatModelInfo[] = [
     id: "normal",
     name: getModelDisplayName("normal"),
     tagline: "Balanced reasoning",
-    description: "Deeper thinking for richer conversations.",
-    badge: "Default",
+    description: "Deeper thinking for richer conversations and code.",
   },
 ];
 
