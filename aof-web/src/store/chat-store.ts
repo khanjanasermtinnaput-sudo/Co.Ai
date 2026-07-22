@@ -524,16 +524,28 @@ export const useChatStore = create<ChatState>()(
               onModel: (activeModel) => patchAssistant({ activeModel }),
               onSources: (sources) => patchAssistant({ sources }),
               onUsage: (usage) => patchAssistant({ usage }),
-              // Live stage progress for Model Workflow requests (Kanon's Context
-              // Builder → Processing → Deep Think → Review). Cleared the moment the
-              // final stage starts running — real tokens are about to stream in.
+              // Live stage trail for Model Workflow requests (Kanon's Context
+              // Builder → Processing → Deep Think → Review; Ypertatos's
+              // Requirement Analysis → Planning → Orchestration → …). Rendered
+              // as user-facing phases by workflow-progress.tsx (see
+              // lib/workflow-phases.ts). Replace-by-stage-id keeps the trail
+              // exactly as long as this turn's real stage count — never padded.
               onStage: (st) =>
-                patchAssistant({
-                  agentStatus:
-                    st.index === st.total && st.status === "running"
-                      ? undefined
-                      : `${st.label}: ${st.status === "running" ? "working…" : "done"}`,
-                }),
+                set((s) => ({
+                  conversations: s.conversations.map((c) => {
+                    if (c.id !== activeId) return c;
+                    return {
+                      ...c,
+                      messages: c.messages.map((m) => {
+                        if (m.id !== assistantId) return m;
+                        const trail = m.stageTrail ?? [];
+                        const idx = trail.findIndex((t) => t.stage === st.stage);
+                        const nextTrail = idx === -1 ? [...trail, st] : trail.map((t, i) => (i === idx ? st : t));
+                        return { ...m, stageTrail: nextTrail };
+                      }),
+                    };
+                  }),
+                })),
             },
           );
         } finally {

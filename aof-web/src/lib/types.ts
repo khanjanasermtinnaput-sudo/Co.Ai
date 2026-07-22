@@ -1,6 +1,6 @@
 // ── Domain types shared across the Co.AI frontend ────────────────────────────
 
-import type { AofProviderError, FailoverNotice, ModelNotice, SourcesNotice, UsageNotice } from "./errors";
+import type { AofProviderError, FailoverNotice, ModelNotice, SourcesNotice, StageNotice, UsageNotice } from "./errors";
 
 /** Top-level products surfaced in the sidebar. Titan is intentionally absent —
  *  it is a mode *inside* CoCode, never a product on the homepage. */
@@ -101,6 +101,10 @@ export interface ChatMessageT {
   sources?: SourcesNotice;
   /** live agent activity status from the Chief Agent orchestration system */
   agentStatus?: string;
+  /** every StageNotice seen this turn, replace-by-stage-id — the real trail
+   *  the user-facing workflow-progress UI renders (see workflow-phases.ts).
+   *  Stays tiny: at most the turn's own stage count. */
+  stageTrail?: StageNotice[];
   /** which AI agents contributed to this response */
   agentsUsed?: string[];
   /** quality score 0-100 from the review gate */

@@ -17,6 +17,7 @@ import { LearningAnswerView } from "./learning-answer";
 import { SourcesPanel } from "./sources-panel";
 import { ErrorPanel } from "@/components/diagnostics/error-panel";
 import { BackendPanel } from "@/components/diagnostics/backend-panel";
+import { WorkflowProgress } from "./workflow-progress";
 
 /** Auto picked a model for this reply — real, checkable signal (the same
  *  classifier behind the Route badge), so it stays visible to everyone as one
@@ -32,29 +33,6 @@ function AutoResolvedNote({ model, reason }: { model: NonNullable<ChatMessageT["
       </TooltipTrigger>
       <TooltipContent side="bottom">{reason}</TooltipContent>
     </Tooltip>
-  );
-}
-
-const AGENT_LABELS: Record<string, string> = {
-  chief: "Chief Agent",
-  research: "Research Agent",
-  writing: "Writing Agent",
-  math: "Math Agent",
-  coding: "Code Agent",
-  vision: "Vision Agent",
-  system: "System",
-};
-
-function AgentStatusBar({ status }: { status: string }) {
-  const [agent, ...rest] = status.split(": ");
-  const label = AGENT_LABELS[agent] ?? agent;
-  const detail = rest.join(": ");
-  return (
-    <div className="flex items-center gap-1.5 rounded-lg border border-primary/20 bg-primary/5 px-3 py-1.5 text-xs text-primary/80">
-      <span className="size-1.5 animate-pulse rounded-full bg-primary" />
-      <span className="font-medium">{label}</span>
-      {detail && <span className="text-muted-foreground">— {detail}</span>}
-    </div>
   );
 }
 
@@ -174,7 +152,9 @@ function ChatMessageImpl({
           </>
         ) : (
           <>
-            {!isUser && message.agentStatus && <AgentStatusBar status={message.agentStatus} />}
+            {!isUser && message.stageTrail && message.stageTrail.length > 0 && (
+              <WorkflowProgress stageTrail={message.stageTrail} streaming={message.streaming} />
+            )}
 
             {/* ── User message: editable ──────────────────────────────── */}
             {isUser && editing ? (
