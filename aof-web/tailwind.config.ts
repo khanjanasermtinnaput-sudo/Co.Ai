@@ -40,6 +40,14 @@ const config: Config = {
           DEFAULT: "hsl(var(--warning))",
           foreground: "hsl(var(--warning-foreground))",
         },
+        info: {
+          DEFAULT: "hsl(var(--info))",
+          foreground: "hsl(var(--info-foreground))",
+        },
+        "accent-warm": {
+          DEFAULT: "hsl(var(--accent-warm))",
+          foreground: "hsl(var(--accent-warm-foreground))",
+        },
         muted: {
           DEFAULT: "hsl(var(--muted))",
           foreground: "hsl(var(--muted-foreground))",
@@ -71,6 +79,16 @@ const config: Config = {
       fontFamily: {
         sans: ["var(--font-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
         mono: ["var(--font-mono)", "ui-monospace", "monospace"],
+      },
+      // Named steps for the small-UI range so chrome stops hardcoding
+      // text-[10px]..text-[15px]; the default Tailwind scale continues above.
+      fontSize: {
+        micro: ["0.625rem", { lineHeight: "0.875rem" }], // 10px
+        caption: ["0.6875rem", { lineHeight: "1rem" }], // 11px
+        label: ["0.75rem", { lineHeight: "1.125rem" }], // 12px
+        "body-sm": ["0.8125rem", { lineHeight: "1.25rem" }], // 13px
+        body: ["0.875rem", { lineHeight: "1.375rem" }], // 14px
+        "body-lg": ["0.9375rem", { lineHeight: "1.5rem" }], // 15px
       },
       boxShadow: {
         glass: "0 1px 0 0 hsl(0 0% 100% / 0.04) inset, 0 8px 30px -12px hsl(0 0% 0% / 0.6)",
