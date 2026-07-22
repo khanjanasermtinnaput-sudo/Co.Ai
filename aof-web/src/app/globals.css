@@ -51,6 +51,17 @@
     --accent-warm: 32 90% 44%;
     --accent-warm-foreground: 0 0% 100%;
 
+    /* AI Activity Color System (DESIGN.md §6) — a restrained pastel stage
+       palette scoped ONLY to AI workflow visualization (phase pills,
+       activity timelines, progress indicators). Never use these for
+       unrelated system actions or arbitrary UI. "Completed" reuses
+       --success rather than adding a seventh hue. */
+    --ai-understanding: 32 30% 42%;
+    --ai-planning: 215 62% 46%;
+    --ai-building: 265 45% 52%;
+    --ai-validating: 160 40% 34%;
+    --ai-reviewing: 42 70% 40%;
+
     --border: 220 9% 82%;
     --input: 220 9% 84%;
     --ring: 220 14% 25%;
@@ -99,6 +110,12 @@
 
     --accent-warm: 38 90% 55%;
     --accent-warm-foreground: 220 30% 8%;
+
+    --ai-understanding: 32 35% 64%;
+    --ai-planning: 215 68% 68%;
+    --ai-building: 265 55% 74%;
+    --ai-validating: 160 42% 58%;
+    --ai-reviewing: 42 75% 64%;
 
     --border: 220 6% 27%;
     --input: 220 6% 29%;

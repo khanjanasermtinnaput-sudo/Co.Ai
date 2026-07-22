@@ -140,11 +140,13 @@ export function Composer({
   return (
     <div
       className={cn(
+        // `.glass` already supplies the resting-state shadow (its box-shadow
+        // falls back to `--tw-shadow` when a utility sets it) — the only
+        // state that needs its own elevation is focus, so that's the one
+        // shadow utility applied here rather than stacking a second at rest.
         "group glass border border-border transition-all duration-200 dark:border-foreground/10",
-        "focus-within:border-foreground/20",
-        size === "lg"
-          ? "rounded-3xl p-4 shadow-glass focus-within:shadow-neo"
-          : "rounded-2xl p-3 shadow-glass focus-within:shadow-neo",
+        "focus-within:border-foreground/20 focus-within:shadow-neo",
+        size === "lg" ? "rounded-2xl p-4" : "rounded-xl p-3",
         className,
       )}
     >

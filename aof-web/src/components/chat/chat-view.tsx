@@ -122,7 +122,7 @@ export function ChatView() {
             onRawEffortChange={setEffort}
           />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           {active && messages.length > 0 && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -168,7 +168,7 @@ export function ChatView() {
           </div>
         ) : empty ? (
           <div className="flex h-full flex-col items-center justify-center px-4 py-10 text-center">
-            <div className="flex size-14 items-center justify-center rounded-2xl bg-card text-foreground shadow-neo">
+            <div className="flex size-14 items-center justify-center rounded-xl bg-card text-foreground shadow-neo">
               <Sparkles className="size-6" />
             </div>
             <h2 className="mt-5 text-2xl font-semibold tracking-tight text-foreground">
@@ -180,7 +180,7 @@ export function ChatView() {
             <div className="mt-8 grid w-full max-w-2xl grid-cols-1 gap-3 sm:grid-cols-3">
               {QUICK_ACTIONS.map((action) => {
                 const cardClass =
-                  "group flex flex-col items-start gap-2 rounded-2xl bg-card p-4 text-left shadow-neo-sm transition-all hover:shadow-neo active:shadow-neo-inset focus-ring";
+                  "group flex flex-col items-start gap-2 rounded-xl bg-card p-4 text-left shadow-neo-sm transition-all hover:shadow-neo active:shadow-neo-inset focus-ring";
                 const body = (
                   <>
                     <span className="flex size-9 items-center justify-center rounded-xl bg-muted text-foreground shadow-neo-inset">

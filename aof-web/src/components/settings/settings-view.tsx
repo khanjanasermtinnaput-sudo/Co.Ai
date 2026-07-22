@@ -8,6 +8,7 @@ import {
   CreditCard,
   KeyRound,
   Palette,
+  Settings2,
   UserRound,
   Zap,
 } from "lucide-react";
@@ -31,7 +32,10 @@ export function SettingsView({ defaultTab = "account" }: { defaultTab?: string }
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-7 sm:px-6 lg:py-9">
-      <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
+      <h1 className="flex items-center gap-2.5 text-2xl font-semibold tracking-tight">
+        <Settings2 className="size-6 text-primary" />
+        Settings
+      </h1>
       <p className="mt-1.5 text-sm text-muted-foreground">
         Manage your account, appearance and AI provider keys.
       </p>

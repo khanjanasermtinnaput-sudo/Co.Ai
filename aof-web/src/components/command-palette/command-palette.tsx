@@ -237,7 +237,7 @@ export function CommandPalette() {
           role="dialog"
           aria-modal="true"
           aria-label="Command palette"
-          className="w-full max-w-[560px] overflow-hidden rounded-2xl border border-border/70 bg-popover text-popover-foreground shadow-2xl backdrop-blur-2xl pointer-events-auto"
+          className="w-full max-w-[560px] overflow-hidden rounded-xl border border-border/70 bg-popover text-popover-foreground shadow-2xl pointer-events-auto"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Search header */}

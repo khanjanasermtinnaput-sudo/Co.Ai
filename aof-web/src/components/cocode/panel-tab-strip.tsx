@@ -5,14 +5,24 @@
 // menu for the rest, grouped by the four Build/Understand/Verify/Ship
 // workspaces. Pulled out of cocode-workspace.tsx; behavior unchanged.
 
-import { useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { useState } from "react";
 import { ChevronDown, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PANEL_DEFS, PANEL_GROUP_ORDER, type PanelDef } from "@/lib/cocode/adaptive-panels";
 import type { IDEPanel } from "@/store/cocode-ide-store";
 import { SimpleTooltip } from "./ide-tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
+// Uses the shared Radix-backed DropdownMenu (same overlay primitive as every
+// other menu in the app) instead of a hand-rolled createPortal — gets
+// Escape, focus management, and a consistent z-index/animation for free
+// instead of duplicating that logic here.
 function OverflowPanelMenu({
   panels,
   activePanel,
@@ -23,72 +33,51 @@ function OverflowPanelMenu({
   onSelect: (id: IDEPanel | null) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [coords, setCoords] = useState<{ top: number; right: number } | null>(null);
-  const buttonRef = useRef<HTMLButtonElement>(null);
-
-  const toggle = () => {
-    if (!open && buttonRef.current) {
-      const rect = buttonRef.current.getBoundingClientRect();
-      setCoords({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
-    }
-    setOpen((o) => !o);
-  };
 
   return (
-    <div className="relative">
+    <DropdownMenu open={open} onOpenChange={setOpen}>
       <SimpleTooltip label="More panels" description="Show all available panels" side="bottom">
-        <button
-          ref={buttonRef}
-          type="button"
-          onClick={toggle}
-          className="inline-flex items-center gap-0.5 rounded-md px-2 py-1 text-caption font-medium text-muted-foreground hover:text-foreground transition-colors"
-        >
-          More <ChevronDown className={cn("size-3 transition-transform", open && "rotate-180")} />
-        </button>
-      </SimpleTooltip>
-      {open && coords && typeof document !== "undefined" && createPortal(
-        <>
-          <div className="fixed inset-0 z-[150]" onClick={() => setOpen(false)} />
-          <div
-            style={{ top: coords.top, right: coords.right }}
-            className="fixed z-[160] w-52 max-h-[70vh] overflow-y-auto rounded-xl border border-border/60 bg-card/98 py-1.5 shadow-2xl backdrop-blur-2xl"
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            className="inline-flex items-center gap-0.5 rounded-md px-2 py-1 text-caption font-medium text-muted-foreground transition-colors hover:text-foreground"
           >
-            {PANEL_GROUP_ORDER.map((group) => {
-              const groupPanels = panels.filter((p) => p.group === group);
-              if (groupPanels.length === 0) return null;
-              return (
-                <div key={group}>
-                  <div className="px-3 pt-2 pb-1 text-micro font-semibold uppercase tracking-widest text-muted-foreground/40">
-                    {group}
-                  </div>
-                  {groupPanels.map((p) => {
-                    const Icon = p.icon;
-                    return (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => { onSelect(p.id as IDEPanel); setOpen(false); }}
-                        className={cn(
-                          "flex w-full items-start gap-2 px-3 py-2 text-left transition-colors hover:bg-foreground/5",
-                          activePanel === p.id && "bg-primary/10",
-                        )}
-                      >
-                        <Icon className={cn("size-3.5 mt-0.5 shrink-0", activePanel === p.id ? "text-primary" : "text-muted-foreground/70")} />
-                        <span className="flex flex-col gap-0.5">
-                          <span className={cn("text-label font-medium", activePanel === p.id ? "text-primary" : "text-foreground/80")}>{p.label}</span>
-                          <span className="text-micro leading-tight text-muted-foreground/50">{p.description}</span>
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              );
-            })}
-          </div>
-        </>,
-        document.body,
-      )}
-    </div>
+            More <ChevronDown className={cn("size-3 transition-transform", open && "rotate-180")} />
+          </button>
+        </DropdownMenuTrigger>
+      </SimpleTooltip>
+      <DropdownMenuContent align="end" className="max-h-[70vh] w-52 overflow-y-auto p-1">
+        {PANEL_GROUP_ORDER.map((group) => {
+          const groupPanels = panels.filter((p) => p.group === group);
+          if (groupPanels.length === 0) return null;
+          return (
+            <div key={group}>
+              <DropdownMenuLabel className="px-2 pb-1 pt-1.5 text-micro font-semibold uppercase tracking-widest text-muted-foreground/40">
+                {group}
+              </DropdownMenuLabel>
+              {groupPanels.map((p) => {
+                const Icon = p.icon;
+                return (
+                  <DropdownMenuItem
+                    key={p.id}
+                    onSelect={() => onSelect(p.id as IDEPanel)}
+                    className={cn("items-start gap-2", activePanel === p.id && "bg-primary/10")}
+                  >
+                    <Icon className={cn("mt-0.5 size-3.5 shrink-0", activePanel === p.id ? "text-primary" : "text-muted-foreground/70")} />
+                    <span className="flex flex-col gap-0.5">
+                      <span className={cn("text-label font-medium", activePanel === p.id ? "text-primary" : "text-foreground/80")}>
+                        {p.label}
+                      </span>
+                      <span className="text-micro leading-tight text-muted-foreground/50">{p.description}</span>
+                    </span>
+                  </DropdownMenuItem>
+                );
+              })}
+            </div>
+          );
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

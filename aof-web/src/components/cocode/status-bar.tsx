@@ -3,7 +3,7 @@
 // Part 8 — Professional Status Bar
 // Only displays useful information. Everything optional except the essentials.
 
-import { GitBranch, AlertCircle, Zap, CheckCircle, Loader2, Radio } from "lucide-react";
+import { GitBranch, AlertCircle, CheckCircle, Loader2, Radio } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCocodeIDEStore } from "@/store/cocode-ide-store";
 import { useUIStore } from "@/store/ui-store";
@@ -30,8 +30,6 @@ export function WorkspaceStatusBar({
   const activeTab = useCocodeIDEStore((s) => s.activeTab);
   const setRightPanel = useCocodeIDEStore((s) => s.setRightPanel);
   const cursorPosition = useUIStore((s) => s.cursorPosition);
-  const developerMode = useUIStore((s) => s.developerMode);
-  const toggleDeveloperMode = useUIStore((s) => s.toggleDeveloperMode);
 
   // Derive language from active file extension
   const detectedLanguage = language ?? (activeTab ? detectLanguage(activeTab) : "Plain Text");
@@ -39,8 +37,8 @@ export function WorkspaceStatusBar({
   const BUILD_ICON = {
     idle: null,
     building: <Loader2 className="size-3 animate-spin text-primary" />,
-    success: <CheckCircle className="size-3 text-emerald-400" />,
-    error: <AlertCircle className="size-3 text-red-400" />,
+    success: <CheckCircle className="size-3 text-success" />,
+    error: <AlertCircle className="size-3 text-destructive" />,
   }[buildStatus];
 
   const BUILD_LABEL = {
@@ -96,7 +94,7 @@ export function WorkspaceStatusBar({
           onClick={() => setRightPanel("diagnostics")}
           className={cn(
             "flex h-full items-center gap-1 px-2 transition-colors hover:bg-foreground/5",
-            tsErrorCount > 0 ? "text-red-400 hover:text-red-300" : "hover:text-foreground",
+            tsErrorCount > 0 ? "text-destructive hover:text-destructive/80" : "hover:text-foreground",
           )}
         >
           <AlertCircle className="size-3" />
@@ -134,48 +132,28 @@ export function WorkspaceStatusBar({
       {/* Spacer */}
       <div className="flex-1" />
 
-      {/* Developer Mode badge */}
-      {developerMode && (
-        <>
-          <SimpleTooltip
-            label="Developer Mode"
-            description="Advanced engineering tools are visible. Click to disable."
-            shortcut="Ctrl+Shift+`"
-            side="top"
-          >
-            <button
-              type="button"
-              onClick={toggleDeveloperMode}
-              className="flex h-full items-center gap-1 px-2 text-amber-400/80 transition-colors hover:bg-foreground/5 hover:text-amber-400"
-            >
-              <Zap className="size-3" />
-              <span>DEV</span>
-            </button>
-          </SimpleTooltip>
-          <div className="h-3.5 w-px bg-border/40" />
-        </>
-      )}
-
-      {/* Cursor position */}
+      {/* Cursor position — secondary detail, hidden below `sm` so the bar
+         doesn't compete with the titlebar's own overflow on a phone. Developer
+         Mode's toggle lives only in the titlebar now (was duplicated here). */}
       <SimpleTooltip label="Cursor Position" description="Line and column in the active file" side="top">
-        <div className="flex h-full items-center px-2 hover:bg-foreground/5 transition-colors">
+        <div className="hidden h-full items-center px-2 transition-colors hover:bg-foreground/5 sm:flex">
           Ln {cursorPosition.line}, Col {cursorPosition.col}
         </div>
       </SimpleTooltip>
 
-      <div className="h-3.5 w-px bg-border/40" />
+      <div className="hidden h-3.5 w-px bg-border/40 sm:block" />
 
       {/* Language */}
       <SimpleTooltip label="Language Mode" description={`File language: ${detectedLanguage}`} side="top">
-        <div className="flex h-full items-center px-2 hover:bg-foreground/5 transition-colors">
+        <div className="hidden h-full items-center px-2 transition-colors hover:bg-foreground/5 md:flex">
           {detectedLanguage}
         </div>
       </SimpleTooltip>
 
-      <div className="h-3.5 w-px bg-border/40" />
+      <div className="hidden h-3.5 w-px bg-border/40 md:block" />
 
       {/* Encoding */}
-      <div className="flex h-full items-center px-2">{encoding}</div>
+      <div className="hidden h-full items-center px-2 md:flex">{encoding}</div>
     </div>
   );
 }

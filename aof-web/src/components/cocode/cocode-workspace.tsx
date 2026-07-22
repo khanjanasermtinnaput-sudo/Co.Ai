@@ -223,18 +223,19 @@ export function CoCodeWorkspace() {
       {viewMode === "build" ? (
         <>
           {/* ── Build Titlebar ───────────────────────────────────────────────── */}
-          <div className="flex h-10 items-center gap-2 border-b border-border/60 bg-card/50 px-3">
-            <Hammer className="size-3.5 text-primary" />
-            <span className="text-body-sm font-medium text-foreground">Build</span>
-            <span className="text-muted-foreground">·</span>
-            <span className="max-w-[160px] truncate text-body-sm text-muted-foreground">{projectName}</span>
+          <div className="flex h-10 items-center gap-1.5 overflow-x-auto border-b border-border/60 bg-card/50 px-3 no-scrollbar sm:gap-2">
+            <Hammer className="size-3.5 shrink-0 text-primary" />
+            <span className="hidden shrink-0 text-body-sm font-medium text-foreground sm:inline">Build</span>
+            <span className="hidden shrink-0 text-muted-foreground sm:inline">·</span>
+            <span className="min-w-0 flex-1 truncate text-body-sm text-muted-foreground sm:max-w-[160px] sm:flex-none">{projectName}</span>
             <SimpleTooltip label="Switch Project" description="Go to your projects list" side="bottom">
               <Link
                 href="/projects"
-                className="flex items-center gap-1 rounded-md border border-border/40 px-2 py-1 text-caption text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground"
+                aria-label="Switch project"
+                className="flex shrink-0 items-center gap-1 rounded-md border border-border/40 px-1.5 py-1 text-caption text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground sm:px-2"
               >
                 <FolderKanban className="size-3" />
-                Projects
+                <span className="hidden sm:inline">Projects</span>
               </Link>
             </SimpleTooltip>
             <SimpleTooltip
@@ -245,10 +246,11 @@ export function CoCodeWorkspace() {
               <button
                 type="button"
                 onClick={() => setViewMode("editor")}
-                className="ml-auto flex items-center gap-1 rounded-md border border-border/40 px-2 py-1 text-caption text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground"
+                aria-label="Open Editor"
+                className="ml-auto flex shrink-0 items-center gap-1 rounded-md border border-border/40 px-1.5 py-1 text-caption text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground sm:px-2"
               >
                 <Code2 className="size-3" />
-                Open Editor
+                <span className="hidden sm:inline">Open Editor</span>
               </button>
             </SimpleTooltip>
           </div>
@@ -258,8 +260,11 @@ export function CoCodeWorkspace() {
         </>
       ) : (
         <>
-      {/* ── Workspace Titlebar ────────────────────────────────────────────── */}
-      <div className="flex h-10 items-center gap-2 border-b border-border/60 bg-card/50 px-3">
+      {/* ── Workspace Titlebar ────────────────────────────────────────────── */
+      /* Responsive: text labels drop below `sm`, every button stays icon-only
+         so the bar never wraps; `overflow-x-auto` is a safety net, not the
+         primary strategy (matches panel-tab-strip.tsx's own overflow rule). */}
+      <div className="flex h-10 items-center gap-1 overflow-x-auto border-b border-border/60 bg-card/50 px-2 no-scrollbar sm:gap-1.5 sm:px-3">
         {/* Part 1 — Hover tooltips on every button */}
         <SimpleTooltip
           label={explorerOpen ? "Hide Explorer" : "Show Explorer"}
@@ -270,18 +275,22 @@ export function CoCodeWorkspace() {
           <button
             type="button"
             onClick={toggleExplorer}
-            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground"
+            aria-label={explorerOpen ? "Hide Explorer" : "Show Explorer"}
+            className="shrink-0 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground"
           >
             {explorerOpen ? <PanelLeftClose className="size-4" /> : <PanelLeftOpen className="size-4" />}
           </button>
         </SimpleTooltip>
 
-        <span className="truncate max-w-[120px] text-body-sm font-medium text-muted-foreground">{projectName}</span>
+        <span className="min-w-[3.5rem] flex-1 truncate text-body-sm font-medium text-muted-foreground sm:max-w-[160px] sm:flex-none">
+          {projectName}
+        </span>
 
         <SimpleTooltip label="Switch Project" description="Go to your projects list" side="bottom">
           <Link
             href="/projects"
-            className="flex items-center gap-1 rounded-md border border-border/40 px-1.5 py-0.5 text-caption text-muted-foreground/70 transition-colors hover:border-primary/30 hover:text-foreground"
+            aria-label="Switch project"
+            className="flex shrink-0 items-center gap-1 rounded-md border border-border/40 px-1.5 py-0.5 text-caption text-muted-foreground/70 transition-colors hover:border-primary/30 hover:text-foreground"
           >
             <FolderKanban className="size-3" />
           </Link>
@@ -292,15 +301,17 @@ export function CoCodeWorkspace() {
             <button
               type="button"
               onClick={() => setRightPanel("github")}
-              className="flex items-center gap-1 rounded-md border border-border/40 px-1.5 py-0.5 text-caption text-muted-foreground/70 hover:border-primary/30 hover:text-foreground transition-colors"
+              aria-label={`Git branch: ${github.repo.branch}`}
+              className="flex shrink-0 items-center gap-1 rounded-md border border-border/40 px-1.5 py-0.5 text-caption text-muted-foreground/70 hover:border-primary/30 hover:text-foreground transition-colors"
             >
               <GitBranch className="size-3" />
-              {github.repo.branch}
+              <span className="hidden max-w-[100px] truncate sm:inline">{github.repo.branch}</span>
             </button>
           </SimpleTooltip>
         )}
 
-        {/* Part 5 — Developer Mode badge */}
+        {/* Part 5 — Developer Mode toggle. Only shown here (not duplicated in
+           the status bar) so there's one discoverable place to see/change it. */}
         {developerMode && (
           <SimpleTooltip
             label="Developer Mode ON"
@@ -311,42 +322,46 @@ export function CoCodeWorkspace() {
             <button
               type="button"
               onClick={() => useUIStore.getState().toggleDeveloperMode()}
-              className="flex items-center gap-1 rounded-md border border-accent-warm/30 bg-accent-warm/10 px-1.5 py-0.5 text-micro font-semibold text-accent-warm hover:bg-accent-warm/20 transition-colors"
+              aria-label="Developer Mode on — click to turn off"
+              className="flex shrink-0 items-center gap-1 rounded-md border border-accent-warm/30 bg-accent-warm/10 px-1.5 py-0.5 text-micro font-semibold text-accent-warm hover:bg-accent-warm/20 transition-colors"
             >
               <Code2 className="size-3" />
-              DEV
+              <span className="hidden sm:inline">DEV</span>
             </button>
           </SimpleTooltip>
         )}
 
-        <div className="ml-auto flex items-center gap-1">
+        <div className="ml-auto flex shrink-0 items-center gap-0.5 sm:gap-1">
           {/* Undo */}
           <SimpleTooltip label="Undo" description="Undo last change" shortcut="Ctrl+Z" side="bottom">
             <button
               type="button"
               onClick={undo}
               disabled={!canUndo}
+              aria-label="Undo"
               className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground disabled:opacity-25"
             >
               <svg viewBox="0 0 16 16" className="size-3.5 fill-current"><path d="M3.5 3.5v3h3V5h-1.5l1.5-1.5L8 5v1h-2v2H7.5L9 6.5l1.5 1.5H9v1h-1.5v3h5v-3h-1.5l-1.5 1.5V8.5H7V6.5h3v-2L8.5 3 7 4.5V3.5h-3z" /></svg>
             </button>
           </SimpleTooltip>
 
-          {/* Redo */}
+          {/* Redo — hidden below `sm`, reachable via Ctrl+Y, to keep the core
+             row (name/undo/back/palette) from crowding out on a phone. */}
           <SimpleTooltip label="Redo" description="Redo last undone change" shortcut="Ctrl+Y" side="bottom">
             <button
               type="button"
               onClick={redo}
               disabled={!canRedo}
-              className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground disabled:opacity-25"
+              aria-label="Redo"
+              className="hidden rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground disabled:opacity-25 sm:block"
             >
               <svg viewBox="0 0 16 16" className="size-3.5 fill-current scale-x-[-1]"><path d="M3.5 3.5v3h3V5h-1.5l1.5-1.5L8 5v1h-2v2H7.5L9 6.5l1.5 1.5H9v1h-1.5v3h5v-3h-1.5l-1.5 1.5V8.5H7V6.5h3v-2L8.5 3 7 4.5V3.5h-3z" /></svg>
             </button>
           </SimpleTooltip>
 
-          {/* Upload */}
+          {/* Upload — hidden below `sm`; still reachable via the mobile Files sheet. */}
           <SimpleTooltip label="Upload Files" description="Import local files into the workspace" side="bottom">
-            <label className="cursor-pointer rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground">
+            <label aria-label="Upload files" className="hidden cursor-pointer rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground sm:block">
               <Upload className="size-3.5" />
               <input type="file" multiple className="hidden" onChange={handleFileUpload} />
             </label>
@@ -357,10 +372,11 @@ export function CoCodeWorkspace() {
             <button
               type="button"
               onClick={() => setViewMode("build")}
-              className="flex items-center gap-1 rounded-md border border-border/40 px-2 py-1 text-caption text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground"
+              aria-label="Back to CoCode"
+              className="flex shrink-0 items-center gap-1 rounded-md border border-border/40 px-1.5 py-1 text-caption text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground sm:px-2"
             >
               <ArrowLeft className="size-3" />
-              Back to CoCode
+              <span className="hidden sm:inline">Back to CoCode</span>
             </button>
           </SimpleTooltip>
 
@@ -369,10 +385,11 @@ export function CoCodeWorkspace() {
             <button
               type="button"
               onClick={() => useUIStore.getState().setCommandPaletteOpen(true)}
-              className="flex items-center gap-1 rounded-md border border-border/40 px-2 py-1 text-caption text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground"
+              aria-label="Command Palette"
+              className="flex shrink-0 items-center gap-1 rounded-md border border-border/40 px-1.5 py-1 text-caption text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground sm:px-2"
             >
               <Terminal className="size-3" />
-              <span className="hidden sm:inline">Ctrl+Shift+P</span>
+              <span className="hidden lg:inline">Ctrl+Shift+P</span>
             </button>
           </SimpleTooltip>
 
@@ -382,10 +399,11 @@ export function CoCodeWorkspace() {
               <button
                 type="button"
                 onClick={() => setRightPanel("diff")}
-                className="flex items-center gap-1 rounded-md bg-accent-warm/15 px-2 py-0.5 text-caption text-accent-warm hover:bg-accent-warm/25 transition-colors"
+                aria-label={`${diff.files.length} pending change${diff.files.length !== 1 ? "s" : ""} — view diff`}
+                className="flex shrink-0 items-center gap-1 rounded-md bg-accent-warm/15 px-1.5 py-0.5 text-caption text-accent-warm hover:bg-accent-warm/25 transition-colors sm:px-2"
               >
                 <Zap className="size-3" />
-                {diff.files.length} change{diff.files.length !== 1 ? "s" : ""}
+                {diff.files.length}<span className="hidden sm:inline">&nbsp;change{diff.files.length !== 1 ? "s" : ""}</span>
               </button>
             </SimpleTooltip>
           )}

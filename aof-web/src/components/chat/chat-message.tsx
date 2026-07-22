@@ -141,7 +141,7 @@ function ChatMessageImpl({
         {!isUser && message.error ? (
           <>
             {message.content && (
-              <div className="rounded-2xl rounded-tl-md border border-foreground/[0.06] bg-card/50 px-4 py-3 opacity-70">
+              <div className="rounded-xl rounded-tl-md border border-foreground/[0.06] bg-card/50 px-4 py-3 opacity-70">
                 <Markdown content={message.content} />
                 <p className="mt-2 text-xs text-muted-foreground">
                   ⚠ Partial response — generation stopped due to a provider error.
@@ -175,7 +175,7 @@ function ChatMessageImpl({
                     if (e.key === "Escape") cancelEdit();
                   }}
                   rows={1}
-                  className="w-full resize-none overflow-hidden rounded-2xl rounded-tr-md border border-primary/40 bg-primary/12 px-4 py-3 text-[15px] text-foreground outline-none focus:border-primary/70"
+                  className="w-full resize-none overflow-hidden rounded-xl rounded-tr-md border border-primary/40 bg-primary/12 px-4 py-3 text-[15px] text-foreground outline-none focus:border-primary/70"
                 />
                 <div className="flex justify-end gap-2">
                   <button
@@ -197,7 +197,7 @@ function ChatMessageImpl({
             ) : (
               <div
                 className={cn(
-                  "min-w-0 break-words [overflow-wrap:anywhere] rounded-2xl",
+                  "min-w-0 break-words [overflow-wrap:anywhere] rounded-xl",
                   isUser
                     ? "rounded-tr-md bg-secondary px-4 py-3 text-foreground shadow-neo-sm"
                     : "rounded-tl-md bg-transparent px-1 py-1 text-foreground",

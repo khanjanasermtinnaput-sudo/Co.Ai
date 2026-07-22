@@ -43,7 +43,7 @@ export const ProjectCard = forwardRef<HTMLDivElement, { project: Project }>(func
       exit={{ opacity: 0, scale: 0.98 }}
       transition={{ duration: 0.25 }}
       onClick={open}
-      className="group relative flex cursor-pointer flex-col rounded-2xl bg-card p-4 shadow-neo-sm transition-card hover:-translate-y-0.5 hover:shadow-neo"
+      className="group relative flex cursor-pointer flex-col rounded-xl bg-card p-4 shadow-neo-sm transition-card hover:-translate-y-0.5 hover:shadow-neo"
     >
       <div className="flex items-start justify-between">
         <span className="flex size-10 items-center justify-center rounded-xl bg-muted text-foreground shadow-neo-inset">
@@ -133,7 +133,7 @@ export function NewProjectCard({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="group flex min-h-[188px] flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border bg-card/30 p-4 text-muted-foreground transition-card hover:-translate-y-0.5 hover:border-foreground/40 hover:text-foreground"
+      className="group flex min-h-[188px] flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-card/30 p-4 text-muted-foreground transition-card hover:-translate-y-0.5 hover:border-foreground/40 hover:text-foreground"
     >
       <span className="flex size-11 items-center justify-center rounded-xl bg-muted text-foreground shadow-neo-inset transition-colors">
         <FolderOpen className="size-5" />

@@ -9,11 +9,41 @@
 // each took.
 
 import { useMemo, useState } from "react";
-import { ChevronDown, Loader2 } from "lucide-react";
+import { Check, ChevronDown, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUIStore } from "@/store/ui-store";
 import { PHASE_ORDER, phaseForStage, type WorkflowPhase } from "@/lib/workflow-phases";
 import type { StageNotice } from "@/lib/errors";
+
+// AI Activity Color System (DESIGN.md §6) — each real workflow phase gets its
+// own restrained pastel tint so the activity row reads as a timeline of what
+// Co.AI actually did, not one generic status chip repeated five times.
+const PHASE_TINT: Record<WorkflowPhase, { current: string; past: string }> = {
+  Understanding: {
+    current: "border-ai-understanding/35 bg-ai-understanding/10 text-ai-understanding",
+    past: "border-ai-understanding/20 text-ai-understanding/70",
+  },
+  Planning: {
+    current: "border-ai-planning/35 bg-ai-planning/10 text-ai-planning",
+    past: "border-ai-planning/20 text-ai-planning/70",
+  },
+  Building: {
+    current: "border-ai-building/35 bg-ai-building/10 text-ai-building",
+    past: "border-ai-building/20 text-ai-building/70",
+  },
+  Validating: {
+    current: "border-ai-validating/35 bg-ai-validating/10 text-ai-validating",
+    past: "border-ai-validating/20 text-ai-validating/70",
+  },
+  Reviewing: {
+    current: "border-ai-reviewing/35 bg-ai-reviewing/10 text-ai-reviewing",
+    past: "border-ai-reviewing/20 text-ai-reviewing/70",
+  },
+};
+
+function tintFor(phase: WorkflowPhase | string) {
+  return (PHASE_TINT as Record<string, { current: string; past: string }>)[phase];
+}
 
 interface PhaseGroup {
   phase: WorkflowPhase | string;
@@ -55,22 +85,23 @@ export function WorkflowProgress({ stageTrail, streaming }: { stageTrail?: Stage
         {groups.map((g, i) => {
           const isCurrent = i === currentIdx || (currentIdx === -1 && i === groups.length - 1);
           const isPast = currentIdx === -1 ? i < groups.length - 1 : i < currentIdx;
+          const tint = tintFor(g.phase);
           return (
             <span
               key={g.phase}
               className={cn(
                 "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-caption font-medium",
                 isCurrent
-                  ? "border-primary/30 bg-primary/10 text-primary"
+                  ? (tint?.current ?? "border-primary/30 bg-primary/10 text-primary")
                   : isPast
-                    ? "border-border bg-secondary/40 text-muted-foreground"
+                    ? (tint?.past ?? "border-border bg-secondary/40 text-muted-foreground")
                     : "border-border/50 text-muted-foreground/50",
               )}
             >
               {isCurrent ? (
                 <Loader2 className="size-3 animate-spin" />
               ) : (
-                <span className={cn("size-1.5 rounded-full", isPast ? "bg-muted-foreground" : "bg-muted-foreground/40")} />
+                <span className={cn("size-1.5 rounded-full", isPast ? "bg-current" : "bg-muted-foreground/40")} />
               )}
               {g.phase}
             </span>
@@ -90,6 +121,7 @@ export function WorkflowProgress({ stageTrail, streaming }: { stageTrail?: Stage
         aria-expanded={expanded}
         className="flex items-center gap-1.5 rounded-lg px-1 py-0.5 text-caption text-muted-foreground transition-colors hover:text-foreground"
       >
+        <Check className="size-3 text-success" />
         <ChevronDown className={cn("size-3 transition-transform", expanded && "rotate-180")} />
         Why did Co.AI do this?
         <span className="text-muted-foreground/60">

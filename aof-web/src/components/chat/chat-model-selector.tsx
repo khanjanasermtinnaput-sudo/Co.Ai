@@ -74,12 +74,14 @@ export function ChatModelSelector({
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="group inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-body-lg font-medium text-foreground transition-colors hover:bg-foreground/5"
+          className="group inline-flex min-w-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-body-lg font-medium text-foreground transition-colors hover:bg-foreground/5"
         >
-          <span className="font-semibold">CoChat</span>
-          <span className="text-muted-foreground">·</span>
-          <span className="text-primary">{triggerLabel}</span>
-          <ChevronDown className="size-3.5 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+          <span className="min-w-0 truncate">
+            <span className="font-semibold">CoChat</span>
+            <span className="text-muted-foreground"> · </span>
+            <span className="text-primary">{triggerLabel}</span>
+          </span>
+          <ChevronDown className="size-3.5 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className={MODEL_MENU_SURFACE}>

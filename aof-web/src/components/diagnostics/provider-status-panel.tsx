@@ -17,6 +17,7 @@ import {
   type SystemStatusLevel,
 } from "@/lib/health";
 import { formatUtc } from "@/lib/errors";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -29,7 +30,7 @@ const SYSTEM_LABEL: Record<SystemStatusLevel, string> = {
 
 const SYSTEM_STYLE: Record<SystemStatusLevel, string> = {
   OPERATIONAL: "border-success/40 bg-success/10 text-success",
-  DEGRADED: "border-amber-500/40 bg-amber-500/10 text-amber-300",
+  DEGRADED: "border-warning/40 bg-warning/10 text-warning",
   DOWN: "border-destructive/40 bg-destructive/10 text-destructive",
   UNKNOWN: "border-border bg-muted/40 text-muted-foreground",
 };
@@ -153,9 +154,9 @@ function ProviderRow({ provider }: { provider: ProviderHealth }) {
         <div className="flex items-center gap-2">
           <span className="truncate text-sm font-medium text-foreground">{provider.label}</span>
           {provider.primary && (
-            <span className="rounded border border-border px-1.5 py-px text-[10px] uppercase tracking-wide text-muted-foreground">
+            <Badge variant="outline" className="rounded px-1.5 py-px text-[10px] uppercase tracking-wide">
               Primary
-            </span>
+            </Badge>
           )}
         </div>
         {provider.model && <p className="truncate text-xs text-muted-foreground">{provider.model}</p>}

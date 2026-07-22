@@ -48,6 +48,13 @@ const config: Config = {
           DEFAULT: "hsl(var(--accent-warm))",
           foreground: "hsl(var(--accent-warm-foreground))",
         },
+        // AI Activity Color System (DESIGN.md §6) — scoped to AI workflow
+        // visualization only (phase pills, timelines, progress indicators).
+        "ai-understanding": "hsl(var(--ai-understanding))",
+        "ai-planning": "hsl(var(--ai-planning))",
+        "ai-building": "hsl(var(--ai-building))",
+        "ai-validating": "hsl(var(--ai-validating))",
+        "ai-reviewing": "hsl(var(--ai-reviewing))",
         muted: {
           DEFAULT: "hsl(var(--muted))",
           foreground: "hsl(var(--muted-foreground))",
