@@ -72,7 +72,7 @@ export function LoginModal() {
         <Button
           onClick={onGoogle}
           disabled={!configured || submitting}
-          className="h-11 w-full gap-3 bg-white text-[#1f1f1f] hover:bg-white/90"
+          className="h-11 w-full gap-3 bg-white text-[#1f1f1f] hover:bg-foreground/90"
         >
           <GoogleGlyph />
           {submitting ? "Redirecting…" : "Continue with Google"}

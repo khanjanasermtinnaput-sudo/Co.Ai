@@ -177,7 +177,7 @@ function FindingRow({
   return (
     <div className="border-b border-border/30">
       <button type="button" onClick={onToggle}
-        className="flex w-full items-start gap-2.5 px-4 py-2.5 text-left hover:bg-white/[0.03]">
+        className="flex w-full items-start gap-2.5 px-4 py-2.5 text-left hover:bg-foreground/[0.03]">
         {expanded ? <ChevronDown className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" /> : <ChevronRight className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />}
         {SEV_ICON[finding.severity]}
         <div className="min-w-0 flex-1">

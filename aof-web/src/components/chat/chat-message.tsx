@@ -43,7 +43,7 @@ function AgentBadges({ agents, quality, categories }: { agents?: string[]; quali
   return (
     <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
       {categories?.slice(0, 3).map((cat) => (
-        <span key={cat} className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-muted-foreground">
+        <span key={cat} className="rounded-full border border-foreground/10 bg-foreground/5 px-2 py-0.5 text-[10px] text-muted-foreground">
           {cat.replace(/_/g, " ")}
         </span>
       ))}
@@ -137,7 +137,7 @@ function ChatMessageImpl({
         {!isUser && message.error ? (
           <>
             {message.content && (
-              <div className="rounded-2xl rounded-tl-md border border-white/[0.06] bg-card/50 px-4 py-3 opacity-70">
+              <div className="rounded-2xl rounded-tl-md border border-foreground/[0.06] bg-card/50 px-4 py-3 opacity-70">
                 <Markdown content={message.content} />
                 <p className="mt-2 text-xs text-muted-foreground">
                   ⚠ Partial response — generation stopped due to a provider error.
@@ -175,7 +175,7 @@ function ChatMessageImpl({
                   <button
                     type="button"
                     onClick={cancelEdit}
-                    className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs text-muted-foreground hover:bg-white/5"
+                    className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs text-muted-foreground hover:bg-foreground/5"
                   >
                     <X className="size-3" /> Cancel
                   </button>
@@ -194,7 +194,7 @@ function ChatMessageImpl({
                   "min-w-0 break-words [overflow-wrap:anywhere] rounded-2xl px-4 py-3",
                   isUser
                     ? "rounded-tr-md bg-primary/12 text-foreground"
-                    : "rounded-tl-md border border-white/[0.06] bg-card/70",
+                    : "rounded-tl-md border border-foreground/[0.06] bg-card/70",
                 )}
               >
                 {message.attachments && message.attachments.length > 0 && (

@@ -51,7 +51,7 @@ export function ChatModelSelector({
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="group inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[15px] font-medium text-foreground transition-colors hover:bg-white/5"
+          className="group inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[15px] font-medium text-foreground transition-colors hover:bg-foreground/5"
         >
           <span className="font-semibold">CoChat</span>
           <span className="text-muted-foreground">·</span>

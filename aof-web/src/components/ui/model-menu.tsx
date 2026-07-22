@@ -19,18 +19,18 @@ import type { ChatModel, CodeMode, EffortLevel } from "@/lib/types";
 export const MODEL_MENU_SURFACE = cn(
   "w-[340px] rounded-2xl p-2",
   "!bg-white !text-neutral-900 !border-black/[0.08]",
-  "dark:!bg-[#0b0b0c] dark:!text-neutral-100 dark:!border-white/10",
+  "dark:!bg-[#0b0b0c] dark:!text-neutral-100 dark:!border-foreground/10",
   "shadow-[0_2px_4px_rgba(0,0,0,0.05),0_16px_32px_-12px_rgba(0,0,0,0.22),0_32px_72px_-16px_rgba(0,0,0,0.18)]",
   "dark:shadow-[0_2px_4px_rgba(0,0,0,0.5),0_24px_48px_-16px_rgba(0,0,0,0.7)]",
 );
 
 export const MODEL_MENU_LABEL = "text-neutral-500 dark:text-neutral-400";
-export const MODEL_MENU_SEPARATOR = "!bg-neutral-200 dark:!bg-white/10";
+export const MODEL_MENU_SEPARATOR = "!bg-neutral-200 dark:!bg-foreground/10";
 
 export const MODEL_MENU_ITEM = cn(
   "items-start gap-3 rounded-xl px-2 py-2.5",
   "focus:!bg-neutral-950/[0.05] focus:!text-neutral-900 data-[highlighted]:!bg-neutral-950/[0.05]",
-  "dark:focus:!bg-white/[0.06] dark:focus:!text-neutral-100 dark:data-[highlighted]:!bg-white/[0.06]",
+  "dark:focus:!bg-foreground/[0.06] dark:focus:!text-neutral-100 dark:data-[highlighted]:!bg-foreground/[0.06]",
 );
 
 export const MODEL_MENU_TITLE = "text-sm font-semibold text-neutral-900 dark:text-neutral-100";
@@ -38,7 +38,7 @@ export const MODEL_MENU_DESC = "mt-0.5 block text-xs text-neutral-500 dark:text-
 export const MODEL_MENU_BADGE = cn(
   "rounded-full px-1.5 py-px text-[10px] font-medium",
   "border border-neutral-200 bg-neutral-50 text-neutral-600",
-  "dark:border-white/10 dark:bg-white/5 dark:text-neutral-300",
+  "dark:border-foreground/10 dark:bg-foreground/5 dark:text-neutral-300",
 );
 export const MODEL_MENU_CHECK = "mt-1 size-4 !text-neutral-900 dark:!text-neutral-100";
 
@@ -56,11 +56,11 @@ export function ModelIconTile({
     <span className="relative mt-0.5 shrink-0">
       <span
         aria-hidden
-        className="absolute inset-x-[7px] -bottom-[7px] h-2.5 rounded-md bg-neutral-900/10 dark:bg-white/[0.07]"
+        className="absolute inset-x-[7px] -bottom-[7px] h-2.5 rounded-md bg-neutral-900/10 dark:bg-foreground/[0.07]"
       />
       <span
         aria-hidden
-        className="absolute inset-x-1 -bottom-1 h-3 rounded-lg bg-neutral-900/25 dark:bg-white/15"
+        className="absolute inset-x-1 -bottom-1 h-3 rounded-lg bg-neutral-900/25 dark:bg-foreground/15"
       />
       <span
         className={cn(
@@ -75,7 +75,7 @@ export function ModelIconTile({
         <Icon className="size-4" strokeWidth={1.75} />
       </span>
       {locked && (
-        <span className="absolute -bottom-1 -right-1 z-10 flex size-4 items-center justify-center rounded-full bg-white shadow-md ring-1 ring-black/10 dark:bg-neutral-900 dark:ring-white/15">
+        <span className="absolute -bottom-1 -right-1 z-10 flex size-4 items-center justify-center rounded-full bg-white shadow-md ring-1 ring-black/10 dark:bg-neutral-900 dark:ring-foreground/15">
           <Lock className="size-2.5 text-amber-600 dark:text-amber-500" strokeWidth={2.5} />
         </span>
       )}
@@ -169,7 +169,7 @@ export function EffortSlider({
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
         onKeyDown={onKeyDown}
-        className="relative mt-3 flex h-5 cursor-pointer touch-none select-none items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-neutral-900/20 dark:focus-visible:ring-white/20"
+        className="relative mt-3 flex h-5 cursor-pointer touch-none select-none items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-neutral-900/20 dark:focus-visible:ring-foreground/20"
       >
         <div ref={trackRef} className="relative h-1.5 w-full rounded-full bg-neutral-200 dark:bg-neutral-800">
           {/* filled portion */}
@@ -188,7 +188,7 @@ export function EffortSlider({
                 className={cn(
                   "absolute top-1/2 size-1 -translate-x-1/2 -translate-y-1/2 rounded-full",
                   passed
-                    ? "bg-white/70 dark:bg-neutral-900/70"
+                    ? "bg-foreground/70 dark:bg-neutral-900/70"
                     : "bg-neutral-400/70 dark:bg-neutral-600",
                 )}
                 style={{ left: `${at}%` }}

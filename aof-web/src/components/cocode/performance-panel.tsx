@@ -135,7 +135,7 @@ export function PerformancePanel({ className }: { className?: string }) {
               </div>
             ) : report.slowComponents.map((c, i) => (
               <button key={i} type="button" onClick={() => openTab(c.path)}
-                className="flex w-full items-start gap-2 px-4 py-2.5 text-left hover:bg-white/[0.03]">
+                className="flex w-full items-start gap-2 px-4 py-2.5 text-left hover:bg-foreground/[0.03]">
                 <FileCode className="mt-0.5 size-3.5 shrink-0 text-amber-400" />
                 <div>
                   <p className="text-[12px] font-medium">{c.name}</p>
@@ -156,7 +156,7 @@ export function PerformancePanel({ className }: { className?: string }) {
             expanded={expandedSection === "bundle"} onToggle={() => setExpandedSection(expandedSection === "bundle" ? null : "bundle")}>
             {report.largestFiles.map((f, i) => (
               <button key={i} type="button" onClick={() => openTab(f.path)}
-                className="flex w-full items-center gap-2 px-4 py-2 text-left hover:bg-white/[0.03]">
+                className="flex w-full items-center gap-2 px-4 py-2 text-left hover:bg-foreground/[0.03]">
                 <span className="w-5 text-[11px] text-muted-foreground/40">{i + 1}</span>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[12px]">{f.path}</p>

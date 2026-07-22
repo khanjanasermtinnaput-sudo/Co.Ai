@@ -194,7 +194,7 @@ export function ApiStudio({ className }: { className?: string }) {
                       setRequests((rs) => [...rs, req]);
                       setActiveId(req.id);
                     }}
-                    className="flex w-full items-center gap-1.5 rounded px-2 py-1.5 text-left text-[11px] text-muted-foreground hover:bg-white/5 hover:text-foreground">
+                    className="flex w-full items-center gap-1.5 rounded px-2 py-1.5 text-left text-[11px] text-muted-foreground hover:bg-foreground/5 hover:text-foreground">
                     <span className="text-emerald-400 font-mono">GET</span>
                     <span className="truncate">{route}</span>
                   </button>
@@ -209,7 +209,7 @@ export function ApiStudio({ className }: { className?: string }) {
               <div key={req.id}
                 className={cn(
                   "group flex cursor-pointer items-center gap-1.5 rounded px-2 py-1.5 text-[11px]",
-                  req.id === activeId ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-white/5 hover:text-foreground",
+                  req.id === activeId ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
                 )}
                 onClick={() => { setActiveId(req.id); setResponse(null); }}>
                 <span className={cn("font-mono text-[10px] font-bold shrink-0", METHOD_COLOR[req.method])}>
@@ -358,7 +358,7 @@ export function ApiStudio({ className }: { className?: string }) {
                 {history.map((h, i) => (
                   <button key={i} type="button"
                     onClick={() => { setRequests((rs) => [...rs, { ...h.req, id: `req_${Date.now()}` }]); setActiveId(`req_${Date.now()}`); setResponse(h.res); }}
-                    className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-white/[0.03]">
+                    className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-foreground/[0.03]">
                     <span className={cn("font-mono text-[11px] font-bold", METHOD_COLOR[h.req.method])}>{h.req.method}</span>
                     <span className="flex-1 truncate text-[12px]">{h.req.url}</span>
                     <span className={cn("text-[11px] font-bold", statusColor(h.res.status))}>{h.res.status}</span>

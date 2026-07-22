@@ -155,7 +155,7 @@ export function DocsGenerator({ className }: { className?: string }) {
                 "flex items-center gap-2 rounded-lg px-2 py-2 text-left text-[12px] transition-colors",
                 selected === dt.id
                   ? "bg-primary/15 text-primary"
-                  : "text-muted-foreground hover:text-foreground hover:bg-white/5",
+                  : "text-muted-foreground hover:text-foreground hover:bg-foreground/5",
               )}
             >
               <span className="text-sm">{dt.emoji}</span>

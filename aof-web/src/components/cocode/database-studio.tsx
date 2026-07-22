@@ -174,7 +174,7 @@ export function DatabaseStudio({ className }: { className?: string }) {
               <button key={t.name} type="button" onClick={() => setSelectedTable(t.name)}
                 className={cn(
                   "flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-[12px] transition-colors",
-                  selectedTable === t.name ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-white/5 hover:text-foreground",
+                  selectedTable === t.name ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
                 )}>
                 <Database className="size-3.5 shrink-0" />
                 <span className="truncate">{t.name}</span>

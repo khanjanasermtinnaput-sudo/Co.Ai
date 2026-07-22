@@ -127,7 +127,7 @@ export function CICDBuilder({ className }: { className?: string }) {
                   "mb-0.5 flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-[12px] transition-colors",
                   t.comingSoon
                     ? "cursor-not-allowed text-muted-foreground/40"
-                    : target === t.id ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-white/5",
+                    : target === t.id ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-foreground/5",
                 )}>
                 {t.label}
                 {t.comingSoon && (

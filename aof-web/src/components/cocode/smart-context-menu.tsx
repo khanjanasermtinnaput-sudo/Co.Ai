@@ -143,7 +143,7 @@ export function SmartContextMenu({
             type="button"
             className={cn(
               "flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[12px]",
-              "text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground",
+              "text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground",
             )}
             onClick={item.action}
           >

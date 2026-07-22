@@ -124,7 +124,7 @@ export function ScaffolderPanel({ className }: { className?: string }) {
               {TEMPLATES.map((t) => (
                 <button key={t.id} type="button" onClick={() => { setTemplate(t.id); setExtras(t.defaultExtras); }}
                   className={cn("w-full rounded-xl border p-3 text-left transition-colors",
-                    template === t.id ? "border-primary/50 bg-primary/10" : "border-border/50 hover:border-border hover:bg-white/5")}>
+                    template === t.id ? "border-primary/50 bg-primary/10" : "border-border/50 hover:border-border hover:bg-foreground/5")}>
                   <p className={cn("text-[13px] font-medium", template === t.id && "text-primary")}>{t.label}</p>
                   <p className="text-[11px] text-muted-foreground/60">{t.description}</p>
                 </button>

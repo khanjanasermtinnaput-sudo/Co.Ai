@@ -188,7 +188,7 @@ function SuggestionCard({
   return (
     <div className="border-b border-border/30">
       <button type="button" onClick={() => setExpanded((e) => !e)}
-        className="flex w-full items-start gap-2.5 px-4 py-3 text-left hover:bg-white/[0.03]">
+        className="flex w-full items-start gap-2.5 px-4 py-3 text-left hover:bg-foreground/[0.03]">
         {PRIORITY_ICON[suggestion.priority]}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">

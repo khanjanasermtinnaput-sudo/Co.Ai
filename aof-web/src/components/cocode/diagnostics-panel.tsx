@@ -321,7 +321,7 @@ function DiagRow({
       <button
         type="button"
         onClick={() => setExpanded((e) => !e)}
-        className="flex w-full items-start gap-2 px-4 py-2.5 text-left hover:bg-white/[0.03]"
+        className="flex w-full items-start gap-2 px-4 py-2.5 text-left hover:bg-foreground/[0.03]"
       >
         {expanded
           ? <ChevronDown className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />

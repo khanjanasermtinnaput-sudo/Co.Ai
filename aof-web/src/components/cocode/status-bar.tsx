@@ -74,7 +74,7 @@ export function WorkspaceStatusBar({
           <button
             type="button"
             onClick={() => setRightPanel("github")}
-            className="flex h-full items-center gap-1 px-2 transition-colors hover:bg-white/5 hover:text-foreground"
+            className="flex h-full items-center gap-1 px-2 transition-colors hover:bg-foreground/5 hover:text-foreground"
           >
             <GitBranch className="size-3" />
             <span className="max-w-[120px] truncate">{github.repo.branch}</span>
@@ -95,7 +95,7 @@ export function WorkspaceStatusBar({
           type="button"
           onClick={() => setRightPanel("diagnostics")}
           className={cn(
-            "flex h-full items-center gap-1 px-2 transition-colors hover:bg-white/5",
+            "flex h-full items-center gap-1 px-2 transition-colors hover:bg-foreground/5",
             tsErrorCount > 0 ? "text-red-400 hover:text-red-300" : "hover:text-foreground",
           )}
         >
@@ -146,7 +146,7 @@ export function WorkspaceStatusBar({
             <button
               type="button"
               onClick={toggleDeveloperMode}
-              className="flex h-full items-center gap-1 px-2 text-amber-400/80 transition-colors hover:bg-white/5 hover:text-amber-400"
+              className="flex h-full items-center gap-1 px-2 text-amber-400/80 transition-colors hover:bg-foreground/5 hover:text-amber-400"
             >
               <Zap className="size-3" />
               <span>DEV</span>
@@ -158,7 +158,7 @@ export function WorkspaceStatusBar({
 
       {/* Cursor position */}
       <SimpleTooltip label="Cursor Position" description="Line and column in the active file" side="top">
-        <div className="flex h-full items-center px-2 hover:bg-white/5 transition-colors">
+        <div className="flex h-full items-center px-2 hover:bg-foreground/5 transition-colors">
           Ln {cursorPosition.line}, Col {cursorPosition.col}
         </div>
       </SimpleTooltip>
@@ -167,7 +167,7 @@ export function WorkspaceStatusBar({
 
       {/* Language */}
       <SimpleTooltip label="Language Mode" description={`File language: ${detectedLanguage}`} side="top">
-        <div className="flex h-full items-center px-2 hover:bg-white/5 transition-colors">
+        <div className="flex h-full items-center px-2 hover:bg-foreground/5 transition-colors">
           {detectedLanguage}
         </div>
       </SimpleTooltip>

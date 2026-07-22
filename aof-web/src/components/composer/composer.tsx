@@ -122,7 +122,7 @@ export function Composer({
   return (
     <div
       className={cn(
-        "group glass border border-border transition-all duration-200 dark:border-white/10",
+        "group glass border border-border transition-all duration-200 dark:border-foreground/10",
         "focus-within:border-primary/40",
         size === "lg"
           ? "rounded-3xl p-4 shadow-glass focus-within:shadow-glow"
@@ -154,7 +154,7 @@ export function Composer({
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              className="mb-0.5 flex size-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+              className="mb-0.5 flex size-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground"
               aria-label="Attach files"
             >
               <Plus className="size-[18px]" />

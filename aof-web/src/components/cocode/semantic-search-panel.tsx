@@ -123,7 +123,7 @@ export function SemanticSearchPanel({ className }: { className?: string }) {
             {textResults.map((r, i) => (
               <button key={i} type="button"
                 onClick={() => openResult(r.path)}
-                className="flex w-full flex-col gap-0.5 px-4 py-2.5 text-left hover:bg-white/5 transition-colors">
+                className="flex w-full flex-col gap-0.5 px-4 py-2.5 text-left hover:bg-foreground/5 transition-colors">
                 <div className="flex items-center gap-2">
                   <FileCode className="size-3 shrink-0 text-muted-foreground/40" />
                   <span className="truncate text-[11px] text-muted-foreground/60">{r.path}</span>
@@ -140,7 +140,7 @@ export function SemanticSearchPanel({ className }: { className?: string }) {
             {symbolResults.map((r, i) => (
               <button key={i} type="button"
                 onClick={() => openResult(r.path)}
-                className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-white/5 transition-colors">
+                className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-foreground/5 transition-colors">
                 <span className={cn("shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium capitalize", KIND_COLOR[r.kind] ?? "text-foreground bg-secondary/30")}>
                   {r.kind}
                 </span>

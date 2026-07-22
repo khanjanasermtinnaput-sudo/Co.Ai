@@ -268,7 +268,9 @@ function AppearanceTab() {
       <Card>
         <CardHeader>
           <CardTitle>Theme</CardTitle>
-          <CardDescription>Co.AI looks its best in the dark.</CardDescription>
+          <CardDescription>
+            Monochrome by design — surfaces adapt, colour is kept for status only.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 gap-3">
@@ -277,14 +279,14 @@ function AppearanceTab() {
               label="Dark"
               active={current === "dark"}
               onClick={() => setTheme("dark")}
-              preview="bg-[#0A0A0A]"
+              preview="bg-[#131519]"
             />
             <ThemeOption
               icon={Sun}
               label="Light"
               active={current === "light"}
               onClick={() => setTheme("light")}
-              preview="bg-[#f7f5f0]"
+              preview="bg-[#e6e7ea]"
             />
           </div>
         </CardContent>
@@ -292,18 +294,20 @@ function AppearanceTab() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Accent</CardTitle>
-          <CardDescription>The signature Co.AI orange-gold.</CardDescription>
+          <CardTitle>Palette</CardTitle>
+          <CardDescription>Black &amp; white, with colour reserved for status.</CardDescription>
         </CardHeader>
         <CardContent className="flex items-center gap-3">
-          <span className="size-9 rounded-full bg-primary shadow-glow" />
+          <span className="size-9 rounded-full bg-primary shadow-neo-sm" />
           <div>
-            <p className="text-sm font-medium">Orange Gold</p>
-            <p className="text-xs text-muted-foreground">#F29A36</p>
+            <p className="text-sm font-medium">Monochrome</p>
+            <p className="text-xs text-muted-foreground">Neomorphism + glass</p>
           </div>
-          <Badge variant="muted" className="ml-auto">
-            Active
-          </Badge>
+          <div className="ml-auto flex items-center gap-1.5">
+            <span className="size-3.5 rounded-full bg-success" title="Success" />
+            <span className="size-3.5 rounded-full bg-warning" title="Warning" />
+            <span className="size-3.5 rounded-full bg-destructive" title="Error" />
+          </div>
         </CardContent>
       </Card>
 
@@ -342,7 +346,7 @@ function ThemeOption({
         active ? "border-primary/50 bg-primary/10 shadow-glow-sm" : "border-border hover:border-primary/30",
       )}
     >
-      <span className={cn("flex size-10 items-center justify-center rounded-lg border border-white/10", preview)}>
+      <span className={cn("flex size-10 items-center justify-center rounded-lg border border-foreground/10", preview)}>
         <Icon className="size-4 text-primary" />
       </span>
       <span className="flex-1 text-sm font-medium">{label}</span>

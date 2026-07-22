@@ -120,7 +120,7 @@ export function I18nPanel({ className }: { className?: string }) {
                 {Array.from(byFile.entries()).map(([filePath, strings]) => (
                   <div key={filePath} className="rounded-xl border border-border/40 overflow-hidden">
                     <button type="button" onClick={() => toggleFile(filePath)}
-                      className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-white/5">
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-foreground/5">
                       <ChevronRight className={cn("size-3.5 shrink-0 text-muted-foreground/50 transition-transform", expandedFiles.has(filePath) && "rotate-90")} />
                       <span className="flex-1 truncate text-[12px]">{filePath}</span>
                       <span className="text-[11px] text-muted-foreground/50">{strings.length}</span>

@@ -37,7 +37,7 @@ function FileRow({ file, onClick }: { file: FileCoverage; onClick: () => void })
 
   return (
     <button type="button" onClick={onClick}
-      className={cn("flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-white/5", gradeBg)}>
+      className={cn("flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-foreground/5", gradeBg)}>
       <span className={cn("shrink-0 w-5 text-[12px] font-bold text-center", gradeColor)}>{file.grade}</span>
       <div className="min-w-0 flex-1">
         <p className="truncate text-[12px]">{name}</p>

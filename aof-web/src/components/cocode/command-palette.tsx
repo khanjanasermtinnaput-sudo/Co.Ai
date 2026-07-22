@@ -217,7 +217,7 @@ export function CommandPalette({
                         "flex w-full items-center gap-3 px-4 py-2 text-left transition-colors",
                         isSelected
                           ? "bg-primary/10"
-                          : "hover:bg-white/5",
+                          : "hover:bg-foreground/5",
                       )}
                       onMouseEnter={() => setSelectedIdx(flatIdx)}
                       onClick={cmd.action}

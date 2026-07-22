@@ -128,7 +128,7 @@ export function DependencyPanel({ className }: { className?: string }) {
               <p className="px-4 py-2.5 text-[12px] text-emerald-400">No unused imports.</p>
             ) : report.unusedImports.map((u, i) => (
               <button key={i} type="button" onClick={() => openTab(u.file)}
-                className="flex w-full items-center gap-2 px-4 py-1.5 text-left hover:bg-white/5">
+                className="flex w-full items-center gap-2 px-4 py-1.5 text-left hover:bg-foreground/5">
                 <Trash2 className="size-3 shrink-0 text-amber-400" />
                 <span className="text-[11px] text-amber-300">{u.specifier}</span>
                 <span className="ml-auto truncate text-[11px] text-muted-foreground/50">{u.file}:{u.line}</span>
@@ -161,7 +161,7 @@ export function DependencyPanel({ className }: { className?: string }) {
               <p className="px-4 py-2.5 text-[12px] text-emerald-400">No oversized files.</p>
             ) : report.largeBundles.map((b, i) => (
               <button key={i} type="button" onClick={() => openTab(b.path)}
-                className="flex w-full items-start gap-2 px-4 py-2 text-left hover:bg-white/5">
+                className="flex w-full items-start gap-2 px-4 py-2 text-left hover:bg-foreground/5">
                 <FileCode className="mt-0.5 size-3.5 shrink-0 text-amber-400" />
                 <div>
                   <p className="text-[12px] text-foreground/80">{b.path}</p>

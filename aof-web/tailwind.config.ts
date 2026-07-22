@@ -36,6 +36,10 @@ const config: Config = {
           DEFAULT: "hsl(var(--success))",
           foreground: "hsl(var(--success-foreground))",
         },
+        warning: {
+          DEFAULT: "hsl(var(--warning))",
+          foreground: "hsl(var(--warning-foreground))",
+        },
         muted: {
           DEFAULT: "hsl(var(--muted))",
           foreground: "hsl(var(--muted-foreground))",
@@ -70,9 +74,15 @@ const config: Config = {
       },
       boxShadow: {
         glass: "0 1px 0 0 hsl(0 0% 100% / 0.04) inset, 0 8px 30px -12px hsl(0 0% 0% / 0.6)",
-        // Diffuse orange glow toned down ~50% — keeps the thin accent ring, drops the bloom
-        glow: "0 0 0 1px hsl(var(--primary) / 0.16), 0 8px 30px -12px hsl(var(--primary) / 0.14)",
-        "glow-sm": "0 0 0 1px hsl(var(--primary) / 0.14), 0 4px 18px -10px hsl(var(--primary) / 0.12)",
+        // Neomorphism — dual-light, theme-aware via CSS vars (--neo-light / --neo-dark)
+        neo: "-6px -6px 14px hsl(var(--neo-light)), 6px 6px 16px hsl(var(--neo-dark))",
+        "neo-sm": "-3px -3px 7px hsl(var(--neo-light)), 3px 3px 8px hsl(var(--neo-dark))",
+        "neo-inset":
+          "inset -3px -3px 7px hsl(var(--neo-light)), inset 4px 4px 9px hsl(var(--neo-dark))",
+        // Legacy accent-glow names repurposed to neutral neomorphic elevation so existing
+        // `shadow-glow` / `shadow-glow-sm` usages upgrade without touching every component.
+        glow: "-6px -6px 14px hsl(var(--neo-light)), 6px 6px 16px hsl(var(--neo-dark))",
+        "glow-sm": "-3px -3px 7px hsl(var(--neo-light)), 3px 3px 8px hsl(var(--neo-dark))",
         // Neutral card shadows — soft in light, near-invisible in dark
         "card-soft": "0 1px 2px 0 hsl(0 0% 0% / 0.04), 0 8px 24px -14px hsl(0 0% 0% / 0.12)",
         "card-hover": "0 2px 6px 0 hsl(0 0% 0% / 0.06), 0 14px 34px -14px hsl(0 0% 0% / 0.16)",

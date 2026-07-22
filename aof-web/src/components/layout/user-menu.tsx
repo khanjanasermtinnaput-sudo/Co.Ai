@@ -61,7 +61,7 @@ export function UserMenu({ expanded = false }: UserMenuProps) {
           "group flex items-center rounded-xl font-medium transition-colors",
           expanded
             ? "min-h-11 w-full gap-3 bg-primary/10 p-2.5 text-sm text-foreground hover:bg-primary/15"
-            : "size-11 justify-center text-muted-foreground hover:bg-white/5",
+            : "size-11 justify-center text-muted-foreground hover:bg-foreground/5",
         )}
       >
         <LogIn className="size-[18px] shrink-0 text-primary" />
@@ -76,11 +76,11 @@ export function UserMenu({ expanded = false }: UserMenuProps) {
         <button
           type="button"
           className={cn(
-            "group flex items-center gap-3 rounded-xl text-left transition-colors hover:bg-white/5",
+            "group flex items-center gap-3 rounded-xl text-left transition-colors hover:bg-foreground/5",
             expanded ? "w-full p-2" : "size-10 justify-center p-0",
           )}
         >
-          <Avatar className="size-9 ring-1 ring-white/10">
+          <Avatar className="size-9 ring-1 ring-foreground/10">
             {avatarUrl && <AvatarImage src={avatarUrl} alt={name} />}
             <AvatarFallback>{initials}</AvatarFallback>
           </Avatar>

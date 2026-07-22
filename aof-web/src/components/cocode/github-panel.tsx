@@ -167,7 +167,7 @@ export function GitHubPanel() {
           </div>
           {github.loading && cloneProgress > 0 && cloneProgress < 100 && (
             <div className="mt-2">
-              <div className="h-1 w-full rounded-full bg-white/10">
+              <div className="h-1 w-full rounded-full bg-foreground/10">
                 <div
                   className="h-full rounded-full bg-primary transition-all"
                   style={{ width: `${cloneProgress}%` }}

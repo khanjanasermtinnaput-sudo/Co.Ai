@@ -38,7 +38,7 @@ function ErrorToastContent({
         <button
           type="button"
           onClick={onAction}
-          className="mt-1 self-start rounded-md border border-border px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-white/5"
+          className="mt-1 self-start rounded-md border border-border px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-foreground/5"
         >
           {actionLabel}
         </button>

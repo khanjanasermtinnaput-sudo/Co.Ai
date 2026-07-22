@@ -81,7 +81,7 @@ export function ProjectWorkspace({ projectId }: { projectId: string }) {
       </button>
 
       <div className="flex items-start gap-3">
-        <span className="flex size-11 items-center justify-center rounded-xl border border-white/10 bg-background/60 text-primary">
+        <span className="flex size-11 items-center justify-center rounded-xl border border-foreground/10 bg-background/60 text-primary">
           <TypeIcon className="size-5" />
         </span>
         <div className="min-w-0 flex-1">

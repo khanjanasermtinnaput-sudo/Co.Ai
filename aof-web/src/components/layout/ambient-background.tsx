@@ -17,7 +17,7 @@ export function AmbientBackground() {
       <div className="absolute left-[18%] top-[28%] hidden size-1 rounded-full bg-primary/40 animate-drift-slow dark:block" />
       <div className="absolute left-[72%] top-[22%] hidden size-1 rounded-full bg-primary/30 animate-drift-slow [animation-delay:-4s] dark:block" />
       <div className="absolute left-[40%] top-[64%] hidden size-[3px] rounded-full bg-primary/25 animate-drift-slow [animation-delay:-9s] dark:block" />
-      <div className="absolute left-[86%] top-[58%] hidden size-1 rounded-full bg-white/15 animate-drift-slow [animation-delay:-7s] dark:block" />
+      <div className="absolute left-[86%] top-[58%] hidden size-1 rounded-full bg-foreground/15 animate-drift-slow [animation-delay:-7s] dark:block" />
 
       {/* Very subtle vignette to seat content — dark mode only, much lighter */}
       <div className="absolute inset-0 hidden bg-[radial-gradient(ellipse_at_center,transparent_62%,hsl(0_0%_0%/0.30))] dark:block" />

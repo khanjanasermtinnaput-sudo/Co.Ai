@@ -66,7 +66,7 @@ const TreeNode = memo(function TreeNode({
         <div
           className={cn(
             "group flex cursor-pointer select-none items-center gap-1 rounded-sm px-2 py-0.5 text-[13px]",
-            "hover:bg-white/[0.05]",
+            "hover:bg-foreground/[0.05]",
             isSelected && "bg-primary/10",
             isDraggingOver && "outline outline-1 outline-primary/40",
           )}
@@ -117,9 +117,9 @@ const TreeNode = memo(function TreeNode({
     <div
       className={cn(
         "group flex cursor-pointer select-none items-center gap-1.5 rounded-sm px-2 py-0.5 text-[13px]",
-        "hover:bg-white/[0.05]",
+        "hover:bg-foreground/[0.05]",
         isActive && "bg-primary/15 text-foreground",
-        isSelected && !isActive && "bg-white/[0.06]",
+        isSelected && !isActive && "bg-foreground/[0.06]",
         highlight && "ring-1 ring-inset ring-primary/30",
       )}
       style={{ paddingLeft: `${depth * 12 + 8}px` }}
@@ -247,7 +247,7 @@ function ContextMenu({
           type="button"
           onClick={a.onClick}
           className={cn(
-            "flex w-full items-center gap-2 px-3 py-1.5 text-left text-[13px] hover:bg-white/5",
+            "flex w-full items-center gap-2 px-3 py-1.5 text-left text-[13px] hover:bg-foreground/5",
             a.danger ? "text-red-400" : "text-muted-foreground",
           )}
         >
@@ -398,7 +398,7 @@ export function FileExplorer() {
               <div
                 key={path}
                 onClick={() => openTab(path)}
-                className="flex cursor-pointer items-center gap-1.5 px-3 py-0.5 text-[12px] text-muted-foreground hover:bg-white/5 hover:text-foreground"
+                className="flex cursor-pointer items-center gap-1.5 px-3 py-0.5 text-[12px] text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
               >
                 <Pin className="size-3 shrink-0 text-primary/60" />
                 <span className="truncate">{name}</span>
@@ -420,7 +420,7 @@ export function FileExplorer() {
               <div
                 key={path}
                 onClick={() => openTab(path)}
-                className="flex cursor-pointer items-center gap-1.5 px-3 py-0.5 text-[12px] text-muted-foreground hover:bg-white/5 hover:text-foreground"
+                className="flex cursor-pointer items-center gap-1.5 px-3 py-0.5 text-[12px] text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
               >
                 <FileIcon name={name} />
                 <span className="truncate">{name}</span>
@@ -445,7 +445,7 @@ export function FileExplorer() {
               <div
                 key={file.path}
                 onClick={() => openTab(file.path)}
-                className="flex cursor-pointer items-center gap-1.5 px-3 py-0.5 text-[12px] text-muted-foreground hover:bg-white/5 hover:text-foreground"
+                className="flex cursor-pointer items-center gap-1.5 px-3 py-0.5 text-[12px] text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
               >
                 <FileIcon name={file.name} />
                 <span className="min-w-0 truncate">{file.path}</span>

@@ -75,7 +75,7 @@ function TabBar() {
               "text-[12px] transition-colors",
               isActive
                 ? "bg-background/80 text-foreground"
-                : "text-muted-foreground hover:bg-white/[0.04] hover:text-foreground",
+                : "text-muted-foreground hover:bg-foreground/[0.04] hover:text-foreground",
             ].join(" ")}
             onClick={() => setActiveTab(tab.path)}
             onDoubleClick={() => pinTab(tab.path)}
@@ -88,7 +88,7 @@ function TabBar() {
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); closeTab(tab.path); }}
-              className="size-4 shrink-0 rounded opacity-0 hover:bg-white/10 hover:text-foreground group-hover:opacity-100"
+              className="size-4 shrink-0 rounded opacity-0 hover:bg-foreground/10 hover:text-foreground group-hover:opacity-100"
             >
               <span className="flex items-center justify-center text-[10px]">×</span>
             </button>

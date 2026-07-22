@@ -19,8 +19,8 @@ function CodeBlock({ lang, body }: { lang: string; body: string }) {
   };
 
   return (
-    <div className="group/code relative overflow-hidden rounded-xl border border-white/10 bg-black/40">
-      <div className="flex h-8 items-center justify-between border-b border-white/[0.06] px-3">
+    <div className="group/code relative overflow-hidden rounded-xl border border-foreground/10 bg-black/40">
+      <div className="flex h-8 items-center justify-between border-b border-foreground/[0.06] px-3">
         <span className="font-mono text-[11px] text-muted-foreground/60">
           {lang || "code"}
         </span>
@@ -65,7 +65,7 @@ const components: Components = {
       return <CodeBlock lang={lang} body={String(children).replace(/\n$/, "")} />;
     }
     return (
-      <code className="rounded bg-white/[0.08] px-1.5 py-0.5 font-mono text-[0.85em] text-primary/90">
+      <code className="rounded bg-foreground/[0.08] px-1.5 py-0.5 font-mono text-[0.85em] text-primary/90">
         {children}
       </code>
     );
@@ -96,18 +96,18 @@ const components: Components = {
 
   // GFM table support
   table: ({ children }) => (
-    <div className="overflow-x-auto rounded-lg border border-white/10">
+    <div className="overflow-x-auto rounded-lg border border-foreground/10">
       <table className="w-full text-sm">{children}</table>
     </div>
   ),
   thead: ({ children }) => (
-    <thead className="bg-white/[0.04] text-foreground/70">{children}</thead>
+    <thead className="bg-foreground/[0.04] text-foreground/70">{children}</thead>
   ),
   th: ({ children }) => (
     <th className="px-3 py-2 text-left font-medium">{children}</th>
   ),
   td: ({ children }) => (
-    <td className="border-t border-white/[0.06] px-3 py-2">{children}</td>
+    <td className="border-t border-foreground/[0.06] px-3 py-2">{children}</td>
   ),
 };
 

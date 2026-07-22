@@ -78,7 +78,7 @@ function AdminSidebar() {
                 "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors",
                 active
                   ? "bg-primary/10 text-primary font-medium"
-                  : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
+                  : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
               )}
             >
               <Icon className="size-4 shrink-0" />
@@ -111,7 +111,7 @@ function AdminSidebar() {
         </div>
         <Link
           href="/"
-          className="mt-1 flex items-center gap-2 rounded-lg px-3 py-1.5 text-[12px] text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors"
+          className="mt-1 flex items-center gap-2 rounded-lg px-3 py-1.5 text-[12px] text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors"
         >
           <Shield className="size-3.5" />
           Back to App
@@ -133,7 +133,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <Shield className="size-4 text-amber-500" />
               <span className="text-sm font-medium text-muted-foreground">Co.AI Admin Dashboard</span>
             </div>
-            <button type="button" className="rounded-lg p-2 text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors">
+            <button type="button" className="rounded-lg p-2 text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors">
               <Bell className="size-4" />
             </button>
           </header>

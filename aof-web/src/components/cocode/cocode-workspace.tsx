@@ -266,7 +266,7 @@ function OverflowPanelMenu({
                         type="button"
                         onClick={() => { onSelect(p.id as IDEPanel); setOpen(false); }}
                         className={cn(
-                          "flex w-full items-start gap-2 px-3 py-2 text-left transition-colors hover:bg-white/5",
+                          "flex w-full items-start gap-2 px-3 py-2 text-left transition-colors hover:bg-foreground/5",
                           activePanel === p.id && "bg-primary/10",
                         )}
                       >
@@ -467,7 +467,7 @@ export function CoCodeWorkspace() {
           <button
             type="button"
             onClick={toggleExplorer}
-            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground"
           >
             {explorerOpen ? <PanelLeftClose className="size-4" /> : <PanelLeftOpen className="size-4" />}
           </button>
@@ -514,7 +514,7 @@ export function CoCodeWorkspace() {
               type="button"
               onClick={undo}
               disabled={!canUndo}
-              className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground disabled:opacity-25"
+              className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground disabled:opacity-25"
             >
               <svg viewBox="0 0 16 16" className="size-3.5 fill-current"><path d="M3.5 3.5v3h3V5h-1.5l1.5-1.5L8 5v1h-2v2H7.5L9 6.5l1.5 1.5H9v1h-1.5v3h5v-3h-1.5l-1.5 1.5V8.5H7V6.5h3v-2L8.5 3 7 4.5V3.5h-3z" /></svg>
             </button>
@@ -526,7 +526,7 @@ export function CoCodeWorkspace() {
               type="button"
               onClick={redo}
               disabled={!canRedo}
-              className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground disabled:opacity-25"
+              className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground disabled:opacity-25"
             >
               <svg viewBox="0 0 16 16" className="size-3.5 fill-current scale-x-[-1]"><path d="M3.5 3.5v3h3V5h-1.5l1.5-1.5L8 5v1h-2v2H7.5L9 6.5l1.5 1.5H9v1h-1.5v3h5v-3h-1.5l-1.5 1.5V8.5H7V6.5h3v-2L8.5 3 7 4.5V3.5h-3z" /></svg>
             </button>
@@ -534,7 +534,7 @@ export function CoCodeWorkspace() {
 
           {/* Upload */}
           <SimpleTooltip label="Upload Files" description="Import local files into the workspace" side="bottom">
-            <label className="cursor-pointer rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground">
+            <label className="cursor-pointer rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground">
               <Upload className="size-3.5" />
               <input type="file" multiple className="hidden" onChange={handleFileUpload} />
             </label>
@@ -623,7 +623,7 @@ export function CoCodeWorkspace() {
                       onClick={() => setRightPanel(isActive ? null : p.id as IDEPanel)}
                       className={cn(
                         "inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium whitespace-nowrap transition-colors",
-                        isActive ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-white/5",
+                        isActive ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-foreground/5",
                       )}
                     >
                       <Icon className="size-3" />
@@ -645,7 +645,7 @@ export function CoCodeWorkspace() {
               <button
                 type="button"
                 onClick={() => setRightPanel(null)}
-                className="ml-auto shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+                className="ml-auto shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground"
               >
                 <X className="size-3.5" />
               </button>
@@ -672,7 +672,7 @@ export function CoCodeWorkspace() {
                   <button
                     type="button"
                     onClick={() => setRightPanel(p.id as IDEPanel)}
-                    className="flex w-8 items-center justify-center rounded-md py-1.5 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+                    className="flex w-8 items-center justify-center rounded-md py-1.5 text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground"
                   >
                     <Icon className="size-4" />
                   </button>

@@ -19,7 +19,7 @@ import { detectDeployConfig, type DeployTarget, type DeployConfig, type DeployLo
 import { flattenFiles } from "@/lib/cocode/virtual-fs";
 
 const TARGET_INFO: Record<DeployTarget, { name: string; color: string; emoji: string }> = {
-  vercel: { name: "Vercel", color: "bg-black/40 border-white/20 text-white", emoji: "▲" },
+  vercel: { name: "Vercel", color: "bg-black/40 border-foreground/20 text-white", emoji: "▲" },
   netlify: { name: "Netlify", color: "bg-teal-500/20 border-teal-500/40 text-teal-300", emoji: "◆" },
   railway: { name: "Railway", color: "bg-purple-500/20 border-purple-500/40 text-purple-300", emoji: "🚂" },
   cloudflare: { name: "Cloudflare Pages", color: "bg-orange-500/20 border-orange-500/40 text-orange-300", emoji: "☁️" },

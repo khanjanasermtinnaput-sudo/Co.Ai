@@ -33,8 +33,8 @@ export function NavLink({
       aria-current={active ? "page" : undefined}
       className={cn(
         "group relative flex items-center rounded-xl text-sidebar-foreground transition-colors",
-        "hover:bg-white/[0.06] hover:text-foreground",
-        active && "bg-white/[0.06] text-foreground",
+        "hover:bg-foreground/[0.06] hover:text-foreground",
+        active && "bg-foreground/[0.06] text-foreground",
         expanded ? "h-11 w-full gap-3 px-3" : "size-11 justify-center",
       )}
     >

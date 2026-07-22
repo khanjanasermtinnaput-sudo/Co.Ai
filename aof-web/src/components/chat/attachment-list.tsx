@@ -53,7 +53,7 @@ export function AttachmentList({ attachments, onRemove, className }: Props) {
                 type="button"
                 onClick={() => onRemove(a.id)}
                 aria-label={`Remove ${a.name}`}
-                className="ml-0.5 flex size-5 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground"
+                className="ml-0.5 flex size-5 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground"
               >
                 <X className="size-3.5" />
               </button>

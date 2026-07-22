@@ -83,7 +83,7 @@ export function CodeConversation({ mode }: { mode: Exclude<CodeMode, "titan"> })
               <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="flex size-14 items-center justify-center rounded-2xl border border-white/10 bg-card"
+                className="flex size-14 items-center justify-center rounded-2xl border border-foreground/10 bg-card"
               >
                 <Boxes className="size-7 text-primary" />
               </motion.div>
@@ -113,7 +113,7 @@ export function CodeConversation({ mode }: { mode: Exclude<CodeMode, "titan"> })
               {(buildLog || building || buildError) && (
                 <div className="mx-auto w-full max-w-3xl space-y-3 px-4 pb-6 sm:px-6">
                   {(buildLog || building) && (
-                    <div className="rounded-2xl border border-white/[0.07] bg-card/60">
+                    <div className="rounded-2xl border border-foreground/[0.07] bg-card/60">
                       <div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
                         <Terminal className="size-4 text-primary" />
                         <span className="text-sm font-medium">{outputTitle}</span>

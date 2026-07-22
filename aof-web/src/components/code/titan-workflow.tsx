@@ -125,7 +125,7 @@ function ContinueBar({
 
 function Panel({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={cn("rounded-2xl border border-white/[0.07] bg-card/60 p-5", className)}>
+    <div className={cn("rounded-2xl border border-foreground/[0.07] bg-card/60 p-5", className)}>
       {children}
     </div>
   );
@@ -399,7 +399,7 @@ function PlanCard({
         "flex h-full flex-col rounded-2xl border p-4 text-left transition-card",
         selected
           ? "border-primary/50 bg-primary/[0.06] shadow-glow"
-          : "border-white/[0.07] bg-card/60 hover:border-primary/30",
+          : "border-foreground/[0.07] bg-card/60 hover:border-primary/30",
       )}
     >
       <div className="flex items-center justify-between">
@@ -530,7 +530,7 @@ function ApprovalPhase() {
         release it to the build pipeline.
       </p>
 
-      <div className="mt-6 rounded-2xl border border-white/[0.07] bg-card/60 p-5 text-left">
+      <div className="mt-6 rounded-2xl border border-foreground/[0.07] bg-card/60 p-5 text-left">
         <Row label="Project" value={titan.prompt} />
         <Row label="Chosen plan" value={chosen ? `${chosen.title} — ${chosen.tagline}` : "—"} />
         <Row label="Confidence" value={`${titan.confidence}%`} />

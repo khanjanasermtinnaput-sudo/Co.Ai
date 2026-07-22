@@ -138,7 +138,7 @@ export function RefactorMenu({ className }: { className?: string }) {
             onClick={() => void handleRefactor(op.kind)}
             className={cn(
               "flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors",
-              "hover:bg-white/[0.05] disabled:opacity-50",
+              "hover:bg-foreground/[0.05] disabled:opacity-50",
               done && "bg-emerald-500/10",
             )}
           >

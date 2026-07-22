@@ -25,7 +25,7 @@ export function ThemeToggle({
       onClick={toggle}
       aria-label="Toggle theme"
       className={cn(
-        "group flex items-center gap-3 rounded-lg text-sidebar-foreground transition-colors hover:bg-white/5 hover:text-foreground",
+        "group flex items-center gap-3 rounded-lg text-sidebar-foreground transition-colors hover:bg-foreground/5 hover:text-foreground",
         expanded ? "h-11 w-full px-3" : "size-11 justify-center",
         className,
       )}

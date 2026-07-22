@@ -35,7 +35,7 @@ export function TaotaoAvatar({
   }
 
   return (
-    <span className="relative flex size-8 items-center justify-center rounded-full border border-white/10 bg-card">
+    <span className="relative flex size-8 items-center justify-center rounded-full border border-foreground/10 bg-card">
       {success && <Sparkles />}
       <TaotaoSprite emotion={emotion} size={26} alive={alive} />
     </span>

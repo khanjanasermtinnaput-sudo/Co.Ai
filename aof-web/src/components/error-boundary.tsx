@@ -89,7 +89,7 @@ function ErrorFallback({ error, onReset }: { error?: Error; onReset: () => void 
           <button
             type="button"
             onClick={onReset}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-white/5"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-foreground/5"
           >
             <RefreshCw className="size-3" />
             Try again
@@ -97,7 +97,7 @@ function ErrorFallback({ error, onReset }: { error?: Error; onReset: () => void 
           <button
             type="button"
             onClick={copy}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-white/5"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-foreground/5"
           >
             {copied ? <Check className="size-3 text-green-400" /> : <Copy className="size-3" />}
             {copied ? "Copied" : "Copy Diagnostics"}

@@ -41,7 +41,7 @@ export function MobileTopbar() {
         <Dialog.Trigger asChild>
           <button
             type="button"
-            className="flex size-11 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+            className="flex size-11 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground"
             aria-label="Open navigation"
           >
             <Menu className="size-5" />
@@ -58,7 +58,7 @@ export function MobileTopbar() {
               <Dialog.Close asChild>
                 <button
                   type="button"
-                  className="flex size-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+                  className="flex size-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground"
                   aria-label="Close navigation"
                 >
                   <X className="size-5" />

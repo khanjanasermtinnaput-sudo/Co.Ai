@@ -144,7 +144,7 @@ export function CollaborationPanel({ className }: { className?: string }) {
                 Active ({collaborators.length})
               </p>
               {collaborators.map((c) => (
-                <div key={c.id} className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-white/5">
+                <div key={c.id} className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-foreground/5">
                   <div className="relative">
                     <div className="flex size-8 items-center justify-center rounded-full text-[12px] font-bold"
                       style={{ backgroundColor: c.color, color: readableTextColor(c.color) }}>

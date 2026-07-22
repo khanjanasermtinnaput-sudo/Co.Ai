@@ -80,7 +80,7 @@ export function Sidebar() {
             <button
               type="button"
               onClick={toggle}
-              className="flex size-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+              className="flex size-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground"
               aria-label="Collapse sidebar"
             >
               <PanelLeftClose className="size-[18px]" />
@@ -127,7 +127,7 @@ export function Sidebar() {
               <button
                 type="button"
                 onClick={toggle}
-                className="flex size-11 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+                className="flex size-11 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground"
                 aria-label="Expand sidebar"
               >
                 <PanelLeftOpen className="size-[18px]" />
@@ -268,7 +268,7 @@ export function CoChatHistoryPanel({ pathname }: { pathname: string }) {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search chats…"
-          className="w-full rounded-lg border border-border/50 bg-white/[0.03] py-1.5 pl-7 pr-7 text-[12px] text-foreground placeholder:text-muted-foreground/40 outline-none focus:border-primary/30 focus:bg-white/[0.05]"
+          className="w-full rounded-lg border border-border/50 bg-foreground/[0.03] py-1.5 pl-7 pr-7 text-[12px] text-foreground placeholder:text-muted-foreground/40 outline-none focus:border-primary/30 focus:bg-foreground/[0.05]"
         />
         {search && (
           <button
@@ -314,7 +314,7 @@ export function CoChatHistoryPanel({ pathname }: { pathname: string }) {
             <button
               type="button"
               onClick={() => setVisibleCount((n) => n + 60)}
-              className="w-full rounded-lg px-2 py-1.5 text-center text-[12px] text-muted-foreground/60 transition-colors hover:bg-white/5 hover:text-muted-foreground"
+              className="w-full rounded-lg px-2 py-1.5 text-center text-[12px] text-muted-foreground/60 transition-colors hover:bg-foreground/5 hover:text-muted-foreground"
             >
               Load more ({conversations.length - visibleCount} remaining)
             </button>
@@ -385,7 +385,7 @@ export function CoCodeHistoryPanel() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search projects…"
-          className="w-full rounded-lg border border-border/50 bg-white/[0.03] py-1.5 pl-7 pr-7 text-[12px] text-foreground placeholder:text-muted-foreground/40 outline-none focus:border-primary/30 focus:bg-white/[0.05]"
+          className="w-full rounded-lg border border-border/50 bg-foreground/[0.03] py-1.5 pl-7 pr-7 text-[12px] text-foreground placeholder:text-muted-foreground/40 outline-none focus:border-primary/30 focus:bg-foreground/[0.05]"
         />
         {search && (
           <button
@@ -406,7 +406,7 @@ export function CoCodeHistoryPanel() {
         filtered.map((p) => (
           <div
             key={p.id}
-            className="group relative flex items-center gap-2 rounded-lg px-2 py-1.5 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+            className="group relative flex items-center gap-2 rounded-lg px-2 py-1.5 text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground"
           >
             <button
               type="button"
@@ -502,7 +502,7 @@ function ConversationItem({
         "group relative flex items-center gap-2 rounded-lg px-2 py-1.5 transition-colors",
         active
           ? "bg-primary/10 text-foreground"
-          : "text-muted-foreground hover:bg-white/5 hover:text-foreground",
+          : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
       )}
     >
       {editing ? (
@@ -516,7 +516,7 @@ function ConversationItem({
               if (e.key === "Enter") commitEdit();
               if (e.key === "Escape") cancelEdit();
             }}
-            className="flex-1 rounded border border-primary/40 bg-white/5 px-1.5 py-0.5 text-[13px] text-foreground outline-none focus:border-primary/70"
+            className="flex-1 rounded border border-primary/40 bg-foreground/5 px-1.5 py-0.5 text-[13px] text-foreground outline-none focus:border-primary/70"
           />
         </div>
       ) : (

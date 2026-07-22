@@ -133,7 +133,7 @@ export function CheckpointPanel() {
                     <button
                       type="button"
                       onClick={() => restoreFromCheckpoint(checkpoint.id)}
-                      className="rounded px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-white/5 hover:text-foreground"
+                      className="rounded px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
                     >
                       Restore
                     </button>
@@ -144,7 +144,7 @@ export function CheckpointPanel() {
                   <button
                     type="button"
                     onClick={() => setBranchTarget(checkpoint.id)}
-                    className="rounded px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-white/5 hover:text-foreground"
+                    className="rounded px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
                   >
                     Branch
                   </button>

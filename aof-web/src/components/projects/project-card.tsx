@@ -43,10 +43,10 @@ export const ProjectCard = forwardRef<HTMLDivElement, { project: Project }>(func
       exit={{ opacity: 0, scale: 0.98 }}
       transition={{ duration: 0.25 }}
       onClick={open}
-      className="group relative flex cursor-pointer flex-col rounded-2xl border border-white/[0.07] bg-card/60 p-4 transition-card hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-glow"
+      className="group relative flex cursor-pointer flex-col rounded-2xl border border-foreground/[0.07] bg-card/60 p-4 transition-card hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-glow"
     >
       <div className="flex items-start justify-between">
-        <span className="flex size-10 items-center justify-center rounded-xl border border-white/10 bg-background/60 text-primary">
+        <span className="flex size-10 items-center justify-center rounded-xl border border-foreground/10 bg-background/60 text-primary">
           <TypeIcon className="size-5" />
         </span>
         <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
@@ -54,7 +54,7 @@ export const ProjectCard = forwardRef<HTMLDivElement, { project: Project }>(func
             type="button"
             onClick={() => togglePin(project.id)}
             className={cn(
-              "flex size-8 items-center justify-center rounded-lg transition-colors hover:bg-white/5",
+              "flex size-8 items-center justify-center rounded-lg transition-colors hover:bg-foreground/5",
               project.pinned ? "text-primary" : "text-muted-foreground opacity-0 group-hover:opacity-100",
             )}
             aria-label={project.pinned ? "Unpin" : "Pin"}
@@ -65,7 +65,7 @@ export const ProjectCard = forwardRef<HTMLDivElement, { project: Project }>(func
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
-                className="flex size-8 items-center justify-center rounded-lg text-muted-foreground opacity-0 transition-colors hover:bg-white/5 group-hover:opacity-100"
+                className="flex size-8 items-center justify-center rounded-lg text-muted-foreground opacity-0 transition-colors hover:bg-foreground/5 group-hover:opacity-100"
                 aria-label="More"
               >
                 <MoreVertical className="size-4" />
