@@ -168,6 +168,8 @@ function ContextMenu({
   const renameFilePath = useCocodeIDEStore((s) => s.renameFilePath);
   const [renaming, setRenaming] = useState(false);
   const [newName, setNewName] = useState(state.node.name);
+  const [creatingFile, setCreatingFile] = useState(false);
+  const [newFileName, setNewFileName] = useState("");
 
   const actions = [
     isFile(state.node) && {
@@ -186,11 +188,7 @@ function ContextMenu({
     isDir(state.node) && {
       label: "New File",
       icon: <FilePlus className="size-3.5" />,
-      onClick: () => {
-        const name = prompt("File name:");
-        if (name) createFile(`${state.node.path}/${name}`);
-        onClose();
-      },
+      onClick: () => setCreatingFile(true),
     },
     {
       label: "Delete",
@@ -226,6 +224,31 @@ function ContextMenu({
               const dir = state.node.path.split("/").slice(0, -1).join("/");
               const newPath = dir ? `${dir}/${newName}` : newName;
               renameFilePath(state.node.path, newPath);
+              onClose();
+            }
+            if (e.key === "Escape") onClose();
+          }}
+        />
+      </div>
+    );
+  }
+
+  if (creatingFile) {
+    return (
+      <div
+        className="fixed z-50 rounded-lg border border-border bg-card p-2 shadow-xl"
+        style={{ left: state.x, top: state.y }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <input
+          autoFocus
+          placeholder="File name"
+          className="rounded border border-border bg-background px-2 py-1 text-sm outline-none focus:border-primary/50"
+          value={newFileName}
+          onChange={(e) => setNewFileName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && newFileName.trim()) {
+              createFile(`${state.node.path}/${newFileName.trim()}`);
               onClose();
             }
             if (e.key === "Escape") onClose();
@@ -275,6 +298,8 @@ export function FileExplorer() {
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set(["/"]));
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
+  const [creating, setCreating] = useState<{ kind: "file" | "folder"; x: number; y: number } | null>(null);
+  const [createName, setCreateName] = useState("");
 
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -342,9 +367,10 @@ export function FileExplorer() {
           type="button"
           title="New File (Ctrl+N)"
           aria-label="New file"
-          onClick={() => {
-            const name = prompt("File name:");
-            if (name) createFile(name);
+          onClick={(e) => {
+            const r = e.currentTarget.getBoundingClientRect();
+            setCreateName("");
+            setCreating({ kind: "file", x: r.left, y: r.bottom + 4 });
           }}
           className="rounded p-1 text-muted-foreground hover:text-foreground"
         >
@@ -354,15 +380,41 @@ export function FileExplorer() {
           type="button"
           title="New Folder"
           aria-label="New folder"
-          onClick={() => {
-            const name = prompt("Folder name:");
-            if (name) createFile(`${name}/.gitkeep`);
+          onClick={(e) => {
+            const r = e.currentTarget.getBoundingClientRect();
+            setCreateName("");
+            setCreating({ kind: "folder", x: r.left, y: r.bottom + 4 });
           }}
           className="rounded p-1 text-muted-foreground hover:text-foreground"
         >
           <FolderPlus className="size-3.5" />
         </button>
       </div>
+
+      {creating && (
+        <div
+          className="fixed z-50 rounded-lg border border-border bg-card p-2 shadow-xl"
+          style={{ left: creating.x, top: creating.y }}
+        >
+          <input
+            autoFocus
+            placeholder={creating.kind === "file" ? "File name" : "Folder name"}
+            className="rounded border border-border bg-background px-2 py-1 text-sm outline-none focus:border-primary/50"
+            value={createName}
+            onChange={(e) => setCreateName(e.target.value)}
+            onBlur={() => setCreating(null)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && createName.trim()) {
+                createFile(
+                  creating.kind === "file" ? createName.trim() : `${createName.trim()}/.gitkeep`,
+                );
+                setCreating(null);
+              }
+              if (e.key === "Escape") setCreating(null);
+            }}
+          />
+        </div>
+      )}
 
       {/* Search */}
       <div className="border-b border-border/50 px-2 py-1.5">

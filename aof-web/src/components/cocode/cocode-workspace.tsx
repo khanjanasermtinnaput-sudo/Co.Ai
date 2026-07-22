@@ -11,16 +11,20 @@ import { useEffect, useState, useRef, useMemo, Suspense } from "react";
 import Link from "next/link";
 import {
   PanelLeftClose, PanelLeftOpen, GitBranch,
-  Loader2, Upload, Zap, Hammer,
+  Upload, Zap, Hammer,
   Terminal, Code2, ArrowLeft, FolderKanban,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
+import { Composer } from "@/components/composer/composer";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useCocodeIDEStore } from "@/store/cocode-ide-store";
 import { useUIStore } from "@/store/ui-store";
 import { useCodeStore } from "@/store/code-store";
 import { extractDiffs } from "@/lib/cocode/diff";
+import { streamCodeChat } from "@/lib/api";
+import type { RepoMetadata } from "@/lib/types";
+import type { AofProviderError } from "@/lib/errors";
+import { ErrorPanel } from "@/components/diagnostics/error-panel";
 import { getAdaptivePanels } from "@/lib/cocode/adaptive-panels";
 import { analyzeFiles } from "@/lib/cocode/diagnostics";
 import { flattenFiles } from "@/lib/cocode/virtual-fs";
@@ -38,95 +42,85 @@ import type { IDEPanel } from "@/store/cocode-ide-store";
 
 // ── AI Chat (Part 11 — Context-Aware AI) ─────────────────────────────────────
 
-function WorkspaceChatInput({ onSend }: { onSend?: (msg: string) => void }) {
-  const [message, setMessage] = useState("");
+function WorkspaceChatInput() {
   const [streaming, setStreaming] = useState(false);
   const [response, setResponse] = useState("");
+  const [error, setError] = useState<AofProviderError | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
   const allFiles = useCocodeIDEStore((s) => s.allFiles);
-  const activeTab = useCocodeIDEStore((s) => s.activeTab);
   const setDiff = useCocodeIDEStore((s) => s.setDiff);
-  const github = useCocodeIDEStore((s) => s.github);
-  const diff = useCocodeIDEStore((s) => s.diff);
   const setAiStreaming = useUIStore((s) => s.setAiStreaming);
 
-  async function send(text?: string) {
-    const msg = (text ?? message).trim();
-    if (!msg || streaming) return;
+  async function send(text: string) {
+    const msg = text.trim();
+    if (!msg || streaming) return false;
     setStreaming(true);
     setAiStreaming(true);
     setResponse("");
-    if (!text) setMessage("");
+    setError(null);
 
-    // Part 11: inject everything visible — file, git state, errors, tabs
+    // Real, observed workspace signal only — never guessed — same shape
+    // CoCode's main conversation (code-store.ts) feeds the Ypertatos Task
+    // Classifier. Omitted entirely when the workspace is empty.
     const files = allFiles();
-    const contextFiles = files.slice(0, 10).map((f) => `// ${f.path}\n${f.content.slice(0, 500)}`).join("\n\n---\n\n");
-    const activeContext = activeTab ? `\nCurrently editing: ${activeTab}` : "";
-    const gitContext = github.connected && github.repo ? `\nGit branch: ${github.repo.branch}` : "";
-    const diffContext = diff ? `\n${diff.files.length} pending change(s) awaiting review.` : "";
+    const repo: RepoMetadata | undefined = files.length
+      ? {
+          fileCount: files.length,
+          languages: [
+            ...new Set(files.map((f) => f.path.split(".").pop()?.toLowerCase() ?? "").filter(Boolean)),
+          ],
+        }
+      : undefined;
 
-    const systemContext = files.length > 0
-      ? `You are CoCode AI. Repository: ${files.length} files.${activeContext}${gitContext}${diffContext}\nOutput unified git diffs only — no full file rewrites.\n\nContext:\n${contextFiles}`
-      : `You are CoCode AI, expert AI software engineer. Output unified git diffs only.${activeContext}${gitContext}`;
+    const controller = new AbortController();
+    abortRef.current = controller;
+    let full = "";
 
     try {
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: msg, history: [], system: systemContext, agent: "cocode", route: "code" }),
-      });
-      if (!res.ok || !res.body) {
-        const err = await res.json().catch(() => ({ error: "Failed" }));
-        setResponse((err as { error?: string }).error ?? "Request failed");
-        return;
-      }
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let full = "";
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        full += decoder.decode(value, { stream: true });
-        setResponse(full);
-      }
+      await streamCodeChat(
+        msg,
+        [],
+        {
+          onToken: (chunk) => {
+            full += chunk;
+            setResponse(full);
+          },
+          signal: controller.signal,
+          onError: setError,
+        },
+        "normal",
+        undefined,
+        repo,
+      );
       const diffs = extractDiffs(full);
       if (diffs.length) setDiff(diffs[0]);
     } finally {
       setStreaming(false);
       setAiStreaming(false);
+      abortRef.current = null;
     }
   }
 
-  // Expose send for context menu integration
+  // Expose send for the smart context menu's "Ask AI" action — whichever
+  // instance (desktop or mobile pane) is mounted registers the live handler.
   useEffect(() => {
-    if (onSend) {
-      (window as unknown as Record<string, unknown>).__cocode_send = send;
-    }
+    (window as unknown as Record<string, (t: string) => void>).__cocode_send = (t) => void send(t);
   });
 
   return (
-    <div className="flex flex-col gap-2 border-t border-border/60 bg-background/60 px-4 py-3 backdrop-blur-xl">
-      {response && (
-        <div className="max-h-48 overflow-y-auto rounded-xl border border-border/40 bg-card/40 p-3 text-body-sm">
+    <div className="flex flex-col gap-2 border-t border-border bg-background px-4 py-3">
+      {error && <ErrorPanel error={error} />}
+      {!error && response && (
+        <div className="max-h-48 overflow-y-auto rounded-xl border border-border bg-card/40 p-3 text-body-sm">
           <pre className="whitespace-pre-wrap font-sans text-foreground/80">{response}</pre>
         </div>
       )}
-      <div className="flex gap-2">
-        <textarea
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(); }
-          }}
-          placeholder="Ask CoCode… (Enter to send)"
-          rows={2}
-          className="flex-1 resize-none rounded-xl border border-border/60 bg-background/50 px-3 py-2 text-body-sm outline-none placeholder:text-muted-foreground/35 focus:border-primary/40 focus:bg-background/80 transition-colors"
-        />
-        <SimpleTooltip label="Send" description="Send message to CoCode AI" shortcut="Enter" side="top">
-          <Button onClick={() => void send()} disabled={streaming || !message.trim()} size="icon" className="size-10 shrink-0">
-            {streaming ? <Loader2 className="size-4 animate-spin" /> : <Hammer className="size-4" />}
-          </Button>
-        </SimpleTooltip>
-      </div>
+      <Composer
+        placeholder="Ask CoCode… (Enter to send)"
+        onSubmit={(v) => send(v)}
+        streaming={streaming}
+        onStop={() => abortRef.current?.abort()}
+      />
     </div>
   );
 }
