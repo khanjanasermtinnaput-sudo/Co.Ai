@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { ProjectWorkspace } from "@/components/projects/project-workspace";
+import { OpenProject } from "@/components/projects/open-project";
 
 export const metadata: Metadata = { title: "Project" };
 
-export default function ProjectWorkspacePage({ params }: { params: { id: string } }) {
-  return <ProjectWorkspace projectId={params.id} />;
+export default function ProjectPage({ params }: { params: { id: string } }) {
+  return <OpenProject projectId={params.id} />;
 }

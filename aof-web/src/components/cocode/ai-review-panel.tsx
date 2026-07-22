@@ -38,10 +38,10 @@ interface ReviewResult {
 }
 
 const SEV_STYLE: Record<ReviewSeverity, { color: string; bg: string; label: string }> = {
-  critical: { color: "text-red-400", bg: "bg-red-500/10 border-red-500/30", label: "Critical" },
-  suggestion: { color: "text-amber-400", bg: "bg-amber-500/10 border-amber-500/30", label: "Suggestion" },
-  praise: { color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/30", label: "Praise" },
-  question: { color: "text-sky-400", bg: "bg-sky-500/10 border-sky-500/30", label: "Question" },
+  critical: { color: "text-destructive", bg: "bg-destructive/10 border-destructive/30", label: "Critical" },
+  suggestion: { color: "text-warning", bg: "bg-warning/10 border-warning/30", label: "Suggestion" },
+  praise: { color: "text-success", bg: "bg-success/10 border-success/30", label: "Praise" },
+  question: { color: "text-info", bg: "bg-info/10 border-info/30", label: "Question" },
 };
 
 const CAT_EMOJI: Record<ReviewCategory, string> = {
@@ -198,9 +198,9 @@ ${content}`,
   }
 
   function scoreColor(s: number) {
-    if (s >= 80) return "text-emerald-400";
-    if (s >= 60) return "text-amber-400";
-    return "text-red-400";
+    if (s >= 80) return "text-success";
+    if (s >= 60) return "text-warning";
+    return "text-destructive";
   }
 
   const critical = review?.comments.filter((c) => c.severity === "critical") ?? [];
@@ -216,9 +216,9 @@ ${content}`,
         {review && (
           <div className="ml-auto flex items-center gap-2">
             <span className={cn("text-sm font-bold", scoreColor(review.score))}>{review.score}/100</span>
-            {review.lgtm && <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-bold text-emerald-400">LGTM</span>}
+            {review.lgtm && <span className="rounded bg-success/20 px-1.5 py-0.5 text-micro font-bold text-success">LGTM</span>}
             {review.requestedChanges > 0 && (
-              <span className="rounded bg-red-500/20 px-1.5 py-0.5 text-[10px] font-bold text-red-400">
+              <span className="rounded bg-destructive/20 px-1.5 py-0.5 text-micro font-bold text-destructive">
                 {review.requestedChanges} change{review.requestedChanges !== 1 ? "s" : ""} requested
               </span>
             )}
@@ -232,7 +232,7 @@ ${content}`,
           {(["file", "project"] as const).map((s) => (
             <button key={s} type="button" onClick={() => setScope(s)}
               className={cn(
-                "rounded-md px-2 py-1 text-[11px] font-medium capitalize transition-colors",
+                "rounded-md px-2 py-1 text-caption font-medium capitalize transition-colors",
                 scope === s ? "bg-primary/20 text-primary" : "text-muted-foreground hover:text-foreground",
               )}>
               {s === "file" ? "Active File" : "Whole Project"}
@@ -249,7 +249,7 @@ ${content}`,
           <Star className="size-12 text-muted-foreground/30" />
           <div>
             <p className="font-medium">AI Code Review</p>
-            <p className="mt-1 text-[12px] text-muted-foreground/60">
+            <p className="mt-1 text-label text-muted-foreground/60">
               Senior engineer review covering logic, performance, security, naming, tests, and architecture.
             </p>
           </div>
@@ -260,7 +260,7 @@ ${content}`,
       ) : reviewing ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6">
           <Loader2 className="size-8 animate-spin text-primary" />
-          <p className="text-[12px] text-muted-foreground/60">Reviewing code…</p>
+          <p className="text-label text-muted-foreground/60">Reviewing code…</p>
         </div>
       ) : review && (
         <div className="min-h-0 flex-1 overflow-y-auto">
@@ -278,12 +278,12 @@ ${content}`,
                   {review.score}
                 </span>
               </div>
-              <p className="flex-1 text-[12px] text-muted-foreground/80">{review.summary}</p>
+              <p className="flex-1 text-label text-muted-foreground/80">{review.summary}</p>
             </div>
-            <div className="flex gap-3 text-[11px]">
-              {critical.length > 0 && <span className="text-red-400">{critical.length} critical</span>}
-              {suggestions.length > 0 && <span className="text-amber-400">{suggestions.length} suggestions</span>}
-              {praises.length > 0 && <span className="text-emerald-400">{praises.length} praise</span>}
+            <div className="flex gap-3 text-caption">
+              {critical.length > 0 && <span className="text-destructive">{critical.length} critical</span>}
+              {suggestions.length > 0 && <span className="text-warning">{suggestions.length} suggestions</span>}
+              {praises.length > 0 && <span className="text-success">{praises.length} praise</span>}
             </div>
           </div>
 
@@ -295,7 +295,7 @@ ${content}`,
             { label: "Praise", items: praises },
           ] as const).map(({ label, items }) => items.length > 0 && (
             <div key={label}>
-              <div className="bg-card/20 px-4 py-2 text-[11px] font-semibold text-muted-foreground/70">
+              <div className="bg-card/20 px-4 py-2 text-caption font-semibold text-muted-foreground/70">
                 {label} ({items.length})
               </div>
               {items.map((c) => (
@@ -337,19 +337,19 @@ function ReviewCommentRow({
         {expanded ? <ChevronDown className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" /> : <ChevronRight className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />}
         <span className="shrink-0 text-sm">{CAT_EMOJI[comment.category]}</span>
         <div className="min-w-0 flex-1">
-          <p className="text-[12px]">{comment.title}</p>
-          {comment.line && <p className="text-[11px] text-muted-foreground/50">Line {comment.line}</p>}
+          <p className="text-label">{comment.title}</p>
+          {comment.line && <p className="text-caption text-muted-foreground/50">Line {comment.line}</p>}
         </div>
-        <span className={cn("shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium", sev.color)}>
+        <span className={cn("shrink-0 rounded px-1.5 py-0.5 text-micro font-medium", sev.color)}>
           {sev.label}
         </span>
       </button>
 
       {expanded && (
-        <div className={cn("mx-4 mb-2 rounded-lg border p-3 text-[12px]", sev.bg)}>
+        <div className={cn("mx-4 mb-2 rounded-lg border p-3 text-label", sev.bg)}>
           <p className="mb-2">{comment.description}</p>
           {comment.suggestion && (
-            <p className="mb-2 text-[11px] text-muted-foreground/70 italic">Suggestion: {comment.suggestion}</p>
+            <p className="mb-2 text-caption text-muted-foreground/70 italic">Suggestion: {comment.suggestion}</p>
           )}
           <div className="flex items-center gap-2">
             {comment.severity !== "praise" && (
@@ -358,11 +358,11 @@ function ReviewCommentRow({
               </Button>
             )}
             <button type="button" onClick={() => onFeedback("up")}
-              className={cn("ml-auto text-muted-foreground/40 hover:text-emerald-400", feedback === "up" && "text-emerald-400")}>
+              className={cn("ml-auto text-muted-foreground/40 hover:text-success", feedback === "up" && "text-success")}>
               <ThumbsUp className="size-3.5" />
             </button>
             <button type="button" onClick={() => onFeedback("down")}
-              className={cn("text-muted-foreground/40 hover:text-red-400", feedback === "down" && "text-red-400")}>
+              className={cn("text-muted-foreground/40 hover:text-destructive", feedback === "down" && "text-destructive")}>
               <ThumbsDown className="size-3.5" />
             </button>
           </div>

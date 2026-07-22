@@ -128,7 +128,7 @@ export function DeploymentPanel({ className }: { className?: string }) {
         <span className="text-sm font-medium">Deploy</span>
         {status === "success" && deployUrl && (
           <a href={deployUrl} target="_blank" rel="noopener noreferrer"
-            className="ml-auto flex items-center gap-1 text-[11px] text-emerald-400 hover:text-emerald-300">
+            className="ml-auto flex items-center gap-1 text-caption text-success hover:text-success">
             <Globe className="size-3" /> {deployUrl.replace(/^https?:\/\//, "")}
             <ExternalLink className="size-3" />
           </a>
@@ -141,8 +141,8 @@ export function DeploymentPanel({ className }: { className?: string }) {
           <div className="flex items-center gap-2">
             <Download className="size-4 text-muted-foreground" />
             <div className="flex-1">
-              <p className="text-[13px] font-medium">Export as ZIP</p>
-              <p className="text-[11px] text-muted-foreground/60">
+              <p className="text-body-sm font-medium">Export as ZIP</p>
+              <p className="text-caption text-muted-foreground/60">
                 Download the project source to build and deploy it anywhere yourself.
               </p>
             </div>
@@ -158,7 +158,7 @@ export function DeploymentPanel({ className }: { className?: string }) {
             <Rocket className="size-12 text-muted-foreground/30" />
             <div>
               <p className="font-medium">Publish Live</p>
-              <p className="mt-1 text-[12px] text-muted-foreground/60">
+              <p className="mt-1 text-label text-muted-foreground/60">
                 Auto-detects your framework to suggest a hosting target.
               </p>
             </div>
@@ -173,7 +173,7 @@ export function DeploymentPanel({ className }: { className?: string }) {
               <span className="text-2xl">{INFO?.emoji}</span>
               <div>
                 <p className="font-semibold">{INFO?.name}</p>
-                <p className="text-[11px] opacity-70">Auto-detected from project structure</p>
+                <p className="text-caption opacity-70">Auto-detected from project structure</p>
               </div>
               <button type="button" onClick={() => setEditing((e) => !e)} className="ml-auto opacity-60 hover:opacity-100">
                 <Settings className="size-4" />
@@ -196,7 +196,7 @@ export function DeploymentPanel({ className }: { className?: string }) {
 
             {config.target === "github-pages" ? (
               !github.connected || !github.repo ? (
-                <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-[12px] text-amber-400">
+                <div className="rounded-xl border border-warning/30 bg-warning/10 p-3 text-label text-warning">
                   Connect GitHub and load a repo (see the GitHub panel) to publish to GitHub Pages.
                 </div>
               ) : (
@@ -207,7 +207,7 @@ export function DeploymentPanel({ className }: { className?: string }) {
                 </Button>
               )
             ) : (
-              <div className="rounded-xl border border-border/50 bg-card/30 p-3 text-[12px] text-muted-foreground/70">
+              <div className="rounded-xl border border-border/50 bg-card/30 p-3 text-label text-muted-foreground/70">
                 <div className="mb-1 flex items-center gap-1.5 font-medium text-foreground/80">
                   <Clock className="size-3.5" /> Not configured
                 </div>
@@ -221,20 +221,20 @@ export function DeploymentPanel({ className }: { className?: string }) {
             {logs.length > 0 && (
               <div className="rounded-xl border border-border/50 bg-[#0a0a0f] p-3">
                 <div className="mb-2 flex items-center justify-between">
-                  <span className="text-[11px] font-medium text-muted-foreground/60">Deploy Log</span>
+                  <span className="text-caption font-medium text-muted-foreground/60">Deploy Log</span>
                   {status === "success" && (
-                    <CheckCircle2 className="size-4 text-emerald-400" />
+                    <CheckCircle2 className="size-4 text-success" />
                   )}
                   {status === "failed" && (
-                    <XCircle className="size-4 text-red-400" />
+                    <XCircle className="size-4 text-destructive" />
                   )}
                 </div>
-                <div className="space-y-1 font-mono text-[11px]">
+                <div className="space-y-1 font-mono text-caption">
                   {logs.map((l) => (
                     <div key={l.id} className={cn(
-                      l.level === "success" ? "text-emerald-400"
-                      : l.level === "error" ? "text-red-400"
-                      : l.level === "warn" ? "text-amber-400"
+                      l.level === "success" ? "text-success"
+                      : l.level === "error" ? "text-destructive"
+                      : l.level === "warn" ? "text-warning"
                       : "text-slate-400",
                     )}>
                       <span className="mr-2 text-muted-foreground/30 select-none">›</span>{l.message}
@@ -246,10 +246,10 @@ export function DeploymentPanel({ className }: { className?: string }) {
 
             {/* Success URL */}
             {deployUrl && (
-              <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3">
-                <Globe className="size-4 text-emerald-400" />
+              <div className="flex items-center gap-2 rounded-xl border border-success/30 bg-success/10 px-4 py-3">
+                <Globe className="size-4 text-success" />
                 <a href={deployUrl} target="_blank" rel="noopener noreferrer"
-                  className="flex-1 truncate text-[13px] text-emerald-300 hover:text-emerald-200">
+                  className="flex-1 truncate text-body-sm text-success hover:text-success/80">
                   {deployUrl}
                 </a>
                 <button type="button" onClick={() => void navigator.clipboard.writeText(deployUrl)}
@@ -272,12 +272,12 @@ export function DeploymentPanel({ className }: { className?: string }) {
 function ConfigField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">{label}</label>
+      <label className="text-micro font-medium uppercase tracking-wider text-muted-foreground/50">{label}</label>
       <input
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="rounded-md border border-border/50 bg-background/30 px-2 py-1.5 text-[12px] outline-none focus:border-primary/40"
+        className="rounded-md border border-border/50 bg-background/30 px-2 py-1.5 text-label outline-none focus:border-primary/40"
       />
     </div>
   );

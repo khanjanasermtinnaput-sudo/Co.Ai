@@ -92,6 +92,17 @@ interface CocodeIDEState {
   fs: VirtualDir;
   projectName: string;
   setProjectName: (n: string) => void;
+  /** Which Projects-list project (project-store.ts) this session belongs to,
+   *  if any — set by lib/cocode/open-project.ts. There is no per-project file
+   *  persistence yet (this workspace is one in-session virtual FS), so this
+   *  is only used to detect "switching to a genuinely different project" and
+   *  reset to a clean slate rather than showing another project's leftover
+   *  files under a new name. */
+  projectId: string | null;
+  /** Clear the workspace to a blank slate under a new project identity —
+   *  the honest behavior when opening a project this session hasn't already
+   *  built anything for. */
+  resetWorkspace: (projectId: string, projectName: string) => void;
   importFiles: (files: Array<{ path: string; content: string; sha?: string }>) => void;
   createFile: (path: string, content?: string) => void;
   updateFile: (path: string, content: string) => void;
@@ -198,6 +209,18 @@ export const useCocodeIDEStore = create<CocodeIDEState>()(
       fs: emptyFS,
       projectName: "Untitled Project",
       setProjectName: (n) => set({ projectName: n }),
+      projectId: null,
+      resetWorkspace: (projectId, projectName) =>
+        set({
+          projectId,
+          projectName,
+          fs: emptyFS,
+          tabs: [],
+          activeTab: null,
+          rightPanel: null,
+          diff: null,
+          viewMode: "build",
+        }),
 
       importFiles: (files) => {
         const fs = buildTree(files);
@@ -759,6 +782,7 @@ export const useCocodeIDEStore = create<CocodeIDEState>()(
       // Only persist lightweight state — snapshots are too large for localStorage
       partialize: (s) => ({
         projectName: s.projectName,
+        projectId: s.projectId,
         tabs: s.tabs.slice(0, 20),
         activeTab: s.activeTab,
         recentFiles: s.recentFiles.slice(0, 20),

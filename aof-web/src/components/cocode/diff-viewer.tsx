@@ -49,8 +49,8 @@ export function DiffViewer() {
         <GitBranch className="size-4 text-muted-foreground" />
         <span className="text-sm font-medium">Review Changes</span>
         <div className="flex items-center gap-2 text-xs">
-          <span className="text-emerald-400">+{stats.added}</span>
-          <span className="text-red-400">-{stats.removed}</span>
+          <span className="text-success">+{stats.added}</span>
+          <span className="text-destructive">-{stats.removed}</span>
           <span className="text-muted-foreground">{stats.files} file{stats.files !== 1 ? "s" : ""}</span>
         </div>
         <div className="ml-auto flex items-center gap-1.5">
@@ -87,7 +87,7 @@ export function DiffViewer() {
 
       {/* Status bar */}
       {pending > 0 && (
-        <div className="border-b border-amber-500/20 bg-amber-500/5 px-4 py-1.5 text-xs text-amber-400">
+        <div className="border-b border-warning/20 bg-warning/5 px-4 py-1.5 text-xs text-warning">
           {pending} hunk{pending !== 1 ? "s" : ""} pending review
         </div>
       )}
@@ -149,17 +149,17 @@ function FileDiffBlock({
         )}
         <span className="truncate font-mono text-xs text-foreground">{file.newPath || file.oldPath}</span>
         {label && (
-          <span className="rounded bg-amber-500/20 px-1 py-0.5 text-[10px] text-amber-400">{label}</span>
+          <span className="rounded bg-warning/20 px-1 py-0.5 text-micro text-warning">{label}</span>
         )}
         <div className="ml-auto flex items-center gap-2 text-xs">
-          {addedLines > 0 && <span className="text-emerald-400">+{addedLines}</span>}
-          {removedLines > 0 && <span className="text-red-400">-{removedLines}</span>}
+          {addedLines > 0 && <span className="text-success">+{addedLines}</span>}
+          {removedLines > 0 && <span className="text-destructive">-{removedLines}</span>}
         </div>
         <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
           <button
             type="button"
             onClick={onRejectAll}
-            className="rounded p-1 text-muted-foreground hover:text-red-400"
+            className="rounded p-1 text-muted-foreground hover:text-destructive"
             title="Reject all hunks in file"
           >
             <XCircle className="size-3.5" />
@@ -167,7 +167,7 @@ function FileDiffBlock({
           <button
             type="button"
             onClick={onAcceptAll}
-            className="rounded p-1 text-muted-foreground hover:text-emerald-400"
+            className="rounded p-1 text-muted-foreground hover:text-success"
             title="Accept all hunks in file"
           >
             <CheckCheck className="size-3.5" />
@@ -199,42 +199,42 @@ function HunkBlock({
 }) {
   const statusColor =
     hunk.accepted === true
-      ? "border-l-2 border-emerald-500/60"
+      ? "border-l-2 border-success/60"
       : hunk.accepted === false
-      ? "border-l-2 border-red-500/60 opacity-50"
+      ? "border-l-2 border-destructive/60 opacity-50"
       : "";
 
   return (
     <div className={cn("relative", statusColor)}>
       {/* Hunk header */}
-      <div className="flex items-center justify-between bg-sky-950/30 px-4 py-1">
-        <span className="font-mono text-[11px] text-sky-400/70">{hunk.header}</span>
+      <div className="flex items-center justify-between bg-info/10 px-4 py-1">
+        <span className="font-mono text-caption text-info">{hunk.header}</span>
         <div className="flex items-center gap-1">
           {hunk.accepted === null && (
             <>
               <button
                 type="button"
                 onClick={onReject}
-                className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-red-500/10 hover:text-red-400"
+                className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-caption text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
               >
                 <X className="size-3" /> Reject
               </button>
               <button
                 type="button"
                 onClick={onAccept}
-                className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-emerald-500/10 hover:text-emerald-400"
+                className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-caption text-muted-foreground hover:bg-success/10 hover:text-success"
               >
                 <Check className="size-3" /> Accept
               </button>
             </>
           )}
           {hunk.accepted === true && (
-            <span className="flex items-center gap-1 text-[11px] text-emerald-400">
+            <span className="flex items-center gap-1 text-caption text-success">
               <Check className="size-3" /> Accepted
             </span>
           )}
           {hunk.accepted === false && (
-            <span className="flex items-center gap-1 text-[11px] text-red-400">
+            <span className="flex items-center gap-1 text-caption text-destructive">
               <X className="size-3" /> Rejected
             </span>
           )}
@@ -242,29 +242,29 @@ function HunkBlock({
       </div>
 
       {/* Lines */}
-      <div className="font-mono text-[12px] leading-[1.65]">
+      <div className="font-mono text-label leading-[1.65]">
         {hunk.lines.map((line, i) => (
           <div
             key={i}
             className={cn(
               "flex items-start gap-0",
-              line.kind === "added" && "bg-emerald-500/10",
-              line.kind === "removed" && "bg-red-500/10",
+              line.kind === "added" && "bg-success/10",
+              line.kind === "removed" && "bg-destructive/10",
             )}
           >
             {/* Line numbers */}
-            <div className="w-8 shrink-0 select-none border-r border-border/30 px-1 text-right text-[11px] text-muted-foreground/40">
+            <div className="w-8 shrink-0 select-none border-r border-border/30 px-1 text-right text-caption text-muted-foreground/40">
               {line.kind !== "added" && (line.oldLine ?? "")}
             </div>
-            <div className="w-8 shrink-0 select-none border-r border-border/30 px-1 text-right text-[11px] text-muted-foreground/40">
+            <div className="w-8 shrink-0 select-none border-r border-border/30 px-1 text-right text-caption text-muted-foreground/40">
               {line.kind !== "removed" && (line.newLine ?? "")}
             </div>
             {/* Gutter sign */}
             <div
               className={cn(
                 "w-5 shrink-0 select-none text-center",
-                line.kind === "added" && "text-emerald-400",
-                line.kind === "removed" && "text-red-400",
+                line.kind === "added" && "text-success",
+                line.kind === "removed" && "text-destructive",
                 line.kind === "context" && "text-muted-foreground/30",
               )}
             >
@@ -274,8 +274,8 @@ function HunkBlock({
             <pre
               className={cn(
                 "min-w-0 flex-1 overflow-x-auto whitespace-pre px-2",
-                line.kind === "added" && "text-emerald-200",
-                line.kind === "removed" && "text-red-200",
+                line.kind === "added" && "text-success",
+                line.kind === "removed" && "text-destructive",
                 line.kind === "context" && "text-muted-foreground",
               )}
             >

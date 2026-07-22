@@ -1,76 +1,40 @@
 "use client";
 
 // ── CoCode Workspace Shell ───────────────────────────────────────────────────
-// Parts 1-13 UX Redesign + Engineering Bible Phases 71-80
-// Layout: Explorer | Editor | Adaptive Right Panel
-// Developer Mode: hides advanced systems by default
+// Layout: Explorer | Editor | Adaptive Right Panel (grouped Build/Understand/
+// Verify/Ship). Developer Mode: hides advanced systems by default.
+// Panel components, the tab strip/overflow menu, the collapsed rail, and the
+// workspace's small standalone effects (keyboard shortcuts, GitHub OAuth
+// callback, file upload) live in sibling modules — this file is composition.
 
-import { useEffect, useState, useRef, useMemo, lazy, Suspense, useCallback } from "react";
-import { createPortal } from "react-dom";
+import { useEffect, useState, useRef, useMemo, Suspense } from "react";
+import Link from "next/link";
 import {
   PanelLeftClose, PanelLeftOpen, GitBranch,
-  Loader2, Upload, Zap, X, Hammer,
-  ChevronDown, Terminal, Code2, ArrowLeft,
+  Loader2, Upload, Zap, Hammer,
+  Terminal, Code2, ArrowLeft, FolderKanban,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useCocodeIDEStore } from "@/store/cocode-ide-store";
 import { useUIStore } from "@/store/ui-store";
 import { useCodeStore } from "@/store/code-store";
 import { extractDiffs } from "@/lib/cocode/diff";
-import { getAdaptivePanels, PANEL_DEFS, PANEL_GROUP_ORDER, type PanelDef } from "@/lib/cocode/adaptive-panels";
+import { getAdaptivePanels } from "@/lib/cocode/adaptive-panels";
 import { analyzeFiles } from "@/lib/cocode/diagnostics";
 import { flattenFiles } from "@/lib/cocode/virtual-fs";
 import { WorkspaceStatusBar } from "./status-bar";
 import { useSmartContextMenu, SmartContextMenu } from "./smart-context-menu";
 import { SimpleTooltip } from "./ide-tooltip";
 import { BuildPanel } from "./build-panel";
+import { FileExplorer, MonacoEditor, ActivePanel, PanelLoader } from "./panel-host";
+import { PanelTabStrip } from "./panel-tab-strip";
+import { CollapsedRail } from "./collapsed-rail";
+import { useWorkspaceKeyboard } from "./use-workspace-keyboard";
+import { useGithubOAuthCallback } from "./use-github-callback";
+import { useWorkspaceUpload } from "./use-workspace-upload";
 import type { IDEPanel } from "@/store/cocode-ide-store";
-
-// ── Core panels ───────────────────────────────────────────────────────────────
-const FileExplorer    = lazy(() => import("./file-explorer").then((m) => ({ default: m.FileExplorer })));
-const MonacoEditor    = lazy(() => import("./monaco-editor").then((m) => ({ default: m.MonacoEditor })));
-const DiffViewer      = lazy(() => import("./diff-viewer").then((m) => ({ default: m.DiffViewer })));
-const LivePreview     = lazy(() => import("./live-preview").then((m) => ({ default: m.LivePreview })));
-const KnowledgeGraphView = lazy(() => import("./knowledge-graph-view").then((m) => ({ default: m.KnowledgeGraphView })));
-const CheckpointPanel = lazy(() => import("./checkpoint-panel").then((m) => ({ default: m.CheckpointPanel })));
-const GitHubPanel     = lazy(() => import("./github-panel").then((m) => ({ default: m.GitHubPanel })));
-const RefactorMenu    = lazy(() => import("./refactor-menu").then((m) => ({ default: m.RefactorMenu })));
-const TestingAgent    = lazy(() => import("./testing-agent").then((m) => ({ default: m.TestingAgent })));
-const MultiPreview    = lazy(() => import("./multi-preview").then((m) => ({ default: m.MultiPreview })));
-const DependencyPanel = lazy(() => import("./dependency-panel").then((m) => ({ default: m.DependencyPanel })));
-const DocsGenerator   = lazy(() => import("./docs-generator").then((m) => ({ default: m.DocsGenerator })));
-const DiagnosticsPanel = lazy(() => import("./diagnostics-panel").then((m) => ({ default: m.DiagnosticsPanel })));
-const PairPanel       = lazy(() => import("./pair-panel").then((m) => ({ default: m.PairPanel })));
-const DeploymentPanel = lazy(() => import("./deployment-panel").then((m) => ({ default: m.DeploymentPanel })));
-const CICDBuilder     = lazy(() => import("./cicd-builder").then((m) => ({ default: m.CICDBuilder })));
-const CollaborationPanel = lazy(() => import("./collaboration-panel").then((m) => ({ default: m.CollaborationPanel })));
-const EnvManager      = lazy(() => import("./env-manager").then((m) => ({ default: m.EnvManager })));
-const PerformancePanel = lazy(() => import("./performance-panel").then((m) => ({ default: m.PerformancePanel })));
-const SecurityPanel   = lazy(() => import("./security-panel").then((m) => ({ default: m.SecurityPanel })));
-const ApiStudio       = lazy(() => import("./api-studio").then((m) => ({ default: m.ApiStudio })));
-const DatabaseStudio  = lazy(() => import("./database-studio").then((m) => ({ default: m.DatabaseStudio })));
-const AIReviewPanel   = lazy(() => import("./ai-review-panel").then((m) => ({ default: m.AIReviewPanel })));
-const MobilePreview   = lazy(() => import("./mobile-preview").then((m) => ({ default: m.MobilePreview })));
-const TestGeneratorPanel = lazy(() => import("./test-generator-panel").then((m) => ({ default: m.TestGeneratorPanel })));
-const SemanticSearchPanel = lazy(() => import("./semantic-search-panel").then((m) => ({ default: m.SemanticSearchPanel })));
-const CodeTranslatorPanel = lazy(() => import("./code-translator-panel").then((m) => ({ default: m.CodeTranslatorPanel })));
-const ChangelogPanel  = lazy(() => import("./changelog-panel").then((m) => ({ default: m.ChangelogPanel })));
-const ArchitecturePanel = lazy(() => import("./architecture-panel").then((m) => ({ default: m.ArchitecturePanel })));
-const RuntimeMonitor  = lazy(() => import("./runtime-monitor").then((m) => ({ default: m.RuntimeMonitor })));
-const AccessibilityPanel = lazy(() => import("./accessibility-panel").then((m) => ({ default: m.AccessibilityPanel })));
-const I18nPanel       = lazy(() => import("./i18n-panel").then((m) => ({ default: m.I18nPanel })));
-const CoveragePanel   = lazy(() => import("./coverage-panel").then((m) => ({ default: m.CoveragePanel })));
-const ScaffolderPanel = lazy(() => import("./scaffolder-panel").then((m) => ({ default: m.ScaffolderPanel })));
-
-// ── Loader fallback ────────────────────────────────────────────────────────────
-function PanelLoader() {
-  return (
-    <div className="flex h-full items-center justify-center">
-      <Loader2 className="size-4 animate-spin text-muted-foreground/40" />
-    </div>
-  );
-}
 
 // ── AI Chat (Part 11 — Context-Aware AI) ─────────────────────────────────────
 
@@ -142,7 +106,7 @@ function WorkspaceChatInput({ onSend }: { onSend?: (msg: string) => void }) {
   return (
     <div className="flex flex-col gap-2 border-t border-border/60 bg-background/60 px-4 py-3 backdrop-blur-xl">
       {response && (
-        <div className="max-h-48 overflow-y-auto rounded-xl border border-border/40 bg-card/40 p-3 text-[13px]">
+        <div className="max-h-48 overflow-y-auto rounded-xl border border-border/40 bg-card/40 p-3 text-body-sm">
           <pre className="whitespace-pre-wrap font-sans text-foreground/80">{response}</pre>
         </div>
       )}
@@ -155,7 +119,7 @@ function WorkspaceChatInput({ onSend }: { onSend?: (msg: string) => void }) {
           }}
           placeholder="Ask CoCode… (Enter to send)"
           rows={2}
-          className="flex-1 resize-none rounded-xl border border-border/60 bg-background/50 px-3 py-2 text-[13px] outline-none placeholder:text-muted-foreground/35 focus:border-primary/40 focus:bg-background/80 transition-colors"
+          className="flex-1 resize-none rounded-xl border border-border/60 bg-background/50 px-3 py-2 text-body-sm outline-none placeholder:text-muted-foreground/35 focus:border-primary/40 focus:bg-background/80 transition-colors"
         />
         <SimpleTooltip label="Send" description="Send message to CoCode AI" shortcut="Enter" side="top">
           <Button onClick={() => void send()} disabled={streaming || !message.trim()} size="icon" className="size-10 shrink-0">
@@ -163,127 +127,6 @@ function WorkspaceChatInput({ onSend }: { onSend?: (msg: string) => void }) {
           </Button>
         </SimpleTooltip>
       </div>
-    </div>
-  );
-}
-
-// ── Panel renderer ─────────────────────────────────────────────────────────────
-
-function ActivePanel({ panel }: { panel: IDEPanel }) {
-  const map: Partial<Record<IDEPanel, React.ReactNode>> = {
-    diff:               <DiffViewer />,
-    preview:            <LivePreview className="h-full" />,
-    "multi-preview":    <MultiPreview className="h-full" />,
-    github:             <GitHubPanel />,
-    graph:              <KnowledgeGraphView />,
-    checkpoints:        <CheckpointPanel />,
-    explorer:           <RefactorMenu className="overflow-y-auto" />,
-    tests:              <TestingAgent />,
-    deps:               <DependencyPanel className="h-full" />,
-    docs:               <DocsGenerator className="h-full" />,
-    diagnostics:        <DiagnosticsPanel className="h-full" />,
-    pair:               <PairPanel className="h-full" />,
-    deploy:             <DeploymentPanel className="h-full" />,
-    cicd:               <CICDBuilder className="h-full" />,
-    collab:             <CollaborationPanel className="h-full" />,
-    env:                <EnvManager className="h-full" />,
-    perf:               <PerformancePanel className="h-full" />,
-    security:           <SecurityPanel className="h-full" />,
-    api:                <ApiStudio className="h-full" />,
-    db:                 <DatabaseStudio className="h-full" />,
-    mobile:             <MobilePreview className="h-full" />,
-    review:             <AIReviewPanel className="h-full" />,
-    testgen:            <TestGeneratorPanel className="h-full" />,
-    search:             <SemanticSearchPanel className="h-full" />,
-    translate:          <CodeTranslatorPanel className="h-full" />,
-    changelog:          <ChangelogPanel className="h-full" />,
-    arch:               <ArchitecturePanel className="h-full" />,
-    runtime:            <RuntimeMonitor className="h-full" />,
-    a11y:               <AccessibilityPanel className="h-full" />,
-    i18n:               <I18nPanel className="h-full" />,
-    coverage:           <CoveragePanel className="h-full" />,
-    scaffold:           <ScaffolderPanel className="h-full" />,
-  };
-  return <>{map[panel] ?? null}</>;
-}
-
-// ── Overflow panel picker (Part 3 — Adaptive Sidebar) ─────────────────────────
-
-function OverflowPanelMenu({
-  panels,
-  activePanel,
-  onSelect,
-}: {
-  panels: PanelDef[];
-  activePanel: IDEPanel | null;
-  onSelect: (id: IDEPanel) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [coords, setCoords] = useState<{ top: number; right: number } | null>(null);
-  const buttonRef = useRef<HTMLButtonElement>(null);
-
-  const toggle = () => {
-    if (!open && buttonRef.current) {
-      const rect = buttonRef.current.getBoundingClientRect();
-      setCoords({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
-    }
-    setOpen((o) => !o);
-  };
-
-  return (
-    <div className="relative">
-      <SimpleTooltip label="More panels" description="Show all available panels" side="bottom">
-        <button
-          ref={buttonRef}
-          type="button"
-          onClick={toggle}
-          className="inline-flex items-center gap-0.5 rounded-md px-2 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors"
-        >
-          More <ChevronDown className={cn("size-3 transition-transform", open && "rotate-180")} />
-        </button>
-      </SimpleTooltip>
-      {open && coords && typeof document !== "undefined" && createPortal(
-        <>
-          <div className="fixed inset-0 z-[150]" onClick={() => setOpen(false)} />
-          <div
-            style={{ top: coords.top, right: coords.right }}
-            className="fixed z-[160] w-52 max-h-[70vh] overflow-y-auto rounded-xl border border-border/60 bg-card/98 py-1.5 shadow-2xl backdrop-blur-2xl"
-          >
-            {PANEL_GROUP_ORDER.map((group) => {
-              const groupPanels = panels.filter((p) => p.group === group);
-              if (groupPanels.length === 0) return null;
-              return (
-                <div key={group}>
-                  <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/40">
-                    {group}
-                  </div>
-                  {groupPanels.map((p) => {
-                    const Icon = p.icon;
-                    return (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => { onSelect(p.id as IDEPanel); setOpen(false); }}
-                        className={cn(
-                          "flex w-full items-start gap-2 px-3 py-2 text-left transition-colors hover:bg-foreground/5",
-                          activePanel === p.id && "bg-primary/10",
-                        )}
-                      >
-                        <Icon className={cn("size-3.5 mt-0.5 shrink-0", activePanel === p.id ? "text-primary" : "text-muted-foreground/70")} />
-                        <span className="flex flex-col gap-0.5">
-                          <span className={cn("text-[12px] font-medium", activePanel === p.id ? "text-primary" : "text-foreground/80")}>{p.label}</span>
-                          <span className="text-[10px] text-muted-foreground/50 leading-tight">{p.description}</span>
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              );
-            })}
-          </div>
-        </>,
-        document.body,
-      )}
     </div>
   );
 }
@@ -302,7 +145,6 @@ export function CoCodeWorkspace() {
   const undo           = useCocodeIDEStore((s) => s.undo);
   const canRedo        = useCocodeIDEStore((s) => s.canRedo);
   const redo           = useCocodeIDEStore((s) => s.redo);
-  const importFiles    = useCocodeIDEStore((s) => s.importFiles);
   const activeTab      = useCocodeIDEStore((s) => s.activeTab);
   const hasFiles        = useCocodeIDEStore((s) => s.fs.children.length > 0);
   const fs              = useCocodeIDEStore((s) => s.fs);
@@ -337,60 +179,29 @@ export function CoCodeWorkspace() {
   // Part 7 — Smart Context Menu
   const { position: ctxPos, selection: ctxSel, close: closeCtx } = useSmartContextMenu();
 
-  // Part 3 — Adaptive panel list driven by current file context
+  // Adaptive panel list driven by current file context, grouped into
+  // Build/Understand/Verify/Ship (adaptive-panels.ts).
   const { primary: primaryPanels, overflow: overflowPanels } = getAdaptivePanels(activeTab, developerMode);
 
   const activePanel = rightPanel as IDEPanel | null;
   const showRightPanel = activePanel !== null;
 
-  // Surface-local shortcuts (undo/redo). Palette + developer-mode shortcuts
-  // are global — see providers/keyboard-shortcuts.tsx.
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) {
-        // Monaco handles its own undo; only intercept when editor not focused
-        const active = document.activeElement;
-        if (active?.tagName === "BODY" || active?.closest(".cocode-workspace-outer")) {
-          e.preventDefault();
-          undo();
-        }
-      }
-      if ((e.ctrlKey || e.metaKey) && (e.key === "y" || (e.shiftKey && e.key === "Z"))) {
-        const active = document.activeElement;
-        if (active?.tagName === "BODY" || active?.closest(".cocode-workspace-outer")) {
-          e.preventDefault();
-          redo();
-        }
-      }
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [undo, redo]);
+  // Below `md` the explorer/editor/panel columns can't fit side by side —
+  // Files becomes a slide-over (Sheet), Editor/Panel share one pane picked by
+  // a bottom switcher. Desktop layout above is untouched by this state.
+  const [mobilePane, setMobilePane] = useState<"editor" | "panel">("editor");
+  const [mobileExplorerOpen, setMobileExplorerOpen] = useState(false);
 
-  // Handle GitHub OAuth callback
+  // A panel opened from elsewhere (command palette, collapsed rail on
+  // desktop) should be what a mobile user sees next, not silently behind
+  // the Editor tab.
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("github") === "connected") {
-      window.history.replaceState({}, "", window.location.pathname);
-      fetch("/api/github?path=/user")
-        .then((r) => r.json())
-        .then((user: { login?: string; name?: string; avatar_url?: string }) => {
-          if (user.login) {
-            useCocodeIDEStore.setState((s) => ({
-              github: { ...s.github, connected: true, user: { login: user.login!, name: user.name ?? null, avatar_url: user.avatar_url ?? "" } },
-            }));
-          }
-        })
-        .catch(() => {});
-    }
-  }, []);
+    if (activePanel) setMobilePane("panel");
+  }, [activePanel]);
 
-  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(e.target.files ?? []);
-    if (!files.length) return;
-    const loaded = await Promise.all(files.map(async (f) => ({ path: f.name, content: await f.text() })));
-    importFiles(loaded);
-  }
+  useWorkspaceKeyboard(undo, redo);
+  useGithubOAuthCallback();
+  const handleFileUpload = useWorkspaceUpload();
 
   function handleSendToChat(text: string) {
     const fn = (window as unknown as Record<string, unknown>).__cocode_send;
@@ -414,9 +225,18 @@ export function CoCodeWorkspace() {
           {/* ── Build Titlebar ───────────────────────────────────────────────── */}
           <div className="flex h-10 items-center gap-2 border-b border-border/60 bg-card/50 px-3">
             <Hammer className="size-3.5 text-primary" />
-            <span className="text-[13px] font-medium text-foreground">Build</span>
+            <span className="text-body-sm font-medium text-foreground">Build</span>
             <span className="text-muted-foreground">·</span>
-            <span className="max-w-[160px] truncate text-[13px] text-muted-foreground">{projectName}</span>
+            <span className="max-w-[160px] truncate text-body-sm text-muted-foreground">{projectName}</span>
+            <SimpleTooltip label="Switch Project" description="Go to your projects list" side="bottom">
+              <Link
+                href="/projects"
+                className="flex items-center gap-1 rounded-md border border-border/40 px-2 py-1 text-caption text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground"
+              >
+                <FolderKanban className="size-3" />
+                Projects
+              </Link>
+            </SimpleTooltip>
             <SimpleTooltip
               label="Open Editor"
               description={hasFiles ? "Switch to the file explorer and code editor" : "Switch to the file explorer — upload files or connect GitHub"}
@@ -425,7 +245,7 @@ export function CoCodeWorkspace() {
               <button
                 type="button"
                 onClick={() => setViewMode("editor")}
-                className="ml-auto flex items-center gap-1 rounded-md border border-border/40 px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground"
+                className="ml-auto flex items-center gap-1 rounded-md border border-border/40 px-2 py-1 text-caption text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground"
               >
                 <Code2 className="size-3" />
                 Open Editor
@@ -456,14 +276,23 @@ export function CoCodeWorkspace() {
           </button>
         </SimpleTooltip>
 
-        <span className="text-[13px] font-medium text-muted-foreground truncate max-w-[120px]">{projectName}</span>
+        <span className="truncate max-w-[120px] text-body-sm font-medium text-muted-foreground">{projectName}</span>
+
+        <SimpleTooltip label="Switch Project" description="Go to your projects list" side="bottom">
+          <Link
+            href="/projects"
+            className="flex items-center gap-1 rounded-md border border-border/40 px-1.5 py-0.5 text-caption text-muted-foreground/70 transition-colors hover:border-primary/30 hover:text-foreground"
+          >
+            <FolderKanban className="size-3" />
+          </Link>
+        </SimpleTooltip>
 
         {github.repo && (
           <SimpleTooltip label="Git Branch" description={`Active branch: ${github.repo.branch}`} side="bottom">
             <button
               type="button"
               onClick={() => setRightPanel("github")}
-              className="flex items-center gap-1 rounded-md border border-border/40 px-1.5 py-0.5 text-[11px] text-muted-foreground/70 hover:border-primary/30 hover:text-foreground transition-colors"
+              className="flex items-center gap-1 rounded-md border border-border/40 px-1.5 py-0.5 text-caption text-muted-foreground/70 hover:border-primary/30 hover:text-foreground transition-colors"
             >
               <GitBranch className="size-3" />
               {github.repo.branch}
@@ -528,7 +357,7 @@ export function CoCodeWorkspace() {
             <button
               type="button"
               onClick={() => setViewMode("build")}
-              className="flex items-center gap-1 rounded-md border border-border/40 px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground"
+              className="flex items-center gap-1 rounded-md border border-border/40 px-2 py-1 text-caption text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground"
             >
               <ArrowLeft className="size-3" />
               Back to CoCode
@@ -540,7 +369,7 @@ export function CoCodeWorkspace() {
             <button
               type="button"
               onClick={() => useUIStore.getState().setCommandPaletteOpen(true)}
-              className="flex items-center gap-1 rounded-md border border-border/40 px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground"
+              className="flex items-center gap-1 rounded-md border border-border/40 px-2 py-1 text-caption text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground"
             >
               <Terminal className="size-3" />
               <span className="hidden sm:inline">Ctrl+Shift+P</span>
@@ -553,7 +382,7 @@ export function CoCodeWorkspace() {
               <button
                 type="button"
                 onClick={() => setRightPanel("diff")}
-                className="flex items-center gap-1 rounded-md bg-amber-500/15 px-2 py-0.5 text-[11px] text-amber-400 hover:bg-amber-500/25 transition-colors"
+                className="flex items-center gap-1 rounded-md bg-accent-warm/15 px-2 py-0.5 text-caption text-accent-warm hover:bg-accent-warm/25 transition-colors"
               >
                 <Zap className="size-3" />
                 {diff.files.length} change{diff.files.length !== 1 ? "s" : ""}
@@ -563,18 +392,16 @@ export function CoCodeWorkspace() {
         </div>
       </div>
 
-      {/* ── Main area ────────────────────────────────────────────────────────── */}
-      <div className="flex min-h-0 flex-1">
-        {/* File Explorer */}
+      {/* ── Main area — desktop: Explorer | Editor | Panel side by side ─────── */}
+      <div className="hidden min-h-0 flex-1 md:flex">
         {explorerOpen && (
-          <div className="w-56 shrink-0 border-r border-border/60">
+          <div className="w-[clamp(180px,18vw,224px)] shrink-0 border-r border-border/60">
             <Suspense fallback={<PanelLoader />}>
               <FileExplorer />
             </Suspense>
           </div>
         )}
 
-        {/* Editor + Chat */}
         <div className="flex min-w-0 flex-1 flex-col">
           <Suspense fallback={<PanelLoader />}>
             <MonacoEditor className="min-h-0 flex-1" />
@@ -582,59 +409,15 @@ export function CoCodeWorkspace() {
           <WorkspaceChatInput />
         </div>
 
-        {/* Right panel — adaptive (Part 3) */}
         {showRightPanel && (
-          <div className="flex w-96 min-w-0 shrink-0 flex-col border-l border-border/60">
-            {/* Part 3 — Adaptive tab strip */}
-            <div className="flex items-center gap-0.5 overflow-x-auto border-b border-border/60 bg-card/30 px-1 py-1 no-scrollbar">
-              {primaryPanels.map((p) => {
-                const def = PANEL_DEFS[p.id];
-                if (!def) return null;
-                const isActive = activePanel === p.id;
-                const Icon = def.icon;
-                return (
-                  <SimpleTooltip
-                    key={p.id}
-                    label={def.label}
-                    description={def.description}
-                    shortcut={def.shortcut}
-                    side="bottom"
-                    delay={500}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => setRightPanel(isActive ? null : p.id as IDEPanel)}
-                      className={cn(
-                        "inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium whitespace-nowrap transition-colors",
-                        isActive ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-foreground/5",
-                      )}
-                    >
-                      <Icon className="size-3" />
-                      {p.label}
-                    </button>
-                  </SimpleTooltip>
-                );
-              })}
-
-              {/* Overflow — non-primary panels */}
-              {overflowPanels.length > 0 && (
-                <OverflowPanelMenu
-                  panels={overflowPanels}
-                  activePanel={activePanel}
-                  onSelect={(id) => setRightPanel(id)}
-                />
-              )}
-
-              <button
-                type="button"
-                onClick={() => setRightPanel(null)}
-                className="ml-auto shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground"
-              >
-                <X className="size-3.5" />
-              </button>
-            </div>
-
-            {/* Panel content */}
+          <div className="flex w-[clamp(280px,28vw,384px)] min-w-0 shrink-0 flex-col border-l border-border/60">
+            <PanelTabStrip
+              primaryPanels={primaryPanels}
+              overflowPanels={overflowPanels}
+              activePanel={activePanel}
+              onSelect={setRightPanel}
+              onClose={() => setRightPanel(null)}
+            />
             <div className="min-h-0 flex-1 overflow-hidden">
               <Suspense fallback={<PanelLoader />}>
                 <ActivePanel panel={activePanel!} />
@@ -643,28 +426,87 @@ export function CoCodeWorkspace() {
           </div>
         )}
 
-        {/* Collapsed right rail — icon strip */}
         {!showRightPanel && (
-          <div className="flex w-10 flex-col items-center gap-0.5 border-l border-border/60 bg-sidebar/40 py-2">
-            {primaryPanels.slice(0, 12).map((p) => {
-              const def = PANEL_DEFS[p.id];
-              if (!def) return null;
-              const Icon = def.icon;
-              return (
-                <SimpleTooltip key={p.id} label={def.label} description={def.description} side="left" delay={300}>
-                  <button
-                    type="button"
-                    onClick={() => setRightPanel(p.id as IDEPanel)}
-                    className="flex w-8 items-center justify-center rounded-md py-1.5 text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground"
-                  >
-                    <Icon className="size-4" />
-                  </button>
-                </SimpleTooltip>
-              );
-            })}
-          </div>
+          <CollapsedRail primaryPanels={primaryPanels} onSelect={setRightPanel} />
         )}
       </div>
+
+      {/* ── Main area — mobile: one pane at a time + bottom switcher ────────── */}
+      <div className="flex min-h-0 flex-1 flex-col md:hidden">
+        <div className="min-h-0 flex-1">
+          {mobilePane === "panel" && showRightPanel ? (
+            <div className="flex h-full flex-col">
+              <PanelTabStrip
+                primaryPanels={primaryPanels}
+                overflowPanels={overflowPanels}
+                activePanel={activePanel}
+                onSelect={setRightPanel}
+                onClose={() => setRightPanel(null)}
+              />
+              <div className="min-h-0 flex-1 overflow-hidden">
+                <Suspense fallback={<PanelLoader />}>
+                  <ActivePanel panel={activePanel!} />
+                </Suspense>
+              </div>
+            </div>
+          ) : (
+            <div className="flex h-full flex-col">
+              <Suspense fallback={<PanelLoader />}>
+                <MonacoEditor className="min-h-0 flex-1" />
+              </Suspense>
+              <WorkspaceChatInput />
+            </div>
+          )}
+        </div>
+
+        {/* Bottom segmented switcher — Files opens a slide-over, Editor/Panel swap the pane above */}
+        <div className="flex items-center gap-1 border-t border-border/60 bg-card/50 p-1.5">
+          <button
+            type="button"
+            onClick={() => setMobileExplorerOpen(true)}
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-md py-1.5 text-caption font-medium text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground"
+          >
+            <PanelLeftOpen className="size-3.5" />
+            Files
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobilePane("editor")}
+            className={cn(
+              "flex flex-1 items-center justify-center gap-1.5 rounded-md py-1.5 text-caption font-medium transition-colors",
+              mobilePane === "editor" ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
+            )}
+          >
+            <Code2 className="size-3.5" />
+            Editor
+          </button>
+          <button
+            type="button"
+            onClick={() => showRightPanel && setMobilePane("panel")}
+            disabled={!showRightPanel}
+            className={cn(
+              "flex flex-1 items-center justify-center gap-1.5 rounded-md py-1.5 text-caption font-medium transition-colors disabled:opacity-30",
+              mobilePane === "panel" && showRightPanel ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
+            )}
+          >
+            <PanelLeftClose className="size-3.5" />
+            Panel
+          </button>
+        </div>
+      </div>
+
+      <Sheet open={mobileExplorerOpen} onOpenChange={setMobileExplorerOpen}>
+        <SheetContent side="left" className="w-[85vw] max-w-xs p-0">
+          <SheetHeader className="border-b border-border p-3">
+            <SheetTitle className="text-sm">Files</SheetTitle>
+          </SheetHeader>
+          <div className="h-[calc(100%-3.5rem)] overflow-hidden">
+            <Suspense fallback={<PanelLoader />}>
+              <FileExplorer />
+            </Suspense>
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {/* ── Status Bar (Part 8) ──────────────────────────────────────────────── */}
       <WorkspaceStatusBar
