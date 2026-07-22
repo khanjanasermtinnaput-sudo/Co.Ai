@@ -16,7 +16,7 @@ const BASE = process.env.AOF_WEB_BASE_URL ?? "http://localhost:3000";
 const ROUTES = ["/", "/chat", "/code", "/projects", "/settings", "/login"];
 
 async function withPage(fn) {
-  const browser = await chromium.launch();
+  const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium" });
   try {
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
     const consoleErrors = [];
