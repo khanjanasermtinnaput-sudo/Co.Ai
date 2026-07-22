@@ -91,12 +91,14 @@
   html {
     -webkit-text-size-adjust: 100%;
     scrollbar-gutter: stable;
+    overflow-x: hidden;
   }
   body {
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "cv11", "ss01";
     font-variation-settings: normal;
     text-rendering: optimizeLegibility;
+    overflow-x: hidden;
   }
   ::selection {
     background: hsl(var(--primary) / 0.28);

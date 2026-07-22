@@ -180,7 +180,7 @@ export function Composer({
           placeholder={placeholder}
           aria-label={placeholder}
           className={cn(
-            "no-scrollbar flex-1 resize-none border-0 bg-transparent py-2 text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:ring-0",
+            "no-scrollbar min-w-0 flex-1 resize-none border-0 bg-transparent py-2 text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:ring-0",
             size === "lg" ? "text-base leading-relaxed" : "text-sm",
           )}
           style={{ maxHeight }}

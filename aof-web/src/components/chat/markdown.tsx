@@ -113,7 +113,7 @@ const components: Components = {
 
 export function Markdown({ content, className }: { content: string; className?: string }) {
   return (
-    <div className={cn("space-y-3 text-[15px] leading-relaxed text-foreground/90", className)}>
+    <div className={cn("space-y-3 break-words [overflow-wrap:anywhere] text-[15px] leading-relaxed text-foreground/90", className)}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={[rehypeKatex]}

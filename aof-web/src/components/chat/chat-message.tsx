@@ -191,7 +191,7 @@ function ChatMessageImpl({
             ) : (
               <div
                 className={cn(
-                  "rounded-2xl px-4 py-3",
+                  "min-w-0 break-words [overflow-wrap:anywhere] rounded-2xl px-4 py-3",
                   isUser
                     ? "rounded-tr-md bg-primary/12 text-foreground"
                     : "rounded-tl-md border border-white/[0.06] bg-card/70",
