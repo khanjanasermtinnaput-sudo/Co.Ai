@@ -13,6 +13,7 @@ import {
   parseIstanbulReport, estimateCoverage,
   type CoverageReport, type FileCoverage,
 } from "@/lib/cocode/coverage-analyzer";
+import { PanelHeader } from "@/components/cocode/panel-header";
 
 const GRADE_COLOR: Record<string, string> = {
   A: "text-emerald-400", B: "text-blue-400", C: "text-amber-400", D: "text-orange-400", F: "text-red-400",
@@ -89,13 +90,11 @@ export function CoveragePanel({ className }: { className?: string }) {
 
   return (
     <div className={cn("flex h-full flex-col", className)}>
-      <div className="flex items-center gap-2 border-b border-border/70 px-4 py-2.5">
-        <BarChart3 className="size-4 text-muted-foreground" />
-        <span className="text-sm font-medium">Code Coverage</span>
+      <PanelHeader icon={BarChart3} title="Code Coverage">
         {report && (
           <span className={cn("ml-auto text-[12px] font-bold tabular-nums", summaryColor)}>{summary?.pct}%</span>
         )}
-      </div>
+      </PanelHeader>
 
       {!report ? (
         <div className="flex flex-col items-center gap-4 p-8 text-center">

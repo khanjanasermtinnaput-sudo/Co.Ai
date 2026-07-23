@@ -6,6 +6,7 @@ import { NextResponse } from "next/server";
 import { getAdminSupabase, getUserFromRequest, isAdminConfigured } from "@/lib/server/supabase-admin";
 import { requireAdmin } from "@/lib/admin/server";
 import { logAdminAction } from "@/lib/admin/server";
+import { formatError } from "@/lib/errors/api-error";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,7 +22,7 @@ export async function GET(req: Request) {
     .select("*")
     .order("flag_key", { ascending: true });
 
-  if (dbErr) return NextResponse.json({ error: "query-failed", detail: dbErr.message }, { status: 500 });
+  if (dbErr) return formatError("DB_500", { detail: dbErr.message });
   return NextResponse.json({ flags: flags ?? [] });
 }
 
@@ -31,7 +32,7 @@ export async function POST(req: Request) {
 
   let body: Record<string, unknown>;
   try { body = await req.json(); } catch {
-    return NextResponse.json({ error: "invalid-json" }, { status: 400 });
+    return formatError("SYSTEM_500", { message: "Invalid JSON in request body.", detail: "invalid-json" }, 400);
   }
 
   const { flagKey, description, enabled, targetPlans, targetRoles, rolloutPct } = body as {
@@ -44,7 +45,7 @@ export async function POST(req: Request) {
   };
 
   if (!flagKey || typeof flagKey !== "string" || !/^[a-z0-9\-_]+$/.test(flagKey)) {
-    return NextResponse.json({ error: "invalid-flag-key" }, { status: 400 });
+    return formatError("SYSTEM_500", { message: "Invalid flag key.", detail: "invalid-flag-key" }, 400);
   }
 
   const supabase = getAdminSupabase();
@@ -65,7 +66,7 @@ export async function POST(req: Request) {
     .select()
     .single();
 
-  if (upsertErr) return NextResponse.json({ error: "upsert-failed", detail: upsertErr.message }, { status: 500 });
+  if (upsertErr) return formatError("DB_500", { detail: upsertErr.message });
 
   await logAdminAction(caller.id, "admin.feature_flag_update", flag.id, "feature_flag", { flagKey, enabled });
   return NextResponse.json({ ok: true, flag }, { status: 201 });

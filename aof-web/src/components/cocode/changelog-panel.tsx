@@ -12,6 +12,7 @@ import {
   parseGitLog, buildChangelog, formatMarkdown, buildAIChangelogPrompt,
   type ParsedCommit,
 } from "@/lib/cocode/changelog";
+import { PanelHeader } from "@/components/cocode/panel-header";
 
 const COMMIT_TYPE_COLOR: Record<string, string> = {
   feat: "text-emerald-400", fix: "text-red-400", perf: "text-amber-400",
@@ -84,10 +85,7 @@ export function ChangelogPanel({ className }: { className?: string }) {
 
   return (
     <div className={cn("flex h-full flex-col", className)}>
-      <div className="flex items-center gap-2 border-b border-border/70 px-4 py-2.5">
-        <ScrollText className="size-4 text-muted-foreground" />
-        <span className="text-sm font-medium">Changelog Generator</span>
-      </div>
+      <PanelHeader icon={ScrollText} title="Changelog Generator" />
 
       <div className="flex-1 overflow-y-auto space-y-4 p-4">
         {/* Mode */}

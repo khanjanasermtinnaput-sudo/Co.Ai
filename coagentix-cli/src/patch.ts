@@ -5,13 +5,11 @@ import {
   readFileSync, writeFileSync, mkdirSync, existsSync,
   copyFileSync, readdirSync, rmSync,
 } from "node:fs";
-import { join, dirname, relative } from "node:path";
+import { join, dirname } from "node:path";
 import { randomUUID } from "node:crypto";
-import { homedir } from "node:os";
 import type { FileChange } from "./files.js";
 
 const CHECKPOINT_DIR = join(process.cwd(), ".coai-checkpoints");
-const COAI_DIR       = join(homedir(), ".coai");
 
 // ── Patch ──────────────────────────────────────────────────────────────────────
 

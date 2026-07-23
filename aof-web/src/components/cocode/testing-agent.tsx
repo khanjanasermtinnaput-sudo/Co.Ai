@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { useCocodeIDEStore } from "@/store/cocode-ide-store";
 import { extractDiffs } from "@/lib/cocode/diff";
 import { SimpleTooltip } from "./ide-tooltip";
+import { PanelHeader } from "@/components/cocode/panel-header";
 
 interface TestCase {
   id: string;
@@ -144,9 +145,7 @@ export function TestingAgent() {
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
-      <div className="flex items-center gap-2 border-b border-border/70 px-4 py-2.5">
-        <FlaskConical className="size-4 text-muted-foreground" />
-        <span className="text-sm font-medium">Testing Agent</span>
+      <PanelHeader icon={FlaskConical} title="Testing Agent">
         <SimpleTooltip
           label="AI estimate, not executed"
           description="This agent doesn't have a real test runner. Pass/fail is the AI's best-effort read of the code, not an actual test execution — run the generated tests yourself to confirm."
@@ -183,7 +182,7 @@ export function TestingAgent() {
             </Button>
           )}
         </div>
-      </div>
+      </PanelHeader>
 
       {!activeFile ? (
         <div className="flex flex-1 items-center justify-center p-6 text-center text-[12px] text-muted-foreground/60">

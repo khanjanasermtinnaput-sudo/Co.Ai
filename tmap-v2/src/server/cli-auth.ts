@@ -17,19 +17,6 @@ function sbReady(): boolean {
   return Boolean(SUPABASE_URL && SUPABASE_KEY);
 }
 
-async function sb(path: string, init: RequestInit = {}): Promise<Response> {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-    ...init,
-    headers: {
-      apikey: SUPABASE_KEY!,
-      Authorization: `Bearer ${SUPABASE_KEY}`,
-      'Content-Type': 'application/json',
-      ...(init.headers ?? {}),
-    },
-  });
-  return res as unknown as Response;
-}
-
 interface CliTokenRow {
   id: string;
   user_id: string;

@@ -12,6 +12,7 @@
     "agents": "tsx src/cli.ts agents",
     "server": "tsx src/server/index.ts",
     "start": "tsx src/server/index.ts",
+    "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "node scripts/test.mjs",
     "test:integration": "node scripts/test.mjs",
@@ -33,10 +34,14 @@
     "prom-client": "^15.0.0"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
     "@types/jsonwebtoken": "^9.0.7",
-    "@types/node": "^22.9.0"
+    "@types/node": "^22.9.0",
+    "@typescript-eslint/eslint-plugin": "^8.65.0",
+    "@typescript-eslint/parser": "^8.65.0",
+    "eslint": "^10.7.0"
   },
   "engines": {
     "node": ">=18"

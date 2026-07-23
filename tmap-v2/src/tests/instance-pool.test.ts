@@ -70,7 +70,6 @@ test('pick still returns an instance (graceful degradation) when every instance 
 
 test('recordEnd decrements inFlight so a completed request frees capacity', () => {
   const pool = new InstancePool(1);
-  const instances = ['http://a/v1', 'http://b/v1'];
   pool.recordStart('http://a/v1');
   pool.recordEnd('http://a/v1', 100);
   // a is no longer at cap, so round-robin (starting fresh key) should still be

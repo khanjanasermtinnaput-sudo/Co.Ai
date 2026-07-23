@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useCocodeIDEStore } from "@/store/cocode-ide-store";
 import { scanSecurity, type SecurityFinding, type SecuritySeverity } from "@/lib/cocode/security-scanner";
+import { PanelHeader } from "@/components/cocode/panel-header";
 import { flattenFiles } from "@/lib/cocode/virtual-fs";
 
 const SEV_ICON: Record<SecuritySeverity, React.ReactNode> = {
@@ -98,9 +99,7 @@ export function SecurityPanel({ className }: { className?: string }) {
 
   return (
     <div className={cn("flex h-full flex-col", className)}>
-      <div className="flex items-center gap-2 border-b border-border/70 px-4 py-2.5">
-        <ShieldAlert className="size-4 text-muted-foreground" />
-        <span className="text-sm font-medium">Security Scanner</span>
+      <PanelHeader icon={ShieldAlert} title="Security Scanner">
         {findings !== null && (
           <span className="text-[11px] text-muted-foreground/60">
             {findings.length === 0
@@ -112,7 +111,7 @@ export function SecurityPanel({ className }: { className?: string }) {
           <RefreshCw className={cn("size-3.5", running && "animate-spin")} />
           {findings ? "Re-scan" : "Scan"}
         </Button>
-      </div>
+      </PanelHeader>
 
       {!findings ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6 text-center">

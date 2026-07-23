@@ -142,7 +142,7 @@ export async function registerScheduledJobs(): Promise<void> {
   logger.info('scheduled_jobs_registered');
 }
 
-export async function getQueueStats(): Promise<{ waiting: number; active: number; completed: number; failed: number; provider: string }> {
+export async function getQueueStats(): Promise<QueueStats> {
   if (_mainQueue) {
     const q = _mainQueue as { getWaiting(): Promise<unknown[]>; getActive(): Promise<unknown[]>; getCompleted(): Promise<unknown[]>; getFailed(): Promise<unknown[]> };
     const [waiting, active, completed, failed] = await Promise.all([

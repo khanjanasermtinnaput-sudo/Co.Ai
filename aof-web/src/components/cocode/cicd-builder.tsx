@@ -20,6 +20,7 @@ import {
   type DeployTarget,
 } from "@/lib/cocode/deployment";
 import { flattenFiles } from "@/lib/cocode/virtual-fs";
+import { PanelHeader } from "@/components/cocode/panel-header";
 
 const CICD_TARGETS: Array<{ id: CICDTarget; label: string; file: string; comingSoon?: boolean }> = [
   { id: "github-actions", label: "GitHub Actions", file: ".github/workflows/ci.yml" },
@@ -97,9 +98,7 @@ export function CICDBuilder({ className }: { className?: string }) {
 
   return (
     <div className={cn("flex h-full flex-col", className)}>
-      <div className="flex items-center gap-2 border-b border-border/70 px-4 py-2.5">
-        <GitMerge className="size-4 text-muted-foreground" />
-        <span className="text-sm font-medium">CI/CD Builder</span>
+      <PanelHeader icon={GitMerge} title="CI/CD Builder">
         <div className="ml-auto flex items-center gap-1">
           <Button size="sm" variant="ghost" onClick={() => void copyYaml()} title="Copy YAML">
             {copied ? <CheckCircle2 className="size-3.5 text-emerald-400" /> : <Copy className="size-3.5" />}
@@ -111,7 +110,7 @@ export function CICDBuilder({ className }: { className?: string }) {
             <Download className="size-3.5" />
           </Button>
         </div>
-      </div>
+      </PanelHeader>
 
       <div className="flex min-h-0 flex-1">
         {/* Config panel */}

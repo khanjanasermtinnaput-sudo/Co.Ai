@@ -13,6 +13,7 @@ import {
 import { cn, readableTextColor } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useCocodeIDEStore } from "@/store/cocode-ide-store";
+import { PanelHeader } from "@/components/cocode/panel-header";
 
 interface Collaborator {
   id: string;
@@ -90,9 +91,7 @@ export function CollaborationPanel({ className }: { className?: string }) {
 
   return (
     <div className={cn("flex h-full flex-col", className)}>
-      <div className="flex items-center gap-2 border-b border-border/70 px-4 py-2.5">
-        <Users className="size-4 text-muted-foreground" />
-        <span className="text-sm font-medium">Collaboration</span>
+      <PanelHeader icon={Users} title="Collaboration">
         <div className="ml-auto flex -space-x-1">
           {collaborators.slice(0, 4).map((c) => (
             <div key={c.id}
@@ -103,7 +102,7 @@ export function CollaborationPanel({ className }: { className?: string }) {
             </div>
           ))}
         </div>
-      </div>
+      </PanelHeader>
 
       {/* Tabs */}
       <div className="flex border-b border-border/50">

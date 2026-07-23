@@ -11,6 +11,7 @@ import { useCocodeIDEStore } from "@/store/cocode-ide-store";
 import { flattenFiles } from "@/lib/cocode/virtual-fs";
 import { auditFiles, a11yScore, type A11yFinding, type A11ySeverity } from "@/lib/cocode/accessibility-audit";
 import { extractDiffs } from "@/lib/cocode/diff";
+import { PanelHeader } from "@/components/cocode/panel-header";
 
 const SEV_CONFIG: Record<A11ySeverity, { icon: typeof XCircle; color: string; bg: string; label: string }> = {
   error: { icon: XCircle, color: "text-red-400", bg: "bg-red-500/10", label: "Error" },
@@ -97,13 +98,11 @@ ${file.content.slice(0, 2000)}
 
   return (
     <div className={cn("flex h-full flex-col", className)}>
-      <div className="flex items-center gap-2 border-b border-border/70 px-4 py-2.5">
-        <Accessibility className="size-4 text-muted-foreground" />
-        <span className="text-sm font-medium">Accessibility Audit</span>
+      <PanelHeader icon={Accessibility} title="Accessibility Audit">
         {counts.error > 0 && (
           <span className="ml-1 rounded-full bg-red-500/20 px-1.5 py-0.5 text-[10px] font-medium text-red-400">{counts.error} errors</span>
         )}
-      </div>
+      </PanelHeader>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="p-4 space-y-4">

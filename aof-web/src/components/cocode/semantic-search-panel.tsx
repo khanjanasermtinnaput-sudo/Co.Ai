@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { useCocodeIDEStore } from "@/store/cocode-ide-store";
 import { flattenFiles } from "@/lib/cocode/virtual-fs";
 import { searchFiles, searchSymbols, type SearchResult, type SymbolResult } from "@/lib/cocode/semantic-search";
+import { PanelHeader } from "@/components/cocode/panel-header";
 
 type SearchMode = "text" | "symbol";
 
@@ -51,13 +52,11 @@ export function SemanticSearchPanel({ className }: { className?: string }) {
 
   return (
     <div className={cn("flex h-full flex-col", className)}>
-      <div className="flex items-center gap-2 border-b border-border/70 px-4 py-2.5">
-        <Search className="size-4 text-muted-foreground" />
-        <span className="text-sm font-medium">Code Search</span>
+      <PanelHeader icon={Search} title="Code Search">
         {totalResults > 0 && (
           <span className="ml-auto text-[11px] text-muted-foreground/50">{totalResults} results</span>
         )}
-      </div>
+      </PanelHeader>
 
       {/* Search controls */}
       <div className="space-y-2 border-b border-border/50 p-3">

@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { useCocodeIDEStore } from "@/store/cocode-ide-store";
 import { detectDeployConfig, type DeployTarget, type DeployConfig, type DeployLog } from "@/lib/cocode/deployment";
 import { flattenFiles } from "@/lib/cocode/virtual-fs";
+import { PanelHeader } from "@/components/cocode/panel-header";
 
 const TARGET_INFO: Record<DeployTarget, { name: string; color: string; emoji: string }> = {
   vercel: { name: "Vercel", color: "bg-black/40 border-foreground/20 text-white", emoji: "▲" },
@@ -123,9 +124,7 @@ export function DeploymentPanel({ className }: { className?: string }) {
 
   return (
     <div className={cn("flex h-full flex-col", className)}>
-      <div className="flex items-center gap-2 border-b border-border/70 px-4 py-2.5">
-        <Rocket className="size-4 text-muted-foreground" />
-        <span className="text-sm font-medium">Deploy</span>
+      <PanelHeader icon={Rocket} title="Deploy">
         {status === "success" && deployUrl && (
           <a href={deployUrl} target="_blank" rel="noopener noreferrer"
             className="ml-auto flex items-center gap-1 text-caption text-success hover:text-success">
@@ -133,7 +132,7 @@ export function DeploymentPanel({ className }: { className?: string }) {
             <ExternalLink className="size-3" />
           </a>
         )}
-      </div>
+      </PanelHeader>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-4 space-y-4">
         {/* Export — always available, always real */}

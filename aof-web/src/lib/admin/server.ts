@@ -11,6 +11,7 @@ import { NextResponse } from "next/server";
 import { getAdminSupabase, getUserFromRequest, isAdminConfigured } from "@/lib/server/supabase-admin";
 import type { AdminRole, LogAction, LogSeverity } from "./types";
 import { meetsMinRole, isElevatedRole } from "./permissions";
+import { formatError } from "@/lib/errors/api-error";
 
 // ── requireAdmin ──────────────────────────────────────────────────────────────
 
@@ -36,7 +37,7 @@ export async function requireAdmin(
   minRole: AdminRole = "ADMIN",
 ): Promise<RequireAdminResult> {
   if (!isAdminConfigured()) {
-    return { error: NextResponse.json({ error: "admin-not-configured" }, { status: 503 }) };
+    return { error: formatError("API_500", { detail: "admin-not-configured" }, 503) };
   }
   const result = await requireRole(req, minRole);
   if (result instanceof NextResponse) return { error: result };
@@ -139,26 +140,23 @@ export async function requireRole(
 ): Promise<{ user: { id: string; email?: string }; role: AdminRole } | NextResponse> {
   const header = req.headers.get("authorization") ?? req.headers.get("Authorization");
   if (!header?.startsWith("Bearer ")) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    return formatError("AUTH_401", { detail: "missing-bearer-token" });
   }
 
   const token = header.slice(7).trim();
   if (!token) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    return formatError("AUTH_401", { detail: "empty-bearer-token" });
   }
 
   const { data, error } = await getAdminSupabase().auth.getUser(token);
   if (error || !data.user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    return formatError("AUTH_401", { detail: "invalid-token" });
   }
 
   const role = await getUserRole(data.user.id);
 
   if (!meetsMinRole(role, minRole)) {
-    return NextResponse.json(
-      { error: "forbidden", required: minRole, actual: role },
-      { status: 403 },
-    );
+    return formatError("AUTH_403", { detail: `forbidden: required=${minRole} actual=${role}` });
   }
 
   return {

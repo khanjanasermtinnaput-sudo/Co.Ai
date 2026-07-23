@@ -678,7 +678,7 @@ describe('RedisCluster — optimization helpers', () => {
     const { acquireLock, releaseLock } = await import('../server/redis-cluster.js');
     const resource = `lock-held-${uid()}`;
     const t1 = await acquireLock(resource, 5_000);
-    const t2 = await acquireLock(resource, 5_000);
+    await acquireLock(resource, 5_000);
     // With MockRedis, SET NX works, so second acquire fails
     // (MockRedis doesn't enforce NX perfectly but ioredis does)
     // Just verify no crash

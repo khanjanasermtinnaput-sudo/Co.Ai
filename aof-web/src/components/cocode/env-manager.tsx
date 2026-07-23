@@ -9,6 +9,7 @@ import { KeyRound, Eye, EyeOff, Plus, Trash2, Download, Upload, Copy, CheckCircl
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useCocodeIDEStore } from "@/store/cocode-ide-store";
+import { PanelHeader } from "@/components/cocode/panel-header";
 
 interface EnvVar {
   id: string;
@@ -112,9 +113,7 @@ export function EnvManager({ className }: { className?: string }) {
 
   return (
     <div className={cn("flex h-full flex-col", className)}>
-      <div className="flex items-center gap-2 border-b border-border/70 px-4 py-2.5">
-        <KeyRound className="size-4 text-muted-foreground" />
-        <span className="text-sm font-medium">Environment Variables</span>
+      <PanelHeader icon={KeyRound} title="Environment Variables">
         <div className="ml-auto flex items-center gap-1">
           <Button size="sm" variant="ghost" onClick={() => void copyAll()} title="Copy .env content">
             {copied ? <CheckCircle2 className="size-3.5 text-emerald-400" /> : <Copy className="size-3.5" />}
@@ -130,7 +129,7 @@ export function EnvManager({ className }: { className?: string }) {
             Save to FS
           </Button>
         </div>
-      </div>
+      </PanelHeader>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         {/* Header */}

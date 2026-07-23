@@ -5,6 +5,7 @@
 import { NextResponse } from "next/server";
 import { getAdminSupabase, getUserFromRequest, isAdminConfigured } from "@/lib/server/supabase-admin";
 import { requireAdmin } from "@/lib/admin/server";
+import { formatError } from "@/lib/errors/api-error";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -42,7 +43,7 @@ export async function GET(req: Request) {
   if (to)   query = query.lte("created_at", to);
 
   const { data: logs, error: dbErr, count } = await query;
-  if (dbErr) return NextResponse.json({ error: "query-failed", detail: dbErr.message }, { status: 500 });
+  if (dbErr) return formatError("DB_500", { detail: dbErr.message });
 
   return NextResponse.json({
     logs: logs ?? [],
@@ -59,7 +60,7 @@ export async function POST(req: Request) {
 
   let body: Record<string, unknown>;
   try { body = await req.json(); } catch {
-    return NextResponse.json({ error: "invalid-json" }, { status: 400 });
+    return formatError("SYSTEM_500", { message: "Invalid JSON in request body.", detail: "invalid-json" }, 400);
   }
 
   const { action, targetId, targetType, metadata, severity } = body as {
@@ -67,7 +68,7 @@ export async function POST(req: Request) {
     metadata?: Record<string, unknown>; severity?: string;
   };
 
-  if (!action) return NextResponse.json({ error: "action-required" }, { status: 400 });
+  if (!action) return formatError("SYSTEM_500", { message: "action is required.", detail: "action-required" }, 400);
 
   const { data: log, error: insertErr } = await getAdminSupabase()
     .from("system_logs")
@@ -81,6 +82,6 @@ export async function POST(req: Request) {
     })
     .select().single();
 
-  if (insertErr) return NextResponse.json({ error: "insert-failed", detail: insertErr.message }, { status: 500 });
+  if (insertErr) return formatError("DB_500", { detail: insertErr.message });
   return NextResponse.json({ ok: true, log }, { status: 201 });
 }

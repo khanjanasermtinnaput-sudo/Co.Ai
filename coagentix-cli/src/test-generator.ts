@@ -2,10 +2,9 @@
 
 import { execSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { join, extname } from "node:path";
+import { join } from "node:path";
 import chalk from "chalk";
 import type { CoaiApiClient } from "./api.js";
-import type { KnowledgeGraph } from "./knowledge-graph.js";
 
 export type TestType = "unit" | "integration" | "api" | "component";
 

@@ -36,7 +36,7 @@ function scoreConfidence(changes: FileChange[], summary: string): number {
   return Math.max(0, Math.min(100, score));
 }
 
-function scoreRisk(changes: FileChange[], root: string): number {
+function scoreRisk(changes: FileChange[], _root: string): number {
   let risk = 10;
 
   // More files = more risk

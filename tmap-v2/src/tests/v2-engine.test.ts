@@ -8,7 +8,7 @@ import { createGraph, topoOrder, type ExecNode } from '../v2/dag.js';
 import { executeGraph } from '../v2/executor.js';
 import { TraceRecorder } from '../v2/trace.js';
 import { EventBus } from '../v2/events.js';
-import { plan, makeReplan, type RaaConfig, type SubTask } from '../v2/raa.js';
+import { plan, makeReplan, type RaaConfig } from '../v2/raa.js';
 import { serializeGraph, applyCheckpoint } from '../v2/checkpoint.js';
 
 // Keep trace persistence local + off-network for tests.
@@ -325,9 +325,8 @@ test('terminal failure skips dependents; re-run resumes from failed node only', 
 // ── Checkpoint / resume across a simulated restart ──────────────────────────
 
 test('checkpoint: serialize a partial run and resume on a brand-new graph', async () => {
-  let aRuns1 = 0;
   const g1 = createGraph('ckpt', [
-    node({ id: 'a', run: async () => { aRuns1++; return 'A'; } }),
+    node({ id: 'a', run: async () => { return 'A'; } }),
     node({ id: 'b', dependencies: ['a'], run: async () => { throw new Error('boom'); } }),
   ]);
   let progressCalls = 0;

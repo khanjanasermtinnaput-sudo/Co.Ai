@@ -1,8 +1,8 @@
 // Repository scanner: reads file tree, detects framework/language/package manager
 
 import { createRequire } from "node:module";
-import { readFileSync, statSync, existsSync } from "node:fs";
-import { join, relative, extname } from "node:path";
+import { readFileSync, existsSync } from "node:fs";
+import { join, extname } from "node:path";
 import { glob } from "glob";
 
 // ignore is CommonJS; createRequire keeps it callable under NodeNext ESM

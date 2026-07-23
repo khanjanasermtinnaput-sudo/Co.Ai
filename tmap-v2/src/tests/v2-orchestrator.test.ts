@@ -8,7 +8,7 @@ import type { ExecutionPlan, IntentSpec, SubTask } from '../v2/raa.js';
 import {
   rankMemories, contextFitFrom, memoriesToContextV2,
   recencyScore, memoryDecay, dynamicImportance, frequencyScore,
-  detectConflicts, updateUsageFrequency,
+  updateUsageFrequency,
 } from '../v2/memory-v2.js';
 import type { ProjectMemory } from '../core/memory.js';
 import { RunQueue } from '../v2/queue.js';

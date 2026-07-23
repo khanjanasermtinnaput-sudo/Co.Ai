@@ -13,6 +13,7 @@ import {
   buildTranslationPrompt, targetFileExtension,
   type TranslationTarget,
 } from "@/lib/cocode/code-translator";
+import { PanelHeader } from "@/components/cocode/panel-header";
 
 export function CodeTranslatorPanel({ className }: { className?: string }) {
   const fs = useCocodeIDEStore((s) => s.fs);
@@ -78,10 +79,7 @@ export function CodeTranslatorPanel({ className }: { className?: string }) {
 
   return (
     <div className={cn("flex h-full flex-col", className)}>
-      <div className="flex items-center gap-2 border-b border-border/70 px-4 py-2.5">
-        <Languages className="size-4 text-muted-foreground" />
-        <span className="text-sm font-medium">Code Translator</span>
-      </div>
+      <PanelHeader icon={Languages} title="Code Translator" />
 
       <div className="flex-1 overflow-y-auto space-y-4 p-4">
         {/* Source */}

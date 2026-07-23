@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { useCocodeIDEStore } from "@/store/cocode-ide-store";
 import { flattenFiles } from "@/lib/cocode/virtual-fs";
 import { analyzeI18n, generateTranslationJSON, type ExtractedString } from "@/lib/cocode/i18n-manager";
+import { PanelHeader } from "@/components/cocode/panel-header";
 
 type I18nTab = "extract" | "missing" | "translations";
 
@@ -59,15 +60,13 @@ export function I18nPanel({ className }: { className?: string }) {
 
   return (
     <div className={cn("flex h-full flex-col", className)}>
-      <div className="flex items-center gap-2 border-b border-border/70 px-4 py-2.5">
-        <Globe className="size-4 text-muted-foreground" />
-        <span className="text-sm font-medium">i18n Manager</span>
+      <PanelHeader icon={Globe} title="i18n Manager">
         {report && (
           <span className="ml-auto text-[11px] text-muted-foreground/50">
             {report.extractedStrings.length} strings
           </span>
         )}
-      </div>
+      </PanelHeader>
 
       {/* Tabs */}
       <div className="flex border-b border-border/50">

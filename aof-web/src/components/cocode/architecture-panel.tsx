@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { useCocodeIDEStore } from "@/store/cocode-ide-store";
 import { flattenFiles } from "@/lib/cocode/virtual-fs";
 import { buildArchitectureDiagram } from "@/lib/cocode/architecture-diagram";
+import { PanelHeader } from "@/components/cocode/panel-header";
 
 const KIND_LEGEND = [
   { kind: "component", color: "#3b82f6", label: "Component" },
@@ -73,11 +74,9 @@ export function ArchitecturePanel({ className }: { className?: string }) {
 
   return (
     <div className={cn("flex h-full flex-col", className)}>
-      <div className="flex items-center gap-2 border-b border-border/70 px-4 py-2.5">
-        <Network className="size-4 text-muted-foreground" />
-        <span className="text-sm font-medium">Architecture Diagram</span>
+      <PanelHeader icon={Network} title="Architecture Diagram">
         <span className="text-[11px] text-muted-foreground/50">{nodes.length} nodes · {edges.length} edges</span>
-      </div>
+      </PanelHeader>
 
       {/* Controls */}
       <div className="flex items-center gap-2 border-b border-border/50 px-3 py-2">

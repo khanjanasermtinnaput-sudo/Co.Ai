@@ -13,6 +13,7 @@ import {
   extractExports, buildTestPrompt, testFilePath,
   type TestFramework, type TestType,
 } from "@/lib/cocode/test-generator";
+import { PanelHeader } from "@/components/cocode/panel-header";
 
 const FRAMEWORKS: Array<{ id: TestFramework; label: string }> = [
   { id: "vitest", label: "Vitest" },
@@ -89,10 +90,7 @@ export function TestGeneratorPanel({ className }: { className?: string }) {
 
   return (
     <div className={cn("flex h-full flex-col", className)}>
-      <div className="flex items-center gap-2 border-b border-border/70 px-4 py-2.5">
-        <FlaskConical className="size-4 text-muted-foreground" />
-        <span className="text-sm font-medium">AI Test Generator</span>
-      </div>
+      <PanelHeader icon={FlaskConical} title="AI Test Generator" />
 
       <div className="flex-1 overflow-y-auto">
         <div className="space-y-4 p-4">

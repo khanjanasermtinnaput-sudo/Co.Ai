@@ -12,6 +12,7 @@ import {
   TEMPLATES, generateScaffold, buildAIScaffoldPrompt,
   type ScaffoldTemplate, type ScaffoldOptions,
 } from "@/lib/cocode/scaffolder";
+import { PanelHeader } from "@/components/cocode/panel-header";
 
 const PM_OPTIONS = ["npm", "pnpm", "yarn", "bun"] as const;
 
@@ -96,16 +97,14 @@ export function ScaffolderPanel({ className }: { className?: string }) {
 
   return (
     <div className={cn("flex h-full flex-col", className)}>
-      <div className="flex items-center gap-2 border-b border-border/70 px-4 py-2.5">
-        <Wand2 className="size-4 text-muted-foreground" />
-        <span className="text-sm font-medium">Project Scaffolder</span>
+      <PanelHeader icon={Wand2} title="Project Scaffolder">
         {step !== "config" && (
           <button type="button" onClick={() => { setStep("config"); setGeneratedFiles([]); setAiFiles([]); }}
             className="ml-auto text-[11px] text-primary hover:underline">
             ← New Project
           </button>
         )}
-      </div>
+      </PanelHeader>
 
       {step === "config" && (
         <div className="min-h-0 flex-1 overflow-y-auto space-y-4 p-4">

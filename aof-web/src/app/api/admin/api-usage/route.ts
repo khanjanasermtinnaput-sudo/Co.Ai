@@ -5,6 +5,7 @@
 import { NextResponse } from "next/server";
 import { getAdminSupabase, getUserFromRequest, isAdminConfigured } from "@/lib/server/supabase-admin";
 import { requireAdmin } from "@/lib/admin/server";
+import { formatError } from "@/lib/errors/api-error";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,7 +33,7 @@ export async function GET(req: Request) {
   if (providerFilter) query = query.eq("provider", providerFilter);
 
   const { data: metrics, error: dbErr } = await query;
-  if (dbErr) return NextResponse.json({ error: "query-failed", detail: dbErr.message }, { status: 500 });
+  if (dbErr) return formatError("DB_500", { detail: dbErr.message });
 
   const rows = metrics ?? [];
 

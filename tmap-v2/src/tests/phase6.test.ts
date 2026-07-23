@@ -13,7 +13,6 @@ const TEST_DATA_DIR = join(tmpdir(), `cgntx-p6-test-${Date.now()}`);
 process.env['CGNTX_DATA_DIR'] = TEST_DATA_DIR;
 process.env['CGNTX_BACKUP_DIR'] = join(TEST_DATA_DIR, 'backups');
 // Disable Redis for file-only tests
-const origRedisUrl = process.env['REDIS_URL'];
 delete process.env['REDIS_URL'];
 delete process.env['REDIS_HOST'];
 

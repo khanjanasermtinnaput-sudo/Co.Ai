@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useCocodeIDEStore } from "@/store/cocode-ide-store";
 import type { KGNode, KGEdge } from "@/lib/cocode/knowledge-graph";
+import { PanelHeader } from "@/components/cocode/panel-header";
 
 const KIND_COLOR: Record<string, string> = {
   component: "#60a5fa",  // blue
@@ -172,9 +173,7 @@ export function KnowledgeGraphView() {
   return (
     <div className="flex h-full flex-col">
       {/* Controls */}
-      <div className="flex items-center gap-2 border-b border-border/70 px-4 py-2.5">
-        <Network className="size-4 text-muted-foreground" />
-        <span className="text-sm font-medium">Knowledge Graph</span>
+      <PanelHeader icon={Network} title="Knowledge Graph">
         <div className="relative ml-2 flex-1 max-w-48">
           <Search className="absolute left-2 top-1/2 size-3 -translate-y-1/2 text-muted-foreground/50" />
           <input
@@ -197,7 +196,7 @@ export function KnowledgeGraphView() {
         <Button size="icon-sm" variant="ghost" onClick={buildGraph} title="Rebuild graph">
           <RefreshCw className="size-3.5" />
         </Button>
-      </div>
+      </PanelHeader>
 
       {/* Legend */}
       <div className="flex flex-wrap items-center gap-3 border-b border-border/50 px-4 py-1.5">

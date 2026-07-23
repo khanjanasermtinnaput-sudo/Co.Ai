@@ -5,7 +5,7 @@ import {
   readFileSync, writeFileSync, mkdirSync, existsSync,
   copyFileSync, renameSync, rmSync, readdirSync,
 } from "node:fs";
-import { join, dirname, basename, relative } from "node:path";
+import { join, dirname, relative } from "node:path";
 import { randomUUID } from "node:crypto";
 
 export interface FileChange {

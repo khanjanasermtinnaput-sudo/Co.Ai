@@ -5,6 +5,7 @@
 import { NextResponse } from "next/server";
 import { getAdminSupabase, getUserFromRequest, isAdminConfigured } from "@/lib/server/supabase-admin";
 import { requireAdmin } from "@/lib/admin/server";
+import { formatError } from "@/lib/errors/api-error";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -89,7 +90,7 @@ export async function GET(req: Request) {
       perPage: BATCH,
     });
     if (listErr) {
-      return NextResponse.json({ error: "failed-to-list-users", detail: listErr.message }, { status: 500 });
+      return formatError("DB_500", { detail: listErr.message });
     }
     if (!data?.users?.length) break;
     allUsers = allUsers.concat(data.users);

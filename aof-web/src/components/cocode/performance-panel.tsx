@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { useCocodeIDEStore } from "@/store/cocode-ide-store";
 import { profilePerformance, type PerformanceReport } from "@/lib/cocode/performance-profiler";
 import { flattenFiles } from "@/lib/cocode/virtual-fs";
+import { PanelHeader } from "@/components/cocode/panel-header";
 
 const RISK_COLOR = { high: "text-red-400", medium: "text-amber-400", low: "text-emerald-400" };
 const RISK_BG = { high: "bg-red-500/10 border-red-500/30", medium: "bg-amber-500/10 border-amber-500/30", low: "bg-emerald-500/10 border-emerald-500/30" };
@@ -57,9 +58,7 @@ export function PerformancePanel({ className }: { className?: string }) {
 
   return (
     <div className={cn("flex h-full flex-col", className)}>
-      <div className="flex items-center gap-2 border-b border-border/70 px-4 py-2.5">
-        <Gauge className="size-4 text-muted-foreground" />
-        <span className="text-sm font-medium">Performance Profiler</span>
+      <PanelHeader icon={Gauge} title="Performance Profiler">
         {report && (
           <span className={cn("ml-auto text-[12px] font-semibold", scoreColor(report.score))}>
             {report.score}/100 · {scoreLabel(report.score)}
@@ -69,7 +68,7 @@ export function PerformancePanel({ className }: { className?: string }) {
           <RefreshCw className={cn("size-3.5", running && "animate-spin")} />
           {report ? "Re-scan" : "Analyze"}
         </Button>
-      </div>
+      </PanelHeader>
 
       {!report ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6 text-center">

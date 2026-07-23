@@ -5,6 +5,7 @@
 import { NextResponse } from "next/server";
 import { getAdminSupabase, getUserFromRequest, isAdminConfigured } from "@/lib/server/supabase-admin";
 import { requireAdmin } from "@/lib/admin/server";
+import { formatError } from "@/lib/errors/api-error";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -43,7 +44,7 @@ export async function GET(req: Request) {
 
   const { data: subs, error: dbErr, count } = await query;
   if (dbErr) {
-    return NextResponse.json({ error: "query-failed", detail: dbErr.message }, { status: 500 });
+    return formatError("DB_500", { detail: dbErr.message });
   }
 
   // Enrich with auth user emails for display
@@ -83,7 +84,7 @@ export async function POST(req: Request) {
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: "invalid-json" }, { status: 400 });
+    return formatError("SYSTEM_500", { message: "Invalid JSON in request body.", detail: "invalid-json" }, 400);
   }
 
   const { userId, plan, durationDays, isLifetime, grantReason } = body as {
@@ -95,12 +96,12 @@ export async function POST(req: Request) {
   };
 
   if (!userId || typeof userId !== "string") {
-    return NextResponse.json({ error: "userId-required" }, { status: 400 });
+    return formatError("SYSTEM_500", { message: "userId is required.", detail: "userId-required" }, 400);
   }
 
   const VALID_PLANS = ["FREE", "LITE", "PRO", "ADVANCED"];
   if (!plan || !VALID_PLANS.includes(plan)) {
-    return NextResponse.json({ error: "invalid-plan", validPlans: VALID_PLANS }, { status: 400 });
+    return formatError("SYSTEM_500", { message: "Invalid plan.", detail: `invalid-plan; valid: ${VALID_PLANS.join(", ")}` }, 400);
   }
 
   const supabase = getAdminSupabase();
@@ -108,7 +109,7 @@ export async function POST(req: Request) {
   // Verify user exists
   const { data: targetData, error: findErr } = await supabase.auth.admin.getUserById(userId);
   if (findErr || !targetData?.user) {
-    return NextResponse.json({ error: "user-not-found" }, { status: 404 });
+    return formatError("DB_500", { message: "User not found.", detail: "user-not-found" }, 404);
   }
 
   let expiresAt: string | null = null;
@@ -134,7 +135,7 @@ export async function POST(req: Request) {
     .single();
 
   if (subErr) {
-    return NextResponse.json({ error: "subscription-insert-failed", detail: subErr.message }, { status: 500 });
+    return formatError("DB_500", { detail: subErr.message });
   }
 
   // Update auth.users app_metadata.tier

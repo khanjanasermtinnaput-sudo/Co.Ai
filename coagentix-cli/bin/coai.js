@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 // CoCode CLI entry point
 import { fileURLToPath } from "node:url";
-import { createRequire } from "node:module";
 import { existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 

@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useCocodeIDEStore } from "@/store/cocode-ide-store";
 import { extractDiffs } from "@/lib/cocode/diff";
+import { PanelHeader } from "@/components/cocode/panel-header";
 
 type LogLevel = "error" | "warn" | "info" | "log" | "debug";
 
@@ -139,16 +140,14 @@ ${context}`;
 
   return (
     <div className={cn("flex h-full flex-col", className)}>
-      <div className="flex items-center gap-2 border-b border-border/70 px-4 py-2.5">
-        <Activity className="size-4 text-muted-foreground" />
-        <span className="text-sm font-medium">Runtime Monitor</span>
+      <PanelHeader icon={Activity} title="Runtime Monitor">
         {counts.error > 0 && (
           <span className="ml-1 rounded-full bg-red-500/20 px-1.5 py-0.5 text-[10px] font-medium text-red-400">{counts.error}</span>
         )}
-        <button type="button" onClick={() => setLogs([])} className="ml-auto text-muted-foreground/40 hover:text-muted-foreground" title="Clear logs">
+        <button type="button" onClick={() => setLogs([])} className="ml-auto text-muted-foreground/40 hover:text-muted-foreground" aria-label="Clear logs" title="Clear logs">
           <Trash2 className="size-3.5" />
         </button>
-      </div>
+      </PanelHeader>
 
       {/* Filter bar */}
       <div className="flex items-center gap-1 border-b border-border/50 px-3 py-2">

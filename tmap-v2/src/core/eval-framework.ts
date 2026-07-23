@@ -70,8 +70,6 @@ const DIMENSIONS = [
   { name: 'documentation',  weight: 0.05 },
 ] as const;
 
-type DimName = typeof DIMENSIONS[number]['name'];
-
 const EVAL_SYS = `You are the Coagentix AI Evaluation Engine.
 Score the generated output across 6 dimensions (each 0-100):
 
@@ -295,11 +293,6 @@ export async function runBenchmarkSuite(
         timestamp: new Date().toISOString(),
       });
     } catch (e) {
-      const emptyBb = {
-        sessionId: 'benchmark', task: bt.task, mode: 'normal' as const,
-        context: '', plan: [], planText: '', files: [], review: [],
-        reviewText: '', validations: [], iterations: 0, log: [],
-      };
       results.push({
         task: bt.task,
         evalReport: {

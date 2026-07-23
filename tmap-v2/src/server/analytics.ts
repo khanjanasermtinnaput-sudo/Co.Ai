@@ -148,7 +148,7 @@ function buildSummaryFromFiles(date: string): AnalyticsSummary {
 export async function getRangeSummary(
   from: string,
   to: string,
-  period: AnalyticsSummary['period'] = 'day',
+  _period: AnalyticsSummary['period'] = 'day',
 ): Promise<AnalyticsSummary[]> {
   const days = dateDaysInRange(from, to);
   return Promise.all(days.map((d) => getDailySummary(d)));

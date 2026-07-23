@@ -4,10 +4,8 @@
 import {
   readFileSync, writeFileSync, mkdirSync, existsSync, statSync,
 } from "node:fs";
-import { join, relative, extname, basename } from "node:path";
+import { join, extname, basename } from "node:path";
 import { globSync } from "glob";
-
-const GRAPH_FILE = join(process.cwd(), ".coai-graph.json");
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -34,7 +32,7 @@ export interface KnowledgeGraph {
 
 // ── File Classification ────────────────────────────────────────────────────────
 
-function classifyFile(path: string, content: string): FileNode["type"] {
+function classifyFile(path: string, _content: string): FileNode["type"] {
   const p = path.toLowerCase();
   if (p.includes(".test.") || p.includes(".spec.") || p.includes("__tests__")) return "test";
   if (p.includes("/api/") || p.includes("route.ts") || p.includes("handler.ts")) return "api";

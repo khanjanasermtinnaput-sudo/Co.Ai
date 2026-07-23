@@ -54,10 +54,10 @@ describe('Round 3 #6 — entitlement pure logic', () => {
 });
 
 // ── middleware behaviour ──────────────────────────────────────────────────────
-function fakeRes(): Response & { _status?: number; _json?: any } {
-  const res = {} as Response & { _status?: number; _json?: any };
+function fakeRes(): Response & { _status?: number; _json?: Record<string, unknown> } {
+  const res = {} as Response & { _status?: number; _json?: Record<string, unknown> };
   res.status = ((c: number) => { res._status = c; return res; }) as Response['status'];
-  res.json = ((b: any) => { res._json = b; return res; }) as Response['json'];
+  res.json = ((b: Record<string, unknown>) => { res._json = b; return res; }) as Response['json'];
   return res;
 }
 function fakeReq(user?: UserRecord): AuthedRequest {
@@ -84,8 +84,8 @@ describe('Round 3 #6 — requireSubscription middleware', () => {
     await requireSubscription('PRO', 'Titan')(fakeReq(user()), res, (() => { next = true; }) as NextFunction);
     assert.equal(next, false);
     assert.equal(res._status, 403);
-    assert.equal(res._json.requiredTier, 'PRO');
-    assert.equal(res._json.currentTier, 'FREE');
-    assert.equal(res._json.upgrade, true);
+    assert.equal(res._json?.requiredTier, 'PRO');
+    assert.equal(res._json?.currentTier, 'FREE');
+    assert.equal(res._json?.upgrade, true);
   });
 });

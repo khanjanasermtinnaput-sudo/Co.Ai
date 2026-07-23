@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { useCocodeIDEStore } from "@/store/cocode-ide-store";
 import type { FileDiff, DiffHunk } from "@/lib/cocode/diff";
 import { diffStats } from "@/lib/cocode/diff";
+import { PanelHeader } from "@/components/cocode/panel-header";
 
 export function DiffViewer() {
   const diff = useCocodeIDEStore((s) => s.diff);
@@ -45,9 +46,7 @@ export function DiffViewer() {
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
-      <div className="flex items-center gap-3 border-b border-border/70 px-4 py-2.5">
-        <GitBranch className="size-4 text-muted-foreground" />
-        <span className="text-sm font-medium">Review Changes</span>
+      <PanelHeader icon={GitBranch} title="Review Changes" className="gap-3">
         <div className="flex items-center gap-2 text-xs">
           <span className="text-success">+{stats.added}</span>
           <span className="text-destructive">-{stats.removed}</span>
@@ -83,7 +82,7 @@ export function DiffViewer() {
             )}
           </Button>
         </div>
-      </div>
+      </PanelHeader>
 
       {/* Status bar */}
       {pending > 0 && (

@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useCocodeIDEStore } from "@/store/cocode-ide-store";
 import type { Checkpoint } from "@/lib/cocode/checkpoint";
+import { PanelHeader } from "@/components/cocode/panel-header";
 
 function timeAgo(ms: number): string {
   const diff = Date.now() - ms;
@@ -66,9 +67,7 @@ export function CheckpointPanel() {
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
-      <div className="flex items-center gap-2 border-b border-border/70 px-4 py-2.5">
-        <History className="size-4 text-muted-foreground" />
-        <span className="text-sm font-medium">Checkpoints</span>
+      <PanelHeader icon={History} title="Checkpoints">
         <span className="ml-auto text-[11px] text-muted-foreground/60">{checkpoints.length} total</span>
         <div className="flex items-center gap-1">
           <Button size="icon-sm" variant="ghost" onClick={undo} disabled={!canUndo} title="Undo (Ctrl+Z)">
@@ -78,7 +77,7 @@ export function CheckpointPanel() {
             <RotateCw className="size-3.5" />
           </Button>
         </div>
-      </div>
+      </PanelHeader>
 
       {/* List */}
       <div className="min-h-0 flex-1 overflow-y-auto">

@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useCocodeIDEStore } from "@/store/cocode-ide-store";
 import { flattenFiles } from "@/lib/cocode/virtual-fs";
+import { PanelHeader } from "@/components/cocode/panel-header";
 
 interface SchemaTable {
   name: string;
@@ -141,13 +142,11 @@ export function DatabaseStudio({ className }: { className?: string }) {
 
   return (
     <div className={cn("flex h-full flex-col", className)}>
-      <div className="flex items-center gap-2 border-b border-border/70 px-4 py-2.5">
-        <Database className="size-4 text-muted-foreground" />
-        <span className="text-sm font-medium">Database Studio</span>
+      <PanelHeader icon={Database} title="Database Studio">
         {tables.length > 0 && (
           <span className="text-[11px] text-muted-foreground/60">{tables.length} tables</span>
         )}
-      </div>
+      </PanelHeader>
 
       {/* Tabs */}
       <div className="flex border-b border-border/50">

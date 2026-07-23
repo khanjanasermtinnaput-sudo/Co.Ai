@@ -1,6 +1,6 @@
 // Documentation Intelligence: auto-maintain README, arch docs, API docs, changelog
 
-import { readFileSync, existsSync, writeFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import chalk from "chalk";
 import type { CoaiApiClient } from "./api.js";
@@ -129,7 +129,7 @@ function readExistingDoc(filename: string): string | null {
 
 export async function generateDoc(
   api: CoaiApiClient,
-  root: string,
+  _root: string,
   req: DocUpdateRequest,
   context: string,
 ): Promise<string> {

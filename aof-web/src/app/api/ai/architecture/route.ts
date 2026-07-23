@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getUserFromRequest } from "@/lib/server/auth";
 import { streamChat } from "@/lib/server/chat";
+import { formatError } from "@/lib/errors/api-error";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,16 +23,16 @@ const ArchSchema = z.object({
 
 export async function POST(req: NextRequest) {
   const user = await getUserFromRequest(req);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!user) return formatError("AUTH_401");
 
   let body: unknown;
   try { body = await req.json(); } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    return formatError("SYSTEM_500", { message: "Invalid JSON in request body.", detail: "invalid-json" }, 400);
   }
 
   const parsed = ArchSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid input", issues: parsed.error.issues }, { status: 400 });
+    return formatError("SYSTEM_500", { message: "Invalid input.", detail: JSON.stringify(parsed.error.issues) }, 400);
   }
 
   const { focusArea, repoContext, generatePlan } = parsed.data;
@@ -66,7 +67,7 @@ Focus: ${focusArea}`;
       ],
     });
   } catch {
-    return NextResponse.json({ error: "Architecture analysis unavailable" }, { status: 503 });
+    return formatError("API_500", { message: "Architecture analysis unavailable.", detail: "architecture-analysis-unavailable" }, 503);
   }
 }
 

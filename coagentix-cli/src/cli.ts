@@ -25,15 +25,14 @@ import { computeReliability, printReliabilityScore } from "./reliability.js";
 import { listTasks, readTaskOutput, cancelTask, deleteTask } from "./background.js";
 import { generateDoc, getDocPath, printDocTypes } from "./docs-agent.js";
 import {
-  saveSession, loadSession, appendSessionHistory, clearSession,
+  saveSession, appendSessionHistory, clearSession,
   snapshotWorkspace, restoreWorkspace, listWorkspaceSnapshots,
   getRecoverySummary, printRecoverySummary,
 } from "./disaster-recovery.js";
-import { getGit, isGitRepo, getCurrentBranch, createBranch, stageAll, commit as gitCommit, push, pull, getLog } from "./git.js";
+import { getGit, isGitRepo, getCurrentBranch, createBranch, stageAll, commit as gitCommit, push, pull } from "./git.js";
 import { previewAndConfirm, printSuccess, printError, printInfo, printWarning, askYesNo } from "./safety.js";
 import { startInteractiveSession } from "./interactive.js";
 import { renderStreamEvent, startSpinner, brand, header, printTable } from "./ui.js";
-import { execCommand, parseCommand } from "./terminal.js";
 import type { FileChange } from "./files.js";
 
 const VERSION = "1.0.0";
@@ -640,7 +639,8 @@ program
     if (id) {
       if (opts?.cancel) {
         const ok = cancelTask(id);
-        ok ? printSuccess(`Task ${id} cancelled`) : printError(`Could not cancel task ${id}`);
+        if (ok) printSuccess(`Task ${id} cancelled`);
+        else printError(`Could not cancel task ${id}`);
         return;
       }
       if (opts?.delete) {
@@ -774,8 +774,6 @@ program
         return;
       }
 
-      const ext      = file.match(/\.(tsx?|jsx?)$/) ? file.replace(/\.(tsx?|jsx?)$/, ".test.$1") : file + ".test.ts";
-      const testFile = ext.replace(/\.test\.(tsx?)$/, ".test.$1");
       const testPath = file.replace(/\.(tsx?|jsx?)$/, ".test.$&".replace(".$&", "." + file.split(".").pop()));
 
       const changes: FileChange[] = [{ op: "create", path: testPath, content: testContent }];

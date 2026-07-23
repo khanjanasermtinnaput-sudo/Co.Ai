@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { useCocodeIDEStore } from "@/store/cocode-ide-store";
 import { analyzePairSuggestions, type PairSuggestion } from "@/lib/cocode/pair-programming";
 import { flattenFiles } from "@/lib/cocode/virtual-fs";
+import { PanelHeader } from "@/components/cocode/panel-header";
 
 const PRIORITY_ICON: Record<string, React.ReactNode> = {
   high: <AlertTriangle className="size-3.5 text-red-400" />,
@@ -106,9 +107,7 @@ export function PairPanel({ className }: { className?: string }) {
 
   return (
     <div className={cn("flex h-full flex-col", className)}>
-      <div className="flex items-center gap-2 border-b border-border/70 px-4 py-2.5">
-        <Bot className="size-4 text-primary" />
-        <span className="text-sm font-medium">AI Pair Programmer</span>
+      <PanelHeader icon={Bot} title="AI Pair Programmer">
         {suggestions && (
           <span className="ml-auto text-[11px] text-muted-foreground/60">
             {suggestions.length} suggestion{suggestions.length !== 1 ? "s" : ""}
@@ -118,7 +117,7 @@ export function PairPanel({ className }: { className?: string }) {
           <RefreshCw className={cn("size-3.5", running && "animate-spin")} />
           {suggestions ? "Re-scan" : "Scan"}
         </Button>
-      </div>
+      </PanelHeader>
 
       {!suggestions ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6 text-center">

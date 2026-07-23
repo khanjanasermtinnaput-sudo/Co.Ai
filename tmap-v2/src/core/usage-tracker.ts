@@ -37,11 +37,6 @@ function monthHashKey(userId: string, m: string): string { return `cgntx:usage:m
 const DAY_TTL_SEC   = 60 * 60 * 24 * 2;   // keep daily counters ~2 days
 const MONTH_TTL_SEC = 60 * 60 * 24 * 35;  // keep monthly counters ~35 days
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
-function emptyPeriod(): UsagePeriod {
-  return { tokens: 0, costUsd: 0, requests: 0, sandboxRuns: 0 };
-}
-
 function parsePeriod(h: Record<string, string> | null): UsagePeriod {
   return {
     tokens:      Number(h?.tokens ?? 0),

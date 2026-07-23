@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useCocodeIDEStore } from "@/store/cocode-ide-store";
 import { flattenFiles } from "@/lib/cocode/virtual-fs";
+import { PanelHeader } from "@/components/cocode/panel-header";
 
 type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
@@ -169,13 +170,11 @@ export function ApiStudio({ className }: { className?: string }) {
 
   return (
     <div className={cn("flex h-full flex-col", className)}>
-      <div className="flex items-center gap-2 border-b border-border/70 px-4 py-2.5">
-        <Globe className="size-4 text-muted-foreground" />
-        <span className="text-sm font-medium">API Studio</span>
+      <PanelHeader icon={Globe} title="API Studio">
         <Button size="sm" variant="ghost" className="ml-auto" onClick={addRequest}>
           <Plus className="size-3.5" /> New
         </Button>
-      </div>
+      </PanelHeader>
 
       <div className="flex min-h-0 flex-1">
         {/* Sidebar */}

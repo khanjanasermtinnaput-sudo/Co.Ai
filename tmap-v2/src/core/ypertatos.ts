@@ -14,9 +14,9 @@
 // "escalate automatically" rules as live behaviour, not just logging.
 
 import { randomUUID } from 'node:crypto';
-import type { Blackboard, CodeFile, PlanStep, Role } from '../types.js';
+import type { Blackboard, CodeFile, Role } from '../types.js';
 import { bagFromEnv } from '../config.js';
-import { HealthStore, globalHealth } from '../dars/health.js';
+import { globalHealth } from '../dars/health.js';
 import { chatWithDARS } from '../dars/run.js';
 import { classifyTask } from './classifier.js';
 import {

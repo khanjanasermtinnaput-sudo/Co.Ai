@@ -12,6 +12,7 @@ import { useCocodeIDEStore } from "@/store/cocode-ide-store";
 import { flattenFiles } from "@/lib/cocode/virtual-fs";
 import { buildPreview } from "@/lib/cocode/preview-runtime";
 import { Button } from "@/components/ui/button";
+import { PanelHeader } from "@/components/cocode/panel-header";
 
 interface DeviceSpec {
   id: string;
@@ -90,11 +91,7 @@ export function MobilePreview({ className }: { className?: string }) {
 
   return (
     <div className={cn("flex h-full flex-col", className)}>
-      {/* Header */}
-      <div className="flex items-center gap-2 border-b border-border/70 px-4 py-2.5">
-        <Smartphone className="size-4 text-muted-foreground" />
-        <span className="text-sm font-medium">Mobile Preview</span>
-      </div>
+      <PanelHeader icon={Smartphone} title="Mobile Preview" />
 
       {/* Controls */}
       <div className="flex flex-wrap items-center gap-1.5 border-b border-border/50 px-3 py-2">

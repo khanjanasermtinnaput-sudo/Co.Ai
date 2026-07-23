@@ -10,9 +10,6 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, rmSync } from 'node:fs';
-import { join } from 'node:path';
-import { tmpdir } from 'node:os';
 
 // ── Imports under test ────────────────────────────────────────────────────────
 
@@ -411,17 +408,7 @@ describe('Bot protection middleware', () => {
     } as unknown as import('express').Request;
   }
 
-  function fakeRes() {
-    let code = 0;
-    let body: unknown = null;
-    return {
-      status: (c: number) => ({ json: (b: unknown) => { code = c; body = b; } }),
-      getCode: () => code,
-      getBody: () => body,
-    };
-  }
-
-  test('normal browser UA passes', (t, done) => {
+  test('normal browser UA passes', (_t, done) => {
     const mw  = botProtectionMiddleware();
     const req = fakeReq('Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0.0.0 Safari/537.36');
     const res = { status: () => ({ json: () => {} }) } as unknown as import('express').Response;
@@ -437,7 +424,7 @@ describe('Bot protection middleware', () => {
     assert.ok(blocked, 'sqlmap should be blocked');
   });
 
-  test('skipPaths exempts matching paths', (t, done) => {
+  test('skipPaths exempts matching paths', (_t, done) => {
     const mw  = botProtectionMiddleware({ skipPaths: /^\/v1\/health/ });
     const req = fakeReq('sqlmap/1.0', '/v1/health');
     const res = {} as unknown as import('express').Response;

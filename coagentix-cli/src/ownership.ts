@@ -1,6 +1,6 @@
 // Code Ownership Awareness: track every file modification with agent, reason, timestamp, prompt
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import chalk from "chalk";
 import type { FileChange } from "./files.js";

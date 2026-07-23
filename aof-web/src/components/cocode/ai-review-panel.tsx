@@ -13,6 +13,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useCocodeIDEStore } from "@/store/cocode-ide-store";
+import { PanelHeader } from "@/components/cocode/panel-header";
 
 type ReviewCategory = "logic" | "performance" | "security" | "naming" | "tests" | "architecture" | "style" | "docs";
 type ReviewSeverity = "critical" | "suggestion" | "praise" | "question";
@@ -210,9 +211,7 @@ ${content}`,
 
   return (
     <div className={cn("flex h-full flex-col", className)}>
-      <div className="flex items-center gap-2 border-b border-border/70 px-4 py-2.5">
-        <Star className="size-4 text-muted-foreground" />
-        <span className="text-sm font-medium">AI Code Review</span>
+      <PanelHeader icon={Star} title="AI Code Review">
         {review && (
           <div className="ml-auto flex items-center gap-2">
             <span className={cn("text-sm font-bold", scoreColor(review.score))}>{review.score}/100</span>
@@ -224,7 +223,7 @@ ${content}`,
             )}
           </div>
         )}
-      </div>
+      </PanelHeader>
 
       {/* Config */}
       <div className="flex items-center gap-3 border-b border-border/50 px-4 py-2">

@@ -6,6 +6,7 @@
 import { NextResponse } from "next/server";
 import { getAdminSupabase, getUserFromRequest, isAdminConfigured } from "@/lib/server/supabase-admin";
 import { requireAdmin } from "@/lib/admin/server";
+import { formatError } from "@/lib/errors/api-error";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -48,7 +49,7 @@ export async function GET(
   const supabase = getAdminSupabase();
   const { data: userData, error: userErr } = await supabase.auth.admin.getUserById(params.id);
   if (userErr || !userData?.user) {
-    return NextResponse.json({ error: "user-not-found" }, { status: 404 });
+    return formatError("DB_500", { message: "User not found.", detail: "user-not-found" }, 404);
   }
 
   const u = userData.user;
@@ -91,7 +92,7 @@ export async function PATCH(
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: "invalid-json" }, { status: 400 });
+    return formatError("SYSTEM_500", { message: "Invalid JSON in request body.", detail: "invalid-json" }, 400);
   }
 
   const supabase = getAdminSupabase();
@@ -99,7 +100,7 @@ export async function PATCH(
   // Verify target user exists
   const { data: targetData, error: findErr } = await supabase.auth.admin.getUserById(params.id);
   if (findErr || !targetData?.user) {
-    return NextResponse.json({ error: "user-not-found" }, { status: 404 });
+    return formatError("DB_500", { message: "User not found.", detail: "user-not-found" }, 404);
   }
 
   const updates: {
@@ -142,7 +143,7 @@ export async function PATCH(
   if (Object.keys(updates).length > 0) {
     const { error: updateErr } = await supabase.auth.admin.updateUserById(params.id, updates);
     if (updateErr) {
-      return NextResponse.json({ error: "update-failed", detail: updateErr.message }, { status: 500 });
+      return formatError("DB_500", { detail: updateErr.message });
     }
   }
 
@@ -150,11 +151,11 @@ export async function PATCH(
   if (typeof body.role === "string") {
     const validRoles = ["OWNER", "ADMIN", "STAFF", "BETA_TESTER", "USER"];
     if (!validRoles.includes(body.role)) {
-      return NextResponse.json({ error: "invalid-role" }, { status: 400 });
+      return formatError("SYSTEM_500", { message: "Invalid role.", detail: "invalid-role" }, 400);
     }
     // Only OWNER can grant OWNER/ADMIN
     if (["OWNER", "ADMIN"].includes(body.role) && callerRole !== "OWNER") {
-      return NextResponse.json({ error: "forbidden-role-escalation" }, { status: 403 });
+      return formatError("AUTH_403", { detail: "forbidden-role-escalation" });
     }
     if (body.role === "USER") {
       // Remove elevated role row
@@ -191,17 +192,17 @@ export async function DELETE(
 
   const { data: targetData, error: findErr } = await supabase.auth.admin.getUserById(params.id);
   if (findErr || !targetData?.user) {
-    return NextResponse.json({ error: "user-not-found" }, { status: 404 });
+    return formatError("DB_500", { message: "User not found.", detail: "user-not-found" }, 404);
   }
 
   // Prevent self-deletion
   if (caller.id === params.id) {
-    return NextResponse.json({ error: "cannot-delete-self" }, { status: 400 });
+    return formatError("SYSTEM_500", { message: "You cannot delete your own account.", detail: "cannot-delete-self" }, 400);
   }
 
   const { error: delErr } = await supabase.auth.admin.deleteUser(params.id);
   if (delErr) {
-    return NextResponse.json({ error: "delete-failed", detail: delErr.message }, { status: 500 });
+    return formatError("DB_500", { detail: delErr.message });
   }
 
   await logAction(caller.id, "admin.user.delete", params.id, {

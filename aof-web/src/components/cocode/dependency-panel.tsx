@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { useCocodeIDEStore } from "@/store/cocode-ide-store";
 import { analyzeDependencies, type DependencyReport } from "@/lib/cocode/dependency-analyzer";
 import { flattenFiles } from "@/lib/cocode/virtual-fs";
+import { PanelHeader } from "@/components/cocode/panel-header";
 
 type Section = "recommendations" | "circular" | "unused" | "dead" | "large";
 
@@ -50,9 +51,7 @@ export function DependencyPanel({ className }: { className?: string }) {
 
   return (
     <div className={cn("flex h-full flex-col", className)}>
-      <div className="flex items-center gap-2 border-b border-border/70 px-4 py-2.5">
-        <Package className="size-4 text-muted-foreground" />
-        <span className="text-sm font-medium">Dependency Analyzer</span>
+      <PanelHeader icon={Package} title="Dependency Analyzer">
         {report && (
           <span className="ml-auto text-[11px] text-muted-foreground/60">
             {allFiles.length} files · {report.imports.length} imports
@@ -62,7 +61,7 @@ export function DependencyPanel({ className }: { className?: string }) {
           <RefreshCw className={cn("size-3.5", running && "animate-spin")} />
           {report ? "Re-analyze" : "Analyze"}
         </Button>
-      </div>
+      </PanelHeader>
 
       {!report ? (
         <div className="flex flex-1 items-center justify-center p-6 text-center">

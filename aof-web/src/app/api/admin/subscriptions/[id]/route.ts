@@ -5,6 +5,7 @@
 import { NextResponse } from "next/server";
 import { getAdminSupabase, getUserFromRequest, isAdminConfigured } from "@/lib/server/supabase-admin";
 import { requireAdmin } from "@/lib/admin/server";
+import { formatError } from "@/lib/errors/api-error";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,7 +32,7 @@ export async function PATCH(
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: "invalid-json" }, { status: 400 });
+    return formatError("SYSTEM_500", { message: "Invalid JSON in request body.", detail: "invalid-json" }, 400);
   }
 
   const supabase = getAdminSupabase();
@@ -44,7 +45,7 @@ export async function PATCH(
     .single();
 
   if (fetchErr || !existing) {
-    return NextResponse.json({ error: "subscription-not-found" }, { status: 404 });
+    return formatError("DB_500", { message: "Subscription not found.", detail: "subscription-not-found" }, 404);
   }
 
   const VALID_PLANS = ["FREE", "LITE", "PRO", "ADVANCED"];
@@ -52,7 +53,7 @@ export async function PATCH(
 
   if (typeof body.plan === "string") {
     if (!VALID_PLANS.includes(body.plan)) {
-      return NextResponse.json({ error: "invalid-plan" }, { status: 400 });
+      return formatError("SYSTEM_500", { message: "Invalid plan.", detail: "invalid-plan" }, 400);
     }
     updates.plan = body.plan;
   }
@@ -66,7 +67,7 @@ export async function PATCH(
   }
 
   if (Object.keys(updates).length === 0) {
-    return NextResponse.json({ error: "no-fields-to-update" }, { status: 400 });
+    return formatError("SYSTEM_500", { message: "No fields to update.", detail: "no-fields-to-update" }, 400);
   }
 
   const { data: updated, error: updateErr } = await supabase
@@ -77,7 +78,7 @@ export async function PATCH(
     .single();
 
   if (updateErr) {
-    return NextResponse.json({ error: "update-failed", detail: updateErr.message }, { status: 500 });
+    return formatError("DB_500", { detail: updateErr.message });
   }
 
   // Sync app_metadata.tier if plan changed
@@ -121,11 +122,11 @@ export async function DELETE(
     .single();
 
   if (fetchErr || !existing) {
-    return NextResponse.json({ error: "subscription-not-found" }, { status: 404 });
+    return formatError("DB_500", { message: "Subscription not found.", detail: "subscription-not-found" }, 404);
   }
 
   if (existing.revoked_at) {
-    return NextResponse.json({ error: "already-revoked" }, { status: 400 });
+    return formatError("SYSTEM_500", { message: "Subscription already revoked.", detail: "already-revoked" }, 400);
   }
 
   // Soft-revoke the subscription
@@ -138,7 +139,7 @@ export async function DELETE(
     .eq("id", params.id);
 
   if (revokeErr) {
-    return NextResponse.json({ error: "revoke-failed", detail: revokeErr.message }, { status: 500 });
+    return formatError("DB_500", { detail: revokeErr.message });
   }
 
   // Check if user has another active subscription; if not, revert tier to FREE

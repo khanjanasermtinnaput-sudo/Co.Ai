@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { useCocodeIDEStore } from "@/store/cocode-ide-store";
 import { analyzeFiles, parseConsoleMessage, type Diagnostic } from "@/lib/cocode/diagnostics";
 import { flattenFiles } from "@/lib/cocode/virtual-fs";
+import { PanelHeader } from "@/components/cocode/panel-header";
 
 // ── BugInvestigation ──────────────────────────────────────────────────────────
 
@@ -248,9 +249,7 @@ export function DiagnosticsPanel({ className }: { className?: string }) {
 
   return (
     <div className={cn("flex h-full flex-col", className)}>
-      <div className="flex flex-wrap items-center gap-2 border-b border-border/70 px-4 py-2.5">
-        <AlertCircle className="size-4 text-muted-foreground" />
-        <span className="text-sm font-medium">Diagnostics</span>
+      <PanelHeader icon={AlertCircle} title="Diagnostics" className="flex-wrap">
         {diags.length > 0 && (
           <div className="flex items-center gap-2 text-[11px]">
             {errorCount > 0 && <span className="text-red-400">{errorCount} error{errorCount !== 1 ? "s" : ""}</span>}
@@ -258,7 +257,7 @@ export function DiagnosticsPanel({ className }: { className?: string }) {
           </div>
         )}
         <div className="ml-auto flex items-center gap-1">
-          <Button size="sm" variant="ghost" onClick={() => setShowBugInvestigator((b) => !b)}>
+          <Button size="sm" variant="ghost" onClick={() => setShowBugInvestigator((b) => !b)} aria-label="Toggle bug investigator">
             <Bug className="size-3.5" />
           </Button>
           <Button size="sm" variant={diags.length ? "secondary" : "default"} onClick={analyze} disabled={running}>
@@ -266,7 +265,7 @@ export function DiagnosticsPanel({ className }: { className?: string }) {
             Scan
           </Button>
         </div>
-      </div>
+      </PanelHeader>
 
       {showBugInvestigator ? (
         <div className="min-h-0 flex-1 overflow-y-auto border-t border-border/50">

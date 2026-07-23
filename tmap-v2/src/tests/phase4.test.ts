@@ -345,10 +345,8 @@ describe('Enhanced Agent Voting', () => {
 
 describe('Titan Reasoning Engine', () => {
   test('runTitan returns 7 review passes (Phase 4: 2 new passes added)', async () => {
-    const { REVIEW_PASSES } = await import('../core/titan.js') as unknown as { REVIEW_PASSES: unknown[] };
-    // We verify REVIEW_PASSES indirectly through the exported constants.
-    // The module doesn't export REVIEW_PASSES directly, so we test through the
-    // result metadata instead.
+    // REVIEW_PASSES isn't exported directly from titan.js, so we verify
+    // through the result metadata instead.
     const { runTitan } = await import('../core/titan.js');
     const planText = [
       '===TITAN PLAN===',

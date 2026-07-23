@@ -2,7 +2,6 @@
 
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { globSync } from "glob";
 import chalk from "chalk";
 import type { CoaiApiClient } from "./api.js";
 import type { FileChange } from "./files.js";

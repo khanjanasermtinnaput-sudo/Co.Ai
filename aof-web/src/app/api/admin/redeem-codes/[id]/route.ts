@@ -7,6 +7,7 @@ import { NextResponse } from "next/server";
 import { getAdminSupabase, getUserFromRequest, isAdminConfigured } from "@/lib/server/supabase-admin";
 import { requireAdmin } from "@/lib/admin/server";
 import { logAdminAction } from "@/lib/admin/server";
+import { formatError } from "@/lib/errors/api-error";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,7 +21,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   const supabase = getAdminSupabase();
   const { data: code, error: codeErr } = await supabase
     .from("redeem_codes").select("*").eq("id", params.id).maybeSingle();
-  if (codeErr || !code) return NextResponse.json({ error: "not-found" }, { status: 404 });
+  if (codeErr || !code) return formatError("DB_500", { message: "Code not found.", detail: "not-found" }, 404);
 
   const { data: uses } = await supabase
     .from("redeem_code_uses")
@@ -53,12 +54,12 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
   let body: Record<string, unknown>;
   try { body = await req.json(); } catch {
-    return NextResponse.json({ error: "invalid-json" }, { status: 400 });
+    return formatError("SYSTEM_500", { message: "Invalid JSON in request body.", detail: "invalid-json" }, 400);
   }
 
   const supabase = getAdminSupabase();
   const { data: existing } = await supabase.from("redeem_codes").select("*").eq("id", params.id).maybeSingle();
-  if (!existing) return NextResponse.json({ error: "not-found" }, { status: 404 });
+  if (!existing) return formatError("DB_500", { message: "Code not found.", detail: "not-found" }, 404);
 
   const updates: Record<string, unknown> = {};
   if (typeof body.disabled === "boolean") {
@@ -71,7 +72,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
   const { data: updated, error: updateErr } = await supabase
     .from("redeem_codes").update(updates).eq("id", params.id).select().single();
-  if (updateErr) return NextResponse.json({ error: "update-failed", detail: updateErr.message }, { status: 500 });
+  if (updateErr) return formatError("DB_500", { detail: updateErr.message });
 
   await logAdminAction(caller.id, "redeem_code.disable", params.id, "redeem_code", { updates });
   return NextResponse.json({ ok: true, code: updated });
@@ -83,13 +84,13 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
 
   const supabase = getAdminSupabase();
   const { data: existing } = await supabase.from("redeem_codes").select("use_count").eq("id", params.id).maybeSingle();
-  if (!existing) return NextResponse.json({ error: "not-found" }, { status: 404 });
+  if (!existing) return formatError("DB_500", { message: "Code not found.", detail: "not-found" }, 404);
   if (existing.use_count > 0) {
-    return NextResponse.json({ error: "cannot-delete-used-code" }, { status: 409 });
+    return formatError("SYSTEM_500", { message: "Cannot delete a code that has already been used.", detail: "cannot-delete-used-code" }, 409);
   }
 
   const { error: delErr } = await supabase.from("redeem_codes").delete().eq("id", params.id);
-  if (delErr) return NextResponse.json({ error: "delete-failed", detail: delErr.message }, { status: 500 });
+  if (delErr) return formatError("DB_500", { detail: delErr.message });
 
   await logAdminAction(caller.id, "redeem_code.delete", params.id, "redeem_code");
   return NextResponse.json({ ok: true });

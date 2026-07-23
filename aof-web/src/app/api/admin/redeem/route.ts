@@ -7,17 +7,18 @@ import { z } from "zod";
 import { getAdminSupabase, getUserFromRequest, isAdminConfigured } from "@/lib/server/supabase-admin";
 import { logAdminAction } from "@/lib/admin/server";
 import { parseJsonBody } from "@/lib/server/validate";
+import { formatError } from "@/lib/errors/api-error";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   if (!isAdminConfigured()) {
-    return NextResponse.json({ error: "service-unavailable" }, { status: 503 });
+    return formatError("API_500", { detail: "service-unavailable" }, 503);
   }
 
   const user = await getUserFromRequest(req);
-  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (!user) return formatError("AUTH_401");
 
   const parsed = await parseJsonBody(req, z.object({ code: z.string().min(1).max(64) }));
   if (parsed.error) return parsed.error;
@@ -33,22 +34,22 @@ export async function POST(req: Request) {
     .maybeSingle();
 
   if (codeErr || !redeemCode) {
-    return NextResponse.json({ error: "invalid-code" }, { status: 404 });
+    return formatError("SYSTEM_500", { message: "Invalid redeem code.", detail: "invalid-code" }, 404);
   }
 
   // Check if disabled
   if (redeemCode.disabled_at) {
-    return NextResponse.json({ error: "code-disabled" }, { status: 410 });
+    return formatError("SYSTEM_500", { message: "This code has been disabled.", detail: "code-disabled" }, 410);
   }
 
   // Check expiry
   if (redeemCode.expires_at && new Date(redeemCode.expires_at) < new Date()) {
-    return NextResponse.json({ error: "code-expired" }, { status: 410 });
+    return formatError("SYSTEM_500", { message: "This code has expired.", detail: "code-expired" }, 410);
   }
 
   // Check usage limit
   if (redeemCode.max_uses !== null && redeemCode.use_count >= redeemCode.max_uses) {
-    return NextResponse.json({ error: "code-limit-reached" }, { status: 410 });
+    return formatError("SYSTEM_500", { message: "This code has reached its usage limit.", detail: "code-limit-reached" }, 410);
   }
 
   // Check single-use-per-user
@@ -59,7 +60,7 @@ export async function POST(req: Request) {
       .eq("redeem_code_id", redeemCode.id)
       .eq("user_id", user.id)
       .maybeSingle();
-    if (existing) return NextResponse.json({ error: "already-redeemed" }, { status: 409 });
+    if (existing) return formatError("SYSTEM_500", { message: "You have already redeemed this code.", detail: "already-redeemed" }, 409);
   }
 
   // Calculate expiry for subscription
@@ -83,7 +84,7 @@ export async function POST(req: Request) {
     .single();
 
   if (subErr) {
-    return NextResponse.json({ error: "subscription-failed", detail: subErr.message }, { status: 500 });
+    return formatError("DB_500", { detail: subErr.message });
   }
 
   // Record the use
