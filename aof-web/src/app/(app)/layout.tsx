@@ -1,5 +1,5 @@
 import { Sidebar } from "@/components/layout/sidebar";
-import { MobileTopbar } from "@/components/layout/mobile-nav";
+import { MobileTopbar, MobileNavDrawer } from "@/components/layout/mobile-nav";
 import { AmbientBackground } from "@/components/layout/ambient-background";
 import { AuthGate } from "@/components/providers/auth-gate";
 import { KeyboardShortcuts } from "@/components/providers/keyboard-shortcuts";
@@ -16,6 +16,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </a>
       <KeyboardShortcuts />
       <CommandPalette />
+      <MobileNavDrawer />
       <div className="relative flex h-dvh overflow-hidden">
         <AmbientBackground />
         <Sidebar />

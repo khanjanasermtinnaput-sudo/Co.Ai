@@ -51,7 +51,7 @@ export function Sidebar() {
       initial={false}
       animate={{ width: expanded ? 264 : 76 }}
       transition={{ type: "spring", stiffness: 380, damping: 38 }}
-      className="relative z-30 hidden h-dvh shrink-0 flex-col border-r border-sidebar-border bg-sidebar lg:flex"
+      className="relative z-30 hidden h-dvh shrink-0 flex-col border-r border-sidebar-border bg-sidebar md:flex"
     >
       {/* ── Top: logo + new chat/project ──────────────────────────────────── */}
       <div className={cn("flex flex-col gap-3 p-3", expanded ? "items-stretch" : "items-center")}>

@@ -358,7 +358,7 @@ export function CoCodeWorkspace() {
           </SimpleTooltip>
         )}
 
-        <div className="hidden lg:block">
+        <div className="hidden md:block">
           <StageSwitch stage={stage} onChange={goToStage} diffCount={diffCount} />
         </div>
 
@@ -373,7 +373,7 @@ export function CoCodeWorkspace() {
               onClick={toggleAgentPane}
               aria-label={agentOpen ? "Hide Agent" : "Show Agent"}
               className={cn(
-                "hidden rounded-md p-1.5 transition-colors hover:bg-foreground/5 lg:block",
+                "hidden rounded-md p-1.5 transition-colors hover:bg-foreground/5 md:block",
                 agentOpen ? "text-primary" : "text-muted-foreground hover:text-foreground",
               )}
             >
@@ -434,14 +434,14 @@ export function CoCodeWorkspace() {
               className="flex shrink-0 items-center gap-1 rounded-md border border-border/40 px-1.5 py-1 text-caption text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground sm:px-2"
             >
               <Terminal className="size-3" />
-              <span className="hidden lg:inline">Ctrl+Shift+P</span>
+              <span className="hidden md:inline">Ctrl+Shift+P</span>
             </button>
           </SimpleTooltip>
         </div>
       </div>
 
       {/* ── Desktop: resizable Agent | Stage split ──────────────────────────── */}
-      <div className="relative hidden min-h-0 flex-1 lg:flex">
+      <div className="relative hidden min-h-0 flex-1 md:flex">
         <ResizablePanelGroup
           direction="horizontal"
           onLayout={(sizes) => { if (sizes[0] > 1) setAgentPaneSize(sizes[0]); }}
@@ -480,7 +480,7 @@ export function CoCodeWorkspace() {
       </div>
 
       {/* ── Narrow: segmented Agent/Editor/Preview/Diff ─────────────────────── */}
-      <div className="relative flex min-h-0 flex-1 flex-col lg:hidden">
+      <div className="relative flex min-h-0 flex-1 flex-col md:hidden">
         <div className="border-b border-border/60 px-2 py-1.5">
           <MobileSegmented
             mobileView={mobileView}
