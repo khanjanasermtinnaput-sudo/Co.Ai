@@ -229,6 +229,20 @@
     box-shadow: inset 0 0 0 1px hsl(var(--foreground) / 0.06);
   }
 
+  /* CoCode code/terminal console surface — deliberately theme-invariant
+     (an IDE-style dark console reads correctly whether the app itself is
+     in light or dark mode, same convention most code editors use). Was
+     13 independent `bg-[#0b0b0f]`/`bg-[#0a0a0f]`/`bg-[#0b0b0b]` + `text-
+     slate-300/400` literals hand-copied across cocode/ panels; consolidated
+     to one canonical value so it can't drift further. Not subject to the
+     CLAUDE.md .dark-override contrast rule for the same reason the theme-
+     preview swatches in appearance-tab.tsx aren't — the whole point is to
+     NOT follow the current theme. */
+  .console-surface {
+    background-color: #0b0b0f;
+    color: hsl(215 20% 75%); /* ≈ Tailwind slate-300 */
+  }
+
   /* ---- Neomorphism ------------------------------------------------------
      Dual light-source shadows. Sources are theme-specific CSS vars
      (--neo-light / --neo-dark) so both light and dark read correctly.

@@ -39,20 +39,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid input", issues: parsed.error.issues }, { status: 400 });
   }
 
-  const { framework, designSystem, reuseExisting, description } = parsed.data;
-
-  // Vision analysis placeholder — real implementation uses a vision-capable model
-  return NextResponse.json({
-    status: "processed",
-    framework,
-    designSystem,
-    reuseExisting,
-    description: description ?? "Screenshot analyzed",
-    detectedComponents: ["Layout", "Card", "Button", "Form"],
-    generatedCode: `// Generated from screenshot analysis\n// Framework: ${framework}\n// Design System: ${designSystem}\n\nexport default function GeneratedComponent() {\n  return (\n    <div className="container mx-auto p-4">\n      {/* Components detected from screenshot */}\n    </div>\n  );\n}`,
-    message: "Screenshot analyzed. Review generated components before applying.",
-    workflow: ["vision-analysis", "component-detection", "layout-detection", "code-generation", "git-diff", "preview"],
-  });
+  // No real vision-model call exists here yet — this used to return a
+  // hardcoded detectedComponents/generatedCode pair regardless of the actual
+  // image, which is exactly the "fake/placeholder workflow" this repo's own
+  // governance doc forbids. Reporting the honest status instead, the same
+  // pattern deployment-panel.tsx uses for a deploy target with no real
+  // integration ("Not configured") rather than faking success.
+  return NextResponse.json(
+    {
+      status: "not_implemented",
+      message: "Screenshot-to-code analysis isn't wired to a vision model yet — no code was generated.",
+    },
+    { status: 501 },
+  );
 }
 
 export async function GET() {

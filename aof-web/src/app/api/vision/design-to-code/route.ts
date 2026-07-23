@@ -41,28 +41,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid input", issues: parsed.error.issues }, { status: 400 });
   }
 
-  const { source, framework, designSystem, generateResponsive } = parsed.data;
-
-  return NextResponse.json({
-    status: "processed",
-    source,
-    framework,
-    designSystem,
-    generateResponsive,
-    extractedTokens: {
-      colors: ["#0f172a", "#6366f1", "#f8fafc"],
-      typography: ["Inter", "16px base", "1.5 line-height"],
-      spacing: ["4px", "8px", "16px", "24px", "32px"],
+  // No real Figma/Penpot/Sketch/Adobe XD API integration exists here yet —
+  // this used to return hardcoded extractedTokens regardless of the actual
+  // design file, exactly the "fake/placeholder workflow" this repo's own
+  // governance doc forbids. Reporting the honest status instead, the same
+  // pattern deployment-panel.tsx uses for a deploy target with no real
+  // integration ("Not configured") rather than faking success.
+  return NextResponse.json(
+    {
+      status: "not_implemented",
+      source: parsed.data.source,
+      message: `${parsed.data.source} design-file analysis isn't wired to a real design-tool API yet — no components were generated.`,
     },
-    generatedComponents: [],
-    message: `Design from ${source} analyzed. Maintainable components generated — not pixel-perfect copies.`,
-    principles: [
-      "Reuses existing project components where possible",
-      "Follows project design system conventions",
-      "Generates responsive layouts by default",
-      "Preserves maintainability over visual exactness",
-    ],
-  });
+    { status: 501 },
+  );
 }
 
 export async function GET() {

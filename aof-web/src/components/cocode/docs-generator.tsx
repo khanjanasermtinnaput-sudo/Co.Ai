@@ -166,7 +166,7 @@ export function DocsGenerator({ className }: { className?: string }) {
         {/* Content */}
         <div className="flex min-w-0 flex-1 flex-col">
           {content ? (
-            <div className="min-h-0 flex-1 overflow-y-auto bg-[#0b0b0f] p-4">
+            <div className="console-surface min-h-0 flex-1 overflow-y-auto p-4">
               <pre className="whitespace-pre-wrap font-mono text-[12px] text-slate-300 leading-relaxed">
                 {content}
               </pre>

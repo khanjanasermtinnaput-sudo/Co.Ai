@@ -231,13 +231,13 @@ export function DatabaseStudio({ className }: { className?: string }) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             rows={6}
-            className="mb-2 resize-none rounded-lg border border-border/50 bg-[#0b0b0f] p-3 font-mono text-[12px] text-slate-300 outline-none focus:border-primary/40"
+            className="mb-2 resize-none rounded-lg border border-border/50 console-surface p-3 font-mono text-[12px] outline-none focus:border-primary/40"
           />
           <Button onClick={() => void runQuery()} className="mb-3 self-end">
             <Play className="size-3.5" /> Run Query
           </Button>
           {queryResult && (
-            <pre className="flex-1 overflow-auto rounded-lg bg-[#0b0b0f] p-3 font-mono text-[12px] text-slate-400">
+            <pre className="flex-1 overflow-auto console-surface rounded-lg p-3 font-mono text-[12px] text-slate-400">
               {queryResult}
             </pre>
           )}
@@ -255,7 +255,7 @@ export function DatabaseStudio({ className }: { className?: string }) {
                 <span className="text-[11px] text-muted-foreground/60">Migration SQL</span>
                 <Button size="sm" variant="ghost" onClick={saveMigration}><Download className="size-3.5" /> Save</Button>
               </div>
-              <pre className="flex-1 overflow-auto rounded-lg bg-[#0b0b0f] p-3 font-mono text-[12px] text-slate-300">
+              <pre className="flex-1 overflow-auto console-surface rounded-lg p-3 font-mono text-[12px]">
                 {migration}
               </pre>
             </>

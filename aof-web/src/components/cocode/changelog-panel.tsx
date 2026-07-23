@@ -110,7 +110,7 @@ export function ChangelogPanel({ className }: { className?: string }) {
             onChange={(e) => setGitLog(e.target.value)}
             rows={6}
             placeholder="Paste output of: git log --oneline"
-            className="w-full resize-none rounded-lg border border-border/50 bg-[#0b0b0f] p-3 font-mono text-[12px] text-slate-300 outline-none focus:border-primary/40"
+            className="w-full resize-none rounded-lg border border-border/50 console-surface p-3 font-mono text-[12px] outline-none focus:border-primary/40"
           />
           <p className="mt-1 text-[10px] text-muted-foreground/40">Tip: Run <code className="font-mono">git log --oneline</code> and paste here</p>
         </div>
@@ -157,7 +157,7 @@ export function ChangelogPanel({ className }: { className?: string }) {
               <Button size="sm" variant="ghost" onClick={save}><Download className="size-3.5" /> Save</Button>
             </div>
             {savedPath && <p className="mb-2 text-[11px] text-emerald-400">✓ Saved to {savedPath}</p>}
-            <pre className="max-h-80 overflow-auto rounded-lg bg-[#0b0b0f] p-3 font-mono text-[12px] text-slate-300 whitespace-pre-wrap">
+            <pre className="max-h-80 overflow-auto console-surface rounded-lg p-3 font-mono text-[12px] whitespace-pre-wrap">
               {output}
             </pre>
           </div>

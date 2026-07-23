@@ -209,7 +209,7 @@ export function KnowledgeGraphView() {
       </div>
 
       {/* SVG canvas */}
-      <div className="min-h-0 flex-1 overflow-hidden bg-[#0a0a0f]">
+      <div className="console-surface min-h-0 flex-1 overflow-hidden">
         <svg
           ref={svgRef}
           className="size-full"

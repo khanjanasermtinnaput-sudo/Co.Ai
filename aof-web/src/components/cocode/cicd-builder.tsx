@@ -164,7 +164,7 @@ export function CICDBuilder({ className }: { className?: string }) {
         </div>
 
         {/* YAML preview */}
-        <div className="min-w-0 flex-1 overflow-auto bg-[#0b0b0f] p-4">
+        <div className="console-surface min-w-0 flex-1 overflow-auto p-4">
           <pre className="font-mono text-[11px] text-slate-300 leading-relaxed whitespace-pre">{yaml}</pre>
         </div>
       </div>

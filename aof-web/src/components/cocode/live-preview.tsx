@@ -177,7 +177,7 @@ export function LivePreview({ className, splitMode = false }: LivePreviewProps) 
           className="min-h-0 flex-1 w-full border-0 bg-white"
         />
       ) : (
-        <div className="min-h-0 flex-1 overflow-y-auto bg-[#0b0b0b] p-2 font-mono text-[11px]">
+        <div className="console-surface min-h-0 flex-1 overflow-y-auto p-2 font-mono text-[11px]">
           <div className="mb-1 flex items-center justify-between">
             <span className="text-muted-foreground/50">Console · {logs.length}</span>
             <button

@@ -213,7 +213,7 @@ export function TestingAgent() {
 
           {/* Live log */}
           {streaming && (
-            <div className="border-t border-border/50 bg-[#0b0b0b] p-3">
+            <div className="console-surface border-t border-border/50 p-3">
               <div className="mb-1 flex items-center gap-1.5 text-[11px] text-muted-foreground/60">
                 <Loader2 className="size-3 animate-spin" />
                 <span>Iteration {iteration}/{MAX_ITERATIONS} — {iteration === 1 ? "Generating tests + AI estimate…" : "Fixing + re-estimating…"}</span>
