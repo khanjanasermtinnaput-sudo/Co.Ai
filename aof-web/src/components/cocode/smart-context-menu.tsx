@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Edit2, Search, FlaskConical, MessageSquare, Zap, Star,
   FileText, Copy, Scissors, Clipboard, RefreshCw, Eye,
@@ -125,25 +125,75 @@ export function SmartContextMenu({
   const y = Math.min(position.y, vp.h - menuH);
 
   return (
+    <ContextMenuList items={items} target={target} x={x} y={y} onClose={onClose} />
+  );
+}
+
+function ContextMenuList({
+  items,
+  target,
+  x,
+  y,
+  onClose,
+}: {
+  items: ContextMenuItem[];
+  target: ContextTarget;
+  x: number;
+  y: number;
+  onClose: () => void;
+}) {
+  const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  // Move focus into the menu on open, and restore it to whatever was
+  // focused before on close — the two things a hand-built popup skips by
+  // default that a native/Radix menu gets for free.
+  useEffect(() => {
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    itemRefs.current[0]?.focus();
+    return () => previouslyFocused?.focus?.();
+  }, []);
+
+  const focusIndex = (i: number) => {
+    const n = items.length;
+    itemRefs.current[((i % n) + n) % n]?.focus();
+  };
+
+  const onMenuKeyDown = (e: React.KeyboardEvent) => {
+    const current = itemRefs.current.findIndex((el) => el === document.activeElement);
+    if (e.key === "ArrowDown") { e.preventDefault(); focusIndex(current + 1); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); focusIndex(current - 1); }
+    else if (e.key === "Home") { e.preventDefault(); focusIndex(0); }
+    else if (e.key === "End") { e.preventDefault(); focusIndex(items.length - 1); }
+    else if (e.key === "Escape") { e.preventDefault(); onClose(); }
+    else if (e.key === "Tab") { e.preventDefault(); focusIndex(current + (e.shiftKey ? -1 : 1)); }
+  };
+
+  return (
     <div
+      role="menu"
+      aria-orientation="vertical"
       className="fixed z-[400] min-w-[190px] overflow-hidden rounded-xl border border-border/70 bg-card/98 py-1.5 shadow-2xl backdrop-blur-xl"
       style={{ left: x, top: y }}
       onClick={(e) => e.stopPropagation()}
+      onKeyDown={onMenuKeyDown}
     >
       {target !== "generic" && (
         <div className="px-3 pb-1 pt-0.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/40">
           {target}
         </div>
       )}
-      {items.map((item) => {
+      {items.map((item, i) => {
         const Icon = item.icon;
         return (
           <button
             key={item.id}
+            ref={(el) => { itemRefs.current[i] = el; }}
             type="button"
+            role="menuitem"
             className={cn(
               "flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[12px]",
               "text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground",
+              "focus-visible:bg-foreground/5 focus-visible:text-foreground focus-visible:outline-none",
             )}
             onClick={item.action}
           >

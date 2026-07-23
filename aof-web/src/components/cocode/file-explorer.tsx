@@ -63,9 +63,11 @@ const TreeNode = memo(function TreeNode({
     const expanded = expandedDirs.has(node.path) || node.expanded;
     return (
       <div>
-        <div
+        <button
+          type="button"
+          aria-expanded={expanded}
           className={cn(
-            "group flex cursor-pointer select-none items-center gap-1 rounded-sm px-2 py-0.5 text-[13px]",
+            "group flex w-full select-none items-center gap-1 rounded-sm px-2 py-0.5 text-left text-[13px]",
             "hover:bg-foreground/[0.05]",
             isSelected && "bg-primary/10",
             isDraggingOver && "outline outline-1 outline-primary/40",
@@ -89,7 +91,7 @@ const TreeNode = memo(function TreeNode({
           <span className="truncate text-muted-foreground group-hover:text-foreground">
             {node.name}
           </span>
-        </div>
+        </button>
         {expanded && node.children.map((child) => (
           <TreeNode
             key={child.path}
@@ -114,9 +116,11 @@ const TreeNode = memo(function TreeNode({
   const highlight = searchQuery && file.name.toLowerCase().includes(searchQuery.toLowerCase());
 
   return (
-    <div
+    <button
+      type="button"
+      aria-current={isActive ? "true" : undefined}
       className={cn(
-        "group flex cursor-pointer select-none items-center gap-1.5 rounded-sm px-2 py-0.5 text-[13px]",
+        "group flex w-full select-none items-center gap-1.5 rounded-sm px-2 py-0.5 text-left text-[13px]",
         "hover:bg-foreground/[0.05]",
         isActive && "bg-primary/15 text-foreground",
         isSelected && !isActive && "bg-foreground/[0.06]",
@@ -144,7 +148,7 @@ const TreeNode = memo(function TreeNode({
       {file.dirty && (
         <span className="ml-auto size-1.5 shrink-0 rounded-full bg-amber-400/80" title="Unsaved" />
       )}
-    </div>
+    </button>
   );
 });
 
@@ -450,14 +454,15 @@ export function FileExplorer() {
           {pinnedFiles.map((path) => {
             const name = path.split("/").pop() ?? path;
             return (
-              <div
+              <button
                 key={path}
+                type="button"
                 onClick={() => openTab(path)}
-                className="flex cursor-pointer items-center gap-1.5 px-3 py-0.5 text-[12px] text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+                className="flex w-full items-center gap-1.5 px-3 py-0.5 text-left text-[12px] text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
               >
                 <Pin className="size-3 shrink-0 text-primary/60" />
                 <span className="truncate">{name}</span>
-              </div>
+              </button>
             );
           })}
         </div>
@@ -472,14 +477,15 @@ export function FileExplorer() {
           {recentFiles.slice(0, 5).map((path) => {
             const name = path.split("/").pop() ?? path;
             return (
-              <div
+              <button
                 key={path}
+                type="button"
                 onClick={() => openTab(path)}
-                className="flex cursor-pointer items-center gap-1.5 px-3 py-0.5 text-[12px] text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+                className="flex w-full items-center gap-1.5 px-3 py-0.5 text-left text-[12px] text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
               >
                 <FileIcon name={name} />
                 <span className="truncate">{name}</span>
-              </div>
+              </button>
             );
           })}
         </div>
@@ -497,14 +503,15 @@ export function FileExplorer() {
             <p className="px-4 py-4 text-center text-[12px] text-muted-foreground/50">No files match</p>
           ) : (
             filteredFiles.map((file) => (
-              <div
+              <button
                 key={file.path}
+                type="button"
                 onClick={() => openTab(file.path)}
-                className="flex cursor-pointer items-center gap-1.5 px-3 py-0.5 text-[12px] text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+                className="flex w-full items-center gap-1.5 px-3 py-0.5 text-left text-[12px] text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
               >
                 <FileIcon name={file.name} />
                 <span className="min-w-0 truncate">{file.path}</span>
-              </div>
+              </button>
             ))
           )
         ) : (

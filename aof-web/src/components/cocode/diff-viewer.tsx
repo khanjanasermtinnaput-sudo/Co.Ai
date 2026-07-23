@@ -138,8 +138,14 @@ function FileDiffBlock({
     <div className="border-b border-border/50">
       {/* File header */}
       <div
+        role="button"
+        tabIndex={0}
+        aria-expanded={!collapsed}
         className="flex cursor-pointer select-none items-center gap-2 bg-card/40 px-4 py-2 hover:bg-card/60"
         onClick={() => setCollapsed((c) => !c)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setCollapsed((c) => !c); }
+        }}
       >
         {collapsed ? (
           <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" />

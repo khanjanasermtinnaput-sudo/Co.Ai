@@ -60,7 +60,7 @@ function TabBar() {
   if (!tabs.length) return null;
 
   return (
-    <div className="flex items-center overflow-x-auto border-b border-border/70 bg-card/30 no-scrollbar">
+    <div role="tablist" className="flex items-center overflow-x-auto border-b border-border/70 bg-card/30 no-scrollbar">
       {tabs.map((tab) => {
         const name = tab.path.split("/").pop() ?? tab.path;
         const isActive = tab.path === activeTab;
@@ -70,6 +70,9 @@ function TabBar() {
         return (
           <div
             key={tab.path}
+            role="tab"
+            aria-selected={isActive}
+            tabIndex={0}
             className={[
               "group flex shrink-0 cursor-pointer items-center gap-1.5 border-r border-border/50 px-3 py-1.5",
               "text-[12px] transition-colors",
@@ -79,14 +82,18 @@ function TabBar() {
             ].join(" ")}
             onClick={() => setActiveTab(tab.path)}
             onDoubleClick={() => pinTab(tab.path)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setActiveTab(tab.path); }
+            }}
             title={tab.path}
           >
             {tab.pinned && (
-              <span className="size-1.5 rounded-full bg-primary/60" />
+              <span className="size-1.5 rounded-full bg-primary/60" title="Pinned" aria-label="Pinned" />
             )}
             <span className="max-w-[120px] truncate">{name}</span>
             <button
               type="button"
+              aria-label={`Close ${name}`}
               onClick={(e) => { e.stopPropagation(); closeTab(tab.path); }}
               className="size-4 shrink-0 rounded opacity-0 hover:bg-foreground/10 hover:text-foreground group-hover:opacity-100"
             >

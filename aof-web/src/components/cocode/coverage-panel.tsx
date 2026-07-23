@@ -119,7 +119,7 @@ export function CoveragePanel({ className }: { className?: string }) {
                 {report.source === "estimated" ? "Estimated coverage" : "Actual coverage"} · {report.files.length} files
               </span>
               <div className="flex gap-2">
-                <button type="button" onClick={loadFromFS} className="text-[11px] text-muted-foreground/50 hover:text-foreground">
+                <button type="button" onClick={loadFromFS} aria-label="Refresh coverage estimate" title="Refresh" className="text-[11px] text-muted-foreground/50 hover:text-foreground">
                   <RefreshCw className="size-3" />
                 </button>
               </div>
