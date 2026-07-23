@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import {
   streamCodeChat,
+  streamCodeEdit,
   streamCodeRun,
   streamRequirements,
   streamPlan,
@@ -27,6 +28,7 @@ import { checkUserAccess } from "@/lib/access";
 import { useAuthStore } from "@/store/auth-store";
 import { useCocodeIDEStore } from "@/store/cocode-ide-store";
 import { extractGeneratedFiles, buildProjectHtml, canBuildHtml } from "@/lib/export";
+import { extractDiffs } from "@/lib/cocode/diff";
 import { uid } from "@/lib/utils";
 import {
   formatErrorBlock,
@@ -170,6 +172,66 @@ function deriveBuildInput(
   return { task, context: conversationToContext(transcript), briefText: transcript };
 }
 
+/** Existing-project "iterate" path for `sendMessage` — file/git/diff context
+ *  folded into the request and unified-diff extraction on the reply, same as
+ *  the inline editor chat this replaces, now shared by the one agent
+ *  composer. Goes through `streamCodeEdit` (demo-mode-aware, real error
+ *  surfacing) rather than a hand-rolled fetch. Real diffs only: the model is
+ *  asked for unified git diffs, and `extractDiffs` only returns what it can
+ *  actually parse back out of the reply — nothing is fabricated if the model
+ *  doesn't emit one. */
+async function sendEditMessage(
+  content: string,
+  get: () => CodeState,
+  set: (partial: Partial<CodeState> | ((s: CodeState) => Partial<CodeState>)) => void,
+): Promise<void> {
+  const ide = useCocodeIDEStore.getState();
+  const history = get()
+    .convo.filter((m) => m.role === "user" || m.role === "assistant")
+    .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
+
+  const now = new Date().toISOString();
+  const userMsg: ChatMessageT = { id: uid("m"), role: "user", content, createdAt: now };
+  const assistantId = uid("m");
+  const assistantMsg: ChatMessageT = {
+    id: assistantId, role: "assistant", content: "", createdAt: now, streaming: true, model: get().mode,
+  };
+  set((s) => ({ chatting: true, projectActive: true, convo: [...s.convo, userMsg, assistantMsg] }));
+
+  const files = ide.allFiles();
+  const contextFiles = files.slice(0, 10)
+    .map((f) => `// ${f.path}\n${f.content.slice(0, 500)}`)
+    .join("\n\n---\n\n");
+  const activeContext = ide.activeTab ? `\nCurrently editing: ${ide.activeTab}` : "";
+  const gitContext = ide.github.connected && ide.github.repo ? `\nGit branch: ${ide.github.repo.branch}` : "";
+  const diffContext = ide.diff ? `\n${ide.diff.files.length} pending change(s) awaiting review.` : "";
+  const message =
+    `${content}\n\n---\nWorkspace: ${files.length} file(s).${activeContext}${gitContext}${diffContext}\n` +
+    `Files:\n${contextFiles}`;
+  const activeFile = ide.activeTab ? { path: ide.activeTab, content: ide.activeFile()?.content ?? "" } : null;
+
+  const append = (chunk: string) =>
+    set((s) => ({ convo: s.convo.map((m) => m.id === assistantId ? { ...m, content: m.content + chunk } : m) }));
+  const patch = (p: Partial<ChatMessageT>) =>
+    set((s) => ({ convo: s.convo.map((m) => (m.id === assistantId ? { ...m, ...p } : m)) }));
+
+  let full = "";
+  try {
+    await streamCodeEdit(message, activeFile, history, {
+      onToken: (chunk) => { full += chunk; append(chunk); },
+      onError: (error) => patch({ error, streaming: false }),
+      onUsage: (usage) => patch({ usage }),
+    }, get().effort);
+    const diffs = extractDiffs(full);
+    if (diffs.length) useCocodeIDEStore.getState().setDiff(diffs[0]);
+  } finally {
+    set((s) => ({
+      chatting: false,
+      convo: s.convo.map((m) => m.id === assistantId ? { ...m, streaming: false } : m),
+    }));
+  }
+}
+
 /** After a build/Titan run produces code, load the generated files into the
  *  CoCode workspace's file explorer/editor so Build output and Files stay
  *  in sync — one workspace, not two disconnected views of the project — then
@@ -197,8 +259,11 @@ function bridgeToWorkspace(buildLog: string, mode: "single" | "split" = "single"
     ide.openTab(files[0].path);
   }
 
-  ide.setViewMode("editor");
-  if (previewable) ide.setRightPanel("preview");
+  // Agent stays open (it's always visible now) — just point the stage at
+  // whatever is most useful to look at: a live preview when the output is
+  // renderable, otherwise the file that just landed in the editor.
+  ide.setStage(previewable ? "preview" : "editor");
+  ide.setMobileView(previewable ? "preview" : "editor");
 }
 
 export const useCodeStore = create<CodeState>()(
@@ -251,6 +316,18 @@ export const useCodeStore = create<CodeState>()(
     }
     if (/^\/plan\b/i.test(content)) {
       await get().createPlan();
+      return;
+    }
+
+    // ── Existing-project edit path ─────────────────────────────────────────
+    // A non-empty workspace means the user is iterating on real files, not
+    // discussing a brand-new one — route through the same file/git/diff-aware
+    // edit flow the (now-retired) inline editor chat used, instead of the
+    // brief-building RAA/DISCOVERY flow below. This is what lets one "Ask
+    // CoCode" composer handle both build-new and edit-existing, chosen from
+    // project state rather than a mode the user has to pick.
+    if (useCocodeIDEStore.getState().allFiles().length > 0) {
+      await sendEditMessage(content, get, set);
       return;
     }
 

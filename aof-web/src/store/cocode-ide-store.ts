@@ -127,9 +127,23 @@ interface CocodeIDEState {
   setRightPanel: (panel: IDEPanel | null) => void;
   toggleExplorer: () => void;
 
-  // ── View mode — Build (chat/generator) vs Editor (explorer/Monaco/panels) ──
-  viewMode: "build" | "editor";
-  setViewMode: (mode: "build" | "editor") => void;
+  // ── Workspace stage — the content shown in the center pane, alongside the
+  // always-available Agent pane on desktop (resizable split) or as one of
+  // the segmented views on narrow screens. Replaces the old build/editor
+  // full-screen swap so Agent, Editor, and Preview coexist.
+  stage: "editor" | "preview" | "diff";
+  setStage: (stage: "editor" | "preview" | "diff") => void;
+
+  agentOpen: boolean;
+  setAgentOpen: (open: boolean) => void;
+  toggleAgent: () => void;
+
+  agentPaneSize: number; // desktop Agent-pane width, percentage of the split
+  setAgentPaneSize: (size: number) => void;
+
+  // Narrow-viewport single-focus view (segmented Agent/Editor/Preview/Diff)
+  mobileView: "agent" | "editor" | "preview" | "diff";
+  setMobileView: (view: "agent" | "editor" | "preview" | "diff") => void;
 
   // ── GitHub (Phase 4) ─────────────────────────────────────────────────────
   github: GitHubConnection;
@@ -219,7 +233,8 @@ export const useCocodeIDEStore = create<CocodeIDEState>()(
           activeTab: null,
           rightPanel: null,
           diff: null,
-          viewMode: "build",
+          stage: "editor",
+          mobileView: "agent",
         }),
 
       importFiles: (files) => {
@@ -310,9 +325,19 @@ export const useCocodeIDEStore = create<CocodeIDEState>()(
       setRightPanel: (panel) => set({ rightPanel: panel }),
       toggleExplorer: () => set((s) => ({ explorerOpen: !s.explorerOpen })),
 
-      // ── View mode ─────────────────────────────────────────────────────────
-      viewMode: "build",
-      setViewMode: (viewMode) => set({ viewMode }),
+      // ── Workspace stage ───────────────────────────────────────────────────
+      stage: "editor",
+      setStage: (stage) => set({ stage }),
+
+      agentOpen: true,
+      setAgentOpen: (agentOpen) => set({ agentOpen }),
+      toggleAgent: () => set((s) => ({ agentOpen: !s.agentOpen })),
+
+      agentPaneSize: 38,
+      setAgentPaneSize: (agentPaneSize) => set({ agentPaneSize }),
+
+      mobileView: "agent",
+      setMobileView: (mobileView) => set({ mobileView }),
 
       // ── GitHub ──────────────────────────────────────────────────────────────
       github: { connected: false, user: null, repo: null, loading: false, error: null },
@@ -503,7 +528,7 @@ export const useCocodeIDEStore = create<CocodeIDEState>()(
 
       setDiff: (raw) => {
         const parsed = parseDiff(raw);
-        set({ diff: parsed, diffSource: raw, rightPanel: "diff" });
+        set({ diff: parsed, diffSource: raw, stage: "diff", mobileView: "diff" });
       },
 
       clearDiff: () => set({ diff: null, diffSource: "" }),
@@ -789,6 +814,9 @@ export const useCocodeIDEStore = create<CocodeIDEState>()(
         pinnedFiles: s.pinnedFiles,
         explorerOpen: s.explorerOpen,
         rightPanel: s.rightPanel,
+        stage: s.stage,
+        agentOpen: s.agentOpen,
+        agentPaneSize: s.agentPaneSize,
         github: { ...s.github, loading: false, error: null },
       }),
     },

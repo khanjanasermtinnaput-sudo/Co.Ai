@@ -395,6 +395,43 @@ export async function mockCodeChat(
   return text;
 }
 
+// ── Mock CoCode Edit (file/diff-aware iteration on an existing project) ──────
+// The unified agent's second flow: the workspace already has files, so a
+// request is a change, not a new build. Produces a small, real, parseable
+// unified diff (grounded in the active file when one is open) so the same
+// review/accept flow a live provider reply would trigger still works offline.
+
+export async function mockCodeEdit(
+  message: string,
+  activeFile: { path: string; content: string } | null,
+  h: StreamHandlers,
+): Promise<string> {
+  await sleep(220 + Math.random() * 200);
+  const th = isThai(message);
+  const path = activeFile?.path ?? "index.html";
+  const lines = (activeFile?.content ?? "<!doctype html>\n<html>\n<body>\n</body>\n</html>\n").split("\n");
+  const anchor = Math.min(1, Math.max(0, lines.length - 1));
+  const comment = th
+    ? `<!-- แก้ไขตามที่ขอ: ${message.slice(0, 60)} -->`
+    : `<!-- Edited per request: ${message.slice(0, 60)} -->`;
+
+  const diff = [
+    `--- a/${path}`,
+    `+++ b/${path}`,
+    `@@ -${anchor + 1},1 +${anchor + 1},2 @@`,
+    ` ${lines[anchor] ?? ""}`,
+    `+${comment}`,
+  ].join("\n");
+
+  const text = th
+    ? `นี่คือการเปลี่ยนแปลงที่แนะนำสำหรับ \`${path}\`:\n\n\`\`\`diff\n${diff}\n\`\`\`\n\nตรวจสอบแล้วกด Apply เพื่อนำไปใช้ครับ`
+    : `Here's the suggested change to \`${path}\`:\n\n\`\`\`diff\n${diff}\n\`\`\`\n\nReview it and hit Apply when you're happy with it.`;
+
+  await streamText(text, h);
+  emitMockUsage(h, message, text);
+  return text;
+}
+
 // ── Mock Requirements Architect (RAA) ─────────────────────────────────────────
 // Keeps CoCode's conversation-first flow working with zero backend. It asks a
 // couple of clarifying questions, then emits a brief in the exact RAA summary

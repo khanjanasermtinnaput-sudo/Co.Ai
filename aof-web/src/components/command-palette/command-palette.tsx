@@ -38,7 +38,8 @@ export function CommandPalette() {
   const { theme, setTheme } = useTheme();
 
   const setRightPanel = useCocodeIDEStore((s) => s.setRightPanel);
-  const setViewMode = useCocodeIDEStore((s) => s.setViewMode);
+  const setStage = useCocodeIDEStore((s) => s.setStage);
+  const setMobileView = useCocodeIDEStore((s) => s.setMobileView);
   const github = useCocodeIDEStore((s) => s.github);
 
   const [query, setQuery] = useState("");
@@ -110,8 +111,12 @@ export function CommandPalette() {
               shortcut: def.shortcut,
               category: def.group,
               action: () => {
-                setViewMode("editor");
-                setRightPanel(def.id as IDEPanel);
+                if (def.id === "diff" || def.id === "preview") {
+                  setStage(def.id);
+                  setMobileView(def.id);
+                } else {
+                  setRightPanel(def.id as IDEPanel);
+                }
                 close();
               },
             })),
@@ -134,7 +139,6 @@ export function CommandPalette() {
                   description: "Commit current changes to GitHub",
                   category: "Git",
                   action: () => {
-                    setViewMode("editor");
                     setRightPanel("github");
                     close();
                   },
@@ -145,7 +149,6 @@ export function CommandPalette() {
                   description: "Create a pull request on GitHub",
                   category: "Git",
                   action: () => {
-                    setViewMode("editor");
                     setRightPanel("github");
                     close();
                   },
@@ -156,7 +159,6 @@ export function CommandPalette() {
                   description: `Current: ${github.repo?.branch ?? "unknown"}`,
                   category: "Git",
                   action: () => {
-                    setViewMode("editor");
                     setRightPanel("github");
                     close();
                   },
@@ -167,7 +169,7 @@ export function CommandPalette() {
       : [];
 
     return [...navigate, ...code, ...appearance, ...workspace];
-  }, [router, close, theme, setTheme, developerMode, toggleDeveloperMode, inCodeArea, setViewMode, setRightPanel, github]);
+  }, [router, close, theme, setTheme, developerMode, toggleDeveloperMode, inCodeArea, setStage, setMobileView, setRightPanel, github]);
 
   const filtered = query.trim()
     ? commands.filter((c) => {

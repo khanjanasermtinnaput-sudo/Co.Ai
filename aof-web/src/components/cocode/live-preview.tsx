@@ -8,7 +8,7 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
   Eye, Terminal, RotateCcw, ExternalLink, Maximize2,
-  Minimize2, SplitSquareHorizontal, Monitor, ServerCog,
+  Minimize2, Monitor, Tablet, Smartphone, ServerCog,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -43,6 +43,7 @@ export function LivePreview({ className, splitMode = false }: LivePreviewProps) 
   const [logs, setLogs] = useState<ConsoleEntry[]>([]);
   const [fullscreen, setFullscreen] = useState(false);
   const [nonce, setNonce] = useState(0);
+  const [device, setDevice] = useState<"desktop" | "tablet" | "phone">("desktop");
   const logId = useRef(0);
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -154,6 +155,20 @@ export function LivePreview({ className, splitMode = false }: LivePreviewProps) 
           </TabBtn>
         </div>
 
+        {tab === "preview" && (
+          <div className="flex items-center gap-0.5 rounded-lg border border-border/50 bg-secondary/30 p-0.5">
+            <DeviceBtn active={device === "desktop"} onClick={() => setDevice("desktop")} title="Desktop">
+              <Monitor className="size-3" />
+            </DeviceBtn>
+            <DeviceBtn active={device === "tablet"} onClick={() => setDevice("tablet")} title="Tablet">
+              <Tablet className="size-3" />
+            </DeviceBtn>
+            <DeviceBtn active={device === "phone"} onClick={() => setDevice("phone")} title="Phone">
+              <Smartphone className="size-3" />
+            </DeviceBtn>
+          </div>
+        )}
+
         <div className="ml-auto flex items-center gap-1">
           <Button size="icon-sm" variant="ghost" onClick={() => setNonce((n) => n + 1)} title="Reload">
             <RotateCcw className="size-3.5" />
@@ -169,13 +184,23 @@ export function LivePreview({ className, splitMode = false }: LivePreviewProps) 
 
       {/* Preview / Console */}
       {tab === "preview" ? (
-        <iframe
-          key={nonce}
-          title="Live preview"
-          srcDoc={html}
-          sandbox="allow-scripts allow-forms allow-modals allow-popups allow-same-origin"
-          className="min-h-0 flex-1 w-full border-0 bg-white"
-        />
+        <div className="min-h-0 flex-1 overflow-auto bg-[#0b0b0b]/40">
+          <div
+            className={cn(
+              "mx-auto h-full",
+              device === "tablet" && "max-w-[768px] border-x border-border/40",
+              device === "phone" && "max-w-[390px] border-x border-border/40",
+            )}
+          >
+            <iframe
+              key={nonce}
+              title="Live preview"
+              srcDoc={html}
+              sandbox="allow-scripts allow-forms allow-modals allow-popups allow-same-origin"
+              className="h-full min-h-0 w-full border-0 bg-white"
+            />
+          </div>
+        </div>
       ) : (
         <div className="console-surface min-h-0 flex-1 overflow-y-auto p-2 font-mono text-[11px]">
           <div className="mb-1 flex items-center justify-between">
@@ -213,6 +238,24 @@ function TabBtn({ active, onClick, children }: {
       onClick={onClick}
       className={cn(
         "inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-colors",
+        active ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+function DeviceBtn({ active, onClick, title, children }: {
+  active: boolean; onClick: () => void; title: string; children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      className={cn(
+        "inline-flex items-center rounded-md p-1 transition-colors",
         active ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
       )}
     >
