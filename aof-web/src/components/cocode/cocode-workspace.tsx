@@ -1,23 +1,24 @@
 "use client";
 
 // ── CoCode Workspace Shell ───────────────────────────────────────────────────
-// Parts 1-13 UX Redesign + Engineering Bible Phases 71-80
-// Layout: Explorer | Editor | Adaptive Right Panel
-// Developer Mode: hides advanced systems by default
+// Agent / Editor / Preview coexist in one workspace: a resizable Agent | Stage
+// split on desktop, a segmented Agent/Editor/Preview/Diff switch on narrow
+// screens. Developer Mode reveals the advanced tool drawer (~50 panels).
 
 import { useEffect, useState, useRef, useMemo, lazy, Suspense, useCallback } from "react";
 import { createPortal } from "react-dom";
+import type { ImperativePanelHandle } from "react-resizable-panels";
 import {
-  PanelLeftClose, PanelLeftOpen, GitBranch,
-  Loader2, Upload, Zap, X, Hammer,
-  ChevronDown, Terminal, Code2, ArrowLeft,
+  PanelLeftClose, PanelLeftOpen, GitBranch, Loader2, Upload, X,
+  ChevronDown, Terminal, Code2, Eye, SplitSquareHorizontal, Wrench,
+  PanelRightClose,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { useCocodeIDEStore } from "@/store/cocode-ide-store";
 import { useUIStore } from "@/store/ui-store";
 import { useCodeStore } from "@/store/code-store";
-import { extractDiffs } from "@/lib/cocode/diff";
 import { getAdaptivePanels, PANEL_DEFS, type PanelDef } from "@/lib/cocode/adaptive-panels";
 import { analyzeFiles } from "@/lib/cocode/diagnostics";
 import { flattenFiles } from "@/lib/cocode/virtual-fs";
@@ -25,7 +26,7 @@ import { CommandPalette } from "./command-palette";
 import { WorkspaceStatusBar } from "./status-bar";
 import { useSmartContextMenu, SmartContextMenu } from "./smart-context-menu";
 import { SimpleTooltip } from "./ide-tooltip";
-import { BuildPanel } from "./build-panel";
+import { AgentPanel } from "./agent-panel";
 import type { IDEPanel } from "@/store/cocode-ide-store";
 
 // ── Core panels ───────────────────────────────────────────────────────────────
@@ -109,106 +110,10 @@ function PanelLoader() {
   );
 }
 
-// ── AI Chat (Part 11 — Context-Aware AI) ─────────────────────────────────────
-
-function WorkspaceChatInput({ onSend }: { onSend?: (msg: string) => void }) {
-  const [message, setMessage] = useState("");
-  const [streaming, setStreaming] = useState(false);
-  const [response, setResponse] = useState("");
-  const allFiles = useCocodeIDEStore((s) => s.allFiles);
-  const activeTab = useCocodeIDEStore((s) => s.activeTab);
-  const setDiff = useCocodeIDEStore((s) => s.setDiff);
-  const github = useCocodeIDEStore((s) => s.github);
-  const diff = useCocodeIDEStore((s) => s.diff);
-  const setAiStreaming = useUIStore((s) => s.setAiStreaming);
-
-  async function send(text?: string) {
-    const msg = (text ?? message).trim();
-    if (!msg || streaming) return;
-    setStreaming(true);
-    setAiStreaming(true);
-    setResponse("");
-    if (!text) setMessage("");
-
-    // Part 11: inject everything visible — file, git state, errors, tabs
-    const files = allFiles();
-    const contextFiles = files.slice(0, 10).map((f) => `// ${f.path}\n${f.content.slice(0, 500)}`).join("\n\n---\n\n");
-    const activeContext = activeTab ? `\nCurrently editing: ${activeTab}` : "";
-    const gitContext = github.connected && github.repo ? `\nGit branch: ${github.repo.branch}` : "";
-    const diffContext = diff ? `\n${diff.files.length} pending change(s) awaiting review.` : "";
-
-    const systemContext = files.length > 0
-      ? `You are CoCode AI. Repository: ${files.length} files.${activeContext}${gitContext}${diffContext}\nOutput unified git diffs only — no full file rewrites.\n\nContext:\n${contextFiles}`
-      : `You are CoCode AI, expert AI software engineer. Output unified git diffs only.${activeContext}${gitContext}`;
-
-    try {
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: msg, history: [], system: systemContext, agent: "cocode", route: "code" }),
-      });
-      if (!res.ok || !res.body) {
-        const err = await res.json().catch(() => ({ error: "Failed" }));
-        setResponse((err as { error?: string }).error ?? "Request failed");
-        return;
-      }
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let full = "";
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        full += decoder.decode(value, { stream: true });
-        setResponse(full);
-      }
-      const diffs = extractDiffs(full);
-      if (diffs.length) setDiff(diffs[0]);
-    } finally {
-      setStreaming(false);
-      setAiStreaming(false);
-    }
-  }
-
-  // Expose send for context menu integration
-  useEffect(() => {
-    if (onSend) {
-      (window as unknown as Record<string, unknown>).__cocode_send = send;
-    }
-  });
-
-  return (
-    <div className="flex flex-col gap-2 border-t border-border/60 bg-background/60 px-4 py-3 backdrop-blur-xl">
-      {response && (
-        <div className="max-h-48 overflow-y-auto rounded-xl border border-border/40 bg-card/40 p-3 text-[13px]">
-          <pre className="whitespace-pre-wrap font-sans text-foreground/80">{response}</pre>
-        </div>
-      )}
-      <div className="flex gap-2">
-        <textarea
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(); }
-          }}
-          placeholder="Ask CoCode… (Enter to send)"
-          rows={2}
-          className="flex-1 resize-none rounded-xl border border-border/60 bg-background/50 px-3 py-2 text-[13px] outline-none placeholder:text-muted-foreground/35 focus:border-primary/40 focus:bg-background/80 transition-colors"
-        />
-        <SimpleTooltip label="Send" description="Send message to CoCode AI" shortcut="Enter" side="top">
-          <Button onClick={() => void send()} disabled={streaming || !message.trim()} size="icon" className="size-10 shrink-0">
-            {streaming ? <Loader2 className="size-4 animate-spin" /> : <Hammer className="size-4" />}
-          </Button>
-        </SimpleTooltip>
-      </div>
-    </div>
-  );
-}
-
-// ── Panel renderer ─────────────────────────────────────────────────────────────
+// ── Panel renderer (Developer Tools drawer) ───────────────────────────────────
 
 function ActivePanel({ panel }: { panel: IDEPanel }) {
   const map: Partial<Record<IDEPanel, React.ReactNode>> = {
-    diff:               <DiffViewer />,
     preview:            <LivePreview className="h-full" />,
     "multi-preview":    <MultiPreview className="h-full" />,
     github:             <GitHubPanel />,
@@ -347,6 +252,185 @@ function OverflowPanelMenu({
   );
 }
 
+// ── Developer Tools drawer — overlay housing the ~50 advanced panels ─────────
+
+function DevToolsDrawer({
+  activePanel,
+  primaryPanels,
+  overflowPanels,
+  onSelect,
+  onClose,
+}: {
+  activePanel: IDEPanel;
+  primaryPanels: PanelDef[];
+  overflowPanels: PanelDef[];
+  onSelect: (id: IDEPanel) => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="absolute inset-y-0 right-0 z-30 flex w-full flex-col border-l border-border/60 bg-card/98 shadow-2xl backdrop-blur-2xl sm:w-96">
+      <div className="flex items-center gap-0.5 overflow-x-auto border-b border-border/60 bg-card/30 px-1 py-1 no-scrollbar">
+        {primaryPanels.map((p) => {
+          const isActive = activePanel === p.id;
+          const Icon = p.icon;
+          return (
+            <SimpleTooltip key={p.id} label={p.label} description={p.description} shortcut={p.shortcut} side="bottom" delay={500}>
+              <button
+                type="button"
+                onClick={() => onSelect(p.id as IDEPanel)}
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium whitespace-nowrap transition-colors",
+                  isActive ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-white/5",
+                )}
+              >
+                <Icon className="size-3" />
+                {p.label}
+              </button>
+            </SimpleTooltip>
+          );
+        })}
+        {overflowPanels.length > 0 && (
+          <OverflowPanelMenu panels={overflowPanels} activePanel={activePanel} onSelect={onSelect} />
+        )}
+        <button
+          type="button"
+          onClick={onClose}
+          className="ml-auto shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+        >
+          <X className="size-3.5" />
+        </button>
+      </div>
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <Suspense fallback={<PanelLoader />}>
+          <ActivePanel panel={activePanel} />
+        </Suspense>
+      </div>
+    </div>
+  );
+}
+
+// ── Workspace stage — Editor / Preview / Diff content ─────────────────────────
+
+function StageBody({
+  stage,
+  explorerOpen,
+}: {
+  stage: "editor" | "preview" | "diff";
+  explorerOpen: boolean;
+}) {
+  if (stage === "diff") {
+    return (
+      <Suspense fallback={<PanelLoader />}>
+        <DiffViewer />
+      </Suspense>
+    );
+  }
+  if (stage === "preview") {
+    return (
+      <Suspense fallback={<PanelLoader />}>
+        <LivePreview className="h-full" />
+      </Suspense>
+    );
+  }
+  return (
+    <div className="flex h-full min-w-0">
+      {explorerOpen && (
+        <div className="w-56 shrink-0 border-r border-border/60">
+          <Suspense fallback={<PanelLoader />}>
+            <FileExplorer />
+          </Suspense>
+        </div>
+      )}
+      <div className="flex min-w-0 flex-1 flex-col">
+        <Suspense fallback={<PanelLoader />}>
+          <MonacoEditor className="h-full" />
+        </Suspense>
+      </div>
+    </div>
+  );
+}
+
+// ── Stage switch — the Editor/Preview/Diff segmented control ─────────────────
+
+function StageSwitch({
+  stage,
+  onChange,
+  diffCount,
+}: {
+  stage: "editor" | "preview" | "diff";
+  onChange: (stage: "editor" | "preview" | "diff") => void;
+  diffCount: number;
+}) {
+  const items: Array<{ id: "editor" | "preview" | "diff"; label: string; icon: typeof Code2 }> = [
+    { id: "editor", label: "Editor", icon: Code2 },
+    { id: "preview", label: "Preview", icon: Eye },
+    { id: "diff", label: "Diff", icon: SplitSquareHorizontal },
+  ];
+  return (
+    <div className="flex items-center gap-0.5 rounded-lg border border-border/60 bg-muted/30 p-0.5">
+      {items.map((it) => {
+        const Icon = it.icon;
+        const active = stage === it.id;
+        return (
+          <button
+            key={it.id}
+            type="button"
+            onClick={() => onChange(it.id)}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] font-medium transition-colors",
+              active ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <Icon className="size-3.5" />
+            {it.label}
+            {it.id === "diff" && diffCount > 0 && (
+              <span className="rounded-full bg-amber-500/20 px-1.5 py-0 text-[10px] font-semibold text-amber-400">
+                {diffCount}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Narrow segmented view — Agent/Editor/Preview/Diff ─────────────────────────
+
+function MobileSegmented({
+  mobileView,
+  onChange,
+  diffCount,
+}: {
+  mobileView: "agent" | "editor" | "preview" | "diff";
+  onChange: (view: "agent" | "editor" | "preview" | "diff") => void;
+  diffCount: number;
+}) {
+  const items: Array<{ id: "agent" | "editor" | "preview" | "diff"; label: string }> = [
+    { id: "agent", label: "Agent" },
+    { id: "editor", label: "Editor" },
+    { id: "preview", label: "Preview" },
+    { id: "diff", label: `Diff${diffCount > 0 ? ` (${diffCount})` : ""}` },
+  ];
+  return (
+    <div className="flex items-center gap-0.5 rounded-lg border border-border/60 bg-muted/30 p-0.5">
+      {items.map((it) => (
+        <button
+          key={it.id}
+          type="button"
+          onClick={() => onChange(it.id)}
+          className={cn(
+            "flex-1 rounded-md px-2 py-1.5 text-[12px] font-medium transition-colors",
+            mobileView === it.id ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          {it.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 // ── Main Workspace ────────────────────────────────────────────────────────────
 
 export function CoCodeWorkspace() {
@@ -363,7 +447,6 @@ export function CoCodeWorkspace() {
   const redo           = useCocodeIDEStore((s) => s.redo);
   const importFiles    = useCocodeIDEStore((s) => s.importFiles);
   const activeTab      = useCocodeIDEStore((s) => s.activeTab);
-  const hasFiles        = useCocodeIDEStore((s) => s.fs.children.length > 0);
   const fs              = useCocodeIDEStore((s) => s.fs);
 
   const aiStreaming = useUIStore((s) => s.aiStreaming);
@@ -383,13 +466,30 @@ export function CoCodeWorkspace() {
     return analyzeFiles(files).filter((d) => d.severity === "error").length;
   }, [debouncedFs]);
 
-  // Build (conversational + Titan) is a full-view mode inside the workspace,
-  // not a side panel — the conversation UI needs full width. New/empty
-  // projects land here by default; existing projects open to the editor.
-  // Lives in the shared store (not local state) so generation completing
-  // can switch the workspace into the editor automatically.
-  const viewMode    = useCocodeIDEStore((s) => s.viewMode);
-  const setViewMode = useCocodeIDEStore((s) => s.setViewMode);
+  // Workspace stage — the center pane's content, alongside the always-
+  // available Agent pane (desktop resizable split) or as one of the
+  // segmented views (narrow). See cocode-ide-store.ts for the full model.
+  const stage        = useCocodeIDEStore((s) => s.stage);
+  const setStage     = useCocodeIDEStore((s) => s.setStage);
+  const agentOpen    = useCocodeIDEStore((s) => s.agentOpen);
+  const setAgentOpen = useCocodeIDEStore((s) => s.setAgentOpen);
+  const agentPaneSize = useCocodeIDEStore((s) => s.agentPaneSize);
+  const setAgentPaneSize = useCocodeIDEStore((s) => s.setAgentPaneSize);
+  const mobileView    = useCocodeIDEStore((s) => s.mobileView);
+  const setMobileView = useCocodeIDEStore((s) => s.setMobileView);
+
+  const agentPanelRef = useRef<ImperativePanelHandle>(null);
+  const toggleAgentPane = useCallback(() => {
+    const panel = agentPanelRef.current;
+    if (!panel) return;
+    if (panel.isCollapsed()) panel.expand();
+    else panel.collapse();
+  }, []);
+
+  function goToStage(next: "editor" | "preview" | "diff") {
+    setStage(next);
+    setMobileView(next);
+  }
 
   const developerMode       = useUIStore((s) => s.developerMode);
   const toggleDeveloperMode = useUIStore((s) => s.toggleDeveloperMode);
@@ -399,11 +499,15 @@ export function CoCodeWorkspace() {
   // Part 7 — Smart Context Menu
   const { position: ctxPos, selection: ctxSel, close: closeCtx } = useSmartContextMenu();
 
-  // Part 3 — Adaptive panel list driven by current file context
-  const { primary: primaryPanels, overflow: overflowPanels } = getAdaptivePanels(activeTab, developerMode);
+  // Part 3 — Adaptive panel list driven by current file context. "diff" and
+  // "preview" are primary workspace stages now, not drawer panels, so they're
+  // excluded from the drawer's tab strip.
+  const { primary: rawPrimary, overflow: rawOverflow } = getAdaptivePanels(activeTab, developerMode);
+  const primaryPanels = useMemo(() => rawPrimary.filter((p) => p.id !== "diff" && p.id !== "preview"), [rawPrimary]);
+  const overflowPanels = useMemo(() => rawOverflow.filter((p) => p.id !== "diff" && p.id !== "preview"), [rawOverflow]);
 
   const activePanel = rightPanel as IDEPanel | null;
-  const showRightPanel = activePanel !== null;
+  const showDrawer = activePanel !== null;
 
   // Part 9 — Command Palette keyboard shortcut (Ctrl+Shift+P)
   useEffect(() => {
@@ -461,10 +565,7 @@ export function CoCodeWorkspace() {
     importFiles(loaded);
   }
 
-  function handleSendToChat(text: string) {
-    const fn = (window as unknown as Record<string, unknown>).__cocode_send;
-    if (typeof fn === "function") (fn as (t: string) => void)(text);
-  }
+  const diffCount = diff?.files.length ?? 0;
 
   return (
     <div className="cocode-workspace-outer flex h-full flex-col overflow-hidden">
@@ -481,55 +582,27 @@ export function CoCodeWorkspace() {
         position={ctxPos}
         selection={ctxSel}
         onClose={closeCtx}
-        onSendToChat={handleSendToChat}
+        onSendToChat={(text) => void useCodeStore.getState().sendMessage(text)}
       />
 
-      {viewMode === "build" ? (
-        <>
-          {/* ── Build Titlebar ───────────────────────────────────────────────── */}
-          <div className="flex h-10 items-center gap-2 border-b border-border/60 bg-card/50 px-3">
-            <Hammer className="size-3.5 text-primary" />
-            <span className="text-[13px] font-medium text-foreground">Build</span>
-            <span className="text-muted-foreground">·</span>
-            <span className="max-w-[160px] truncate text-[13px] text-muted-foreground">{projectName}</span>
-            <SimpleTooltip
-              label="Open Editor"
-              description={hasFiles ? "Switch to the file explorer and code editor" : "Switch to the file explorer — upload files or connect GitHub"}
-              side="bottom"
-            >
-              <button
-                type="button"
-                onClick={() => setViewMode("editor")}
-                className="ml-auto flex items-center gap-1 rounded-md border border-border/40 px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground"
-              >
-                <Code2 className="size-3" />
-                Open Editor
-              </button>
-            </SimpleTooltip>
-          </div>
-          <div className="min-h-0 flex-1 overflow-hidden">
-            <BuildPanel />
-          </div>
-        </>
-      ) : (
-        <>
-      {/* ── Workspace Titlebar ────────────────────────────────────────────── */}
-      <div className="flex h-10 items-center gap-2 border-b border-border/60 bg-card/50 px-3">
-        {/* Part 1 — Hover tooltips on every button */}
-        <SimpleTooltip
-          label={explorerOpen ? "Hide Explorer" : "Show Explorer"}
-          description="Toggle the file explorer panel"
-          shortcut="Ctrl+B"
-          side="bottom"
-        >
-          <button
-            type="button"
-            onClick={toggleExplorer}
-            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+      {/* ── Shared Titlebar ───────────────────────────────────────────────── */}
+      <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border/60 bg-card/50 px-3">
+        {stage === "editor" && (
+          <SimpleTooltip
+            label={explorerOpen ? "Hide Explorer" : "Show Explorer"}
+            description="Toggle the file explorer panel"
+            shortcut="Ctrl+B"
+            side="bottom"
           >
-            {explorerOpen ? <PanelLeftClose className="size-4" /> : <PanelLeftOpen className="size-4" />}
-          </button>
-        </SimpleTooltip>
+            <button
+              type="button"
+              onClick={toggleExplorer}
+              className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+            >
+              {explorerOpen ? <PanelLeftClose className="size-4" /> : <PanelLeftOpen className="size-4" />}
+            </button>
+          </SimpleTooltip>
+        )}
 
         <span className="text-[13px] font-medium text-muted-foreground truncate max-w-[120px]">{projectName}</span>
 
@@ -546,7 +619,6 @@ export function CoCodeWorkspace() {
           </SimpleTooltip>
         )}
 
-        {/* Part 5 — Developer Mode badge */}
         {developerMode && (
           <SimpleTooltip
             label="Developer Mode ON"
@@ -565,8 +637,28 @@ export function CoCodeWorkspace() {
           </SimpleTooltip>
         )}
 
+        <div className="hidden lg:block">
+          <StageSwitch stage={stage} onChange={goToStage} diffCount={diffCount} />
+        </div>
+
         <div className="ml-auto flex items-center gap-1">
-          {/* Undo */}
+          <SimpleTooltip
+            label={agentOpen ? "Hide Agent" : "Show Agent"}
+            description="Toggle the Ask CoCode panel"
+            side="bottom"
+          >
+            <button
+              type="button"
+              onClick={toggleAgentPane}
+              className={cn(
+                "hidden rounded-md p-1.5 transition-colors hover:bg-white/5 lg:block",
+                agentOpen ? "text-primary" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <PanelRightClose className="size-3.5" />
+            </button>
+          </SimpleTooltip>
+
           <SimpleTooltip label="Undo" description="Undo last change" shortcut="Ctrl+Z" side="bottom">
             <button
               type="button"
@@ -578,7 +670,6 @@ export function CoCodeWorkspace() {
             </button>
           </SimpleTooltip>
 
-          {/* Redo */}
           <SimpleTooltip label="Redo" description="Redo last undone change" shortcut="Ctrl+Y" side="bottom">
             <button
               type="button"
@@ -590,7 +681,6 @@ export function CoCodeWorkspace() {
             </button>
           </SimpleTooltip>
 
-          {/* Upload */}
           <SimpleTooltip label="Upload Files" description="Import local files into the workspace" side="bottom">
             <label className="cursor-pointer rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground">
               <Upload className="size-3.5" />
@@ -598,19 +688,19 @@ export function CoCodeWorkspace() {
             </label>
           </SimpleTooltip>
 
-          {/* Back to CoCode */}
-          <SimpleTooltip label="Back to CoCode" description="Return to the CoCode chat/build view" side="bottom">
+          <SimpleTooltip label="Developer Tools" description="GitHub, deploy, tests, and other workspace tools" side="bottom">
             <button
               type="button"
-              onClick={() => setViewMode("build")}
-              className="flex items-center gap-1 rounded-md border border-border/40 px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground"
+              onClick={() => setRightPanel(showDrawer ? null : ((primaryPanels[0]?.id as IDEPanel) ?? "github"))}
+              className={cn(
+                "rounded-md p-1.5 transition-colors hover:bg-white/5",
+                showDrawer ? "text-primary" : "text-muted-foreground hover:text-foreground",
+              )}
             >
-              <ArrowLeft className="size-3" />
-              Back to CoCode
+              <Wrench className="size-3.5" />
             </button>
           </SimpleTooltip>
 
-          {/* Command Palette button */}
           <SimpleTooltip label="Command Palette" description="Search all commands, panels, and actions" shortcut="Ctrl+Shift+P" side="bottom">
             <button
               type="button"
@@ -621,123 +711,69 @@ export function CoCodeWorkspace() {
               <span className="hidden sm:inline">Ctrl+Shift+P</span>
             </button>
           </SimpleTooltip>
-
-          {/* Diff badge */}
-          {diff && diff.files.length > 0 && (
-            <SimpleTooltip label="Pending Changes" description={`${diff.files.length} file(s) with AI-generated changes awaiting review`} side="bottom">
-              <button
-                type="button"
-                onClick={() => setRightPanel("diff")}
-                className="flex items-center gap-1 rounded-md bg-amber-500/15 px-2 py-0.5 text-[11px] text-amber-400 hover:bg-amber-500/25 transition-colors"
-              >
-                <Zap className="size-3" />
-                {diff.files.length} change{diff.files.length !== 1 ? "s" : ""}
-              </button>
-            </SimpleTooltip>
-          )}
         </div>
       </div>
 
-      {/* ── Main area ────────────────────────────────────────────────────────── */}
-      <div className="flex min-h-0 flex-1">
-        {/* File Explorer */}
-        {explorerOpen && (
-          <div className="w-56 shrink-0 border-r border-border/60">
-            <Suspense fallback={<PanelLoader />}>
-              <FileExplorer />
-            </Suspense>
-          </div>
-        )}
+      {/* ── Desktop: resizable Agent | Stage split ──────────────────────────── */}
+      <div className="relative hidden min-h-0 flex-1 lg:flex">
+        <ResizablePanelGroup
+          direction="horizontal"
+          onLayout={(sizes) => { if (sizes[0] > 1) setAgentPaneSize(sizes[0]); }}
+        >
+          <ResizablePanel
+            ref={agentPanelRef}
+            defaultSize={agentPaneSize}
+            minSize={22}
+            maxSize={60}
+            collapsible
+            collapsedSize={0}
+            onCollapse={() => setAgentOpen(false)}
+            onExpand={() => setAgentOpen(true)}
+          >
+            <AgentPanel className="h-full" />
+          </ResizablePanel>
+          <ResizableHandle withHandle />
+          <ResizablePanel minSize={30}>
+            <StageBody stage={stage} explorerOpen={explorerOpen} />
+          </ResizablePanel>
+        </ResizablePanelGroup>
 
-        {/* Editor + Chat */}
-        <div className="flex min-w-0 flex-1 flex-col">
-          <Suspense fallback={<PanelLoader />}>
-            <MonacoEditor className="min-h-0 flex-1" />
-          </Suspense>
-          <WorkspaceChatInput />
+        {showDrawer && activePanel && (
+          <DevToolsDrawer
+            activePanel={activePanel}
+            primaryPanels={primaryPanels}
+            overflowPanels={overflowPanels}
+            onSelect={(id) => setRightPanel(id)}
+            onClose={() => setRightPanel(null)}
+          />
+        )}
+      </div>
+
+      {/* ── Narrow: segmented Agent/Editor/Preview/Diff ─────────────────────── */}
+      <div className="relative flex min-h-0 flex-1 flex-col lg:hidden">
+        <div className="border-b border-border/60 px-2 py-1.5">
+          <MobileSegmented
+            mobileView={mobileView}
+            onChange={(v) => { setMobileView(v); if (v !== "agent") setStage(v); }}
+            diffCount={diffCount}
+          />
+        </div>
+        <div className="min-h-0 flex-1">
+          {mobileView === "agent" ? (
+            <AgentPanel className="h-full" />
+          ) : (
+            <StageBody stage={mobileView} explorerOpen={explorerOpen} />
+          )}
         </div>
 
-        {/* Right panel — adaptive (Part 3) */}
-        {showRightPanel && (
-          <div className="flex w-96 min-w-0 shrink-0 flex-col border-l border-border/60">
-            {/* Part 3 — Adaptive tab strip */}
-            <div className="flex items-center gap-0.5 overflow-x-auto border-b border-border/60 bg-card/30 px-1 py-1 no-scrollbar">
-              {primaryPanels.map((p) => {
-                const def = PANEL_DEFS[p.id];
-                if (!def) return null;
-                const isActive = activePanel === p.id;
-                const Icon = def.icon;
-                return (
-                  <SimpleTooltip
-                    key={p.id}
-                    label={def.label}
-                    description={def.description}
-                    shortcut={def.shortcut}
-                    side="bottom"
-                    delay={500}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => setRightPanel(isActive ? null : p.id as IDEPanel)}
-                      className={cn(
-                        "inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium whitespace-nowrap transition-colors",
-                        isActive ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-white/5",
-                      )}
-                    >
-                      <Icon className="size-3" />
-                      {p.label}
-                    </button>
-                  </SimpleTooltip>
-                );
-              })}
-
-              {/* Overflow — non-primary panels */}
-              {overflowPanels.length > 0 && (
-                <OverflowPanelMenu
-                  panels={overflowPanels}
-                  activePanel={activePanel}
-                  onSelect={(id) => setRightPanel(id)}
-                />
-              )}
-
-              <button
-                type="button"
-                onClick={() => setRightPanel(null)}
-                className="ml-auto shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
-              >
-                <X className="size-3.5" />
-              </button>
-            </div>
-
-            {/* Panel content */}
-            <div className="min-h-0 flex-1 overflow-hidden">
-              <Suspense fallback={<PanelLoader />}>
-                <ActivePanel panel={activePanel!} />
-              </Suspense>
-            </div>
-          </div>
-        )}
-
-        {/* Collapsed right rail — icon strip */}
-        {!showRightPanel && (
-          <div className="flex w-10 flex-col items-center gap-0.5 border-l border-border/60 bg-sidebar/40 py-2">
-            {primaryPanels.slice(0, 12).map((p) => {
-              const def = PANEL_DEFS[p.id];
-              if (!def) return null;
-              const Icon = def.icon;
-              return (
-                <SimpleTooltip key={p.id} label={def.label} description={def.description} side="left" delay={300}>
-                  <button
-                    type="button"
-                    onClick={() => setRightPanel(p.id as IDEPanel)}
-                    className="flex w-8 items-center justify-center rounded-md py-1.5 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
-                  >
-                    <Icon className="size-4" />
-                  </button>
-                </SimpleTooltip>
-              );
-            })}
-          </div>
+        {showDrawer && activePanel && (
+          <DevToolsDrawer
+            activePanel={activePanel}
+            primaryPanels={primaryPanels}
+            overflowPanels={overflowPanels}
+            onSelect={(id) => setRightPanel(id)}
+            onClose={() => setRightPanel(null)}
+          />
         )}
       </div>
 
@@ -747,8 +783,6 @@ export function CoCodeWorkspace() {
         buildStatus={buildStatus}
         aiStatus={aiStreaming ? "streaming" : "idle"}
       />
-        </>
-      )}
     </div>
   );
 }

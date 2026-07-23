@@ -33,11 +33,13 @@ export function CommandPalette({
   const [selectedIdx, setSelectedIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const setRightPanel = useCocodeIDEStore((s) => s.setRightPanel);
-  const setViewMode = useCocodeIDEStore((s) => s.setViewMode);
+  const setStage = useCocodeIDEStore((s) => s.setStage);
+  const setMobileView = useCocodeIDEStore((s) => s.setMobileView);
   const github = useCocodeIDEStore((s) => s.github);
 
   const commands: Command[] = [
-    // Panel commands
+    // Panel commands — "diff"/"preview" are primary workspace stages, the
+    // rest open in the Developer Tools drawer.
     ...Object.values(PANEL_DEFS)
       .filter((def) => !def.devModeOnly || developerMode)
       .map((def) => ({
@@ -47,8 +49,12 @@ export function CommandPalette({
         shortcut: def.shortcut,
         category: "Panels",
         action: () => {
-          setViewMode("editor");
-          setRightPanel(def.id as IDEPanel);
+          if (def.id === "diff" || def.id === "preview") {
+            setStage(def.id);
+            setMobileView(def.id);
+          } else {
+            setRightPanel(def.id as IDEPanel);
+          }
           onClose();
         },
       })),
@@ -84,7 +90,6 @@ export function CommandPalette({
             description: "Commit current changes to GitHub",
             category: "Git",
             action: () => {
-              setViewMode("editor");
               setRightPanel("github");
               onClose();
             },
@@ -95,7 +100,6 @@ export function CommandPalette({
             description: "Create a pull request on GitHub",
             category: "Git",
             action: () => {
-              setViewMode("editor");
               setRightPanel("github");
               onClose();
             },
@@ -106,7 +110,6 @@ export function CommandPalette({
             description: `Current: ${github.repo?.branch ?? "unknown"}`,
             category: "Git",
             action: () => {
-              setViewMode("editor");
               setRightPanel("github");
               onClose();
             },

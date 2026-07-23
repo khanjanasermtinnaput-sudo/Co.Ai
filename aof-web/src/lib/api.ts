@@ -10,6 +10,7 @@ import type { ChatModel, EffortLevel, ProjectBrief, RepoMetadata, RouteDecision,
 import {
   mockChat,
   mockCodeChat,
+  mockCodeEdit,
   mockCodeRun,
   mockRequirements,
   mockPlan,
@@ -448,6 +449,36 @@ export async function streamCodeChat(
       method: "POST",
       headers: { "Content-Type": "application/json", ...(await sessionAuthHeaders()) },
       body: JSON.stringify({ message, agent: "code-chat", effort, model, repo, history: history.slice(-20) }),
+      signal: handlers.signal,
+    });
+    await readAofStream(res, handlers);
+  } catch (e) {
+    if (isAbortError(e)) return;
+    handlers.onError?.(networkError(e));
+  }
+}
+
+// ── CoCode file-aware edit (existing-project iteration, diff output) ─────────
+// The unified agent's second flow — used instead of streamCodeChat once the
+// workspace has real files, so the reply is a reviewable unified diff instead
+// of a chat message.
+
+export async function streamCodeEdit(
+  message: string,
+  activeFile: { path: string; content: string } | null,
+  history: ChatHistoryItem[],
+  handlers: StreamHandlers,
+  effort: EffortLevel = "normal",
+): Promise<void> {
+  if (isDemoMode()) {
+    await mockCodeEdit(message, activeFile, handlers);
+    return;
+  }
+  try {
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(await sessionAuthHeaders()) },
+      body: JSON.stringify({ message, agent: "code-edit", effort, history: history.slice(-20) }),
       signal: handlers.signal,
     });
     await readAofStream(res, handlers);

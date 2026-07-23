@@ -65,6 +65,7 @@ import {
   RAA_SYSTEM,
   AOF_CODE_CHAT_SYSTEM,
   AOF_CODE_GEN_SYSTEM,
+  AOF_CODE_EDIT_SYSTEM,
   AOF_PLAN_SYSTEM,
   AOF_ANALYZE_SYSTEM,
   AOF_DEBUG_SYSTEM,
@@ -72,7 +73,7 @@ import {
 
 /** Agents that do not need the tmap-v2 backend: a single-pass LLM call via the
  *  same provider chain. Each carries its own persona, temperature and budget. */
-type Agent = "chat" | "requirements" | "code-chat" | "code-gen" | "plan" | "analyze" | "debug";
+type Agent = "chat" | "requirements" | "code-chat" | "code-gen" | "code-edit" | "plan" | "analyze" | "debug";
 
 function agentConfig(
   agent: Agent | undefined,
@@ -85,6 +86,8 @@ function agentConfig(
       return { system: AOF_CODE_CHAT_SYSTEM, temperature: 0.7, maxTokens: 800 };
     case "code-gen":
       return { system: AOF_CODE_GEN_SYSTEM, temperature: 0.4, maxTokens: 4000 };
+    case "code-edit":
+      return { system: AOF_CODE_EDIT_SYSTEM, temperature: 0.4, maxTokens: 3000 };
     case "plan":
       return { system: AOF_PLAN_SYSTEM, temperature: 0.5, maxTokens: 2000 };
     case "analyze":
@@ -210,6 +213,7 @@ function buildSystem(route: RouteDecision | undefined): string {
 function taskCategoryFor(agent: Agent | undefined, route: RouteDecision | undefined): TaskCategory {
   switch (agent) {
     case "code-gen":
+    case "code-edit":
     case "code-chat":
     case "debug":
       return "coding";
