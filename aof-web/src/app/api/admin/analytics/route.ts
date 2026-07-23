@@ -26,9 +26,15 @@ export async function GET(req: Request) {
   // 1. Total user count + tier distribution
   let allUsers: import("@supabase/supabase-js").User[] = [];
   let fetchPage = 1;
+  let usersTruncated = false;
   while (true) {
     const { data, error: listErr } = await supabase.auth.admin.listUsers({ page: fetchPage, perPage: 1000 });
-    if (listErr || !data?.users?.length) break;
+    if (listErr) {
+      console.error("[/api/admin/analytics] listUsers failed:", listErr.message, { page: fetchPage });
+      usersTruncated = true;
+      break;
+    }
+    if (!data?.users?.length) break;
     allUsers = allUsers.concat(data.users);
     if (data.users.length < 1000) break;
     fetchPage++;
@@ -59,42 +65,59 @@ export async function GET(req: Request) {
     pct: totalUsers > 0 ? Math.round(((tierCounts[tier] ?? 0) / totalUsers) * 100) : 0,
   }));
 
+  // Every count/select below is logged on failure rather than silently
+  // reported as 0/empty — a failed query previously looked identical to a
+  // genuinely-empty table from the client's perspective.
+  const failedQueries: string[] = [];
+  function logQueryError(label: string, err: { message: string } | null) {
+    if (!err) return;
+    console.error(`[/api/admin/analytics] ${label} failed:`, err.message);
+    failedQueries.push(label);
+  }
+
   // 2. Active subscriptions
-  const { count: activeSubs } = await supabase
+  const { count: activeSubs, error: activeSubsErr } = await supabase
     .from("subscriptions")
     .select("id", { count: "exact", head: true })
     .is("revoked_at", null);
+  logQueryError("subscriptions(active)", activeSubsErr);
 
   // 3. Subscriptions granted in period
-  const { count: newSubs } = await supabase
+  const { count: newSubs, error: newSubsErr } = await supabase
     .from("subscriptions")
     .select("id", { count: "exact", head: true })
     .gte("granted_at", since);
+  logQueryError("subscriptions(new)", newSubsErr);
 
   // 4. Redeem codes: active, total uses in period
-  const { count: activeCodesCount } = await supabase
+  const { count: activeCodesCount, error: activeCodesErr } = await supabase
     .from("redeem_codes")
     .select("id", { count: "exact", head: true })
     .is("disabled_at", null);
+  logQueryError("redeem_codes(active)", activeCodesErr);
 
-  const { count: codeUses } = await supabase
+  const { count: codeUses, error: codeUsesErr } = await supabase
     .from("redeem_code_uses")
     .select("id", { count: "exact", head: true })
     .gte("redeemed_at", since);
+  logQueryError("redeem_code_uses", codeUsesErr);
 
   // 5. Feature flags summary
-  const { data: flags } = await supabase.from("feature_flags").select("flag_key, enabled");
+  const { data: flags, error: flagsErr } = await supabase.from("feature_flags").select("flag_key, enabled");
+  logQueryError("feature_flags", flagsErr);
   const enabledFlags = (flags ?? []).filter((f) => f.enabled).length;
 
   // 6. Announcements active
-  const { count: activeAnnouncements } = await supabase
+  const { count: activeAnnouncements, error: announcementsErr } = await supabase
     .from("announcements")
     .select("id", { count: "exact", head: true })
     .eq("active", true)
     .lte("starts_at", now.toISOString());
+  logQueryError("announcements", announcementsErr);
 
   // 7. Admin roles breakdown
-  const { data: roles } = await supabase.from("user_roles").select("role");
+  const { data: roles, error: rolesErr } = await supabase.from("user_roles").select("role");
+  logQueryError("user_roles", rolesErr);
   const roleCounts: Record<string, number> = {};
   for (const r of roles ?? []) roleCounts[r.role] = (roleCounts[r.role] ?? 0) + 1;
 
@@ -112,8 +135,18 @@ export async function GET(req: Request) {
     });
   }
 
+  if (usersTruncated || failedQueries.length > 0) {
+    console.error(
+      "[/api/admin/analytics] response is degraded — some values may be incomplete:",
+      { usersTruncated, failedQueries },
+    );
+  }
+
   return NextResponse.json({
     period,
+    // Present whenever any underlying query failed, so the client can show
+    // a "data may be incomplete" indicator instead of trusting 0/[] as real.
+    degraded: usersTruncated || failedQueries.length > 0 ? { usersTruncated, failedQueries } : undefined,
     totalUsers,
     newUsers,
     activeUsers,
