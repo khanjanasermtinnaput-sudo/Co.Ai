@@ -1,11 +1,13 @@
 # CoCode — TMAP v2 (MVP core)
 
 Multi-agent coding assistant ที่ทำงานจริง: **Planner → Coder → Validator → Reviewer + critique loop**
-อิงสถาปัตยกรรมใน [`AOF_CODE_TDD.md`](./AOF_CODE_TDD.md). โค้ดทั้งหมดเรียกโมเดลจริงด้วย API key ของคุณ
+(นี่คือ pipeline เดิม/`core/` — ดู `src/v2/` สำหรับ engine ใหม่ที่ orchestration ใช้จริงบน `/v2/run`,
+รายละเอียดอยู่ใน "โครงสร้างโค้ด" ด้านล่าง). โค้ดทั้งหมดเรียกโมเดลจริงด้วย API key ของคุณ
 ถ้าไม่ใส่ key จะรันใน **mock mode** (เดโมออฟไลน์) ได้
 
 > **ขอบเขต & การ deploy.** `tmap-v2` คือ **backend ของ `coagentix-cli`** (CLI เรียก
-> `/v1/*` ที่ `tmap.coagentix.com`) — จงใจแยกออกจาก `aof-web` ซึ่งรัน pipeline
+> `/v1/*` ที่ `coagentix.onrender.com` ตาม `render.yaml` — override ได้ด้วย
+> `COAI_API_BASE`) — จงใจแยกออกจาก `aof-web` ซึ่งรัน pipeline
 > multi-agent เอง inline (`aof-web/src/lib/server/`) และ **ไม่** พึ่ง service นี้ตอน
 > deploy จริง โมดูลที่ชื่อชนกันระหว่างสอง repo (`crypto`, `budget-enforcer`,
 > `telemetry`, `orchestrator`) เป็นสำเนาที่ตั้งใจแยก ไม่ใช่ workspace ร่วม —
@@ -18,7 +20,7 @@ Multi-agent coding assistant ที่ทำงานจริง: **Planner →
 
 ## ติดตั้ง
 ```powershell
-cd C:\Users\khanj\aof-code
+cd tmap-v2
 npm install
 ```
 
@@ -116,12 +118,22 @@ src/
   config.ts            role→provider→model resolver (Role แยกจาก Model)
   types.ts             AgentMessage / Blackboard contracts
   providers/client.ts  OpenAI-compatible client (พูดได้ทุก vendor)
-  core/
-    blackboard.ts      shared working memory + persist (.aof/sessions)
-    agents.ts          planner / coder / reviewer (prompts + parsing)
-    validator.ts       grounded validation (รัน node --check จริง)
-    orchestrator.ts    TMAP loop: plan→code→validate→review→critique
-  cli.ts               CLI (doctor / agents / gencode)
+  cli.ts               CLI (doctor / agents / gencode / server)
+
+  core/                pipeline เดิม — runTMAP (legacy /build, mode lite/normal),
+                        ypertatos.ts (mode pro, wrap runTMAP), agents.ts, validator.ts,
+                        cost-budget.ts/budget-enforcer.ts (สอง layer งบ), memory.ts, ฯลฯ
+
+  v2/                  engine ใหม่ — orchestrator-v2.ts (decideExecution, คนละงานกับ
+                        core/orchestrator.ts คนละ route กัน ไม่ทับซ้อน), raa.ts (plan/
+                        replan), executor.ts, dag.ts, memory-v2.ts, quality-gate-loop.ts,
+                        kernel/ (process lifecycle), recovery/ (dead-letter + recovery
+                        engine), certification/ (npm run certify, แยกจาก npm test)
+
+  server/               Express entrypoint (index.ts) — /build (core), /v2/run (v2),
+                        auth, teams/orgs/webhooks/entitlements, preflight boot-gate
+
+  dars/                 provider/model health + selection ที่ core และ v2 ใช้ร่วมกัน
 ```
 
 ## ทำงานอย่างไร (สั้น ๆ)
@@ -131,4 +143,7 @@ src/
 4. **Reviewer** หา issue (HIGH/MED/LOW)
 5. ถ้า validation fail หรือมี HIGH → วนกลับให้ Coder แก้ (ตามโหมด) = **collaboration จริง ไม่ใช่ pipe**
 
-> นี่คือ Phase 1 MVP. ส่วน web/desktop/Temporal/sandbox-cluster/RAG memory อยู่ใน roadmap ของ TDD
+> ส่วนบนอธิบาย pipeline เดิม (`core/`, mode lite/normal/pro) เท่านั้น — engine ใหม่ (`v2/`,
+> รวม kernel/recovery/certification) มี test suite และ invariant ของตัวเองแยกต่างหาก
+> ดู header comment ของแต่ละไฟล์ใน `src/v2/` สำหรับรายละเอียด ("Deliberately NOT built"
+> list บอกขอบเขตของแต่ละส่วนชัดเจน)

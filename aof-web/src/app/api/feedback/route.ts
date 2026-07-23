@@ -2,6 +2,7 @@
 // Rate-limited to 5 submissions per minute per IP.
 import { NextResponse } from "next/server";
 import { getAdminSupabase, getUserFromRequest, isAdminConfigured } from "@/lib/server/supabase-admin";
+import { formatError } from "@/lib/errors/api-error";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,7 +24,7 @@ export async function POST(req: Request) {
   try {
     body = (await req.json()) as Record<string, unknown>;
   } catch {
-    return NextResponse.json({ error: "invalid-json" }, { status: 400 });
+    return formatError("SYSTEM_500", { message: "Invalid JSON", detail: "invalid-json" }, 400);
   }
 
   const type    = isFeedbackType(body.type) ? body.type : "general";
@@ -31,7 +32,7 @@ export async function POST(req: Request) {
   const page    = sanitize(body.page ?? "", 200);
 
   if (message.length < 3) {
-    return NextResponse.json({ error: "message-too-short" }, { status: 400 });
+    return formatError("SYSTEM_500", { message: "message-too-short", detail: "message-too-short" }, 400);
   }
 
   // Optionally attach to the signed-in user.
@@ -52,7 +53,7 @@ export async function POST(req: Request) {
     if (error) {
       // Don't expose DB errors — log server-side and return generic 500.
       console.error("[feedback]", error.message);
-      return NextResponse.json({ error: "save-failed" }, { status: 500 });
+      return formatError("DB_500", { detail: "save-failed: " + error.message });
     }
   }
 

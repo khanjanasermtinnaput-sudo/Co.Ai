@@ -9,6 +9,15 @@
 //
 // This module is environment-agnostic (no Node- or browser-only imports) so the
 // exact same classification + serialization runs on the API route and in the UI.
+//
+// This is deliberately a SEPARATE system from `lib/errors/error-codes.ts`'s
+// general "Unified Error Code Registry" (AUTH-401, DB-500, etc.) — that one
+// covers ordinary REST API failures across the app; this one is specifically
+// the AI-provider streaming-failure envelope used by chat/route.ts and
+// refactor/route.ts, and nowhere else. Don't consolidate the two: they answer
+// different questions ("what REST error occurred" vs. "which provider failed
+// and why, mid-stream") and chat/refactor's routes are the ONLY places that
+// should ever import this file instead of the general registry.
 
 // ── Error codes ───────────────────────────────────────────────────────────────
 // Numbering follows the COAGENTIX spec's ERROR CODES list (001–013).

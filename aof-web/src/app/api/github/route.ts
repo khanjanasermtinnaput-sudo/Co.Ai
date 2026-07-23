@@ -7,11 +7,16 @@
 // POST /api/github?path=/repos/...      → write ops (commit, branch, PR)
 
 import { cookies } from "next/headers";
+import { formatError } from "@/lib/errors/api-error";
 
 export const runtime = "nodejs";
 
-function getToken(): string | null {
-  const jar = cookies();
+// `await`ed even though Next.js 14's `cookies()` is still synchronous today —
+// it becomes async in Next.js 15, and this is the forward-compatible shape
+// (awaiting a non-Promise value is valid and resolves immediately, so this
+// doesn't change current behavior).
+async function getToken(): Promise<string | null> {
+  const jar = await cookies();
   return jar.get("gh_token")?.value ?? null;
 }
 
@@ -20,9 +25,9 @@ async function proxyGitHub(
   method: string,
   body?: unknown,
 ): Promise<Response> {
-  const token = getToken();
+  const token = await getToken();
   if (!token) {
-    return Response.json({ error: "GitHub not connected" }, { status: 401 });
+    return formatError("AUTH_401", { detail: "GitHub not connected" });
   }
 
   const ghRes = await fetch(`https://api.github.com${path}`, {
@@ -44,7 +49,7 @@ export async function GET(req: Request): Promise<Response> {
   const url = new URL(req.url);
   const path = url.searchParams.get("path");
   if (!path || !path.startsWith("/")) {
-    return Response.json({ error: "Missing or invalid path" }, { status: 400 });
+    return formatError("SYSTEM_500", { message: "Missing or invalid path", detail: "missing-or-invalid-path" }, 400);
   }
   // Forward any query params that aren't "path"
   const forwardParams = new URLSearchParams();
@@ -58,7 +63,7 @@ export async function GET(req: Request): Promise<Response> {
 export async function POST(req: Request): Promise<Response> {
   const url = new URL(req.url);
   const path = url.searchParams.get("path");
-  if (!path) return Response.json({ error: "Missing path" }, { status: 400 });
+  if (!path) return formatError("SYSTEM_500", { message: "Missing path", detail: "missing-path" }, 400);
   const body = await req.json().catch(() => ({}));
   return proxyGitHub(path, "POST", body);
 }
@@ -66,7 +71,7 @@ export async function POST(req: Request): Promise<Response> {
 export async function PUT(req: Request): Promise<Response> {
   const url = new URL(req.url);
   const path = url.searchParams.get("path");
-  if (!path) return Response.json({ error: "Missing path" }, { status: 400 });
+  if (!path) return formatError("SYSTEM_500", { message: "Missing path", detail: "missing-path" }, 400);
   const body = await req.json().catch(() => ({}));
   return proxyGitHub(path, "PUT", body);
 }
@@ -74,7 +79,7 @@ export async function PUT(req: Request): Promise<Response> {
 export async function DELETE(req: Request): Promise<Response> {
   const url = new URL(req.url);
   const path = url.searchParams.get("path");
-  if (!path) return Response.json({ error: "Missing path" }, { status: 400 });
+  if (!path) return formatError("SYSTEM_500", { message: "Missing path", detail: "missing-path" }, 400);
   const body = await req.json().catch(() => ({}));
   return proxyGitHub(path, "DELETE", body);
 }
@@ -84,10 +89,7 @@ export async function PATCH(req: Request): Promise<Response> {
   // PATCH /api/github → returns the OAuth URL to redirect to
   const clientId = process.env.GITHUB_CLIENT_ID;
   if (!clientId) {
-    return Response.json(
-      { error: "GITHUB_CLIENT_ID not configured on server" },
-      { status: 501 },
-    );
+    return formatError("API_500", { detail: "GITHUB_CLIENT_ID not configured on server" }, 501);
   }
   const state = crypto.randomUUID();
   // Falls back to the request's own origin so this still works when
@@ -102,7 +104,7 @@ export async function PATCH(req: Request): Promise<Response> {
 // Disconnect — actually clear the httpOnly cookie server-side. (The client can't
 // do this itself via document.cookie; JS can't overwrite an httpOnly cookie.)
 export async function OPTIONS(): Promise<Response> {
-  const jar = cookies();
+  const jar = await cookies();
   jar.set("gh_token", "", {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",

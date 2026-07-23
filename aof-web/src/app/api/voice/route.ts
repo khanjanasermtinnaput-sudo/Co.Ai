@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getUserFromRequest } from "@/lib/server/auth";
 import { streamChat } from "@/lib/server/chat";
+import { formatError } from "@/lib/errors/api-error";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,19 +22,23 @@ const VoiceSchema = z.object({
 export async function POST(req: NextRequest) {
   const user = await getUserFromRequest(req);
   if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return formatError("AUTH_401");
   }
 
   let body: unknown;
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    return formatError("SYSTEM_500", { message: "Invalid JSON", detail: "invalid-json-body" }, 400);
   }
 
   const parsed = VoiceSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid input", issues: parsed.error.issues }, { status: 400 });
+    return formatError(
+      "SYSTEM_500",
+      { message: "Invalid input", detail: JSON.stringify(parsed.error.issues) },
+      400,
+    );
   }
 
   const { transcript, language, confirmDestructive } = parsed.data;
@@ -69,12 +74,15 @@ Format: [Understanding] → [Plan] → [Code Changes (if any)]`;
       isDestructive,
       response,
     });
-  } catch (err) {
-    return NextResponse.json({
-      error: "Voice processing failed",
-      transcript,
-      fallback: `I heard: "${transcript}". Processing as a requirements request.`,
-    }, { status: 503 });
+  } catch {
+    return formatError(
+      "API_500",
+      {
+        message: "Voice processing failed",
+        detail: `transcript="${transcript}"; fallback="I heard: \\"${transcript}\\". Processing as a requirements request."`,
+      },
+      503,
+    );
   }
 }
 

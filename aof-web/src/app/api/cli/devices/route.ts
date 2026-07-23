@@ -6,6 +6,7 @@
 import { NextResponse } from "next/server";
 import { getAdminSupabase, getUserFromRequest, isAdminConfigured, tierForUser } from "@/lib/server/supabase-admin";
 import { hasFeature } from "@/lib/plans";
+import { formatError } from "@/lib/errors/api-error";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,24 +14,24 @@ export const dynamic = "force-dynamic";
 async function requireAdvanced(req: Request) {
   if (!isAdminConfigured()) {
     return {
-      error: NextResponse.json(
+      error: formatError(
+        "API_500",
         {
-          error: "backend-not-configured",
-          message:
-            "CLI sessions are unavailable: this deployment is missing its Supabase admin configuration (NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY). Ask the site operator to set them.",
+          detail:
+            "backend-not-configured: CLI sessions are unavailable: this deployment is missing its Supabase admin configuration (NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY). Ask the site operator to set them.",
         },
-        { status: 503 },
+        503,
       ),
     };
   }
   const user = await getUserFromRequest(req);
   if (!user) {
-    return { error: NextResponse.json({ error: "unauthorized" }, { status: 401 }) };
+    return { error: formatError("AUTH_401", { detail: "unauthorized" }) };
   }
   // Mirrors /api/cli/token: tierForUser + hasFeature("cli"), so CLI access is
   // lenient while plan enforcement is off and ADVANCED-gated once it's on.
   if (!hasFeature(tierForUser(user), "cli")) {
-    return { error: NextResponse.json({ error: "advanced-required" }, { status: 403 }) };
+    return { error: formatError("AUTH_403", { detail: "advanced-required" }) };
   }
   return { user };
 }
@@ -46,7 +47,7 @@ export async function GET(req: Request) {
     .order("last_active_at", { ascending: false })
     .limit(20);
 
-  if (dbErr) return NextResponse.json({ error: "load-failed" }, { status: 500 });
+  if (dbErr) return formatError("DB_500", { detail: "load-failed: " + dbErr.message });
 
   return NextResponse.json({
     devices: (data ?? []).map((d) => ({
@@ -68,7 +69,7 @@ export async function DELETE(req: Request) {
     .delete()
     .eq("user_id", user.id);
 
-  if (dbErr) return NextResponse.json({ error: "logout-failed" }, { status: 500 });
+  if (dbErr) return formatError("DB_500", { detail: "logout-failed: " + dbErr.message });
 
   return NextResponse.json({ ok: true });
 }

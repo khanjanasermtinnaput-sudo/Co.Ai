@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getUserFromRequest } from "@/lib/server/auth";
+import { formatError } from "@/lib/errors/api-error";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,7 +40,7 @@ const QUEUE_STATE = {
 
 export async function GET(req: NextRequest) {
   const user = await getUserFromRequest(req);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!user) return formatError("AUTH_401");
 
   const { searchParams } = new URL(req.url);
   const queue = searchParams.get("queue");
@@ -59,16 +60,20 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const user = await getUserFromRequest(req);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!user) return formatError("AUTH_401");
 
   let body: unknown;
   try { body = await req.json(); } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    return formatError("SYSTEM_500", { message: "Invalid JSON", detail: "invalid-json-body" }, 400);
   }
 
   const parsed = JobSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid job spec", issues: parsed.error.issues }, { status: 400 });
+    return formatError(
+      "SYSTEM_500",
+      { message: "Invalid job spec", detail: JSON.stringify(parsed.error.issues) },
+      400,
+    );
   }
 
   const jobId = `job-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;

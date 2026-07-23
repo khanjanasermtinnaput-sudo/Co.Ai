@@ -3,6 +3,7 @@
 // Called when a repo is loaded or files are uploaded.
 
 import { detectLanguage } from "@/lib/cocode/virtual-fs";
+import { formatError } from "@/lib/errors/api-error";
 
 export const runtime = "nodejs";
 
@@ -36,15 +37,15 @@ export async function POST(req: Request): Promise<Response> {
   try {
     body = await req.json();
   } catch {
-    return Response.json({ error: "Invalid JSON" }, { status: 400 });
+    return formatError("SYSTEM_500", { message: "Invalid JSON", detail: "invalid-json-body" }, 400);
   }
   if (typeof body !== "object" || body === null || Array.isArray(body)) {
-    return Response.json({ error: "Request body must be a JSON object" }, { status: 400 });
+    return formatError("SYSTEM_500", { message: "Request body must be a JSON object", detail: "body-not-object" }, 400);
   }
 
   const { files } = body as AnalyzeRequest;
   if (!Array.isArray(files) || !files.length) {
-    return Response.json({ error: "files array required" }, { status: 400 });
+    return formatError("SYSTEM_500", { message: "files array required", detail: "missing-files-array" }, 400);
   }
 
   const map = analyzeProject(files);

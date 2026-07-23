@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getUserFromRequest } from "@/lib/server/auth";
+import { formatError } from "@/lib/errors/api-error";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,13 +28,13 @@ const OwnershipSchema = z.object({
 
 export async function GET(req: NextRequest) {
   const user = await getUserFromRequest(req);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!user) return formatError("AUTH_401");
 
   const { searchParams } = new URL(req.url);
   const filePath = searchParams.get("filePath");
 
   if (!filePath) {
-    return NextResponse.json({ error: "filePath query parameter required" }, { status: 400 });
+    return formatError("SYSTEM_500", { message: "filePath query parameter required", detail: "missing-file-path" }, 400);
   }
 
   // In production: query git blame + ownership DB
@@ -54,16 +55,20 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const user = await getUserFromRequest(req);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!user) return formatError("AUTH_401");
 
   let body: unknown;
   try { body = await req.json(); } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    return formatError("SYSTEM_500", { message: "Invalid JSON", detail: "invalid-json-body" }, 400);
   }
 
   const parsed = OwnershipSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid ownership record", issues: parsed.error.issues }, { status: 400 });
+    return formatError(
+      "SYSTEM_500",
+      { message: "Invalid ownership record", detail: JSON.stringify(parsed.error.issues) },
+      400,
+    );
   }
 
   return NextResponse.json({

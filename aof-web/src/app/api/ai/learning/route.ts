@@ -8,6 +8,7 @@ import { NextResponse } from "next/server";
 import { getAdminSupabase, getUserFromRequest, isAdminConfigured } from "@/lib/server/supabase-admin";
 import { checkRateLimit } from "@/lib/server/rate-limit";
 import { z } from "zod";
+import { formatError } from "@/lib/errors/api-error";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,20 +23,20 @@ const PatternSchema = z.object({
 
 export async function POST(req: Request): Promise<Response> {
   if (!isAdminConfigured()) {
-    return NextResponse.json({ error: "not-configured" }, { status: 503 });
+    return formatError("API_500", { detail: "not-configured" }, 503);
   }
 
   const user = await getUserFromRequest(req).catch(() => null);
-  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (!user) return formatError("AUTH_401", { detail: "unauthorized" });
 
   const rl = await checkRateLimit(user.id, "chat");
-  if (!rl.allowed) return NextResponse.json({ error: "rate-limited" }, { status: 429 });
+  if (!rl.allowed) return formatError("API_429", { detail: "rate-limited" });
 
   let body: z.infer<typeof PatternSchema>;
   try {
     body = PatternSchema.parse(await req.json());
   } catch {
-    return NextResponse.json({ error: "invalid pattern schema" }, { status: 400 });
+    return formatError("SYSTEM_500", { message: "Invalid pattern schema", detail: "invalid-pattern-schema" }, 400);
   }
 
   const supabase = getAdminSupabase();
@@ -66,7 +67,7 @@ export async function GET(req: Request): Promise<Response> {
   }
 
   const user = await getUserFromRequest(req).catch(() => null);
-  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (!user) return formatError("AUTH_401", { detail: "unauthorized" });
 
   const url = new URL(req.url);
   const type = url.searchParams.get("type");

@@ -7,6 +7,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
 import { getUserFromRequest, getAdminSupabase, isAdminConfigured } from "@/lib/server/supabase-admin";
 import { checkRateLimit, applyRateLimitHeaders } from "@/lib/server/rate-limit";
+import { formatError } from "@/lib/errors/api-error";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,18 +20,18 @@ function generateCode(): string {
 export async function GET(req: Request): Promise<Response> {
   const user = await getUserFromRequest(req).catch(() => null);
   if (!user) {
-    return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+    return formatError("AUTH_401", { detail: "Authentication required" });
   }
 
   const rl = await checkRateLimit(user.id, "api");
   if (!rl.allowed) {
-    const h = new Headers({ "Content-Type": "application/json" });
-    applyRateLimitHeaders(h, rl);
-    return new Response(JSON.stringify({ error: "Rate limit exceeded" }), { status: 429, headers: h });
+    const res = formatError("API_429", { detail: "Rate limit exceeded" });
+    applyRateLimitHeaders(res.headers, rl);
+    return res;
   }
 
   if (!isAdminConfigured()) {
-    return NextResponse.json({ error: "Database not configured" }, { status: 503 });
+    return formatError("API_500", { detail: "Database not configured" }, 503);
   }
 
   const supabase = getAdminSupabase();
@@ -85,17 +86,17 @@ export async function POST(req: Request): Promise<Response> {
   const ip = (req.headers.get("x-forwarded-for") ?? "anon").split(",")[0].trim();
   const rl = await checkRateLimit(ip, "api");
   if (!rl.allowed) {
-    return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
+    return formatError("API_429", { detail: "Rate limit exceeded" });
   }
 
   if (!isAdminConfigured()) return NextResponse.json({ ok: true });
 
   let body: { action?: string; code?: string };
-  try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
+  try { body = await req.json(); } catch { return formatError("SYSTEM_500", { message: "Invalid JSON", detail: "invalid-json-body" }, 400); }
 
   const { action, code } = body;
   if (!code || typeof code !== "string" || !/^[A-Z0-9]{6,12}$/.test(code)) {
-    return NextResponse.json({ error: "Invalid referral code format" }, { status: 400 });
+    return formatError("SYSTEM_500", { message: "Invalid referral code format", detail: "invalid-referral-code-format" }, 400);
   }
 
   const supabase = getAdminSupabase();
@@ -109,10 +110,10 @@ export async function POST(req: Request): Promise<Response> {
 
   if (action === "convert") {
     const user = await getUserFromRequest(req).catch(() => null);
-    if (!user) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+    if (!user) return formatError("AUTH_401", { detail: "Authentication required" });
     await supabase.rpc("record_referral_conversion", { p_code: code, p_invitee: user.id });
     return NextResponse.json({ ok: true });
   }
 
-  return NextResponse.json({ error: "Unknown action" }, { status: 400 });
+  return formatError("SYSTEM_500", { message: "Unknown action", detail: "unknown-action" }, 400);
 }

@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getUserFromRequest } from "@/lib/server/auth";
 import { createAdminClient } from "@/lib/server/supabase";
+import { formatError } from "@/lib/errors/api-error";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,7 +27,7 @@ const TimelineEventSchema = z.object({
 export async function GET(req: NextRequest) {
   const user = await getUserFromRequest(req);
   if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return formatError("AUTH_401");
   }
 
   const { searchParams } = new URL(req.url);
@@ -48,7 +49,7 @@ export async function GET(req: NextRequest) {
 
     const { data, error } = await query;
     if (error && error.code !== "42P01") {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return formatError("DB_500", { detail: error.message });
     }
 
     return NextResponse.json({ events: data ?? [], total: data?.length ?? 0 });
@@ -60,19 +61,23 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const user = await getUserFromRequest(req);
   if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return formatError("AUTH_401");
   }
 
   let body: unknown;
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    return formatError("SYSTEM_500", { message: "Invalid JSON", detail: "invalid-json-body" }, 400);
   }
 
   const parsed = TimelineEventSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid input", issues: parsed.error.issues }, { status: 400 });
+    return formatError(
+      "SYSTEM_500",
+      { message: "Invalid input", detail: JSON.stringify(parsed.error.issues) },
+      400,
+    );
   }
 
   try {
@@ -87,7 +92,7 @@ export async function POST(req: NextRequest) {
     }).select().single();
 
     if (error && error.code !== "42P01") {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return formatError("DB_500", { detail: error.message });
     }
 
     return NextResponse.json({ event: data ?? { ...parsed.data, id: "pending-table-creation" } }, { status: 201 });

@@ -7,16 +7,17 @@
 import { NextResponse } from "next/server";
 import { getAdminSupabase, getUserFromRequest, isAdminConfigured } from "@/lib/server/supabase-admin";
 import { parseWorkspace } from "@/lib/server/workspace";
+import { formatError } from "@/lib/errors/api-error";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 async function requireUser(req: Request) {
   if (!isAdminConfigured()) {
-    return { error: NextResponse.json({ error: "not-configured" }, { status: 503 }) };
+    return { error: formatError("API_500", { detail: "not-configured" }, 503) };
   }
   const user = await getUserFromRequest(req);
-  if (!user) return { error: NextResponse.json({ error: "unauthorized" }, { status: 401 }) };
+  if (!user) return { error: formatError("AUTH_401", { detail: "unauthorized" }) };
   return { user };
 }
 
@@ -26,7 +27,7 @@ export async function GET(req: Request) {
 
   const url = new URL(req.url);
   const workspace = parseWorkspace(url.searchParams.get("workspace"));
-  if (!workspace) return NextResponse.json({ error: "invalid-workspace" }, { status: 400 });
+  if (!workspace) return formatError("SYSTEM_500", { message: "invalid-workspace", detail: "invalid-workspace" }, 400);
 
   const { data, error: dbErr } = await getAdminSupabase()
     .from("conversations")
@@ -36,7 +37,7 @@ export async function GET(req: Request) {
     .order("updated_at", { ascending: false })
     .limit(60);
 
-  if (dbErr) return NextResponse.json({ error: "load-failed" }, { status: 500 });
+  if (dbErr) return formatError("DB_500", { detail: "load-failed: " + dbErr.message });
   return NextResponse.json({ conversations: data ?? [] });
 }
 
@@ -48,7 +49,7 @@ export async function POST(req: Request) {
   try { body = await req.json(); } catch { body = {}; }
 
   const workspace = body.workspace === undefined ? "cochat" : parseWorkspace(body.workspace);
-  if (!workspace) return NextResponse.json({ error: "invalid-workspace" }, { status: 400 });
+  if (!workspace) return formatError("SYSTEM_500", { message: "invalid-workspace", detail: "invalid-workspace" }, 400);
 
   const id = typeof body.id === "string" ? body.id : `conv_${Math.random().toString(36).slice(2,9)}`;
   const title = typeof body.title === "string" ? body.title.slice(0, 120) : "New chat";
@@ -59,7 +60,7 @@ export async function POST(req: Request) {
     .from("conversations")
     .insert({ id, user_id: user.id, title, model, workspace, created_at: now, updated_at: now });
 
-  if (dbErr) return NextResponse.json({ error: "create-failed" }, { status: 500 });
+  if (dbErr) return formatError("DB_500", { detail: "create-failed: " + dbErr.message });
   return NextResponse.json({ ok: true, id });
 }
 
@@ -72,7 +73,7 @@ export async function DELETE(req: Request) {
 
   if (body.all === true) {
     const workspace = parseWorkspace(body.workspace);
-    if (!workspace) return NextResponse.json({ error: "invalid-workspace" }, { status: 400 });
+    if (!workspace) return formatError("SYSTEM_500", { message: "invalid-workspace", detail: "invalid-workspace" }, 400);
 
     const { error: dbErr } = await getAdminSupabase()
       .from("conversations")
@@ -80,12 +81,12 @@ export async function DELETE(req: Request) {
       .eq("user_id", user.id)
       .eq("workspace", workspace);
 
-    if (dbErr) return NextResponse.json({ error: "delete-failed" }, { status: 500 });
+    if (dbErr) return formatError("DB_500", { detail: "delete-failed: " + dbErr.message });
     return NextResponse.json({ ok: true });
   }
 
   const ids = Array.isArray(body.ids) ? body.ids.filter((id): id is string => typeof id === "string") : [];
-  if (!ids.length) return NextResponse.json({ error: "ids-or-all-required" }, { status: 400 });
+  if (!ids.length) return formatError("SYSTEM_500", { message: "ids-or-all-required", detail: "ids-or-all-required" }, 400);
 
   const { error: dbErr } = await getAdminSupabase()
     .from("conversations")
@@ -93,6 +94,6 @@ export async function DELETE(req: Request) {
     .eq("user_id", user.id)
     .in("id", ids);
 
-  if (dbErr) return NextResponse.json({ error: "delete-failed" }, { status: 500 });
+  if (dbErr) return formatError("DB_500", { detail: "delete-failed: " + dbErr.message });
   return NextResponse.json({ ok: true });
 }

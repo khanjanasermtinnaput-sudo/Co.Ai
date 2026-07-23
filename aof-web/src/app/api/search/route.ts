@@ -8,6 +8,7 @@ import { NextResponse } from "next/server";
 import { getAdminSupabase, getUserFromRequest, isAdminConfigured } from "@/lib/server/supabase-admin";
 import { checkRateLimit, applyRateLimitHeaders } from "@/lib/server/rate-limit";
 import { parseWorkspace } from "@/lib/server/workspace";
+import { formatError } from "@/lib/errors/api-error";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,23 +38,23 @@ function excerpt(content: string, query: string): string {
 
 export async function GET(req: Request) {
   if (!isAdminConfigured()) {
-    return NextResponse.json({ error: "not-configured" }, { status: 503 });
+    return formatError("API_500", { detail: "not-configured" }, 503);
   }
   const user = await getUserFromRequest(req);
-  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (!user) return formatError("AUTH_401", { detail: "unauthorized" });
 
   const rl = await checkRateLimit(user.id, "search");
   if (!rl.allowed) {
-    const headers = new Headers({ "Content-Type": "application/json" });
-    applyRateLimitHeaders(headers, rl);
-    return new NextResponse(JSON.stringify({ error: "rate-limited" }), { status: 429, headers });
+    const res = formatError("API_429", { detail: "rate-limited" });
+    applyRateLimitHeaders(res.headers, rl);
+    return res;
   }
 
   const url = new URL(req.url);
   const q = url.searchParams.get("q")?.trim() ?? "";
   const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "10", 10), MAX_RESULTS);
   const workspace = parseWorkspace(url.searchParams.get("workspace"));
-  if (!workspace) return NextResponse.json({ error: "invalid-workspace" }, { status: 400 });
+  if (!workspace) return formatError("SYSTEM_500", { message: "invalid-workspace", detail: "invalid-workspace" }, 400);
 
   if (q.length < 2) return NextResponse.json({ hits: [] });
 

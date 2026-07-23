@@ -4,16 +4,17 @@
 
 import { NextResponse } from "next/server";
 import { getAdminSupabase, getUserFromRequest, isAdminConfigured } from "@/lib/server/supabase-admin";
+import { formatError } from "@/lib/errors/api-error";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 async function requireUser(req: Request) {
   if (!isAdminConfigured()) {
-    return { error: NextResponse.json({ error: "not-configured" }, { status: 503 }) };
+    return { error: formatError("API_500", { detail: "not-configured" }, 503) };
   }
   const user = await getUserFromRequest(req);
-  if (!user) return { error: NextResponse.json({ error: "unauthorized" }, { status: 401 }) };
+  if (!user) return { error: formatError("AUTH_401", { detail: "unauthorized" }) };
   return { user };
 }
 
@@ -53,10 +54,10 @@ export async function GET(
       convErr.message,
       { conversationId, userId: user.id },
     );
-    return NextResponse.json({ error: "load-failed" }, { status: 500 });
+    return formatError("DB_500", { detail: "load-failed: " + convErr.message });
   }
   if (!conv) {
-    return NextResponse.json({ error: "not-found" }, { status: 404 });
+    return formatError("SYSTEM_500", { message: "not-found", detail: "conversation-not-found" }, 404);
   }
 
   const { data, error: dbErr } = await getAdminSupabase()
@@ -72,7 +73,7 @@ export async function GET(
       dbErr.message,
       { conversationId, userId: user.id },
     );
-    return NextResponse.json({ error: "load-failed" }, { status: 500 });
+    return formatError("DB_500", { detail: "load-failed: " + dbErr.message });
   }
 
   return NextResponse.json({ messages: (data ?? []) as MessageRow[] });
@@ -90,7 +91,7 @@ export async function POST(
   try { body = await req.json(); } catch { body = {}; }
 
   const msgs = Array.isArray(body.messages) ? body.messages : [];
-  if (!msgs.length) return NextResponse.json({ error: "messages-required" }, { status: 400 });
+  if (!msgs.length) return formatError("SYSTEM_500", { message: "messages-required", detail: "messages-required" }, 400);
 
   const now = new Date().toISOString();
   const rows = (msgs as MessageRow[]).map((m) => ({
@@ -110,7 +111,7 @@ export async function POST(
     .from("messages")
     .upsert(rows, { onConflict: "id" });
 
-  if (dbErr) return NextResponse.json({ error: "save-failed" }, { status: 500 });
+  if (dbErr) return formatError("DB_500", { detail: "save-failed: " + dbErr.message });
 
   // Bump the conversation's updated_at
   await getAdminSupabase()

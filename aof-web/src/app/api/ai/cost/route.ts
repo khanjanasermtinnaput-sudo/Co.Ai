@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getUserFromRequest } from "@/lib/server/auth";
+import { formatError } from "@/lib/errors/api-error";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -54,7 +55,7 @@ function estimateCosts(data: z.infer<typeof CostScenarioSchema>) {
 
 export async function GET(req: NextRequest) {
   const user = await getUserFromRequest(req);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!user) return formatError("AUTH_401");
 
   const defaults = { monthlyRequests: 1000, avgTokensPerRequest: 1000, storageGb: 1, bandwidthGb: 10, buildMinutesPerMonth: 60, currentModel: "gemini-2.5-pro", enableCaching: false };
   const costs = estimateCosts(defaults);
@@ -69,16 +70,20 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const user = await getUserFromRequest(req);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!user) return formatError("AUTH_401");
 
   let body: unknown;
   try { body = await req.json(); } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    return formatError("SYSTEM_500", { message: "Invalid JSON", detail: "invalid-json-body" }, 400);
   }
 
   const parsed = CostScenarioSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid scenario", issues: parsed.error.issues }, { status: 400 });
+    return formatError(
+      "SYSTEM_500",
+      { message: "Invalid scenario", detail: JSON.stringify(parsed.error.issues) },
+      400,
+    );
   }
 
   const costs = estimateCosts(parsed.data);

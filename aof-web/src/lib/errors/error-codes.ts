@@ -10,6 +10,13 @@
 //   AI    — AI provider failures (maps to provider-specific context)
 //   FILE  — upload / file processing errors
 //   SYSTEM — runtime / React errors
+//
+// Every API route should use this registry via `api-error.ts`'s `formatError()`
+// EXCEPT chat/route.ts and refactor/route.ts, which use the separate
+// `lib/errors.ts` (`AofProviderError`) system instead — that one is
+// specifically the AI-provider mid-stream failure envelope, a different
+// concern from this general REST error shape. See lib/errors.ts's header for
+// why the two aren't consolidated.
 
 export interface ErrorEntry {
   code: string;

@@ -1,32 +1,31 @@
 # Co.AI — Frontend Architecture
 
-This document covers the deliverables for the Co.AI homepage experience: folder
-structure, UI & component architecture, routing, state management, database
-schema recommendations, and the implementation plan.
+This document is a structural map — folder layout, component tree, state
+management, routing — kept intentionally light on behavior. For the actual
+engineering invariants (Kanon's single-provider-call rule, Ypertatos's 2+N
+workflow, the Prompt Compiler/Token Manager/Budget Enforcer/Security Manager
+pipeline, the CLI's safety pipeline, etc.), **`CLAUDE.md` is the authoritative,
+actively-maintained source** — it's updated per shipped phase; this file
+historically was not, and drifted. If the two ever disagree, trust `CLAUDE.md`
+and treat this file as needing a fix.
 
-> **Current state (2026).** The sections below describe the original build plan.
-> Since then: (a) auth, conversation/message, project, workspace, and AI-memory
-> persistence all shipped to Supabase (see `supabase/migrations/0006`–`0011`), so
-> the "Next" items in §7 are largely done; (b) the multi-agent pipeline (RAA →
-> TMAP → orchestration) now runs **inline inside aof-web** under
-> `src/lib/server/` — the `tmap-v2` Express backend is a parallel, largely
-> duplicate implementation reached only via the optional `/v1` proxy, and
-> consolidating the two is tracked as a separate cleanup; (c) the CoCode
-> workspace's mockup-only "Phase 71–100" panels were removed, leaving the 40
-> panels backed by a real API or the client-side virtual FS.
+Co.AI is a **professional AI platform** — not a generic chatbot. It unifies
+three products plus settings behind one workspace:
 
-Co.AI is a **professional AI platform** — not a generic chatbot. It unifies three
-products plus settings behind one premium, dark, orange-gold workspace:
+| Product   | Route(s)                          | Notes                                                              |
+| --------- | ---------------------------------- | ------------------------------------------------------------------- |
+| Co.AI     | `/`, `/chat`                      | The landing surface. Tiers: **Mikros** (lite), **Kanon** (normal). |
+| CoCode    | `/code`                           | Tiers: Mikros, Kanon, **Ypertatos** (pro), **Titan**.               |
+| Projects  | `/projects`, `/projects/[id]`     | Recent, pinned, search, create, open a project's CoCode workspace.  |
+| Activity  | `/activity`                       | Cross-conversation/build activity feed.                             |
+| Settings  | `/settings`                       | Tabbed: Account, Appearance, API Keys, Usage, Diagnostics, Billing.  |
+| Admin     | `/admin/*`                        | Separate route tree (own layout), gated by admin role.              |
 
-| Product              | Route        | Notes                                              |
-| -------------------- | ------------ | -------------------------------------------------- |
-| Co.AI                | `/`, `/chat` | The landing surface. Models: **Lite**, **Normal**. |
-| CoCode               | `/code`      | Modes: **Lite**, **1.0**, **Pro**, **Titan**.      |
-| Projects             | `/projects`  | Recent, pinned, search, create, status, type.      |
-| Settings             | `/settings`  | Account, appearance, API keys, billing.            |
-
-> **Titan is not a product.** It is the highest *mode inside CoCode* and never
-> appears on the homepage. It is only reachable from the CoCode mode selector.
+> **Titan is not a product.** It is the highest *tier inside CoCode* and never
+> appears on the homepage. It is only reachable from CoCode's mode selector.
+> Tier display names (`model-branding.ts`: lite→Mikros, normal→Kanon,
+> pro→Ypertatos, titan→Titan) are the single source of truth for what the UI
+> ever shows — see `CLAUDE.md` for what each tier actually does.
 
 ---
 
@@ -38,110 +37,174 @@ aof-web/
 │   ├── app/
 │   │   ├── layout.tsx                # Root: fonts, <html>, providers, metadata
 │   │   ├── globals.css               # Design system (tokens, glass, utilities)
+│   │   ├── global-error.tsx          # App-wide error boundary page
 │   │   ├── not-found.tsx             # Branded 404
-│   │   └── (app)/                    # Authenticated app shell route group
-│   │       ├── layout.tsx            # Sidebar + mobile topbar + ambient bg
-│   │       ├── page.tsx              # HOME → "Welcome to Co.AI" (Chat landing)
-│   │       ├── chat/page.tsx         # Chat interface (Lite / Normal)
-│   │       ├── code/page.tsx         # CoCode workspace (+ Titan workflow)
-│   │       ├── projects/page.tsx     # Projects
-│   │       └── settings/page.tsx     # Settings (tabbed)
+│   │   ├── login/                    # Standalone login page
+│   │   ├── auth/callback/            # OAuth callback handler
+│   │   ├── admin/                    # Admin console — own layout, role-gated
+│   │   ├── (marketing)/              # Public pages: about, blog/[slug], privacy, terms
+│   │   ├── (app)/                    # Authenticated app shell route group
+│   │   │   ├── layout.tsx            # Sidebar + mobile topbar + ambient bg
+│   │   │   ├── page.tsx              # HOME → "Welcome to Co.AI" (Chat landing)
+│   │   │   ├── chat/page.tsx         # Chat interface (Mikros / Kanon)
+│   │   │   ├── code/page.tsx         # CoCode workspace (+ Ypertatos / Titan)
+│   │   │   ├── activity/page.tsx     # Cross-conversation activity feed
+│   │   │   ├── projects/[id]/page.tsx
+│   │   │   └── settings/page.tsx     # Settings (tabbed)
+│   │   └── api/                      # ~50 Next.js Route Handlers — see below
 │   │
 │   ├── components/
 │   │   ├── ui/                       # shadcn-style primitives (Radix + cva)
-│   │   ├── providers/                # Theme + tooltip + toaster providers
+│   │   ├── providers/                # Theme, auth, tooltip, toaster, smart-keyboard
 │   │   ├── brand/                    # Logo / wordmark
-│   │   ├── layout/                   # Sidebar, mobile nav, user menu, theme toggle
+│   │   ├── layout/                   # Sidebar, mobile nav, history panels, user menu
 │   │   ├── composer/                 # Reusable premium chat input
-│   │   ├── home/                     # Welcome hero, quick actions, home prompt
+│   │   ├── command-palette/          # Global ⌘K command palette (Radix Dialog-based)
 │   │   ├── chat/                     # Model selector, thread, message, markdown
-│   │   ├── code/                     # Mode selector, build view, Titan workflow
-│   │   ├── projects/                 # Cards, new-project dialog, view
-│   │   └── settings/                 # Settings tabs
+│   │   ├── code/                     # Mode selector, conversation, preview, Titan workflow
+│   │   ├── cocode/                   # CoCode workspace: panel-host/panel-tab-strip
+│   │   │                             #   (the shared shell) + ~20 domain panels
+│   │   ├── mascot/                   # TAOTAO — pixel-art mascot, confined to chat/
+│   │   ├── projects/                 # Cards, new-project dialog, open-project
+│   │   ├── settings/                 # settings-view.tsx delegates to tabs/*
+│   │   ├── admin/                    # Admin console components
+│   │   ├── auth/, billing/, diagnostics/, error/, pwa/
 │   │
-│   ├── store/                        # Zustand stores (ui, chat, code, project)
-│   ├── lib/                          # utils, types, constants, api, mock, titan
-│   └── hooks/                        # use-mounted, use-media-query
+│   ├── store/                        # Zustand stores — see §5 for the current list
+│   ├── lib/
+│   │   ├── server/                   # The real engineering pipeline (see CLAUDE.md):
+│   │   │                             #   prompt-compiler, token-manager, budget-enforcer,
+│   │   │                             #   orchestrator, security-manager, ai-providers, etc.
+│   │   ├── cocode/                   # CoCode-specific logic (virtual FS, deployment, diff…)
+│   │   ├── admin/                    # Admin permissions/types
+│   │   ├── errors/                   # Typed API error registry (api-error.ts, error-codes.ts)
+│   │   ├── smart-keyboard/           # Thai/English layout-mistake detection
+│   │   └── (api.ts, types.ts, utils.ts, constants.ts, effort.ts, errors.ts, …)
+│   └── hooks/                        # use-mounted, use-plan, use-smart-keyboard
 │
-├── public/                          # favicon.svg
+├── public/                          # favicon, manifest
 ├── tailwind.config.ts               # Theme tokens, shadows, keyframes
 ├── components.json                  # shadcn config
-└── ARCHITECTURE.md
+├── CLAUDE.md                        # Governance — the accurate, per-phase-updated doc
+├── DESIGN.md                        # Visual design system reference
+└── ARCHITECTURE.md                  # This file
 ```
 
 ## 2. UI architecture
 
-- **Design language:** dark-first, near-black canvas (`#0A0A0A`), orange-gold
-  accent (`#F59E0B`), glass surfaces (translucent + blur + hairline border + soft
-  shadow), large premium spacing, `Inter` for UI and `JetBrains Mono` for code.
+- **Design language:** dark-first canvas with an orange-gold accent, glass
+  surfaces (translucent + blur + hairline border + soft shadow), `Inter` for UI
+  and a monospace face for code.
 - **Tokens** live as HSL CSS variables in `globals.css` and are exposed to
   Tailwind in `tailwind.config.ts`. Switching `--*` variables (via the `.dark`
-  class) re-themes the whole app; `next-themes` toggles the class, default `dark`.
+  class) re-themes the whole app; `next-themes` toggles the class, default dark.
 - **Glass / glow** are reusable component classes (`.glass`, `.glass-strong`,
-  `shadow-glow`) so cards, popovers, dialogs and the composer share one look.
-- **Motion** via Framer Motion: hero entrance, staggered quick-action cards,
-  card hover lift, message fade-in, Titan phase transitions, sidebar width spring.
-- **Ambient background** is a fixed, non-interactive radial-glow + aurora layer.
+  `.console-surface`, `shadow-glow`) so cards, popovers, dialogs, the composer,
+  and CoCode's console-style panels each share one look. See `CLAUDE.md`'s "UI
+  contrast rule" for the hard requirement every custom surface utility follows
+  (a light base rule + `.dark` override — `.console-surface` is a documented,
+  deliberate exception, since it's meant to stay dark regardless of app theme).
+- **Motion** via Framer Motion: hero entrance, card hover lift, message
+  fade-in, Titan phase transitions, sidebar width spring, Smart Keyboard's
+  suggestion banner.
+- **Ambient background** is a fixed, non-interactive radial-glow layer.
 
 ## 3. Component architecture
 
 ```
 (app)/layout
 ├── AmbientBackground
-├── Sidebar (desktop, collapsible 76 ↔ 264px)
-│   ├── Logo / New Chat
-│   ├── NavLink × (Co.AI, Projects, CoCode, Settings)  — tooltips when collapsed
-│   └── ThemeToggle · UserMenu
+├── Sidebar (desktop, collapsible) — New Chat/Code, NavLinks, ChatHistoryPanel,
+│                                     CocodeHistoryPanel, ThemeToggle · UserMenu
 ├── MobileTopbar (< lg) → Radix Dialog left-sheet with the same nav
+├── CommandPalette (⌘K, global)
 └── main
-    ├── HomePage:  WelcomeHero · HomePrompt(Composer + ModelSelector) · QuickActions
-    ├── ChatView:  ModelSelector · ChatThread(ChatMessage · Markdown) · Composer
-    ├── CodeWorkspace: CodeModeSelector → CodeBuild | TitanWorkflow(TitanStepper)
-    ├── ProjectsView:  search · ProjectCard · NewProjectDialog
-    └── SettingsView:  Tabs(Account · Appearance · Keys · Billing)
+    ├── ChatView:      ChatModelSelector · ChatThread(ChatMessage · Markdown)
+    │                  · ComposerMascot(Composer) · WorkflowProgress
+    ├── CocodeGate → CocodeWorkspace:
+    │      PanelTabStrip (+ CollapsedRail) — the shared switcher/shell for
+    │      ~20 domain panels, each rendered through PanelHost's lazy-load
+    │      registry. Most panels share one PanelHeader component for their
+    │      title/icon/action-row chrome (file-explorer.tsx, build-panel.tsx,
+    │      and github-panel.tsx are the deliberate exceptions — structurally
+    │      different headers, not drift).
+    ├── ActivityView
+    ├── ProjectsView:  search · ProjectCard · NewProjectDialog · OpenProject
+    └── SettingsView:  Tabs(Account · Appearance · Keys · Usage · Diagnostics · Billing)
 ```
 
-The **Composer** is a single reusable input (auto-grow, Enter-to-send,
-Shift+Enter newline, stop button while streaming) used by the homepage, chat and
-CoCode so the core interaction feels identical everywhere.
+The **Composer** is the single reusable chat input (auto-grow, Enter-to-send,
+Shift+Enter newline, stop-while-streaming, Smart Keyboard live-suggestion
+banner) used by chat and CoCode so the core interaction feels identical
+everywhere.
 
 ## 4. Routing structure
 
-App Router with a single `(app)` route group that owns the shell. The homepage
-(`/`) **is** Co.AI — users land on a welcome + composer, never on CoCode.
-Submitting the home composer hands the first message to the chat store and
-navigates to `/chat`. `/settings` is dynamic (reads `?tab=`); the rest are static.
+App Router with an `(app)` route group owning the authenticated shell and a
+separate `(marketing)` group for public pages. The homepage (`/`) **is**
+Co.AI — users land on a welcome + composer. `/admin` is a fully separate
+route tree with its own layout and role gate. `/settings` reads `?tab=`.
 
-## 5. State management plan
+## 5. State management
 
-Lightweight **Zustand** stores, one per domain — no provider boilerplate, easy to
-swap the mock layer for live calls later:
+Zustand stores, one per domain (`src/store/`, 10 files):
 
-- `ui-store` — sidebar expanded (persisted to `localStorage`), mobile nav.
-- `chat-store` — conversations, active id, model, streaming, `send()`/`stop()`,
-  and a `pendingFirstMessage` hand-off from the homepage composer.
-- `code-store` — CoCode `mode`, the build runner (Lite/1.0/Pro), and the full
-  **Titan workflow state machine** (phase, questions, answers, confidence, plans,
-  risks, architecture, approval, generated build log).
-- `project-store` — projects, search query, pin/create/delete (seeded sample data).
+- `ui-store` — sidebar/mobile-nav state, mascot-animation toggle, developer-mode.
+- `chat-store` — conversations, active id, model/effort, streaming, `send()`/
+  `stop()`, `loadMessages()` (hydrates a conversation's messages from Supabase
+  on open — see §6), per-conversation `messagesStatus`.
+- `code-store` — CoCode conversational build mode + Titan workflow state.
+- `cocode-ide-store` — the CoCode IDE proper: virtual file system, open tabs,
+  panel layout, GitHub connection state.
+- `project-store` — projects, search, pin/create/delete.
+- `auth-store` — Supabase session/user, tier.
+- `guest-store` — anonymous/guest usage tracking (message limits pre-signup).
+- `usage-store` — per-user usage/quota display.
+- `diagnostics-store` — system-diagnostics panel state.
+- `smart-keyboard-store` — Smart Keyboard enabled/mode, persisted.
 
-Server/data access is isolated in `lib/api.ts`. It speaks the existing
-**tmap-v2** `/v1/*` SSE endpoints (`/v1/chat`, `/v1/run`, `/v1/titan`) when a
-backend is configured, and transparently falls back to `lib/mock.ts` so the UI is
-fully functional with **zero backend and zero API keys**.
+Server access for the chat/CoCode pipeline is `src/lib/api.ts` + the
+`src/lib/server/*` modules `CLAUDE.md` documents in detail — not a thin proxy
+to `tmap-v2`. `tmap-v2` remains a separate, real Express backend used by
+`coagentix-cli` and its own `/v2` surfaces; it is not aof-web's primary
+request path.
 
-## 6. Database schema recommendations
+## 6. Conversation persistence
 
-The backend already uses Supabase/Postgres (`users`, `memories`). Recommended
-additions to persist the new surfaces (RLS by `user_id`):
+`conversations` and `messages` tables in Supabase, RLS'd by `user_id`.
+`chat-store.ts`'s `loadRemoteConversations()` seeds the sidebar with
+metadata only; opening a conversation triggers `loadMessages()`, which calls
+`GET /api/conversations/[id]/messages` and merges the result into the store.
+This two-step load (metadata first, messages on open) is what lets a
+conversation started on one device show up — with its real messages, not an
+empty thread — when opened from another.
+
+## 7. API routes
+
+~50 Next.js Route Handlers under `src/app/api/`. Error responses are
+standardized on `src/lib/errors/api-error.ts` + `error-codes.ts`'s typed
+registry (`formatError(code, …)`) — `chat/route.ts` and `refactor/route.ts`
+are the deliberate exception, using the separate `src/lib/errors.ts` system
+built specifically for the AI-provider streaming-failure envelope, a
+different concern from a general REST error shape.
+
+Not every route has a caller inside `aof-web` today — a cluster tagged with
+sequential "Phase N" comments (`ai/learning`, `ai/memory`, `tasks`,
+`plugins`, `queue`, and others) were built ahead of any UI wiring. Treat an
+unreferenced route as worth confirming with whoever owns that surface before
+assuming it's dead.
+
+## 8. Database schema (representative)
+
+The backend uses Supabase/Postgres. Core tables (see `supabase/migrations/`
+for the authoritative, current schema):
 
 ```sql
--- Conversations (Co.AI)
 create table conversations (
   id          uuid primary key default gen_random_uuid(),
-  user_id     uuid not null references users(id) on delete cascade,
+  user_id     uuid not null references auth.users(id) on delete cascade,
   title       text not null default 'New chat',
-  model       text not null default 'normal',          -- 'lite' | 'normal'
+  model       text not null default 'normal',
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
 );
@@ -149,61 +212,34 @@ create table conversations (
 create table messages (
   id              uuid primary key default gen_random_uuid(),
   conversation_id uuid not null references conversations(id) on delete cascade,
-  role            text not null,                        -- 'user' | 'assistant'
+  user_id         uuid not null references auth.users(id) on delete cascade,
+  role            text not null,
   content         text not null,
   model           text,
   created_at      timestamptz not null default now()
 );
 create index on messages (conversation_id, created_at);
 
--- Projects
 create table projects (
   id          uuid primary key default gen_random_uuid(),
-  user_id     uuid not null references users(id) on delete cascade,
+  user_id     uuid not null references auth.users(id) on delete cascade,
   name        text not null,
-  description text not null default '',
-  type        text not null default 'web-app',          -- web-app | mobile-app | api | game | automation | research
-  status      text not null default 'active',           -- active | building | review | archived
-  mode        text,                                     -- lite | 1.0 | pro | titan
+  status      text not null default 'active',
   pinned      boolean not null default false,
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
 );
-create index on projects (user_id, pinned, updated_at desc);
-
--- Titan blueprints (one per approved architect session)
-create table titan_blueprints (
-  id          uuid primary key default gen_random_uuid(),
-  project_id  uuid references projects(id) on delete cascade,
-  user_id     uuid not null references users(id) on delete cascade,
-  prompt      text not null,
-  chosen_plan text,                                     -- 'A' | 'B' | 'C'
-  confidence  int,
-  approved    boolean not null default false,
-  blueprint   jsonb not null default '{}'::jsonb,       -- requirements, plans, risks, architecture
-  created_at  timestamptz not null default now()
-);
 ```
 
-Existing `agent_logs` / `cost` tracking and `memories` (Titan/TMAP cross-session
-memory) remain unchanged and continue to power the build pipeline.
+## 9. Status
 
-## 7. Implementation plan (status)
+The build-out described in earlier drafts of this document (tooling, design
+system, app shell, chat, CoCode, projects, settings, Supabase persistence) is
+complete and live. Open structural items, tracked as ongoing cleanup rather
+than a roadmap:
 
-1. ✅ Tooling — Next.js 14 (App Router) · TypeScript · Tailwind · shadcn-style
-   primitives · Lucide · Framer Motion · Zustand · next-themes · sonner.
-2. ✅ Design system — tokens, glass, glow, ambient background, fonts.
-3. ✅ App shell — collapsible sidebar, mobile sheet, user menu, theme toggle.
-4. ✅ Homepage — welcome hero, premium composer, 4 quick-action cards.
-5. ✅ Chat — Lite/Normal selector, streaming thread, markdown, empty state.
-6. ✅ CoCode — Lite/1.0/Pro build view + the gated **Titan** workflow.
-7. ✅ Projects — pinned/recent, search, create dialog, status/type/last-edited.
-8. ✅ Settings — account, appearance, API keys, billing.
-9. ✅ API client with live `/v1/*` SSE + offline mock fallback.
-10. ✅ Auth (Supabase/Google OAuth), conversations/messages, projects, and
-    workspace all persisted to Supabase (`migrations 0006`–`0011`); CoCode file
-    trees + diff view stream live; project export ships as a zip.
-11. ⏭️ Next: consolidate the `tmap-v2` backend and the inline `src/lib/server/`
-    pipeline into one source of truth; complete the CoCode IA (group the
-    remaining 40 panels into ~6–8 task-oriented clusters).
-```
+- `core/orchestrator.ts` (tmap-v2, legacy) and `v2/orchestrator-v2.ts`
+  (tmap-v2, newer) both run in production on different routes — confirmed
+  intentional, not drift, but still two engines to reason about.
+- A cluster of orphan `aof-web` API routes (§7) need a product decision:
+  wire them to UI, confirm an external caller, or remove them.

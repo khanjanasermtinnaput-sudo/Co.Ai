@@ -9,6 +9,7 @@ import { NextResponse } from "next/server";
 import { createHash, randomBytes } from "node:crypto";
 import { getAdminSupabase, getUserFromRequest, isAdminConfigured, tierForUser } from "@/lib/server/supabase-admin";
 import { hasFeature } from "@/lib/plans";
+import { formatError } from "@/lib/errors/api-error";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,26 +17,26 @@ export const dynamic = "force-dynamic";
 async function requireAdvanced(req: Request) {
   if (!isAdminConfigured()) {
     return {
-      error: NextResponse.json(
+      error: formatError(
+        "API_500",
         {
-          error: "backend-not-configured",
-          message:
-            "CLI tokens are unavailable: this deployment is missing its Supabase admin configuration (NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY). Ask the site operator to set them.",
+          detail:
+            "backend-not-configured: CLI tokens are unavailable: this deployment is missing its Supabase admin configuration (NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY). Ask the site operator to set them.",
         },
-        { status: 503 },
+        503,
       ),
     };
   }
   const user = await getUserFromRequest(req);
   if (!user) {
-    return { error: NextResponse.json({ error: "unauthorized" }, { status: 401 }) };
+    return { error: formatError("AUTH_401", { detail: "unauthorized" }) };
   }
   // Same tier resolution (tierForUser) and entitlement rule (hasFeature) as the
   // rest of the app: while plan enforcement is off (pre-billing), any signed-in
   // user may hold a CLI token; once NEXT_PUBLIC_COAGENTIX_ENFORCE_PLANS=1, the
   // "cli" feature requires the ADVANCED plan.
   if (!hasFeature(tierForUser(user), "cli")) {
-    return { error: NextResponse.json({ error: "advanced-required" }, { status: 403 }) };
+    return { error: formatError("AUTH_403", { detail: "advanced-required" }) };
   }
   return { user };
 }
@@ -69,7 +70,7 @@ export async function GET(req: Request) {
     .limit(1)
     .maybeSingle();
 
-  if (dbErr) return NextResponse.json({ error: "load-failed" }, { status: 500 });
+  if (dbErr) return formatError("DB_500", { detail: "load-failed: " + dbErr.message });
   if (!data) return NextResponse.json({ token: null });
 
   return NextResponse.json({
@@ -96,7 +97,7 @@ export async function POST(req: Request) {
     .from("cli_tokens")
     .insert({ user_id: user.id, token_hash: hash, token_prefix: prefix });
 
-  if (dbErr) return NextResponse.json({ error: "create-failed" }, { status: 500 });
+  if (dbErr) return formatError("DB_500", { detail: "create-failed: " + dbErr.message });
 
   // Raw token is returned exactly once — store it now, we never show it again.
   return NextResponse.json({ raw, prefix }, { status: 201 });
@@ -127,7 +128,7 @@ export async function PATCH(req: Request) {
     .from("cli_tokens")
     .insert({ user_id: user.id, token_hash: hash, token_prefix: prefix });
 
-  if (dbErr) return NextResponse.json({ error: "regenerate-failed" }, { status: 500 });
+  if (dbErr) return formatError("DB_500", { detail: "regenerate-failed: " + dbErr.message });
 
   return NextResponse.json({ raw, prefix });
 }
