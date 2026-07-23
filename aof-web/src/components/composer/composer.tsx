@@ -240,7 +240,9 @@ export function Composer({
           aria-label={placeholder}
           className={cn(
             "no-scrollbar min-w-0 flex-1 resize-none border-0 bg-transparent py-2 text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:ring-0",
-            size === "lg" ? "text-base leading-relaxed" : "text-sm",
+            // 16px minimum on phone widths — iOS Safari auto-zooms the page on
+            // focus for any input under 16px; md+ reverts to the compact size.
+            size === "lg" ? "text-base leading-relaxed" : "text-base md:text-sm",
           )}
           style={{ maxHeight }}
         />

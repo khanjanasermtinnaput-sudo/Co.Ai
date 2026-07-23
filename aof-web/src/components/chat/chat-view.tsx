@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Sparkles, Download, FileText, FileJson } from "lucide-react";
+import { Sparkles, Download, FileText, FileJson, Plus } from "lucide-react";
 import { useChatStore } from "@/store/chat-store";
 import { useAuthStore } from "@/store/auth-store";
 import { exportConversation } from "@/lib/export";
@@ -10,6 +10,7 @@ import { ChatModelSelector } from "./chat-model-selector";
 import { ChatThread } from "./chat-thread";
 import { ComposerMascot, type ComposerMascotState } from "@/components/mascot";
 import { GuestMeter } from "@/components/auth/guest-meter";
+import { MobileMenuButton } from "@/components/layout/mobile-nav";
 import type { Attachment } from "@/lib/types";
 import {
   DropdownMenu,
@@ -32,6 +33,7 @@ export function ChatView() {
   const streaming = useChatStore((s) => s.streaming);
   const send = useChatStore((s) => s.send);
   const stop = useChatStore((s) => s.stop);
+  const selectConversation = useChatStore((s) => s.selectConversation);
   const consumePending = useChatStore((s) => s.consumePending);
   const loadMessages = useChatStore((s) => s.loadMessages);
   const messagesStatus = useChatStore((s) =>
@@ -108,44 +110,62 @@ export function ChatView() {
 
   return (
     <div className="flex h-full flex-col">
-      {/* ── Header ──────────────────────────────────────────────────────────── */}
-      <div className="sticky top-0 z-10 flex h-14 items-center justify-between gap-3 border-b border-border bg-background px-3 sm:px-5">
-        <div className="flex min-w-0 items-center gap-2">
-          <ChatModelSelector
-            value={model}
-            preference={modelPreference}
-            onChange={setModel}
-            onAuto={setModelAuto}
-            effortIntent={effortIntent}
-            onEffortIntentChange={setEffortIntent}
-            rawEffort={effort}
-            onRawEffortChange={setEffort}
-          />
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          {active && messages.length > 0 && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  type="button"
-                  className="flex items-center gap-1.5 rounded-lg border border-border/50 bg-secondary/40 px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-                >
-                  <Download className="size-3.5" />
-                  Export
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => exportConversation(active, "md")}>
-                  <FileText className="mr-2 size-3.5" />
-                  Markdown (.md)
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => exportConversation(active, "json")}>
-                  <FileJson className="mr-2 size-3.5" />
-                  JSON (.json)
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+      {/* ── Header ──────────────────────────────────────────────────────────
+         Phone (<md): one unified bar — hamburger · model (centered) · new
+         chat — replacing the stacked MobileTopbar + this header. md+: the
+         sidebar already provides navigation, so this reverts to the
+         original model-selector-left / export-right row. */}
+      <div className="sticky top-0 z-10 bg-background pt-[env(safe-area-inset-top)]">
+        <div className="flex h-14 items-center gap-2 border-b border-border px-3 md:justify-between md:gap-3 md:px-5">
+          <MobileMenuButton className="md:hidden" />
+
+          <div className="flex min-w-0 flex-1 items-center justify-center gap-2 md:flex-none md:justify-start">
+            <ChatModelSelector
+              value={model}
+              preference={modelPreference}
+              onChange={setModel}
+              onAuto={setModelAuto}
+              effortIntent={effortIntent}
+              onEffortIntentChange={setEffortIntent}
+              rawEffort={effort}
+              onRawEffortChange={setEffort}
+            />
+          </div>
+
+          <button
+            type="button"
+            onClick={() => selectConversation(null)}
+            className="flex size-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground md:hidden"
+            aria-label="New chat"
+          >
+            <Plus className="size-5" />
+          </button>
+
+          <div className="hidden shrink-0 items-center gap-2 md:flex">
+            {active && messages.length > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className="flex items-center gap-1.5 rounded-lg border border-border/50 bg-secondary/40 px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                  >
+                    <Download className="size-3.5" />
+                    Export
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => exportConversation(active, "md")}>
+                    <FileText className="mr-2 size-3.5" />
+                    Markdown (.md)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => exportConversation(active, "json")}>
+                    <FileJson className="mr-2 size-3.5" />
+                    JSON (.json)
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
         </div>
       </div>
 
@@ -175,7 +195,7 @@ export function ChatView() {
       </div>
 
       {/* ── Composer ────────────────────────────────────────────────────────── */}
-      <div className="border-t border-border bg-background px-3 py-3 sm:px-5 sm:py-4">
+      <div className="border-t border-border bg-background px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:px-5 sm:py-4">
         <GuestMeter />
         <div className="mx-auto w-full max-w-3xl">
           <ComposerMascot state={mascotState}>
