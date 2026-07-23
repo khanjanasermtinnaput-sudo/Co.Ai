@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toChatMessages } from "../lib/conversations.js";
+import { toChatMessages, mergeServerMessages } from "../lib/conversations.js";
+import type { ChatMessageT } from "../lib/types.js";
 
 // ── toChatMessages ────────────────────────────────────────────────────────────
 // Pure mapper from server message rows (GET /api/conversations/[id]/messages)
@@ -71,4 +72,42 @@ test("preserves message order and count across a full conversation", () => {
 
 test("handles an empty row list", () => {
   assert.deepEqual(toChatMessages([]), []);
+});
+
+// ── mergeServerMessages ───────────────────────────────────────────────────────
+// Regression coverage for the "disappearing message" bug: loadMessages() used to
+// replace a conversation's messages outright with whatever the server returned.
+// A hydration fetch landing between newConversation()'s create-POST and that
+// turn's save (still mid-stream) got back `[]` and wiped the turn out from under
+// the user. mergeServerMessages() must keep any local-only message instead.
+
+function msg(id: string, content = ""): ChatMessageT {
+  return { id, role: "user", content, createdAt: "2026-01-01T00:00:00.000Z" };
+}
+
+test("keeps a mid-stream local turn when the server hasn't saved it yet", () => {
+  const local = [msg("user-1"), msg("assistant-1")];
+  const merged = mergeServerMessages(local, []);
+  assert.deepEqual(merged.map((m) => m.id), ["user-1", "assistant-1"]);
+});
+
+test("prefers the server's copy of a message that exists on both sides", () => {
+  const local = [msg("m1", "still streaming")];
+  const server = [msg("m1", "final saved content")];
+  const merged = mergeServerMessages(local, server);
+  assert.equal(merged.length, 1);
+  assert.equal(merged[0].content, "final saved content");
+});
+
+test("appends local-only messages after the full server history, preserving order", () => {
+  const server = [msg("m1"), msg("m2")];
+  const local = [msg("m1"), msg("m2"), msg("m3-instream")];
+  const merged = mergeServerMessages(local, server);
+  assert.deepEqual(merged.map((m) => m.id), ["m1", "m2", "m3-instream"]);
+});
+
+test("returns just the server list when nothing is local-only", () => {
+  const server = [msg("m1"), msg("m2")];
+  const merged = mergeServerMessages(server, server);
+  assert.deepEqual(merged.map((m) => m.id), ["m1", "m2"]);
 });

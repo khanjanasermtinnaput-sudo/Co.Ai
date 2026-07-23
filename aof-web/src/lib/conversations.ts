@@ -100,6 +100,24 @@ export function toChatMessages(rows: RemoteMessage[]): ChatMessageT[] {
 }
 
 /**
+ * Reconcile a conversation's local messages against a fresh hydration from the
+ * server: the server owns anything it's already saved (by id), but any local
+ * message the server doesn't know about yet — a turn that's mid-stream, or one
+ * whose save is still in flight or failed — is kept, appended after the saved
+ * history. A plain replace here would wipe out an in-progress turn any time a
+ * hydration fetch lands between conversation creation and that turn's save
+ * (see chat-store's loadMessages).
+ */
+export function mergeServerMessages(
+  localMessages: ChatMessageT[],
+  serverMessages: ChatMessageT[],
+): ChatMessageT[] {
+  const serverIds = new Set(serverMessages.map((m) => m.id));
+  const localOnly = localMessages.filter((m) => !serverIds.has(m.id));
+  return [...serverMessages, ...localOnly];
+}
+
+/**
  * Fetch all conversations for the signed-in user in a workspace, newest first.
  * Throws on a non-OK response so callers can tell a real fetch failure apart
  * from a genuinely empty (but successfully loaded) list.
