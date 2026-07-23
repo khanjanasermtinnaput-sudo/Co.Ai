@@ -133,8 +133,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signOut = React.useCallback(async () => {
     const supabase = getSupabase();
     if (supabase) await supabase.auth.signOut();
-    setUser(null);
-  }, []);
+    // In offline demo mode there's no real session to sign out of — restore the
+    // stand-in user instead of leaving `null`, which would otherwise permanently
+    // demote the visitor to a rate-limited Guest with no way back short of a
+    // page reload (Google sign-in is disabled while unconfigured).
+    setUser(configured ? null : DEMO_USER);
+  }, [configured]);
 
   const value = React.useMemo<AuthContextValue>(
     () => ({

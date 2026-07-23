@@ -14,6 +14,7 @@ import {
   deleteConversationRemote,
   fetchConversations,
   fetchMessages,
+  mergeServerMessages,
   renameConversation,
   saveMessages,
   toChatMessages,
@@ -143,7 +144,17 @@ export const useChatStore = create<ChatState>()(
           createdAt: now,
           updatedAt: now,
         };
-        set((s) => ({ conversations: [conv, ...s.conversations], activeId: id }));
+        // This room's messages live only in local state until the first turn is
+        // saved — mark it "loaded" up front so loadMessages() (triggered by the
+        // activeId change this causes) skips hydrating it. Without this, a
+        // loadMessages() that lands after createConversation()'s POST but before
+        // any message is saved fetches back `[]` and wipes out the turn that's
+        // actively streaming in.
+        set((s) => ({
+          conversations: [conv, ...s.conversations],
+          activeId: id,
+          messagesStatus: { ...s.messagesStatus, [id]: "loaded" },
+        }));
         if (conversationsEnabled()) {
           createConversation(conv, "cochat").catch(() => {
             toast.error("Sync failed — chat saved locally", { id: "sync-error", duration: 4000 });
@@ -262,10 +273,12 @@ export const useChatStore = create<ChatState>()(
           // `null` = 404 = not synced server-side yet (e.g. a brand-new local
           // conversation) — normal, not an error; leave local messages as-is.
           if (rows !== null) {
-            const messages = toChatMessages(rows);
+            const serverMessages = toChatMessages(rows);
             set((s) => ({
               conversations: s.conversations.map((c) =>
-                c.id === id ? { ...c, messages } : c,
+                c.id === id
+                  ? { ...c, messages: mergeServerMessages(c.messages, serverMessages) }
+                  : c,
               ),
             }));
           }
