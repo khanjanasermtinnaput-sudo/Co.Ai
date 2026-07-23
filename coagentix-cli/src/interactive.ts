@@ -4,11 +4,13 @@ import { createInterface } from "node:readline";
 import chalk from "chalk";
 import { CoaiApiClient } from "./api.js";
 import { scanRepository, buildRepoContext, type RepoInfo } from "./repo.js";
-import { parseCodeBlocks, createSnapshot, applyChanges, readFileContent, fileExists } from "./files.js";
-import { previewAndConfirm, printSuccess, printError, printInfo, printWarning, askYesNo } from "./safety.js";
+import { parseCodeBlocks, readFileContent, fileExists } from "./files.js";
+import { printSuccess, printError, printInfo, printWarning, askYesNo } from "./safety.js";
 import { getGit, isGitRepo, stageAll, commit, getCurrentBranch } from "./git.js";
 import { startSpinner, renderStreamEvent, brand } from "./ui.js";
-import { execCommand, parseCommand } from "./terminal.js";
+import { execCommand, parseCommand, isCommandAllowed } from "./terminal.js";
+import { launchBackgroundTask } from "./background.js";
+import { applyWithConfirm } from "./apply.js";
 import type { FileChange } from "./files.js";
 
 export async function startInteractiveSession(
@@ -128,8 +130,19 @@ async function handleSlashCommand(
     }
 
     case "run": {
-      if (!arg) { printWarning("Usage: /run <command>"); break; }
-      const [cmd2, args2] = parseCommand(arg);
+      if (!arg) { printWarning("Usage: /run <command> [--bg]"); break; }
+      const background = /(^|\s)--bg(\s|$)/.test(arg);
+      const cmdline = arg.replace(/(^|\s)--bg(\s|$)/, " ").trim();
+      const [cmd2, args2] = parseCommand(cmdline);
+
+      if (background) {
+        const check = isCommandAllowed(cmd2, args2);
+        if (!check.allowed) { printError(`Blocked: ${check.reason}`); break; }
+        const task = launchBackgroundTask(cmdline, cmd2, args2, root);
+        printSuccess(`Started in background: ${task.id} — check with "coai tasks ${task.id} --output"`);
+        break;
+      }
+
       const result = execCommand(cmd2, args2, root);
       if (result.success) {
         console.log(chalk.green("\n" + result.stdout));
@@ -224,29 +237,12 @@ async function runTask(
   history.push({ role: "user", content: task });
   if (summary) history.push({ role: "assistant", content: summary });
 
-  if (allChanges.length === 0) {
-    console.log(chalk.dim("\n  No file changes proposed."));
-    if (summary) {
-      console.log(chalk.bold("\n  Response:"));
-      for (const line of summary.split("\n")) console.log("  " + chalk.dim(line));
-    }
-    return;
-  }
-
-  const confirmed = await previewAndConfirm(allChanges);
-  if (!confirmed) {
-    printInfo("Changes discarded.");
-    return;
-  }
-
-  const snapshotId = createSnapshot(root, allChanges);
-  applyChanges(root, allChanges);
-  printSuccess(`Applied ${allChanges.length} change(s). Snapshot: ${snapshotId}`);
-
-  if (summary) {
-    console.log(chalk.bold("\n  Git summary:"));
-    for (const line of summary.split("\n")) console.log("  " + chalk.dim(line));
-  }
+  // Same safety pipeline every single-shot command uses: security gate,
+  // reliability score, patch validation, checkpoint + auto-rollback on a
+  // failed build, ownership recording. The REPL used to apply changes with
+  // none of that (preview → snapshot → apply only) — this was the one path
+  // in the CLI that could write AI-generated changes to disk without it.
+  await applyWithConfirm(allChanges, summary, { agentAction: "repl", prompt: task });
 }
 
 function printHelp(): void {
@@ -255,6 +251,7 @@ function printHelp(): void {
     ["/status",      "Show account and repo info"],
     ["/commit [msg]","Generate commit message and commit"],
     ["/run <cmd>",   "Execute a safe terminal command"],
+    ["/run <cmd> --bg", "Run it detached; check with `coai tasks`"],
     ["/read <file>", "Print a file's contents"],
     ["/files",       "List repo files"],
     ["/clear",       "Clear conversation history"],

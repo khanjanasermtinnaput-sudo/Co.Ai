@@ -7,6 +7,7 @@ import { useMounted } from "@/hooks/use-mounted";
 import { useUIStore } from "@/store/ui-store";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
+import { SmartKeyboardSettings } from "@/components/settings/smart-keyboard-settings";
 
 export function AppearanceTab() {
   const { theme, setTheme } = useTheme();
@@ -83,6 +84,12 @@ export function AppearanceTab() {
             Co.AI follows your system&apos;s reduce-motion preference automatically —
             animations quiet down when your OS asks.
           </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="py-4">
+          <SmartKeyboardSettings />
         </CardContent>
       </Card>
     </div>

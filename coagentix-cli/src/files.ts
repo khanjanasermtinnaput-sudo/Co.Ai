@@ -1,12 +1,14 @@
 // File operations: read, create, edit, delete, move, rename
-// Every write operation creates a backup snapshot first.
+// Every write goes through applyWithConfirm (see apply.ts), which checkpoints
+// before applying and auto-rolls-back on a failed build — a strictly
+// stronger safety net than a plain pre-change file backup, so this module
+// doesn't need its own snapshot/rollback pair.
 
 import {
   readFileSync, writeFileSync, mkdirSync, existsSync,
-  copyFileSync, renameSync, rmSync, readdirSync,
+  renameSync, rmSync, readdirSync,
 } from "node:fs";
 import { join, dirname, relative } from "node:path";
-import { randomUUID } from "node:crypto";
 
 export interface FileChange {
   op: "create" | "edit" | "delete" | "rename" | "move";
@@ -14,61 +16,6 @@ export interface FileChange {
   newPath?: string; // for rename/move
   content?: string; // for create/edit
   oldContent?: string;
-}
-
-const SNAPSHOT_DIR = join(process.cwd(), ".coai-snapshots");
-
-function snapshotId(): string {
-  return new Date().toISOString().replace(/[:.]/g, "-") + "_" + randomUUID().slice(0, 8);
-}
-
-/** Backup affected files before making changes. Returns snapshot ID for rollback. */
-export function createSnapshot(root: string, changes: FileChange[]): string {
-  const id = snapshotId();
-  const snapDir = join(SNAPSHOT_DIR, id);
-
-  for (const change of changes) {
-    if (change.op === "create") continue; // nothing to back up
-    const abs = join(root, change.path);
-    if (!existsSync(abs)) continue;
-    const dest = join(snapDir, change.path);
-    mkdirSync(dirname(dest), { recursive: true });
-    copyFileSync(abs, dest);
-  }
-
-  // Write manifest so rollback knows what to restore.
-  const manifest = { id, root, changes, createdAt: new Date().toISOString() };
-  mkdirSync(snapDir, { recursive: true });
-  writeFileSync(join(snapDir, "manifest.json"), JSON.stringify(manifest, null, 2));
-
-  return id;
-}
-
-/** Rollback a snapshot: restore original files. */
-export function rollbackSnapshot(snapshotId: string): void {
-  const snapDir = join(SNAPSHOT_DIR, snapshotId);
-  const manifestPath = join(snapDir, "manifest.json");
-  if (!existsSync(manifestPath)) {
-    throw new Error(`Snapshot ${snapshotId} not found`);
-  }
-  const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as {
-    root: string;
-    changes: FileChange[];
-  };
-
-  for (const change of manifest.changes) {
-    const originalBackup = join(snapDir, change.path);
-    const targetAbs = join(manifest.root, change.path);
-
-    if (change.op === "create") {
-      // Undo the create — delete the new file.
-      if (existsSync(targetAbs)) rmSync(targetAbs);
-    } else if (existsSync(originalBackup)) {
-      // Restore the backed-up original.
-      mkdirSync(dirname(targetAbs), { recursive: true });
-      copyFileSync(originalBackup, targetAbs);
-    }
-  }
 }
 
 /** Apply a set of file changes to the repo. */

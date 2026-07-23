@@ -8,6 +8,7 @@ import { AuthProvider } from "./auth-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { LoginModal } from "@/components/auth/login-modal";
+import { SmartKeyboardProvider } from "./smart-keyboard-provider";
 
 export function AppProviders({ children }: { children: React.ReactNode }) {
   return (
@@ -19,9 +20,11 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
     >
       <AuthProvider>
         <TooltipProvider delayDuration={200} skipDelayDuration={400}>
-          <ErrorBoundary>{children}</ErrorBoundary>
-          <LoginModal />
-          <AppToaster />
+          <SmartKeyboardProvider>
+            <ErrorBoundary>{children}</ErrorBoundary>
+            <LoginModal />
+            <AppToaster />
+          </SmartKeyboardProvider>
         </TooltipProvider>
       </AuthProvider>
     </ThemeProvider>

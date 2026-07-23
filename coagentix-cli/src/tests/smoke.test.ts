@@ -1,5 +1,5 @@
 // Hermetic smoke tests for the CLI's file-safety pipeline:
-// parseCodeBlocks → generatePatch → validatePatch → applyChanges → snapshot/rollback.
+// parseCodeBlocks → generatePatch → validatePatch → applyChanges.
 // Everything runs inside a throwaway temp directory — no network, no repo writes.
 
 import { test, before, after } from "node:test";
@@ -8,13 +8,11 @@ import { mkdtempSync, writeFileSync, rmSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
-// files.ts binds its snapshot dir to process.cwd() at import time, so enter the
-// temp sandbox BEFORE importing it — keeps .coai-snapshots out of the repo.
 const sandbox = mkdtempSync(join(tmpdir(), "coai-smoke-"));
 const startCwd = process.cwd();
 process.chdir(sandbox);
 
-const { parseCodeBlocks, applyChanges, createSnapshot, rollbackSnapshot, fileExists, readFileContent } =
+const { parseCodeBlocks, applyChanges, fileExists, readFileContent } =
   await import("../files.js");
 const { generatePatch, validatePatch } = await import("../patch.js");
 
@@ -115,18 +113,4 @@ test("applyChanges creates, edits, renames and deletes files", () => {
 
   applyChanges(root, [{ op: "delete", path: "a/c.ts" }]);
   assert.equal(fileExists(root, "a/c.ts"), false);
-});
-
-// ── snapshot / rollback safety net ────────────────────────────────────────────
-
-test("rollbackSnapshot restores the pre-change content after a bad edit", () => {
-  writeFileSync(join(root, "precious.ts"), "original\n");
-  const changes = [{ op: "edit" as const, path: "precious.ts", content: "clobbered\n" }];
-
-  const snapId = createSnapshot(root, changes);
-  applyChanges(root, changes);
-  assert.equal(readFileContent(root, "precious.ts"), "clobbered\n");
-
-  rollbackSnapshot(snapId);
-  assert.equal(readFileContent(root, "precious.ts"), "original\n");
 });

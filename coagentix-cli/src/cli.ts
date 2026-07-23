@@ -11,28 +11,27 @@ import { loadConfig, saveConfig, clearConfig, requireLogin, defaultApiBase, isLo
 import { enforceZeroTrust, generateDeviceFingerprint, recordAudit } from "./zero-trust.js";
 import { CoaiApiClient } from "./api.js";
 import { scanRepository, buildRepoContext } from "./repo.js";
-import { parseCodeBlocks, applyChanges, fileExists } from "./files.js";
-import { generatePatch, validatePatch, createCheckpoint, rollbackCheckpoint, listCheckpoints } from "./patch.js";
-import { runBuildValidation, printValidationReport } from "./build-validator.js";
+import { parseCodeBlocks, fileExists } from "./files.js";
+import { rollbackCheckpoint, listCheckpoints } from "./patch.js";
 import { getOrBuildGraph, summarizeGraph } from "./knowledge-graph.js";
 import { detectArchitecture, printArchReport } from "./arch-detector.js";
-import { recordOwnership, getFileHistory, getRecentChanges, printOwnershipHistory } from "./ownership.js";
+import { getFileHistory, getRecentChanges, printOwnershipHistory } from "./ownership.js";
 import { generateTests, runTests, printTestResults } from "./test-generator.js";
-import { securityGateCheck, aiSecurityReview, printSecurityReport } from "./security-agent.js";
+import { aiSecurityReview } from "./security-agent.js";
 import { runDebate, printDebateResult } from "./debate.js";
 import { selectTier, printCostPlan } from "./cost-optimizer.js";
-import { computeReliability, printReliabilityScore } from "./reliability.js";
 import { listTasks, readTaskOutput, cancelTask, deleteTask } from "./background.js";
 import { generateDoc, getDocPath, printDocTypes } from "./docs-agent.js";
 import {
-  saveSession, appendSessionHistory, clearSession,
+  saveSession, clearSession,
   snapshotWorkspace, restoreWorkspace, listWorkspaceSnapshots,
   getRecoverySummary, printRecoverySummary,
 } from "./disaster-recovery.js";
 import { getGit, isGitRepo, getCurrentBranch, createBranch, stageAll, commit as gitCommit, push, pull } from "./git.js";
-import { previewAndConfirm, printSuccess, printError, printInfo, printWarning, askYesNo } from "./safety.js";
+import { printSuccess, printError, printInfo, printWarning, askYesNo } from "./safety.js";
 import { startInteractiveSession } from "./interactive.js";
 import { renderStreamEvent, startSpinner, brand, header, printTable } from "./ui.js";
+import { applyWithConfirm } from "./apply.js";
 import type { FileChange } from "./files.js";
 
 const VERSION = "1.0.0";
@@ -82,92 +81,6 @@ async function streamToChanges(
   }
 
   return { changes, summary };
-}
-
-async function applyWithConfirm(
-  changes: FileChange[],
-  summary: string,
-  opts: { prompt?: string; agentAction?: string; userId?: string } = {},
-): Promise<void> {
-  if (changes.length === 0) {
-    console.log(chalk.dim("\nNo file changes proposed."));
-    if (summary) {
-      console.log(chalk.bold("\nResponse:"));
-      console.log(chalk.dim(summary));
-    }
-    return;
-  }
-
-  // Security gate: static analysis before showing diff
-  const secReport = securityGateCheck(ROOT, changes);
-  printSecurityReport(secReport);
-  if (!secReport.passed) {
-    printError("Security gate blocked: resolve critical/high findings before applying.");
-    return;
-  }
-
-  // Reliability score: show before asking user to approve
-  const reliability = computeReliability(changes, summary, { root: ROOT, securityPassed: secReport.passed });
-  printReliabilityScore(reliability);
-  if (reliability.recommendation === "reject") {
-    printError("Reliability score too low — changes blocked. Review and retry.");
-    return;
-  }
-
-  // Generate patch
-  const patch = generatePatch(changes, opts);
-
-  // Validate patch (path safety, protected files, content checks)
-  const validation = validatePatch(ROOT, patch);
-  if (!validation.valid) {
-    printError("Patch validation failed:");
-    for (const e of validation.errors) console.error(chalk.red(`  ✗ ${e}`));
-    return;
-  }
-  for (const w of validation.warnings) printWarning(w);
-
-  // Show diff and require user approval
-  const confirmed = await previewAndConfirm(changes);
-  if (!confirmed) { printInfo("Discarded."); return; }
-
-  // Create checkpoint BEFORE applying
-  const cp = createCheckpoint(ROOT, patch);
-
-  // Apply
-  applyChanges(ROOT, changes);
-
-  // Run build validation; auto-rollback on failure
-  const buildSpinner = startSpinner("Running build validation…");
-  const report = await runBuildValidation(ROOT);
-  buildSpinner.stop();
-
-  if (!report.passed) {
-    printValidationReport(report);
-    printWarning("Build validation failed — rolling back…");
-    rollbackCheckpoint(cp.id);
-    printError(`Rolled back to checkpoint ${cp.id}. No changes were applied.`);
-    return;
-  }
-
-  printValidationReport(report);
-
-  // Record session history for recovery
-  appendSessionHistory(opts.agentAction ?? "apply", "ok");
-
-  // Record ownership for every changed file
-  recordOwnership(changes, {
-    agentAction: opts.agentAction ?? "unknown",
-    userId: opts.userId ?? "local",
-    prompt: opts.prompt ?? "",
-    checkpointId: cp.id,
-  });
-
-  printSuccess(`${changes.length} file(s) applied. Checkpoint: ${cp.id}`);
-
-  if (summary) {
-    console.log(chalk.bold("\nSummary:"));
-    console.log(chalk.dim(summary));
-  }
 }
 
 // ── CLI setup ─────────────────────────────────────────────────────────────────
@@ -1135,6 +1048,67 @@ program
       })),
     );
     console.log();
+  });
+
+// ── TOOL EXECUTION ENGINE ─────────────────────────────────────────────────────
+// Direct, scripted access to the standardized fs/git/terminal tool contract
+// (src/tools/) — for automation and CI scripts, not for AI-generated changes.
+// A direct `coai tool` invocation is run by the same locally-trusted operator
+// as every other command, so it's granted the top of the permission ladder;
+// the ladder's real job is letting a FUTURE non-interactive caller (an
+// orchestrator, a CI job running with a scoped key) be granted less than
+// that. AI-proposed file changes still only ever flow through
+// applyWithConfirm()'s security-gate → reliability-score → checkpoint →
+// build-validation pipeline — this command never touches that path.
+
+program
+  .command("tool [toolId] [operation]")
+  .description("Invoke a tool directly through the standardized fs/git/terminal contract")
+  .option("--args <json>", "JSON object of operation arguments", "{}")
+  .option("--cwd <dir>", "Working directory for the tool (default: current directory)")
+  .option("--list", "List available tools and their permission level")
+  .action(async (toolId: string | undefined, operation: string | undefined, opts: { args: string; cwd?: string; list?: boolean }) => {
+    const { globalToolRegistry } = await import("./tools/index.js");
+
+    if (opts.list || !toolId) {
+      console.log(chalk.bold("\n  Available tools:"));
+      for (const t of globalToolRegistry.listTools()) {
+        console.log(`  ${brand(t.id.padEnd(10))}${chalk.dim(t.permission)}`);
+      }
+      console.log(chalk.dim("\n  Usage: coai tool <toolId> <operation> --args '{...}'"));
+      return;
+    }
+
+    if (!operation) { printError("Usage: coai tool <toolId> <operation> [--args <json>]"); process.exit(1); }
+
+    const tool = globalToolRegistry.getTool(toolId);
+    if (!tool) {
+      printError(`Unknown tool "${toolId}". Run "coai tool --list" to see available tools.`);
+      process.exit(1);
+    }
+
+    let args: Record<string, unknown>;
+    try {
+      args = JSON.parse(opts.args) as Record<string, unknown>;
+    } catch {
+      printError("--args must be valid JSON");
+      process.exit(1);
+    }
+
+    const controller = new AbortController();
+    const result = await tool.execute(
+      { toolId, operation, args, workingDirectory: opts.cwd ?? ROOT },
+      controller.signal,
+    );
+
+    if (result.status === "success") {
+      printSuccess(`${toolId}.${operation} — ${result.durationMs}ms`);
+      if (result.output !== undefined) console.log(JSON.stringify(result.output, null, 2));
+      if (result.modifiedFiles?.length) console.log(chalk.dim(`  modified: ${result.modifiedFiles.join(", ")}`));
+    } else {
+      printError(`${toolId}.${operation} — ${result.status}${result.error ? `: ${result.error}` : ""}`);
+      process.exitCode = 1;
+    }
   });
 
 // ── main ─────────────────────────────────────────────────────────────────────

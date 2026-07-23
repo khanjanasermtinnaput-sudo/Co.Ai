@@ -12,6 +12,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { AttachmentList } from "@/components/chat/attachment-list";
+import { useSmartKeyboardContext } from "@/components/providers/smart-keyboard-provider";
+import { SmartKeyboardBanner } from "@/components/chat/smart-keyboard-banner";
 
 interface ComposerProps {
   placeholder?: string;
@@ -60,6 +62,14 @@ export function Composer({
   const acceptRef = React.useRef<string>(ACCEPT.file);
   const maxHeight = size === "lg" ? 240 : 200;
 
+  const smartKeyboard = useSmartKeyboardContext();
+  const [skSuggestion, setSkSuggestion] = React.useState<{
+    text: string;
+    confidence: number;
+    direction: "en->th" | "th->en";
+  } | null>(null);
+  const skDismissedFor = React.useRef<string | null>(null);
+
   const resize = React.useCallback(() => {
     const el = ref.current;
     if (!el) return;
@@ -97,6 +107,8 @@ export function Composer({
     // restore the draft — only clobbering nothing the user has since retyped.
     setValue("");
     setAttachments([]);
+    setSkSuggestion(null);
+    skDismissedFor.current = null;
     requestAnimationFrame(resize);
     const restore = () => {
       setValue((cur) => (cur.length ? cur : text));
@@ -116,6 +128,19 @@ export function Composer({
       e.preventDefault();
       submit();
     }
+  };
+
+  const acceptSkSuggestion = () => {
+    if (!skSuggestion) return;
+    setValue(skSuggestion.text);
+    setSkSuggestion(null);
+    skDismissedFor.current = null;
+    ref.current?.focus();
+  };
+
+  const dismissSkSuggestion = () => {
+    skDismissedFor.current = value;
+    setSkSuggestion(null);
   };
 
   const openPicker = (kind: UploadKind) => {
@@ -189,7 +214,25 @@ export function Composer({
         <textarea
           ref={ref}
           value={value}
-          onChange={(e) => setValue(e.target.value)}
+          onChange={(e) => {
+            const next = e.target.value;
+            setValue(next);
+
+            const { detection, shouldAutoConvert, shouldSuggest } = smartKeyboard.evaluate(next);
+            if (shouldAutoConvert && detection.converted) {
+              setValue(detection.converted);
+              setSkSuggestion(null);
+              skDismissedFor.current = null;
+            } else if (shouldSuggest && detection.converted && skDismissedFor.current !== next) {
+              setSkSuggestion({
+                text: detection.converted,
+                confidence: detection.confidence,
+                direction: detection.type === "none" ? "en->th" : detection.type,
+              });
+            } else {
+              setSkSuggestion(null);
+            }
+          }}
           onKeyDown={onKeyDown}
           rows={1}
           autoFocus={autoFocus}
@@ -231,6 +274,18 @@ export function Composer({
 
       {toolbar && (
         <div className="mt-1.5 flex items-center gap-2 px-1">{toolbar}</div>
+      )}
+
+      {skSuggestion && (
+        <div className="mt-2">
+          <SmartKeyboardBanner
+            suggestion={skSuggestion.text}
+            confidence={skSuggestion.confidence}
+            direction={skSuggestion.direction}
+            onAccept={acceptSkSuggestion}
+            onDismiss={dismissSkSuggestion}
+          />
+        </div>
       )}
     </div>
   );
