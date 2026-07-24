@@ -27,6 +27,13 @@ export async function GET(req: Request): Promise<Response> {
   }
 
   try {
+    // Must match the redirect_uri sent to /authorize (same origin-resolution
+    // logic as api/github/route.ts's PATCH handler) — GitHub's token exchange
+    // rejects the code with redirect_uri_mismatch if this differs and the
+    // OAuth App has more than one registered callback URL.
+    const origin = process.env.NEXT_PUBLIC_SITE_URL || url.origin;
+    const redirectUri = `${origin}/api/github/callback`;
+
     const tokenRes = await fetch(
       "https://github.com/login/oauth/access_token",
       {
@@ -39,6 +46,7 @@ export async function GET(req: Request): Promise<Response> {
           client_id: clientId,
           client_secret: clientSecret,
           code,
+          redirect_uri: redirectUri,
         }),
       },
     );
