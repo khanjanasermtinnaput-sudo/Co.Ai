@@ -4,7 +4,7 @@
 
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase/client";
 import { isSignedIn } from "@/store/auth-store";
-import type { ChatMessageT, Conversation, RouteTarget } from "@/lib/types";
+import type { ChatMessageT, RouteTarget } from "@/lib/types";
 import type { Workspace } from "@/lib/server/workspace";
 
 /**
@@ -38,6 +38,14 @@ async function authedFetch(input: string, init: RequestInit = {}): Promise<Respo
     ...init,
     headers: { ...(init.headers ?? {}), Authorization: `Bearer ${token}` },
   });
+}
+
+/** Derive a short conversation title from its first message. Shared by
+ *  CoChat and CoCode so titles saved through `createConversation` look the
+ *  same regardless of which product surface created them. */
+export function titleFrom(text: string): string {
+  const t = text.trim().replace(/\s+/g, " ");
+  return t.length > 42 ? `${t.slice(0, 42)}…` : t || "New chat";
 }
 
 export interface RemoteConversation {
@@ -129,9 +137,13 @@ export async function fetchConversations(workspace: Workspace = "cochat"): Promi
   return json.conversations ?? [];
 }
 
-/** Persist a new conversation record. */
+/** Persist a new conversation record. `model` is stored as free-form text
+ *  server-side (see RemoteConversation above) — typed as `string` here
+ *  rather than `Conversation["model"]`'s CoChat-specific `ChatModel` so
+ *  CoCode's wider mode vocabulary ("1.0"/"pro"/"titan"/…) can reuse this
+ *  helper too. */
 export async function createConversation(
-  conv: Pick<Conversation, "id" | "title" | "model">,
+  conv: { id: string; title: string; model: string },
   workspace: Workspace = "cochat",
 ): Promise<void> {
   await authedFetch("/api/conversations", {

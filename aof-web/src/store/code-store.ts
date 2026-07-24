@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { toast } from "sonner";
 import {
   streamCodeChat,
   streamCodeEdit,
@@ -30,6 +31,16 @@ import { useCocodeIDEStore } from "@/store/cocode-ide-store";
 import { extractGeneratedFiles, buildProjectHtml, canBuildHtml } from "@/lib/export";
 import { extractDiffs } from "@/lib/cocode/diff";
 import { uid } from "@/lib/utils";
+import {
+  conversationsEnabled,
+  createConversation,
+  deleteConversationRemote,
+  fetchMessages,
+  mergeServerMessages,
+  saveMessages,
+  titleFrom,
+  toChatMessages,
+} from "@/lib/conversations";
 import {
   formatErrorBlock,
   type AofProviderError,
@@ -81,12 +92,104 @@ const emptyTitan: TitanState = {
   buildLog: "",
 };
 
+/** One project's saved "Ask CoCode" chat — the active project's own copy of
+ *  these four fields lives at the top level of CodeState (so every existing
+ *  selector keeps working unchanged); this is what every OTHER project's
+ *  chat is parked as while it isn't the active one, and what's written to
+ *  localStorage/the DB per project. */
+interface CocodeSession {
+  convo: ChatMessageT[];
+  brief: ProjectBrief | null;
+  phase: CodePhase;
+  projectActive: boolean;
+}
+
+/** Session key for a CoCode session started before it has a real project
+ *  (e.g. landing directly on /code) — see ensureProjectForWorkspace, which
+ *  migrates this session once a project is adopted. Never persisted to the
+ *  DB: only real projects get a server-side conversation. */
+const SCRATCH_KEY = "__scratch__";
+
+function emptySession(): CocodeSession {
+  return { convo: [], brief: null, phase: "conversation", projectActive: false };
+}
+
+/** Deterministic conversation id for a project's CoCode chat — one chat per
+ *  project, no conversation-list UI in CoCode so there's nothing else to
+ *  disambiguate. */
+function cocodeConversationId(projectId: string): string {
+  return `cc_${projectId}`;
+}
+
+// Module-level (not persisted) dedupe caches — mirror the `loading` Set in
+// lib/cocode/open-project.ts. `createdConversations` avoids re-POSTing the
+// conversation row on every turn; `hydratedProjects`/`hydratingProjects`
+// avoid re-fetching (or double-fetching) a project's saved chat.
+const createdConversations = new Set<string>();
+const hydratedProjects = new Set<string>();
+const hydratingProjects = new Set<string>();
+
+/** Persist one turn (user + assistant message pair) to the active project's
+ *  DB conversation. No-ops for guests/offline/project-less sessions — the
+ *  local copy in `convo` is always the fallback. Called from the two (and
+ *  only two) places that append a user+assistant pair: sendMessage and
+ *  sendEditMessage. */
+async function persistCocodeTurn(
+  get: () => CodeState,
+  userMsg: ChatMessageT,
+  assistantMsg: ChatMessageT,
+): Promise<void> {
+  if (!conversationsEnabled()) return;
+  const projectId = get().projectId;
+  if (!projectId) return;
+  const id = cocodeConversationId(projectId);
+  try {
+    if (!createdConversations.has(id)) {
+      createdConversations.add(id);
+      const firstUser = get().convo.find((m) => m.role === "user");
+      await createConversation(
+        { id, title: titleFrom(firstUser?.content ?? userMsg.content), model: get().mode },
+        "cocode",
+      );
+    }
+    await saveMessages(id, [userMsg, assistantMsg]);
+  } catch {
+    toast.error("Sync failed — messages saved locally", { id: "cocode-sync-error", duration: 4000 });
+  }
+}
+
 interface CodeState {
   mode: CodeMode;
   setMode: (m: CodeMode) => void;
   /** Reasoning-effort dial: Low/Normal/High (Mikros, Kanon) or Ultra/Extreme (Ypertatos). */
   effort: EffortLevel;
   setEffort: (e: EffortLevel) => void;
+
+  // ── Per-project chat persistence ───────────────────────────────────────────
+  /** Active project's id (its DB conversation id is `cc_<projectId>`), or
+   *  null for a project-less /code session — see SCRATCH_KEY. */
+  projectId: string | null;
+  /** Every OTHER project's chat session, keyed by project id (or
+   *  SCRATCH_KEY). The active session's own convo/brief/phase/projectActive
+   *  stay in the top-level fields below. */
+  sessions: Record<string, CocodeSession>;
+  /** Swap the active chat session to another project's. Called from
+   *  lib/cocode/open-project.ts whenever the CoCode workspace switches
+   *  projects — mirrors that module's resetWorkspace for files. */
+  setActiveProject: (projectId: string | null) => void;
+  /** Hydrate a project's saved CoCode chat from the server (source of
+   *  truth). No-op for guests/offline/project-less sessions/already-hydrated
+   *  projects. */
+  hydrateCocodeProject: (projectId: string | null) => Promise<void>;
+  /** Upload any locally-held CoCode chats (guest sessions) to the
+   *  newly-signed-in account — mirrors chat-store's migrateGuestConversations. */
+  migrateGuestCocode: () => Promise<void>;
+  /** A project-less session (SCRATCH_KEY) just gained a real project id —
+   *  re-key its chat under that id and flush any turns taken before the
+   *  project existed. WITHOUT resetting convo (unlike setActiveProject):
+   *  this is the same in-progress chat just gaining somewhere to persist,
+   *  mirroring ensureProjectForWorkspace's file-sync flush. */
+  adoptProjectId: (projectId: string) => void;
 
   // ── Conversation-first workflow (RAA → brief → generate) ──────────────────
   // CoCode discusses the project first; TMAP only runs on an explicit trigger
@@ -229,6 +332,9 @@ async function sendEditMessage(
       chatting: false,
       convo: s.convo.map((m) => m.id === assistantId ? { ...m, streaming: false } : m),
     }));
+    const savedUser = get().convo.find((m) => m.id === userMsg.id) ?? userMsg;
+    const savedAssistant = get().convo.find((m) => m.id === assistantId) ?? assistantMsg;
+    void persistCocodeTurn(get, savedUser, savedAssistant);
   }
 }
 
@@ -285,6 +391,139 @@ export const useCodeStore = create<CodeState>()(
     set({ mode, effort: clampEffort(mode, get().effort) });
   },
   setEffort: (effort) => set({ effort: clampEffort(get().mode, effort) }),
+
+  // ── Per-project chat persistence ───────────────────────────────────────────
+  projectId: null,
+  sessions: {},
+
+  setActiveProject: (projectId) => {
+    const state = get();
+    const oldKey = state.projectId ?? SCRATCH_KEY;
+    const newKey = projectId ?? SCRATCH_KEY;
+    if (oldKey === newKey) return;
+    const oldSession: CocodeSession = {
+      convo: state.convo,
+      brief: state.brief,
+      phase: state.phase,
+      projectActive: state.projectActive,
+    };
+    const newSession = state.sessions[newKey] ?? emptySession();
+    set({
+      projectId,
+      sessions: { ...state.sessions, [oldKey]: oldSession },
+      convo: newSession.convo,
+      brief: newSession.brief,
+      phase: newSession.phase,
+      projectActive: newSession.projectActive,
+    });
+    void get().hydrateCocodeProject(projectId);
+  },
+
+  hydrateCocodeProject: async (projectId) => {
+    if (!projectId || !conversationsEnabled()) return;
+    const id = cocodeConversationId(projectId);
+    if (hydratedProjects.has(id) || hydratingProjects.has(id)) return;
+    hydratingProjects.add(id);
+    try {
+      const rows = await fetchMessages(id);
+      // `null` = 404 = nothing saved server-side yet for this project — a
+      // normal case (e.g. its first-ever chat), not an error.
+      if (rows !== null) {
+        createdConversations.add(id);
+        const serverMessages = toChatMessages(rows);
+        // The workspace may have switched to a different (or no) project
+        // while this fetch was in flight — apply the result to wherever
+        // that project's session actually lives now, never stomping the
+        // now-active session with a stale fetch (mirrors open-project.ts's
+        // loadWorkspaceFiles guard).
+        if ((get().projectId ?? SCRATCH_KEY) === projectId) {
+          set((s) => ({ convo: mergeServerMessages(s.convo, serverMessages) }));
+        } else {
+          set((s) => ({
+            sessions: {
+              ...s.sessions,
+              [projectId]: {
+                ...(s.sessions[projectId] ?? emptySession()),
+                convo: mergeServerMessages(s.sessions[projectId]?.convo ?? [], serverMessages),
+              },
+            },
+          }));
+        }
+      }
+      hydratedProjects.add(id);
+    } catch (err) {
+      console.warn(
+        "[code-store] hydrateCocodeProject failed:",
+        err instanceof Error ? err.message : String(err),
+        { projectId },
+      );
+    } finally {
+      hydratingProjects.delete(id);
+    }
+  },
+
+  migrateGuestCocode: async () => {
+    if (!conversationsEnabled()) return;
+    const state = get();
+    const activeKey = state.projectId ?? SCRATCH_KEY;
+    const map = new Map<string, CocodeSession>(Object.entries(state.sessions));
+    map.set(activeKey, {
+      convo: state.convo,
+      brief: state.brief,
+      phase: state.phase,
+      projectActive: state.projectActive,
+    });
+    for (const [key, session] of map) {
+      if (key === SCRATCH_KEY || !session.convo.length) continue;
+      const id = cocodeConversationId(key);
+      if (createdConversations.has(id)) continue;
+      try {
+        const firstUser = session.convo.find((m) => m.role === "user");
+        await createConversation(
+          { id, title: titleFrom(firstUser?.content ?? "CoCode chat"), model: state.mode },
+          "cocode",
+        );
+        await saveMessages(id, session.convo);
+        createdConversations.add(id);
+        hydratedProjects.add(id);
+      } catch {
+        /* keep local copy; will retry on next save */
+      }
+    }
+  },
+
+  adoptProjectId: (projectId) => {
+    const state = get();
+    if (state.projectId === projectId) return;
+    // Drop whatever was parked under SCRATCH_KEY (if anything) — this
+    // session's convo is already live in the top-level fields below and is
+    // simply gaining an id to persist under, not switching to a different
+    // session.
+    const { [SCRATCH_KEY]: _dropped, ...rest } = state.sessions;
+    set({ projectId, sessions: rest });
+    const convo = state.convo;
+    if (!convo.length || !conversationsEnabled()) return;
+    const id = cocodeConversationId(projectId);
+    if (createdConversations.has(id)) return;
+    void (async () => {
+      try {
+        const firstUser = convo.find((m) => m.role === "user");
+        await createConversation(
+          { id, title: titleFrom(firstUser?.content ?? "CoCode chat"), model: state.mode },
+          "cocode",
+        );
+        // Only mark "created" on success — a failed create must stay
+        // unmarked so the next persistCocodeTurn call (on the next turn)
+        // retries it, instead of silently going straight to saveMessages
+        // against a conversation row that was never actually inserted.
+        createdConversations.add(id);
+        await saveMessages(id, convo);
+        hydratedProjects.add(id);
+      } catch {
+        /* keep local copy; will retry on the next turn's persistCocodeTurn */
+      }
+    })();
+  },
 
   // ── Conversation-first workflow ────────────────────────────────────────────
   convo: [],
@@ -446,6 +685,9 @@ export const useCodeStore = create<CodeState>()(
         convoAbort: null,
         convo: s.convo.map((m) => (m.id === assistantId ? { ...m, streaming: false } : m)),
       }));
+      const savedUser = get().convo.find((m) => m.id === userMsg.id) ?? userMsg;
+      const savedAssistant = get().convo.find((m) => m.id === assistantId) ?? assistantMsg;
+      void persistCocodeTurn(get, savedUser, savedAssistant);
     }
   },
 
@@ -552,8 +794,9 @@ export const useCodeStore = create<CodeState>()(
     }
   },
 
-  resetConversation: () =>
-    set({
+  resetConversation: () => {
+    const projectId = get().projectId;
+    set((s) => ({
       convo: [],
       brief: null,
       phase: "conversation",
@@ -565,7 +808,19 @@ export const useCodeStore = create<CodeState>()(
       building: false,
       debugMode: false,
       outputKind: null,
-    }),
+      sessions: projectId ? { ...s.sessions, [projectId]: emptySession() } : s.sessions,
+    }));
+    // "New" is an honest reset — also clear the project's saved server-side
+    // chat rather than leaving an orphaned row (CoCode has no conversation
+    // list UI to reach it otherwise).
+    if (projectId) {
+      const id = cocodeConversationId(projectId);
+      createdConversations.delete(id);
+      if (conversationsEnabled()) {
+        deleteConversationRemote(id, "cocode").catch(() => {});
+      }
+    }
+  },
 
   buildLog: "",
   buildUsage: null,
@@ -679,14 +934,48 @@ export const useCodeStore = create<CodeState>()(
   titanReset: () => set({ titan: emptyTitan }),
     }),
     {
-      // Project session memory — remember the conversation, brief and mode across
-      // reloads so CoCode doesn't re-ask what's already been decided.
+      // Project session memory — remember each project's conversation/brief
+      // and the mode across reloads so CoCode doesn't re-ask what's already
+      // been decided. `phase` is deliberately never persisted (matches the
+      // pre-per-project behavior) — buildLog/building aren't persisted
+      // either, so rehydrating into a stale "generating" phase with no
+      // actual generation running would be misleading.
       name: "aof.code",
-      partialize: (s) => ({ convo: s.convo, brief: s.brief, mode: s.mode, effort: s.effort, projectActive: s.projectActive }),
+      partialize: (s) => {
+        const key = s.projectId ?? SCRATCH_KEY;
+        return {
+          projectId: s.projectId,
+          mode: s.mode,
+          effort: s.effort,
+          sessions: {
+            ...s.sessions,
+            [key]: { convo: s.convo, brief: s.brief, phase: "conversation" as CodePhase, projectActive: s.projectActive },
+          },
+        };
+      },
       // Sessions persisted before the Titan lock may still carry mode:"titan" —
       // land them on the default mode instead of a mode they can no longer pick.
       merge: (persisted, current) => {
-        const merged = { ...current, ...(persisted as Partial<CodeState>) };
+        const p = persisted as {
+          projectId?: string | null;
+          mode?: CodeMode;
+          effort?: EffortLevel;
+          sessions?: Record<string, CocodeSession>;
+        };
+        const sessions = p.sessions ?? {};
+        const projectId = p.projectId ?? null;
+        const active = sessions[projectId ?? SCRATCH_KEY] ?? emptySession();
+        const merged: CodeState = {
+          ...current,
+          mode: p.mode ?? current.mode,
+          effort: p.effort ?? current.effort,
+          projectId,
+          sessions,
+          convo: active.convo,
+          brief: active.brief,
+          phase: "conversation",
+          projectActive: active.projectActive,
+        };
         if (merged.mode === "titan") merged.mode = "1.0";
         merged.effort = clampEffort(merged.mode, merged.effort ?? "normal");
         return merged;

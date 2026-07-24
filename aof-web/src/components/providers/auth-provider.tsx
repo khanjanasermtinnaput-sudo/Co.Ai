@@ -6,6 +6,7 @@ import { getSupabase, isSupabaseConfigured } from "@/lib/supabase/client";
 import { useAuthStore, type UserTier } from "@/store/auth-store";
 import { useGuestStore } from "@/store/guest-store";
 import { useChatStore } from "@/store/chat-store";
+import { useCodeStore } from "@/store/code-store";
 import { sanitizeRedirectPath } from "@/lib/utils";
 
 export interface AuthUser {
@@ -112,6 +113,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Fresh sign-in: offer to merge guest chat into the account, then clear
       // the guest meter so the user is no longer rate-limited.
       void useChatStore.getState().migrateGuestConversations();
+      // Same handoff for CoCode's per-project chat, then hydrate whichever
+      // project is currently open so a returning user's saved chat loads.
+      void useCodeStore.getState().migrateGuestCocode().then(() => {
+        void useCodeStore.getState().hydrateCocodeProject(useCodeStore.getState().projectId);
+      });
       useGuestStore.getState().reset();
       useAuthStore.getState().closeLoginModal();
     }

@@ -17,6 +17,7 @@ import {
   mergeServerMessages,
   renameConversation,
   saveMessages,
+  titleFrom,
   toChatMessages,
 } from "@/lib/conversations";
 import type {
@@ -93,11 +94,6 @@ interface ChatState {
   editMessage: (messageId: string, newContent: string) => Promise<void>;
   regenerate: () => Promise<void>;
   stop: () => void;
-}
-
-function titleFrom(text: string): string {
-  const t = text.trim().replace(/\s+/g, " ");
-  return t.length > 42 ? `${t.slice(0, 42)}…` : t || "New chat";
 }
 
 export const useChatStore = create<ChatState>()(

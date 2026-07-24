@@ -10,6 +10,7 @@
 
 import { useCocodeIDEStore } from "@/store/cocode-ide-store";
 import { useProjectStore } from "@/store/project-store";
+import { useCodeStore } from "@/store/code-store";
 import { fetchProjectFiles, scheduleWorkspaceSync, workspaceFilesEnabled } from "@/lib/cocode/workspace-sync";
 import { flattenFiles } from "@/lib/cocode/virtual-fs";
 import type { Project } from "@/lib/types";
@@ -22,6 +23,11 @@ const loading = new Set<string>();
 
 export function openProjectInWorkspace(project: Project): void {
   const state = useCocodeIDEStore.getState();
+  // Ask CoCode's chat is scoped per project the same way files are — keep
+  // it in sync with the IDE workspace on every entry point, not just the
+  // actual-switch branch below, so a mismatch (e.g. code-store's own
+  // localStorage restored a stale projectId) self-corrects.
+  useCodeStore.getState().setActiveProject(project.id);
   if (state.projectId === project.id) {
     if (state.projectName !== project.name) state.setProjectName(project.name);
     ensureWorkspaceLoaded(project.id);
@@ -84,6 +90,9 @@ export async function ensureProjectForWorkspace(): Promise<void> {
       const currentFiles = flattenFiles(useCocodeIDEStore.getState().fs)
         .map((f) => ({ path: f.path, content: f.content, sha: f.sha }));
       scheduleWorkspaceSync(project.id, currentFiles);
+      // Same flush, for chat: this session's convo may already hold turns
+      // exchanged before a project existed to save them under.
+      useCodeStore.getState().adoptProjectId(project.id);
     } else {
       // Create failed — still mark ready so this session's edits aren't
       // silently blocked from ever syncing once a project does exist.

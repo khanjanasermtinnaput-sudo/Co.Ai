@@ -1,7 +1,28 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toChatMessages, mergeServerMessages } from "../lib/conversations.js";
+import { toChatMessages, mergeServerMessages, titleFrom } from "../lib/conversations.js";
 import type { ChatMessageT } from "../lib/types.js";
+
+// ── titleFrom ─────────────────────────────────────────────────────────────────
+// Shared by CoChat (chat-store's autoTitle) and CoCode (code-store's
+// persistCocodeTurn/migrateGuestCocode/adoptProjectId) so a conversation's
+// title looks the same regardless of which product surface created it.
+
+test("collapses internal whitespace and passes short text through unchanged", () => {
+  assert.equal(titleFrom("hello   world\n\tagain"), "hello world again");
+});
+
+test("truncates text over 42 chars with an ellipsis", () => {
+  const long = "a".repeat(60);
+  const title = titleFrom(long);
+  assert.equal(title, `${"a".repeat(42)}…`);
+  assert.equal(title.length, 43);
+});
+
+test("falls back to 'New chat' for empty or whitespace-only text", () => {
+  assert.equal(titleFrom(""), "New chat");
+  assert.equal(titleFrom("   \n  "), "New chat");
+});
 
 // ── toChatMessages ────────────────────────────────────────────────────────────
 // Pure mapper from server message rows (GET /api/conversations/[id]/messages)
