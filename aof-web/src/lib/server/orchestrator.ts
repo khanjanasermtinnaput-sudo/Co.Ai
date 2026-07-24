@@ -105,12 +105,12 @@ export interface OrchestrationRun {
 // providers happen to be configured.
 const ORCHESTRATION_PROVIDER_CAP = 2;
 
-// OpenRouter keeps its own env-override/fallback model selection; these
-// four read their model from model-registry.ts instead —
+// OpenRouter keeps its own env-override/fallback model selection; every
+// other cloud provider reads its model from model-registry.ts instead —
 // mirrors route.ts's REGISTRY_ROUTES_MODEL (a local literal there too, not a
-// shared export, since it's a fact about 4 specific providers' adapters, not
+// shared export, since it's a fact about these providers' adapters, not
 // a policy other modules need to consume).
-const REGISTRY_ROUTES_MODEL = new Set<ProviderId>(["gemini", "deepseek", "qwen", "llama"]);
+const REGISTRY_ROUTES_MODEL = new Set<ProviderId>(["gemini", "deepseek", "qwen", "llama", "zai"]);
 
 const ARTIFACT_OPEN = "===COAI ARTIFACT===";
 const ARTIFACT_CLOSE = "===END ARTIFACT===";

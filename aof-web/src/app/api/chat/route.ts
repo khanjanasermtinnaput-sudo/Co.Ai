@@ -638,9 +638,9 @@ async function handleChat(req: Request): Promise<Response> {
   }
 
   // OpenRouter keeps its existing env-override + fallback-chain model
-  // selection untouched; only the four newer providers pick a model from
+  // selection untouched; every other cloud provider picks a model from
   // the registry based on the task (no OPENROUTER_MODEL surprise).
-  const REGISTRY_ROUTES_MODEL = new Set<ProviderMeta["id"]>(["gemini", "deepseek", "qwen", "llama"]);
+  const REGISTRY_ROUTES_MODEL = new Set<ProviderMeta["id"]>(["gemini", "deepseek", "qwen", "llama", "zai"]);
 
   // ── Model Workflow → local Context Builder, then (Ypertatos engineering only)
   // the buffered Requirement Analysis + TMAP calls, optional Agent

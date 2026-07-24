@@ -19,6 +19,7 @@ const PROVIDERS = [
   { id: "deepseek", label: "DeepSeek", hint: "Used for coding" },
   { id: "qwen", label: "Qwen (DashScope)", hint: "Used for review" },
   { id: "llama", label: "Groq · Llama", hint: "Used for validation" },
+  { id: "zai", label: "Z.AI (GLM)", hint: "Used for chat & coding" },
 ] as const;
 
 export function KeysTab() {

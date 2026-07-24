@@ -5,8 +5,8 @@
 // clean structured error (instead of a half-rendered fake answer), and the
 // lightweight health ping used by the diagnostics panel.
 //
-// Five cloud providers are wired into the chat runtime: OpenRouter, Google Gemini,
-// DeepSeek, Qwen (DashScope) and Meta Llama (via Groq) — plus two local
+// Six cloud providers are wired into the chat runtime: OpenRouter, Google Gemini,
+// DeepSeek, Qwen (DashScope), Meta Llama (via Groq) and Z.AI (GLM) — plus two local
 // OpenAI-compatible servers (Ollama, vLLM). A key for any cloud provider can come
 // from the server environment (operator-wide) or from the signed-in user's own
 // encrypted key (see keys-store.ts) — the user key always wins when both are present.
@@ -28,7 +28,7 @@ import type { ProviderHealth, ProviderStatusLevel } from "@/lib/health";
 
 // ── Registry ──────────────────────────────────────────────────────────────────
 
-export type ProviderId = "openrouter" | "gemini" | "deepseek" | "qwen" | "llama" | "ollama" | "vllm";
+export type ProviderId = "openrouter" | "gemini" | "deepseek" | "qwen" | "llama" | "zai" | "ollama" | "vllm";
 
 export interface ProviderMeta {
   id: ProviderId;
@@ -53,7 +53,7 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
     modelEnv: "OPENROUTER_MODEL",
     // Set OPENROUTER_MODEL env var to override. Browse free models at openrouter.ai/models?q=:free
     defaultModel: "google/gemma-4-31b-it:free",
-    priority: 5,
+    priority: 6,
   },
   gemini: {
     id: "gemini",
@@ -87,6 +87,14 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
     defaultModel: "llama-3.3-70b-versatile",
     priority: 4,
   },
+  zai: {
+    id: "zai",
+    label: "Z.AI (GLM)",
+    envVar: "ZAI_API_KEY",
+    modelEnv: "ZAI_MODEL",
+    defaultModel: "glm-5.2",
+    priority: 5,
+  },
   // ── Local models (Provider Load Balancer, Master Prompt 6.5) ────────────────
   // Self-hosted, OpenAI-compatible servers — no cloud vendor, no per-token
   // cost (see model-registry.ts's "free" costTier for both). Ollama's own docs
@@ -102,7 +110,7 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
     envVar: "OLLAMA_API_KEY",
     modelEnv: "OLLAMA_MODEL",
     defaultModel: "llama3.1",
-    priority: 6,
+    priority: 7,
   },
   vllm: {
     id: "vllm",
@@ -110,7 +118,7 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
     envVar: "VLLM_API_KEY",
     modelEnv: "VLLM_MODEL",
     defaultModel: "default", // vLLM serves one model per instance; override via VLLM_MODEL
-    priority: 7,
+    priority: 8,
   },
 };
 
@@ -511,15 +519,15 @@ function parseUpstreamError(body: string): { type?: string; message?: string } {
   }
 }
 
-// ── OpenAI-compatible adapter (Gemini, DeepSeek, Qwen, Llama) ──────────────────
-// All four new providers speak the same `POST {baseUrl}/chat/completions` SSE
-// dialect as OpenRouter, just against a different host/key. One generator
+// ── OpenAI-compatible adapter (Gemini, DeepSeek, Qwen, Llama, Z.AI) ────────────
+// All five cloud providers here speak the same `POST {baseUrl}/chat/completions`
+// SSE dialect as OpenRouter, just against a different host/key. One generator
 // covers all of them; retry/backoff for transient upstream errors mirrors the
 // OpenRouter adapter above so behavior (and failover semantics) stays consistent.
 
 interface OpenAiCompatConfig {
   baseUrl: string;
-  providerId: "gemini" | "deepseek" | "qwen" | "llama" | "ollama" | "vllm";
+  providerId: "gemini" | "deepseek" | "qwen" | "llama" | "zai" | "ollama" | "vllm";
 }
 
 // Exported for the same reason as OPENROUTER_CHAT_URL above.
@@ -528,6 +536,7 @@ export const OPENAI_COMPAT: Record<OpenAiCompatConfig["providerId"], string> = {
   deepseek: "https://api.deepseek.com/v1",
   qwen: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
   llama: "https://api.groq.com/openai/v1",
+  zai: "https://api.z.ai/api/paas/v4",
   // Operator-configured, unlike the fixed cloud URLs above — resolved once at
   // module load (consistent with everything else in this static map; the
   // multi-instance case with live latency-based picking lives in tmap-v2's
@@ -740,6 +749,8 @@ export const qwenTextStream = (input: AdapterInput) =>
   openAiCompatTextStream({ baseUrl: OPENAI_COMPAT.qwen, providerId: "qwen" }, input);
 export const llamaTextStream = (input: AdapterInput) =>
   openAiCompatTextStream({ baseUrl: OPENAI_COMPAT.llama, providerId: "llama" }, input);
+export const zaiTextStream = (input: AdapterInput) =>
+  openAiCompatTextStream({ baseUrl: OPENAI_COMPAT.zai, providerId: "zai" }, input);
 export const ollamaTextStream = (input: AdapterInput) =>
   openAiCompatTextStream({ baseUrl: OPENAI_COMPAT.ollama, providerId: "ollama" }, input);
 export const vllmTextStream = (input: AdapterInput) =>
@@ -751,6 +762,7 @@ const ADAPTERS: Record<ProviderId, (input: AdapterInput) => AsyncGenerator<strin
   deepseek: deepseekTextStream,
   qwen: qwenTextStream,
   llama: llamaTextStream,
+  zai: zaiTextStream,
   ollama: ollamaTextStream,
   vllm: vllmTextStream,
 };
@@ -897,7 +909,7 @@ export async function pingProvider(p: ProviderMeta, overrides?: KeyOverrides): P
         throw new ProviderHttpError(res.status, body, type, message);
       }
     } else {
-      // Gemini / DeepSeek / Qwen / Llama — OpenAI-compatible. A minimal,
+      // Gemini / DeepSeek / Qwen / Llama / Z.AI — OpenAI-compatible. A minimal,
       // non-streaming 1-token completion is the cheapest real auth check.
       const baseUrl = OPENAI_COMPAT[p.id];
       const res = await fetch(`${baseUrl}/chat/completions`, {

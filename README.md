@@ -18,7 +18,7 @@
 
 ## Features
 
-- **Multi-provider chat** — Anthropic, Gemini, DeepSeek, Qwen, Llama (Groq), OpenRouter; automatic failover with DARS circuit breaker
+- **Multi-provider chat** — Anthropic, Gemini, DeepSeek, Qwen, Llama (Groq), Z.AI (GLM), OpenRouter; automatic failover with DARS circuit breaker
 - **CoCode** — TMAP pipeline: Chief → Planner → Coder → Reviewer → Validator
 - **Encrypted API key storage** — AES-256-GCM + scrypt, per-user keys stored in Supabase
 - **Universal search** — web search toggle backed by Tavily / Google CSE / GitHub / Wikipedia
@@ -58,7 +58,7 @@ See [`aof-web/.env.example`](aof-web/.env.example) for the full list with commen
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key |
 | `SUPABASE_SERVICE_ROLE_KEY` | For encrypted key storage + admin APIs |
 | `COAGENTIX_MASTER_KEY` | AES master key (`openssl rand -hex 32`) |
-| At least one AI provider key | `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, etc. |
+| At least one AI provider key | `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `ZAI_API_KEY`, etc. |
 
 ## Deploy
 

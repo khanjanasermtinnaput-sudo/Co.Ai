@@ -91,6 +91,16 @@ export const PROVIDERS: Record<string, ProviderDef> = {
     // Free tier of the same Llama model (validator role).
     openrouterModel: 'meta-llama/llama-3.3-70b-instruct:free',
   },
+  zai: {
+    name: 'Z.AI',
+    envKey: 'ZAI_API_KEY',
+    baseURL: 'https://api.z.ai/api/paas/v4',
+    defaultModel: 'glm-5.2',
+    modelEnv: 'ZAI_MODEL',
+    // Not assigned to any of the 4 fixed pipeline roles below — reachable via a
+    // ROLE_PROVIDER override or as a direct-key fallback (resolveRole step 3).
+    openrouterModel: 'z-ai/glm-4.5-air:free',
+  },
   // ── Local models (Provider Load Balancer, Master Prompt 6.5) ────────────────
   // Self-hosted, OpenAI-compatible servers — no cloud vendor, no per-token
   // cost. Ollama's own docs use a placeholder API key ("ollama") since its
@@ -248,6 +258,7 @@ export interface CredentialBag {
   deepseek?: string;
   qwen?: string;
   llama?: string;
+  zai?: string;
   ollama?: string;
   vllm?: string;
   models?: Partial<Record<string, string>>; // providerKey -> model override
@@ -302,7 +313,7 @@ export function resolveAllWith(creds: CredentialBag): Record<Role, ResolvedProvi
 export function bagHasAnyKey(creds: CredentialBag): boolean {
   return Boolean(
     creds.openrouter || creds.anthropic || creds.gemini || creds.deepseek ||
-    creds.qwen || creds.llama || creds.ollama || creds.vllm,
+    creds.qwen || creds.llama || creds.zai || creds.ollama || creds.vllm,
   );
 }
 

@@ -65,7 +65,7 @@ import { rateLimitMiddleware } from './rate-limit-redis.js';
 import { logAuditEvent, AuditAction, getClientIp } from './audit.js';
 import { SentryNode } from './telemetry.js';
 
-const PROVIDERS: ProviderKeyName[] = ['openrouter', 'gemini', 'deepseek', 'qwen', 'llama'];
+const PROVIDERS: ProviderKeyName[] = ['openrouter', 'gemini', 'deepseek', 'qwen', 'llama', 'zai'];
 
 const app = express();
 
@@ -1283,6 +1283,7 @@ app.post('/v1/me/keys/validate', requireAuth, async (req: AuthedRequest, res) =>
     deepseek:   (k) => k.startsWith('sk-') && k.length >= 20,
     qwen:       (k) => k.length >= 16,
     llama:      (k) => k.length >= 16,
+    zai:        (k) => k.length >= 16,
   };
 
   const validator = validations[provider] ?? ((k: string) => k.length >= 8);

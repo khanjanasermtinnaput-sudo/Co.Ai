@@ -13,7 +13,7 @@ const PERIODS = [{ label: "7 Days", value: "7d" }, { label: "30 Days", value: "3
 const PROVIDER_COLORS: Record<string, string> = {
   gemini: "text-blue-400", deepseek: "text-cyan-400",
   qwen: "text-violet-400", llama: "text-emerald-400",
-  openrouter: "text-orange-400",
+  zai: "text-pink-400", openrouter: "text-orange-400",
 };
 
 export default function ApiMonitoringPage() {
