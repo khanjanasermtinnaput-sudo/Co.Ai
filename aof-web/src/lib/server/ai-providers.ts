@@ -415,16 +415,30 @@ export async function* openrouterTextStream(input: AdapterInput): AsyncGenerator
     const onUserAbort = () => ctrl.abort();
     input.signal.addEventListener("abort", onUserAbort, { once: true });
     let timedOut = false;
-    let timer: ReturnType<typeof setTimeout> | undefined = setTimeout(() => {
-      timedOut = true;
-      ctrl.abort();
-    }, firstTokenDeadlineMs());
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const armDeadline = () => {
+      timer = setTimeout(() => {
+        timedOut = true;
+        ctrl.abort();
+      }, firstTokenDeadlineMs());
+    };
     const clearDeadline = () => {
       if (timer) {
         clearTimeout(timer);
         timer = undefined;
       }
     };
+    // A reasoning-capable model (e.g. a Zhipu/Z.AI GLM route) can stream
+    // `reasoning_content` well past the first-token deadline before any real
+    // `content` — re-arm rather than clear so a genuinely stuck connection is
+    // still bounded, but a model that's visibly still thinking isn't killed
+    // mid-thought (live-verified: glm-4.5-flash's RAA-shaped calls previously
+    // failed with a misleading "did not respond" error while still streaming).
+    const resetDeadline = () => {
+      clearDeadline();
+      armDeadline();
+    };
+    armDeadline();
 
     let started = false;
     let inputTokens = 0;
@@ -464,6 +478,9 @@ export async function* openrouterTextStream(input: AdapterInput): AsyncGenerator
               outputTokens = json.usage.completion_tokens ?? outputTokens;
             }
             delta = json?.choices?.[0]?.delta?.content ?? "";
+            if (!delta && !started && typeof json?.choices?.[0]?.delta?.reasoning_content === "string") {
+              resetDeadline();
+            }
           } catch (e) {
             if (e instanceof ProviderHttpError) throw e;
             /* ignore malformed keep-alive frames */
@@ -675,11 +692,28 @@ async function* openAiCompatTextStream(
   const onUserAbort = () => ctrl.abort();
   input.signal.addEventListener("abort", onUserAbort, { once: true });
   let timedOut = false;
-  const timer = setTimeout(() => {
-    timedOut = true;
-    ctrl.abort();
-  }, firstTokenDeadlineMs());
-  const clearDeadline = () => clearTimeout(timer);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const armDeadline = () => {
+    timer = setTimeout(() => {
+      timedOut = true;
+      ctrl.abort();
+    }, firstTokenDeadlineMs());
+  };
+  const clearDeadline = () => {
+    if (timer) {
+      clearTimeout(timer);
+      timer = undefined;
+    }
+  };
+  // See openrouterTextStream's identical comment — a reasoning-capable model
+  // (e.g. Zhipu/Z.AI's GLM) can stream `reasoning_content` well past the
+  // first-token deadline before any real `content`; re-arm rather than clear
+  // so a genuinely stuck connection is still bounded.
+  const resetDeadline = () => {
+    clearDeadline();
+    armDeadline();
+  };
+  armDeadline();
 
   let started = false;
   let inputTokens = 0;
@@ -716,6 +750,9 @@ async function* openAiCompatTextStream(
             outputTokens = json.usage.completion_tokens ?? outputTokens;
           }
           delta = json?.choices?.[0]?.delta?.content ?? "";
+          if (!delta && !started && typeof json?.choices?.[0]?.delta?.reasoning_content === "string") {
+            resetDeadline();
+          }
         } catch (e) {
           if (e instanceof ProviderHttpError) throw e;
           /* ignore malformed keep-alive frames */
