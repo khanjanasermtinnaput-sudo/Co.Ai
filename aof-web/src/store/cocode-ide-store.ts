@@ -50,6 +50,7 @@ import {
   type Checkpoint,
   type CheckpointStack,
 } from "@/lib/cocode/checkpoint";
+import { scheduleWorkspaceSync } from "@/lib/cocode/workspace-sync";
 
 // ── GitHub connection state ───────────────────────────────────────────────────
 
@@ -93,16 +94,37 @@ interface CocodeIDEState {
   projectName: string;
   setProjectName: (n: string) => void;
   /** Which Projects-list project (project-store.ts) this session belongs to,
-   *  if any — set by lib/cocode/open-project.ts. There is no per-project file
-   *  persistence yet (this workspace is one in-session virtual FS), so this
-   *  is only used to detect "switching to a genuinely different project" and
-   *  reset to a clean slate rather than showing another project's leftover
-   *  files under a new name. */
+   *  if any — set by lib/cocode/open-project.ts, which also loads that
+   *  project's saved files from /api/projects/[id]/files (lib/cocode/
+   *  workspace-sync.ts) into this same fs via hydrateFromServer below. */
   projectId: string | null;
+  /** True once the workspace reflects either a project's loaded files or a
+   *  confirmed-empty project — never while a load is still in flight. Gates
+   *  the fs-change → server-sync subscription (bottom of this file) so the
+   *  blank slate resetWorkspace produces while open-project.ts's fetch is
+   *  still pending can never be mistaken for "user deleted everything" and
+   *  synced over the project's real saved files. */
+  workspaceReady: boolean;
   /** Clear the workspace to a blank slate under a new project identity —
-   *  the honest behavior when opening a project this session hasn't already
-   *  built anything for. */
+   *  the honest behavior while that project's saved files (if any) are still
+   *  being fetched. */
   resetWorkspace: (projectId: string, projectName: string) => void;
+  /** Populate the fs from /api/projects/[id]/files and mark the workspace
+   *  ready to sync. */
+  hydrateFromServer: (files: Array<{ path: string; content: string; sha?: string }>) => void;
+  /** Mark the workspace ready without changing fs — the project has no saved
+   *  files yet (brand new) or the load failed / isn't possible (demo mode,
+   *  signed out); either way there is nothing server-side to lose by now
+   *  allowing local edits to sync. */
+  markWorkspaceReady: () => void;
+  /** Adopt a just-created project's identity WITHOUT touching fs/tabs — for
+   *  the CoCode workspace started directly at /code (no Projects-list entry),
+   *  where by the time a project exists to save into, the user may already
+   *  have built real files this session that must be kept, not reset away
+   *  the way switching to a DIFFERENT existing project's saved state must be
+   *  (resetWorkspace, above). See lib/cocode/open-project.ts's
+   *  ensureProjectForWorkspace. */
+  adoptProject: (projectId: string, projectName: string) => void;
   importFiles: (files: Array<{ path: string; content: string; sha?: string }>) => void;
   createFile: (path: string, content?: string) => void;
   updateFile: (path: string, content: string) => void;
@@ -224,10 +246,17 @@ export const useCocodeIDEStore = create<CocodeIDEState>()(
       projectName: "Untitled Project",
       setProjectName: (n) => set({ projectName: n }),
       projectId: null,
+      // Starts false: a fresh page load rehydrates projectId/projectName from
+      // localStorage (see partialize below) but never fs (too large to
+      // persist there), so the true file set for that project is only known
+      // once open-project.ts's ensureWorkspaceLoaded has fetched or the
+      // caller confirms there is no project to load.
+      workspaceReady: false,
       resetWorkspace: (projectId, projectName) =>
         set({
           projectId,
           projectName,
+          workspaceReady: false,
           fs: emptyFS,
           tabs: [],
           activeTab: null,
@@ -236,6 +265,16 @@ export const useCocodeIDEStore = create<CocodeIDEState>()(
           stage: "editor",
           mobileView: "agent",
         }),
+
+      hydrateFromServer: (files) => {
+        const fs = files.length ? buildTree(files) : emptyFS;
+        set({ fs, workspaceReady: true, graph: null, projectMap: null });
+        if (files.length) setTimeout(() => get().buildGraph(), 100);
+      },
+
+      markWorkspaceReady: () => set({ workspaceReady: true }),
+
+      adoptProject: (projectId, projectName) => set({ projectId, projectName, workspaceReady: true }),
 
       importFiles: (files) => {
         const fs = buildTree(files);
@@ -821,4 +860,24 @@ export const useCocodeIDEStore = create<CocodeIDEState>()(
       }),
     },
   ),
+);
+
+// ── Server sync ───────────────────────────────────────────────────────────────
+// Every fs mutation (create/update/delete/rename, diff apply, checkpoint
+// undo/redo/restore, GitHub import) lands here as one fs reassignment, so this
+// single subscription is the one place that pushes CoCode's work to
+// /api/projects/[id]/files — no individual action above needs its own save
+// call. Gated on workspaceReady so the transient blank fs between
+// resetWorkspace and the server fetch resolving is never mistaken for the user
+// clearing the project (see workspaceReady's doc comment above).
+useCocodeIDEStore.subscribe(
+  (s) => s.fs,
+  (fs) => {
+    const { projectId, workspaceReady } = useCocodeIDEStore.getState();
+    if (!projectId || !workspaceReady) return;
+    scheduleWorkspaceSync(
+      projectId,
+      flattenFiles(fs).map((f) => ({ path: f.path, content: f.content, sha: f.sha })),
+    );
+  },
 );

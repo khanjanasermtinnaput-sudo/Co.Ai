@@ -25,6 +25,7 @@ import { useCodeStore } from "@/store/code-store";
 import { getAdaptivePanels } from "@/lib/cocode/adaptive-panels";
 import { analyzeFiles } from "@/lib/cocode/diagnostics";
 import { flattenFiles } from "@/lib/cocode/virtual-fs";
+import { ensureWorkspaceLoaded, ensureProjectForWorkspace } from "@/lib/cocode/open-project";
 import { WorkspaceStatusBar } from "./status-bar";
 import { useSmartContextMenu, SmartContextMenu } from "./smart-context-menu";
 import { SimpleTooltip } from "./ide-tooltip";
@@ -212,6 +213,28 @@ export function CoCodeWorkspace() {
   const redo           = useCocodeIDEStore((s) => s.redo);
   const activeTab      = useCocodeIDEStore((s) => s.activeTab);
   const fs             = useCocodeIDEStore((s) => s.fs);
+  const projectId      = useCocodeIDEStore((s) => s.projectId);
+
+  // Reconcile persistence on every project-identity / fs change:
+  //  - a project is open → load its saved files if this session hasn't yet
+  //    (a direct landing on /code: localStorage restores `projectId` via
+  //    cocode-ide-store's partialize, but never `fs` — too large to persist
+  //    there — so a hard reload otherwise leaves the workspace pointed at a
+  //    project whose real files were never fetched);
+  //  - no project is open but the session has real files (built directly at
+  //    /code, never routed through the Projects list) → lazily create one so
+  //    this work has somewhere to be saved, per lib/cocode/open-project.ts.
+  // Both are no-ops once already satisfied, and no-op entirely in demo mode /
+  // when signed out.
+  useEffect(() => {
+    if (projectId) {
+      ensureWorkspaceLoaded(projectId);
+    } else if (fs.children.length > 0) {
+      void ensureProjectForWorkspace();
+    }
+    // Only re-run when the project identity or the file set actually changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, fs]);
 
   const aiStreaming = useUIStore((s) => s.aiStreaming);
   const codeBuilding = useCodeStore((s) => s.building);
