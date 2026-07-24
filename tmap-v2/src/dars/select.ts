@@ -19,6 +19,21 @@ const ROLE_CAPABILITY: Record<Role, Record<string, number>> = {
   coder:     { deepseek: 0.92, anthropic: 0.90, qwen: 0.85, gemini: 0.72, llama: 0.62, ollama: 0.60, vllm: 0.60 },
   reviewer:  { anthropic: 0.89, qwen: 0.86, gemini: 0.82, deepseek: 0.76, llama: 0.70, ollama: 0.60, vllm: 0.60 },
   validator: { anthropic: 0.85, llama: 0.82, deepseek: 0.80, gemini: 0.76, qwen: 0.74, ollama: 0.60, vllm: 0.60 },
+  // Architect: pre-plan design/trade-off reasoning — same profile as Planner,
+  // weighted a bit further towards depth over speed.
+  architect: { gemini: 0.90, anthropic: 0.88, qwen: 0.82, deepseek: 0.75, llama: 0.65, ollama: 0.60, vllm: 0.60 },
+  // RAA: conversational requirement-gathering, largely in Thai — multilingual
+  // fluency matters more here than raw coding/reasoning strength.
+  raa:       { qwen: 0.90, anthropic: 0.85, gemini: 0.80, deepseek: 0.65, llama: 0.60, ollama: 0.55, vllm: 0.55 },
+  // Documenter: low-stakes summarization of files already produced — capability
+  // gaps matter less here, so cost/speed (see PROVIDER_COST/health scoring
+  // below) do more of the work picking the actual winner.
+  documenter:{ gemini: 0.82, anthropic: 0.80, qwen: 0.78, llama: 0.75, deepseek: 0.70, ollama: 0.60, vllm: 0.60 },
+  // Debugger: root-cause diagnosis + targeted patch — same profile as Coder.
+  debugger:  { deepseek: 0.92, anthropic: 0.90, qwen: 0.80, gemini: 0.70, llama: 0.62, ollama: 0.60, vllm: 0.60 },
+  // Titan: heaviest reasoning role (multi-plan, devil's-advocate, 7-pass
+  // self-review) — same ceiling as Architect, lower floor for cheap/local.
+  titan:     { gemini: 0.90, anthropic: 0.90, qwen: 0.82, deepseek: 0.75, llama: 0.62, ollama: 0.55, vllm: 0.55 },
 };
 
 // Rough relative cost, 0 cheap .. 1 expensive. Local models are genuinely

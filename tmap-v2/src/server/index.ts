@@ -483,7 +483,7 @@ app.post('/v1/chat', requireAuth, async (req: AuthedRequest, res) => {
     send({ role: 'raa', kind, text });
 
   const call = async (messages: ChatMessage[], opts = {}) => {
-    const r = await chatWithDARS('planner', messages, opts, {
+    const r = await chatWithDARS('raa', messages, opts, {
       creds, health: globalHealth, emit, sessionId: 'raa-' + u.id,
     });
     return r.text;
@@ -524,7 +524,7 @@ app.post('/v1/debug', requireAuth, async (req: AuthedRequest, res) => {
   const emit = (_role: string, text: string, kind = 'status') => send({ role: 'debugger', kind, text });
 
   const call = async (messages: ChatMessage[], opts = {}) => {
-    const r = await chatWithDARS('reviewer', messages, opts, {
+    const r = await chatWithDARS('debugger', messages, opts, {
       creds, health: globalHealth, emit, sessionId: 'debug-' + u.id,
     });
     return r.text;
@@ -607,7 +607,7 @@ app.post('/v1/titan', requireAuth, requireSubscription('PRO', 'Titan'), async (r
     send({ role: 'titan', kind, text });
 
   const call = async (messages: ChatMessage[], opts = {}) => {
-    const r = await chatWithDARS('planner', messages, opts, {
+    const r = await chatWithDARS('titan', messages, opts, {
       creds, health: globalHealth, emit, sessionId: 'titan-' + u.id,
     });
     return r.text;

@@ -252,7 +252,7 @@ async function runYpertatosNormal(
   try {
     // Architect — design + new/modify file decision before the domain agents run.
     emit('architect', 'designing architecture', 'status');
-    const decision = await runArchitect(callFor('planner'), bb);
+    const decision = await runArchitect(callFor('architect'), bb);
     bb.architect = decision;
     bb.context = [bb.context, architectToContext(decision)].filter(Boolean).join('\n\n');
     emit('architect', decision.raw, 'output');

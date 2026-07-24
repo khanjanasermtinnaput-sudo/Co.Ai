@@ -26,6 +26,7 @@ const c = {
 };
 const ROLE_COLOR: Record<string, (s: string) => string> = {
   planner: c.orange, coder: c.green, reviewer: c.yellow, validator: c.blue, system: c.dim,
+  architect: c.bold, raa: c.orange, documenter: c.dim, debugger: c.red, titan: c.bold,
 };
 
 function banner() {

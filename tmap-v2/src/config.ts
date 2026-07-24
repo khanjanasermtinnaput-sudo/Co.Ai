@@ -129,11 +129,21 @@ export const PROVIDERS: Record<string, ProviderDef> = {
 };
 
 // Default role -> provider mapping (overridable; this is config, not hardcode).
+// New roles (architect/raa/documenter/debugger/titan) default to whichever of
+// gemini/deepseek/qwen/llama fits the role's demands best — anthropic and zai
+// stay out of the defaults (no key held for either on this deployment), though
+// both remain valid PROVIDERS entries a user can still route to explicitly or
+// via DARS/OpenRouter if they do have a key.
 export const ROLE_PROVIDER: Record<Role, string> = {
   planner: 'gemini',
   coder: 'deepseek',
   reviewer: 'qwen',
   validator: 'llama',
+  architect: 'gemini',
+  raa: 'qwen',
+  documenter: 'llama',
+  debugger: 'deepseek',
+  titan: 'gemini',
 };
 
 const OPENROUTER_BASE = 'https://openrouter.ai/api/v1';
@@ -203,6 +213,11 @@ export function resolveAll(): Record<Role, ResolvedProvider> {
     coder: resolveRole('coder'),
     reviewer: resolveRole('reviewer'),
     validator: resolveRole('validator'),
+    architect: resolveRole('architect'),
+    raa: resolveRole('raa'),
+    documenter: resolveRole('documenter'),
+    debugger: resolveRole('debugger'),
+    titan: resolveRole('titan'),
   };
 }
 
@@ -307,6 +322,11 @@ export function resolveAllWith(creds: CredentialBag): Record<Role, ResolvedProvi
     coder: resolveRoleWith('coder', creds),
     reviewer: resolveRoleWith('reviewer', creds),
     validator: resolveRoleWith('validator', creds),
+    architect: resolveRoleWith('architect', creds),
+    raa: resolveRoleWith('raa', creds),
+    documenter: resolveRoleWith('documenter', creds),
+    debugger: resolveRoleWith('debugger', creds),
+    titan: resolveRoleWith('titan', creds),
   };
 }
 

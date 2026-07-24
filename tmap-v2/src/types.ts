@@ -1,6 +1,8 @@
 // Shared contracts for TMAP v2 (see COAGENTIX_TDD.md §4.1)
 
-export type Role = 'planner' | 'coder' | 'reviewer' | 'validator';
+export type Role =
+  | 'planner' | 'coder' | 'reviewer' | 'validator'
+  | 'architect' | 'raa' | 'documenter' | 'debugger' | 'titan';
 export type Mode = 'lite' | 'normal' | 'pro';
 
 // ── Coagentix Universal Orchestration System types ───────────────────────────

@@ -214,8 +214,8 @@ export async function runTMAP(
     // 0a) ARCHITECT — design + new/modify decision before planning
     if (smart) {
       try {
-        emit('architect', `designing architecture (${label('planner')})`, 'status');
-        const decision = await runArchitect(callFor('planner'), bb);
+        emit('architect', `designing architecture (${label('architect')})`, 'status');
+        const decision = await runArchitect(callFor('architect'), bb);
         bb.architect = decision;
         if (decision.approach) emit('architect', `approach: ${decision.approach}`, 'output');
         if (decision.newFiles.length) emit('architect', `new files: ${decision.newFiles.join(', ')}`, 'output');
@@ -421,8 +421,8 @@ export async function runTMAP(
     // 5) DOCUMENT — generate a README for what was built (normal/pro)
     if (smart && bb.files.length) {
       try {
-        emit('documenter', `writing documentation (${label('reviewer')})`, 'status');
-        const docs = await runDocumenter(callFor('reviewer'), bb);
+        emit('documenter', `writing documentation (${label('documenter')})`, 'status');
+        const docs = await runDocumenter(callFor('documenter'), bb);
         if (docs.length) {
           bb.docs = docs;
           // merge docs into output (skip paths already produced by the Coder)
