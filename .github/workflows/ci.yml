@@ -255,6 +255,56 @@ jobs:
           QA_SUPABASE_ANON_KEY: ${{ secrets.QA_SUPABASE_ANON_KEY }}
           QA_TIMEOUT_MS: "20000"
 
+  # ── Validation Engine: cross-component hermetic scorecard ─────────────────
+  # Runs every hermetic aof-web + tmap-v2 suite once more under c8, scores
+  # each spec component 0-10, and gates on a ratchet: the threshold below is
+  # today's actual measured baseline (score ~9.13, coverage ~87%), NOT the
+  # spec's aspirational 99%/9.5 target — gating on the aspirational number
+  # would fail every PR from day one. A real regression below baseline fails
+  # this job; closing the remaining gap to 99%/9.5 is tracked via the
+  # scorecard artifact, not enforced here yet. Fully hermetic — no secrets.
+  validation-scorecard:
+    name: Validation Engine / Scorecard
+    runs-on: ubuntu-latest
+    needs: [test-web, test-tmap]
+    defaults:
+      run:
+        working-directory: validation-engine
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            validation-engine/package-lock.json
+            aof-web/package-lock.json
+            tmap-v2/package-lock.json
+
+      - name: Install validation-engine dependencies
+        run: npm ci
+
+      - name: Install aof-web dependencies
+        run: npm ci
+        working-directory: aof-web
+
+      - name: Install tmap-v2 dependencies
+        run: npm ci
+        working-directory: tmap-v2
+
+      - name: Run scorecard (ratcheted to current baseline, not the aspirational target)
+        run: npx tsx run.ts --once --target-score 9.0 --target-coverage 85
+
+      - name: Upload scorecard report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-scorecard
+          path: validation-engine/reports/
+          retention-days: 30
+
   # ── Gate: all checks must pass before merge ────────────────────────────────
   ci-gate:
     name: CI Gate — All Phases
@@ -266,25 +316,28 @@ jobs:
       - build-web
       - typecheck-tmap
       - test-tmap
+      - validation-scorecard
     if: always()
     steps:
       - name: Check all required jobs passed
         run: |
-          if [[ "${{ needs.lint-web.result }}"       != "success" || \
-                "${{ needs.typecheck-web.result }}"   != "success" || \
-                "${{ needs.test-web.result }}"        != "success" || \
-                "${{ needs.build-web.result }}"       != "success" || \
-                "${{ needs.typecheck-tmap.result }}"  != "success" || \
-                "${{ needs.test-tmap.result }}"       != "success" ]]; then
+          if [[ "${{ needs.lint-web.result }}"             != "success" || \
+                "${{ needs.typecheck-web.result }}"         != "success" || \
+                "${{ needs.test-web.result }}"              != "success" || \
+                "${{ needs.build-web.result }}"             != "success" || \
+                "${{ needs.typecheck-tmap.result }}"        != "success" || \
+                "${{ needs.test-tmap.result }}"             != "success" || \
+                "${{ needs.validation-scorecard.result }}"  != "success" ]]; then
             echo "One or more CI gate checks failed."
             echo ""
             echo "Gate results:"
-            echo "  lint-web:      ${{ needs.lint-web.result }}"
-            echo "  typecheck-web: ${{ needs.typecheck-web.result }}"
-            echo "  test-web:      ${{ needs.test-web.result }}"
-            echo "  build-web:     ${{ needs.build-web.result }}"
-            echo "  typecheck-tmap:${{ needs.typecheck-tmap.result }}"
-            echo "  test-tmap:     ${{ needs.test-tmap.result }}"
+            echo "  lint-web:            ${{ needs.lint-web.result }}"
+            echo "  typecheck-web:       ${{ needs.typecheck-web.result }}"
+            echo "  test-web:            ${{ needs.test-web.result }}"
+            echo "  build-web:           ${{ needs.build-web.result }}"
+            echo "  typecheck-tmap:      ${{ needs.typecheck-tmap.result }}"
+            echo "  test-tmap:           ${{ needs.test-tmap.result }}"
+            echo "  validation-scorecard:${{ needs.validation-scorecard.result }}"
             exit 1
           fi
           echo "All CI gate checks passed — safe to merge."

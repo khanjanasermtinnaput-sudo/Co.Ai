@@ -52,7 +52,7 @@ export const TEST_LAYERS: LayerSpec[] = [
   {
     layer: 'unit',
     critical: true,
-    files: [T('logger.test.ts'), T('context.test.ts'), T('vote.test.ts'), T('preflight.test.ts'), T('debugger.test.ts'), T('memory.test.ts'), T('db.test.ts')],
+    files: [T('logger.test.ts'), T('context.test.ts'), T('vote.test.ts'), T('preflight.test.ts'), T('config.test.ts'), T('debugger.test.ts'), T('memory.test.ts'), T('db.test.ts')],
   },
   {
     layer: 'component',

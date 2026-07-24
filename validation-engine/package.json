@@ -1,0 +1,21 @@
+{
+  "name": "@coagentix/validation-engine",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Co.AI Global Validation Loop — hermetic scorecard across aof-web + tmap-v2 component suites",
+  "type": "module",
+  "scripts": {
+    "once": "tsx run.ts --once",
+    "start": "tsx run.ts",
+    "report": "tsx run.ts --report-only"
+  },
+  "devDependencies": {
+    "c8": "^11.0.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
+    "@types/node": "^22.9.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
