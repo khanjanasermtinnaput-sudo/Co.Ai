@@ -331,9 +331,16 @@ async function handleChat(req: Request): Promise<Response> {
   const rateLimitKey =
     user?.id ??
     (req.headers.get("x-forwarded-for") ?? req.headers.get("x-real-ip") ?? "anon").split(",")[0].trim();
+  // Signed-out callers are gated as FREE tier throughout this route (chatRpm,
+  // CoCode, file-upload, image quota) — there is no server-side "GUEST" tier,
+  // that concept is a client-only pre-login trial (usage-store.ts). Named
+  // `userTier` (not `tier`) to avoid colliding with the ModelTier-typed
+  // `tier` (lite/normal/pro/titan) declared further down for the Model
+  // Workflow — a different axis (billing plan vs. which model runs).
+  const userTier = user ? tierForUser(user) : "FREE";
   // Paid tiers get a higher per-minute cap (spec §13 "Priority Queue" for
   // ADVANCED) — signed-out callers fall back to the FREE-tier default.
-  const chatRpm = planFor(user ? tierForUser(user) : "FREE").limits.chatRpm;
+  const chatRpm = planFor(userTier).limits.chatRpm;
   const rl = await checkRateLimit(rateLimitKey, "chat", chatRpm);
   if (!rl.allowed) {
     const headers = new Headers({ "Content-Type": "application/json; charset=utf-8" });
@@ -389,8 +396,7 @@ async function handleChat(req: Request): Promise<Response> {
   // from mounting for FREE/LITE/GUEST, but this is the real enforcement
   // boundary since the API can be called directly, bypassing the UI.
   if (body.agent === "code-chat") {
-    const tier = user ? tierForUser(user) : "FREE";
-    if (!hasFeature(tier, "coagentix-code")) {
+    if (!hasFeature(userTier, "coagentix-code")) {
       const upgradeTo = minTierForFeature("coagentix-code");
       return Response.json(
         {
@@ -412,6 +418,45 @@ async function handleChat(req: Request): Promise<Response> {
   const hasAttachments =
     decodedAttachments.images.length > 0 ||
     decodedAttachments.textBlocks.length > 0;
+
+  // ── File-upload gate ───────────────────────────────────────────────────────
+  // Code/document attachments (vision-input.ts's textBlocks) are a PRO+ feature
+  // (plans.ts "file-upload") — same 403 PLAN_UPGRADE_REQUIRED shape as the
+  // CoCode gate above, rather than silently dropping the file, so the user
+  // knows why it wasn't used instead of getting a reply that ignores it.
+  if (decodedAttachments.textBlocks.length > 0 && !hasFeature(userTier, "file-upload")) {
+    const upgradeTo = minTierForFeature("file-upload");
+    return Response.json(
+      {
+        error: `Uploading code/document files requires the ${planFor(upgradeTo).name} plan or above.`,
+        code: "PLAN_UPGRADE_REQUIRED",
+        upgradeTo,
+      },
+      { status: 403 },
+    );
+  }
+
+  // ── Daily image quota ──────────────────────────────────────────────────────
+  // PlanLimits.dailyImages (spec: FREE 1 · LITE 3 · PRO 10 · ADVANCED 30 per
+  // day), enforced the same way chatRpm is above — a durable per-user counter
+  // via rate-limit.ts, only consumed on turns that actually attach an image.
+  if (decodedAttachments.images.length > 0) {
+    const dailyImages = planFor(userTier).limits.dailyImages;
+    const imgRl = await checkRateLimit(rateLimitKey, "image_daily", dailyImages);
+    if (!imgRl.allowed) {
+      const headers = new Headers({ "Content-Type": "application/json; charset=utf-8" });
+      applyRateLimitHeaders(headers, imgRl);
+      const error = classifyProviderError({
+        provider: "Co.AI",
+        message:
+          `Daily image limit reached (${dailyImages}/day on the ${planFor(userTier).name} plan). ` +
+          `Upgrade your plan for a higher limit, or try again after the daily reset.`,
+        status: 429,
+      });
+      return new Response(JSON.stringify(error), { status: 429, headers });
+    }
+  }
+
   if (!userText && !hasAttachments) {
     return Response.json({ error: "message required" }, { status: 400 });
   }

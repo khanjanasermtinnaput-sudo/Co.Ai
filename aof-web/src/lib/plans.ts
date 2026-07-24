@@ -25,6 +25,7 @@ export type Feature =
   | "live-preview" // live in-browser project preview
   | "multi-agent" // agent collaboration / advanced orchestration
   | "openrouter" // OpenRouter provider support
+  | "file-upload" // attach code/document files (not just images) to a chat turn
   | "github-integration" // GitHub push / repo integration
   | "search-docs" // documentation search source
   | "search-github" // GitHub search source
@@ -40,6 +41,10 @@ export interface PlanLimits {
    *  "Priority Queue" for ADVANCED). Kept finite even at the top tier since
    *  it's passed to a SQL counter that can't take Infinity. */
   chatRpm: number;
+  /** Images attachable to chat turns per day (vision input). Enforced
+   *  server-side in /api/chat via rate-limit.ts's "image_daily" bucket —
+   *  see route.ts's image-quota gate. 0 = no image attachments. */
+  dailyImages: number;
 }
 
 export interface Plan {
@@ -79,6 +84,7 @@ const PRO_FEATURES: Feature[] = [
   "deploy",
   "live-preview",
   "openrouter",
+  "file-upload",
   "github-integration",
   "search-github",
   "search-reddit",
@@ -99,7 +105,7 @@ export const PLANS: Record<UserTier, Plan> = {
     tagline: "ลองก่อนได้ ไม่ต้องล็อกอิน",
     purchasable: false,
     features: [],
-    limits: { dailyMessages: 3, maxProjects: 0, chatRpm: 10 },
+    limits: { dailyMessages: 3, maxProjects: 0, chatRpm: 10, dailyImages: 0 },
     byokMultiplier: 1,
     highlights: ["ใช้งานได้ 3 ข้อความ", "ไม่ต้อง Login", "หลังจากนั้นล็อกอิน Google"],
   },
@@ -110,7 +116,7 @@ export const PLANS: Record<UserTier, Plan> = {
     tagline: "เหมาะสำหรับทดลองใช้งาน",
     purchasable: true,
     features: FREE_FEATURES,
-    limits: { dailyMessages: 20, maxProjects: 0, chatRpm: 30 },
+    limits: { dailyMessages: 20, maxProjects: 0, chatRpm: 30, dailyImages: 1 },
     byokMultiplier: 3,
     highlights: [
       "Login Google",
@@ -118,6 +124,7 @@ export const PLANS: Record<UserTier, Plan> = {
       "Bring Your Own Key (Gemini, Llama)",
       "บันทึกประวัติแชตพื้นฐาน",
       "API ของ Co.AI แบบจำกัด",
+      "แนบรูปภาพได้ 1 ภาพ/วัน",
     ],
   },
   LITE: {
@@ -127,7 +134,7 @@ export const PLANS: Record<UserTier, Plan> = {
     tagline: "เหมาะสำหรับผู้ใช้ทั่วไป",
     purchasable: true,
     features: LITE_FEATURES,
-    limits: { dailyMessages: 200, maxProjects: 10, chatRpm: 60 },
+    limits: { dailyMessages: 200, maxProjects: 10, chatRpm: 60, dailyImages: 3 },
     byokMultiplier: 2,
     highlights: [
       "ทุกอย่างใน Free",
@@ -135,6 +142,7 @@ export const PLANS: Record<UserTier, Plan> = {
       "ใช้ API ของ Co.AI ได้",
       "Google + Documentation Search",
       "บันทึกโปรเจกต์ · Export HTML/ZIP",
+      "แนบรูปภาพได้ 3 ภาพ/วัน",
     ],
   },
   PRO: {
@@ -144,7 +152,7 @@ export const PLANS: Record<UserTier, Plan> = {
     tagline: "เหมาะสำหรับนักพัฒนา",
     purchasable: true,
     features: PRO_FEATURES,
-    limits: { dailyMessages: 600, maxProjects: Infinity, chatRpm: 120 },
+    limits: { dailyMessages: 600, maxProjects: Infinity, chatRpm: 120, dailyImages: 10 },
     byokMultiplier: 1.5,
     highlights: [
       "ทุกอย่างใน Lite",
@@ -152,6 +160,7 @@ export const PLANS: Record<UserTier, Plan> = {
       "OpenRouter + GitHub Integration",
       "Deploy + Live Preview + Workspace",
       "Web Search: GitHub · Reddit · Research",
+      "แนบรูปภาพได้ 10 ภาพ/วัน + อัปโหลดไฟล์เอกสาร/โค้ด",
     ],
   },
   ADVANCED: {
@@ -161,7 +170,7 @@ export const PLANS: Record<UserTier, Plan> = {
     tagline: "เหมาะสำหรับ Power Users",
     purchasable: true,
     features: ADVANCED_FEATURES,
-    limits: { dailyMessages: Infinity, maxProjects: Infinity, chatRpm: 300 },
+    limits: { dailyMessages: Infinity, maxProjects: Infinity, chatRpm: 300, dailyImages: 30 },
     byokMultiplier: 1.25,
     highlights: [
       "ทุกอย่างใน Pro",
@@ -169,6 +178,7 @@ export const PLANS: Record<UserTier, Plan> = {
       "Early Access + Beta + New Models First",
       "Unlimited Bring Your Own Key",
       "Priority Queue",
+      "แนบรูปภาพได้ 30 ภาพ/วัน + อัปโหลดไฟล์เอกสาร/โค้ด",
     ],
   },
 };

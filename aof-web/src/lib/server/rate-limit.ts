@@ -24,6 +24,9 @@ const PRESETS: Record<string, WindowConfig> = {
   search:      { maxRequests: 60,  windowSec: 60 },     // 60 req/min per user
   api:         { maxRequests: 120, windowSec: 60 },     // 120 req/min generic
   guest_daily: { maxRequests: 10,  windowSec: 86400 },  // 10 msg/day for anonymous
+  // Fallback only — every real call scales this via maxRequestsOverride from
+  // plans.ts's PlanLimits.dailyImages (see /api/chat's image-quota gate).
+  image_daily: { maxRequests: 1,   windowSec: 86400 },
 };
 
 // ── In-memory fallback (single-instance only) ─────────────────────────────────
@@ -87,7 +90,11 @@ async function supabaseCheck(key: string, cfg: WindowConfig): Promise<RateLimitR
  * @param userId - Supabase user ID (or IP string for unauthenticated)
  * @param bucket - one of "chat" | "search" | "api"
  * @param maxRequestsOverride - replaces the preset's request cap (same window),
- *   used to scale the "chat" bucket by plan tier (spec §13 Priority Queue).
+ *   used to scale the "chat" bucket by plan tier (spec §13 Priority Queue) and
+ *   the "image_daily" bucket by PlanLimits.dailyImages. 0 is a valid override
+ *   (e.g. a tier with no image allowance) and must actually deny, not fall
+ *   back to the preset — hence the explicit `undefined` check rather than a
+ *   truthiness check.
  */
 export async function checkRateLimit(
   userId: string,
@@ -96,7 +103,7 @@ export async function checkRateLimit(
 ): Promise<RateLimitResult> {
   const preset = PRESETS[bucket] ?? PRESETS.api;
   const cfg: WindowConfig =
-    maxRequestsOverride && maxRequestsOverride > 0
+    maxRequestsOverride !== undefined && maxRequestsOverride >= 0
       ? { ...preset, maxRequests: maxRequestsOverride }
       : preset;
   const key = `${bucket}::${userId}`;

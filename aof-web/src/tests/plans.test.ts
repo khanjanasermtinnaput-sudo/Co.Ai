@@ -43,6 +43,17 @@ test("tier-specific features land on the right plan", () => {
   assert.ok(!PLANS.PRO.features.includes("titan"));
 });
 
+test("daily image quota escalates with tier, PRO+ only gets file-upload", () => {
+  assert.deepEqual(
+    [PLANS.GUEST, PLANS.FREE, PLANS.LITE, PLANS.PRO, PLANS.ADVANCED].map((p) => p.limits.dailyImages),
+    [0, 1, 3, 10, 30],
+  );
+  assert.ok(!PLANS.FREE.features.includes("file-upload"));
+  assert.ok(!PLANS.LITE.features.includes("file-upload"));
+  assert.ok(PLANS.PRO.features.includes("file-upload"));
+  assert.ok(PLANS.ADVANCED.features.includes("file-upload"));
+});
+
 // ── hasFeature with enforcement flag ──────────────────────────────────────────
 test("enforcement ON: FREE/LITE cannot use CoCode, PRO/ADVANCED can", () => {
   withEnforcement(true, () => {
