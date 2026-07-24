@@ -10,6 +10,7 @@ import "./mascot.css";
 import { useUIStore } from "@/store/ui-store";
 import { TaotaoSprite } from "./taotao-sprite";
 import { Sparkles } from "./effects";
+import { TAOTAO_VISIBLE } from "./config";
 import type { Emotion } from "./palette";
 import type { ChatMessageT } from "@/lib/types";
 
@@ -21,6 +22,8 @@ export function TaotaoAvatar({
   isLast?: boolean;
 }) {
   const animate = useUIStore((s) => s.mascotAnimations);
+
+  if (!TAOTAO_VISIBLE) return null;
   let emotion: Emotion = "neutral";
   let alive = false;
   let success = false;

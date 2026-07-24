@@ -19,6 +19,7 @@ import "./mascot.css";
 import { useUIStore } from "@/store/ui-store";
 import { TaotaoSprite } from "./taotao-sprite";
 import { FoodBowl, Tears, YarnBall } from "./effects";
+import { TAOTAO_VISIBLE } from "./config";
 
 export type ComposerMascotState = "waiting" | "processing" | "error" | "quota";
 
@@ -76,6 +77,8 @@ export function ComposerMascot({
   children: React.ReactNode;
 }) {
   const animate = useUIStore((s) => s.mascotAnimations);
+
+  if (!TAOTAO_VISIBLE) return <>{children}</>;
 
   return (
     <div className="relative" data-mascot-animate={animate ? "on" : "off"}>
