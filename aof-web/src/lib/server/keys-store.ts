@@ -7,7 +7,7 @@ import { getAdminSupabase, isAdminConfigured } from "@/lib/server/supabase-admin
 import { decryptSecret } from "@/lib/server/crypto";
 import type { KeyOverrides, ProviderId } from "@/lib/server/ai-providers";
 
-const STORED_PROVIDERS = new Set<string>(["openrouter", "gemini", "deepseek", "qwen", "llama"]);
+const STORED_PROVIDERS = new Set<string>(["openrouter", "gemini", "deepseek", "qwen", "llama", "zai"]);
 
 /** Load + decrypt every provider key the given user has saved. Never throws —
  *  a storage/decryption hiccup just means no override (falls back to env). */

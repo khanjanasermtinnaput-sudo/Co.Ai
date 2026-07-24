@@ -15,6 +15,12 @@ test("checkEgress allows a real, configured provider host (re-exported from ai-p
   assert.equal(d.hostname, "api.deepseek.com");
 });
 
+test("checkEgress allows the Z.AI host", () => {
+  const d = checkEgress("https://api.z.ai/api/paas/v4/chat/completions");
+  assert.equal(d.allowed, true);
+  assert.equal(d.hostname, "api.z.ai");
+});
+
 test("checkEgress denies api.anthropic.com — Anthropic support was removed", () => {
   const d = checkEgress("https://api.anthropic.com/v1/messages");
   assert.equal(d.allowed, false);

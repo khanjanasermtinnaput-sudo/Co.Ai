@@ -42,6 +42,10 @@ export const MODEL_REGISTRY: ModelDef[] = [
   { provider: "llama", model: "llama-4-scout", capabilities: ["chat", "reasoning"], contextWindow: 128_000, costTier: "low" },
   { provider: "llama", model: "llama-3.3-70b", capabilities: ["chat", "reasoning"], contextWindow: 128_000, costTier: "free" },
 
+  // ── Z.AI (GLM) ─────────────────────────────────────────────────────────────
+  { provider: "zai", model: "glm-5.2", capabilities: ["chat", "reasoning", "coding", "long-context"], contextWindow: 1_000_000, costTier: "medium" },
+  { provider: "zai", model: "glm-4.5-air", capabilities: ["chat", "coding"], contextWindow: 131_072, costTier: "low" },
+
   // ── OpenRouter — passthrough gateway, model chosen per request (see ai-providers.ts) ──
   { provider: "openrouter", model: "google/gemma-4-31b-it:free", capabilities: ["chat", "coding", "reasoning"], contextWindow: 32_000, costTier: "free" },
 
@@ -84,10 +88,10 @@ const TASK_CAPABILITY: Record<TaskCategory, Capability> = {
 // local model is a real, free, zero-network-hop option worth trying before
 // falling through to a third-party gateway.
 export const ROUTE_PRIORITY: Record<TaskCategory, ProviderId[]> = {
-  chat: ["gemini", "deepseek", "qwen", "llama", "ollama", "vllm", "openrouter"],
-  coding: ["deepseek", "qwen", "gemini", "ollama", "vllm", "openrouter"],
-  research: ["gemini", "deepseek", "ollama", "vllm", "openrouter"],
-  reasoning: ["gemini", "deepseek", "ollama", "vllm", "openrouter"],
+  chat: ["gemini", "deepseek", "qwen", "llama", "zai", "ollama", "vllm", "openrouter"],
+  coding: ["deepseek", "qwen", "gemini", "zai", "ollama", "vllm", "openrouter"],
+  research: ["gemini", "deepseek", "zai", "ollama", "vllm", "openrouter"],
+  reasoning: ["gemini", "deepseek", "zai", "ollama", "vllm", "openrouter"],
 };
 
 /** Provider order for a task, deduplicated and always ending with openrouter

@@ -5,7 +5,7 @@ import {
   geminiTextStream,
 } from "@/lib/server/ai-providers.js";
 
-// ── openAiUserContent (Gemini/DeepSeek/Qwen/Llama/OpenRouter/Ollama/vLLM dialect) ──
+// ── openAiUserContent (Gemini/DeepSeek/Qwen/Llama/Z.AI/OpenRouter/Ollama/vLLM dialect) ──
 
 test("openAiUserContent returns the plain string when there are no images (unchanged request shape)", () => {
   assert.equal(openAiUserContent("hello", undefined), "hello");

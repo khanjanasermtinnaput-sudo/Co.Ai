@@ -9,19 +9,20 @@ import {
   deepseekTextStream,
   qwenTextStream,
   llamaTextStream,
+  zaiTextStream,
 } from "@/lib/server/ai-providers.js";
 import { bestModelFor, routeOrder } from "@/lib/server/model-registry.js";
 
 // ── Registry shape ──────────────────────────────────────────────────────────
 
-test("all seven providers are registered", () => {
+test("all eight providers are registered", () => {
   const ids = Object.keys(PROVIDER_REGISTRY).sort();
-  assert.deepEqual(ids, ["deepseek", "gemini", "llama", "ollama", "openrouter", "qwen", "vllm"]);
+  assert.deepEqual(ids, ["deepseek", "gemini", "llama", "ollama", "openrouter", "qwen", "vllm", "zai"]);
 });
 
 test("adapterFor returns a distinct generator function per provider", () => {
   const fns = new Set(Object.keys(PROVIDER_REGISTRY).map((id) => adapterFor(id as never)));
-  assert.equal(fns.size, 7);
+  assert.equal(fns.size, 8);
 });
 
 // ── Key overrides (per-user keys beat env) ──────────────────────────────────
@@ -53,17 +54,17 @@ test("configuredProvidersForOrder only returns providers with a key, in the give
 
 // ── Model registry routing ───────────────────────────────────────────────────
 
-test("chat task prioritizes Gemini, then DeepSeek/Qwen/Llama, then local models, then OpenRouter", () => {
+test("chat task prioritizes Gemini, then DeepSeek/Qwen/Llama/Z.AI, then local models, then OpenRouter", () => {
   assert.deepEqual(
     routeOrder("chat"),
-    ["gemini", "deepseek", "qwen", "llama", "ollama", "vllm", "openrouter"],
+    ["gemini", "deepseek", "qwen", "llama", "zai", "ollama", "vllm", "openrouter"],
   );
 });
 
-test("coding task prioritizes DeepSeek, then Qwen Coder, then Gemini, then local models", () => {
+test("coding task prioritizes DeepSeek, then Qwen Coder, then Gemini/Z.AI, then local models", () => {
   assert.deepEqual(
     routeOrder("coding"),
-    ["deepseek", "qwen", "gemini", "ollama", "vllm", "openrouter"],
+    ["deepseek", "qwen", "gemini", "zai", "ollama", "vllm", "openrouter"],
   );
   assert.equal(bestModelFor("qwen", "coding"), "qwen-coder");
 });
@@ -113,6 +114,7 @@ const NEW_ADAPTERS = [
   { name: "deepseek", envVar: "DEEPSEEK_API_KEY", stream: deepseekTextStream },
   { name: "qwen", envVar: "QWEN_API_KEY", stream: qwenTextStream },
   { name: "llama", envVar: "LLAMA_API_KEY", stream: llamaTextStream },
+  { name: "zai", envVar: "ZAI_API_KEY", stream: zaiTextStream },
 ] as const;
 
 for (const { name, envVar, stream } of NEW_ADAPTERS) {

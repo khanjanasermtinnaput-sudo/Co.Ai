@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
-export type ProviderKeyName = 'openrouter' | 'gemini' | 'deepseek' | 'qwen' | 'llama';
+export type ProviderKeyName = 'openrouter' | 'gemini' | 'deepseek' | 'qwen' | 'llama' | 'zai';
 
 export interface UserRecord {
   id: string;
@@ -96,7 +96,7 @@ async function sb(path: string, init: RequestInit = {}): Promise<Response> {
   return res;
 }
 
-const PROVIDER_KEY_NAMES: ProviderKeyName[] = ['openrouter', 'gemini', 'deepseek', 'qwen', 'llama'];
+const PROVIDER_KEY_NAMES: ProviderKeyName[] = ['openrouter', 'gemini', 'deepseek', 'qwen', 'llama', 'zai'];
 
 /**
  * Load a Supabase-auth user's provider keys from the shared `provider_keys` table

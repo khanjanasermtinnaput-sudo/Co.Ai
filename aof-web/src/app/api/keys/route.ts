@@ -17,7 +17,7 @@ import { formatError } from "@/lib/errors/api-error";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const PROVIDERS = ["openrouter", "gemini", "deepseek", "qwen", "llama"] as const;
+const PROVIDERS = ["openrouter", "gemini", "deepseek", "qwen", "llama", "zai"] as const;
 type Provider = (typeof PROVIDERS)[number];
 
 function isProvider(v: unknown): v is Provider {
